@@ -72,7 +72,6 @@ DATABASES = {
         'PASSWORD': config('DB_PASSWORD', default='maplord'),
         'HOST': config('DB_HOST', default='db'),
         'PORT': config('DB_PORT', default='5432'),
-        'CONN_MAX_AGE': config('DB_CONN_MAX_AGE', default=60, cast=int),
     }
 }
 
@@ -103,14 +102,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Trust X-Forwarded-Proto from reverse proxy (Caddy / Cloudflare Tunnel)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# Django Channels — Redis channel layer (DB 3, separate from Celery/game/cache)
+# Django Channels — Redis channel layer
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [f"redis://{config('REDIS_HOST', default='redis')}:{config('REDIS_PORT', default=6379, cast=int)}/3"],
-            'capacity': 1500,
-            'expiry': 10,
+            'hosts': [{'host': config('REDIS_HOST', default='redis'), 'port': config('REDIS_PORT', default=6379, cast=int), 'db': 3}],
         },
     },
 }
