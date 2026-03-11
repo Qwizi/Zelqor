@@ -26,6 +26,8 @@ interface InternalAnim {
   color: string;
   units: number;
   unitType?: string | null;
+  actionType: "attack" | "move";
+  animKind: "fighter" | "ship" | "tank" | "infantry";
   startTime: number;
   duration: number;
   targetCentroid: [number, number];
@@ -60,6 +62,14 @@ const DOT_SPACING = 0.055;
 const AIR_ASSET = "/assets/units/planes/bomber_h300.webp";
 const SHIP_ASSET = "/assets/units/ships/ship1.png";
 const TANK_ASSET = "/assets/units/ground_unit_sphere_h300.png";
+
+function regionMarkerOffset(kind: "capital" | "buildings", buildingCount = 0): [number, number] {
+  if (kind === "capital") {
+    return [-28, -30];
+  }
+  const width = Math.min(84, 28 + buildingCount * 22);
+  return [Math.round(width / 2), -24];
+}
 
 function getAnimationIconId(unitType?: string | null) {
   const normalized = (unitType || "default")
@@ -105,10 +115,11 @@ function loadMapImage(
 
 // ── Geometry helpers ─────────────────────────────────────────
 
-function computeArc(
+function computeCurvePath(
   from: [number, number],
   to: [number, number],
-  n = 40
+  offsetFactor: number,
+  n: number
 ): [number, number][] {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
@@ -117,7 +128,7 @@ function computeArc(
 
   const mx = (from[0] + to[0]) / 2;
   const my = (from[1] + to[1]) / 2;
-  const offset = dist * 0.15;
+  const offset = dist * offsetFactor;
   const nx = -dy / dist;
   const ny = dx / dist;
   const cpx = mx + nx * offset;
@@ -133,6 +144,67 @@ function computeArc(
     ]);
   }
   return pts;
+}
+
+function computeMarchPath(
+  from: [number, number],
+  to: [number, number],
+  n = 28
+): [number, number][] {
+  const dx = to[0] - from[0];
+  const dy = to[1] - from[1];
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 0.001) return [from, to];
+
+  const nx = -dy / dist;
+  const ny = dx / dist;
+  const wobble = Math.min(dist * 0.035, 1.4);
+  const pts: [number, number][] = [];
+
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const wave = Math.sin(t * Math.PI * 3) * wobble * (1 - Math.abs(0.5 - t) * 1.15);
+    pts.push([
+      from[0] + dx * t + nx * wave,
+      from[1] + dy * t + ny * wave,
+    ]);
+  }
+
+  return pts;
+}
+
+function buildAnimationPath(
+  kind: "fighter" | "ship" | "tank" | "infantry",
+  from: [number, number],
+  to: [number, number]
+): [number, number][] {
+  if (kind === "fighter") {
+    return computeCurvePath(from, to, 0.24, 52);
+  }
+  if (kind === "ship") {
+    return computeCurvePath(from, to, 0.04, 34);
+  }
+  if (kind === "tank") {
+    return computeCurvePath(from, to, 0.08, 26);
+  }
+  return computeMarchPath(from, to, 26);
+}
+
+function easeAnimationProgress(
+  kind: "fighter" | "ship" | "tank" | "infantry",
+  linearProgress: number
+): number {
+  const t = Math.max(0, Math.min(1, linearProgress));
+  if (kind === "fighter") {
+    return 1 - Math.pow(1 - t, 2.2);
+  }
+  if (kind === "ship") {
+    return t * t * (3 - 2 * t);
+  }
+  if (kind === "tank") {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+  return t * t * (3 - 2 * t);
 }
 
 const EMPTY_FC = { type: "FeatureCollection" as const, features: [] as unknown[] };
@@ -165,7 +237,9 @@ export default function GameMap({
   const rafRef = useRef(0);
   const capitalMarkersRef = useRef(new Map<string, maplibregl.Marker>());
   const buildingMarkersRef = useRef(new Map<string, maplibregl.Marker>());
-  const animationMarkersRef = useRef(new Map<string, maplibregl.Marker>());
+  const prevRegionsRef = useRef<Record<string, GameRegion>>({});
+  const prevPlayersRef = useRef<Record<string, { color: string; username: string }>>({});
+  const prevMarkerRegionsRef = useRef<Record<string, GameRegion>>({});
   const [layersReady, setLayersReady] = useState(false);
 
   useLayoutEffect(() => { onRegionClickRef.current = onRegionClick; });
@@ -186,7 +260,6 @@ export default function GameMap({
     if (!containerRef.current || mapRef.current) return;
     const capitalMarkers = capitalMarkersRef.current;
     const buildingMarkers = buildingMarkersRef.current;
-    const animationMarkers = animationMarkersRef.current;
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: {
@@ -212,8 +285,6 @@ export default function GameMap({
       capitalMarkers.clear();
       buildingMarkers.forEach((marker) => marker.remove());
       buildingMarkers.clear();
-      animationMarkers.forEach((marker) => marker.remove());
-      animationMarkers.clear();
       map.remove();
       mapRef.current = null;
     };
@@ -607,9 +678,25 @@ export default function GameMap({
     const map = mapRef.current;
     if (!map || !layersReady) return;
 
+    const prevRegions = prevRegionsRef.current;
+    const prevPlayers = prevPlayersRef.current;
+    const changedRegionIds = new Set<string>();
+    for (const [rid, region] of Object.entries(regions)) {
+      if (prevRegions[rid] !== region || prevPlayers !== players) {
+        changedRegionIds.add(rid);
+      }
+    }
+    for (const rid of Object.keys(prevRegions)) {
+      if (!(rid in regions)) {
+        changedRegionIds.add(rid);
+      }
+    }
+
     // ① Color: feature-state on vector tile source (paint property — supported)
     const applyColors = () => {
-      for (const [rid] of Object.entries(regions)) {
+      const regionIds = changedRegionIds.size > 0 ? Array.from(changedRegionIds) : Object.keys(regions);
+      for (const rid of regionIds) {
+        if (!(rid in regions)) continue;
         try {
           map.setFeatureState(
             { source: "regions", sourceLayer: "regions", id: rid },
@@ -695,6 +782,9 @@ export default function GameMap({
       // sources not ready yet
     }
 
+    prevRegionsRef.current = regions;
+    prevPlayersRef.current = players;
+
   }, [
     regions,
     players,
@@ -714,9 +804,22 @@ export default function GameMap({
 
     const capitalMarkers = capitalMarkersRef.current;
     const buildingMarkers = buildingMarkersRef.current;
+    const prevMarkerRegions = prevMarkerRegionsRef.current;
 
     const desiredCapitalIds = new Set<string>();
     const desiredBuildingIds = new Set<string>();
+    const changedRegionIds = new Set<string>();
+
+    for (const [regionId, region] of Object.entries(regions)) {
+      if (prevMarkerRegions[regionId] !== region) {
+        changedRegionIds.add(regionId);
+      }
+    }
+    for (const regionId of Object.keys(prevMarkerRegions)) {
+      if (!(regionId in regions)) {
+        changedRegionIds.add(regionId);
+      }
+    }
 
     for (const [regionId, region] of Object.entries(regions)) {
       const centroid = centroids[regionId];
@@ -724,21 +827,6 @@ export default function GameMap({
 
       if (region.is_capital) {
         desiredCapitalIds.add(regionId);
-        const existing = capitalMarkers.get(regionId);
-        if (existing) {
-          existing.setLngLat(centroid);
-        } else {
-          const element = document.createElement("div");
-          element.className = "pointer-events-none select-none";
-          element.innerHTML =
-            '<img src="/assets/units/capital_star.png" alt="" draggable="false" style="width:26px;height:26px;display:block;filter:drop-shadow(0 0 10px rgba(251,191,36,0.55));" />';
-          capitalMarkers.set(
-            regionId,
-            new maplibregl.Marker({ element, anchor: "bottom", offset: [0, -34] })
-              .setLngLat(centroid)
-              .addTo(map)
-          );
-        }
       }
 
       const buildingEntries = Object.entries(region.buildings ?? {})
@@ -749,12 +837,53 @@ export default function GameMap({
           return assetUrl ? { slug, count, assetUrl } : null;
         })
         .filter((entry): entry is { slug: string; count: number; assetUrl: string } => !!entry);
-      if (buildingEntries.length === 0) continue;
+      if (buildingEntries.length > 0) {
+        desiredBuildingIds.add(regionId);
+      }
 
-      desiredBuildingIds.add(regionId);
+      if (!changedRegionIds.has(regionId)) {
+        continue;
+      }
+
+      if (region.is_capital) {
+        const existing = capitalMarkers.get(regionId);
+        if (existing) {
+          existing.setLngLat(centroid);
+        } else {
+          const element = document.createElement("div");
+          element.className = "pointer-events-none select-none";
+          element.innerHTML =
+            '<img src="/assets/units/capital_star.png" alt="" draggable="false" style="width:26px;height:26px;display:block;filter:drop-shadow(0 0 10px rgba(251,191,36,0.55));" />';
+          capitalMarkers.set(
+            regionId,
+            new maplibregl.Marker({
+              element,
+              anchor: "center",
+              offset: regionMarkerOffset("capital"),
+            })
+              .setLngLat(centroid)
+              .addTo(map)
+          );
+        }
+      } else {
+        const existing = capitalMarkers.get(regionId);
+        if (existing) {
+          existing.remove();
+          capitalMarkers.delete(regionId);
+        }
+      }
+
       const existing = buildingMarkers.get(regionId);
+      if (buildingEntries.length === 0) {
+        if (existing) {
+          existing.remove();
+          buildingMarkers.delete(regionId);
+        }
+        continue;
+      }
+      const buildingOffset = regionMarkerOffset("buildings", buildingEntries.length);
       const markerHtml = `
-        <div style="display:flex;align-items:center;gap:4px;padding:3px 6px;border:1px solid rgba(255,255,255,0.08);border-radius:999px;background:rgba(8,17,29,0.82);backdrop-filter:blur(8px);box-shadow:0 0 8px rgba(8,17,29,0.45);">
+        <div style="display:flex;align-items:center;gap:4px;padding:4px 7px;border:1px solid rgba(255,255,255,0.1);border-radius:999px;background:rgba(8,17,29,0.88);backdrop-filter:blur(10px);box-shadow:0 6px 16px rgba(8,17,29,0.45);">
           ${buildingEntries
             .map(
               ({ slug, count, assetUrl }) => `
@@ -773,6 +902,7 @@ export default function GameMap({
       `;
       if (existing) {
         existing.setLngLat(centroid);
+        existing.setOffset(buildingOffset);
         const element = existing.getElement();
         if (element.innerHTML !== markerHtml) {
           element.innerHTML = markerHtml;
@@ -783,7 +913,11 @@ export default function GameMap({
         element.innerHTML = markerHtml;
         buildingMarkers.set(
           regionId,
-          new maplibregl.Marker({ element, anchor: "top", offset: [0, 26] })
+          new maplibregl.Marker({
+            element,
+            anchor: "center",
+            offset: buildingOffset,
+          })
             .setLngLat(centroid)
             .addTo(map)
         );
@@ -803,6 +937,8 @@ export default function GameMap({
         buildingMarkers.delete(regionId);
       }
     });
+
+    prevMarkerRegionsRef.current = regions;
 
     return () => {
       if (!mapRef.current) {
@@ -904,10 +1040,12 @@ export default function GameMap({
       const animKind = resolveAnimationKind(a.unitType);
       newAnims.push({
         id: a.id,
-        path: computeArc(from, to),
+        path: buildAnimationPath(animKind, from, to),
         color: a.color,
         units: a.units,
         unitType: a.unitType,
+        actionType: a.type,
+        animKind,
         startTime: a.startTime,
         duration:
           a.durationMs ??
@@ -931,8 +1069,6 @@ export default function GameMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const animationMarkers = animationMarkersRef.current;
-
     const tick = () => {
       if (!map.getSource("anim-lines") || !map.getSource("anim-dots") || !map.getSource("anim-icons")) {
         rafRef.current = requestAnimationFrame(tick);
@@ -948,13 +1084,10 @@ export default function GameMap({
       const dotFeats: unknown[] = [];
       const iconFeats: unknown[] = [];
       const pulseFeats: unknown[] = [];
-      const activeAnimationIds = new Set<string>();
-
       for (const a of animsRef.current) {
-        activeAnimationIds.add(a.id);
-        const progress = Math.min((now - a.startTime) / a.duration, 1);
+        const progress = easeAnimationProgress(a.animKind, Math.min((now - a.startTime) / a.duration, 1));
         const fadeOut = progress > 0.85 ? 1 - (progress - 0.85) / 0.15 : 1;
-        const animKind = resolveAnimationKind(a.unitType);
+        const animKind = a.animKind;
         const animColor =
           animKind === "fighter"
             ? "#f59e0b"
@@ -972,22 +1105,24 @@ export default function GameMap({
           animKind === "fighter"
             ? 4.5
             : animKind === "ship"
-              ? 3.8
+              ? 3.2
               : animKind === "tank"
                 ? 3.4
-                : 2.8;
+                : 2.4;
         const lineBlur =
           animKind === "fighter"
             ? 1.2
             : animKind === "ship"
-              ? 0.6
+              ? 0.2
               : 0.15;
         const trailDots =
           animKind === "fighter"
             ? 4
             : animKind === "ship"
-              ? 6
-              : NUM_TRAIL_DOTS;
+              ? 5
+              : animKind === "tank"
+                ? 6
+                : NUM_TRAIL_DOTS + 2;
 
         lineFeats.push({
           type: "Feature",
@@ -998,8 +1133,10 @@ export default function GameMap({
               animKind === "fighter"
                 ? 0.85 * fadeOut
                 : animKind === "ship"
-                  ? 0.65 * fadeOut
-                  : 0.45 * fadeOut,
+                  ? 0.5 * fadeOut
+                  : animKind === "tank"
+                    ? 0.48 * fadeOut
+                    : 0.35 * fadeOut,
             width: lineWidth,
             blur: lineBlur,
           },
@@ -1024,9 +1161,11 @@ export default function GameMap({
                   ? animKind === "fighter"
                     ? 6
                     : animKind === "ship"
-                      ? 7
-                      : 8
-                  : Math.max(2.5, 4.5 - i * 0.35),
+                      ? 5.5
+                      : animKind === "tank"
+                        ? 7
+                        : 5.5
+                  : Math.max(2.2, animKind === "infantry" ? 3.8 - i * 0.22 : 4.5 - i * 0.35),
             },
           });
         }
@@ -1051,84 +1190,32 @@ export default function GameMap({
               animKind === "fighter"
                 ? 0.42
                 : animKind === "ship"
-                  ? 0.34
+                  ? 0.28
                   : animKind === "tank"
                     ? 0.28
-                    : 0.24,
+                    : 0.2,
             rotation,
             opacity: fadeOut,
           },
         });
 
-        if (currentPoint) {
-          const existingMarker = animationMarkers.get(a.id);
-          if (existingMarker) {
-            const element = existingMarker.getElement() as HTMLDivElement;
-            element.style.opacity = String(fadeOut);
-            const img = element.firstElementChild as HTMLImageElement | null;
-            if (img) {
-              img.style.transform = `rotate(${rotation}deg)`;
-            }
-            existingMarker.setLngLat(currentPoint);
-          } else {
-            const element = document.createElement("div");
-            element.className = "pointer-events-none select-none";
-            element.style.opacity = String(fadeOut);
-
-            const img = document.createElement("img");
-            img.src = getUnitAsset(a.unitType ?? "default");
-            img.alt = "";
-            img.draggable = false;
-            img.style.display = "block";
-            img.style.width =
-              animKind === "fighter"
-                ? "34px"
-                : animKind === "ship"
-                  ? "30px"
-                  : animKind === "tank"
-                    ? "24px"
-                    : "20px";
-            img.style.height = "auto";
-            img.style.transform = `rotate(${rotation}deg)`;
-            img.style.filter =
-              animKind === "fighter"
-                ? "drop-shadow(0 0 12px rgba(245,158,11,0.65))"
-                : animKind === "ship"
-                  ? "drop-shadow(0 0 10px rgba(56,189,248,0.6))"
-                  : "drop-shadow(0 0 8px rgba(8,17,29,0.75))";
-            element.appendChild(img);
-
-            animationMarkers.set(
-              a.id,
-              new maplibregl.Marker({ element, anchor: "center" })
-                .setLngLat(currentPoint)
-                .addTo(map)
-            );
-          }
-        }
-
         // Defender pulse rings — 3 concentric expanding rings at the target centroid
         // Each ring is offset by 1/3 of the cycle so they stagger continuously
-        for (let ring = 0; ring < 3; ring++) {
-          const phase = (progress * 2 + ring / 3) % 1; // cycle twice over animation duration
-          pulseFeats.push({
-            type: "Feature",
-            geometry: { type: "Point", coordinates: a.targetCentroid },
-            properties: {
-              radius: 8 + phase * 44,           // grows from 8px to 52px
-              color: pulseColor,
-              opacity: (1 - phase) * 0.75 * fadeOut,
-            },
-          });
+        if (a.actionType === "attack" && progress > 0.58) {
+          for (let ring = 0; ring < 3; ring++) {
+            const phase = ((progress - 0.58) * 4 + ring / 3) % 1;
+            pulseFeats.push({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: a.targetCentroid },
+              properties: {
+                radius: 8 + phase * 44,
+                color: pulseColor,
+                opacity: (1 - phase) * 0.75 * fadeOut,
+              },
+            });
+          }
         }
       }
-
-      animationMarkers.forEach((marker, animationId) => {
-        if (!activeAnimationIds.has(animationId)) {
-          marker.remove();
-          animationMarkers.delete(animationId);
-        }
-      });
 
       try {
         (map.getSource("anim-lines") as maplibregl.GeoJSONSource).setData({
@@ -1157,8 +1244,6 @@ export default function GameMap({
     rafRef.current = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(rafRef.current);
-      animationMarkers.forEach((marker) => marker.remove());
-      animationMarkers.clear();
     };
   }, []);
 

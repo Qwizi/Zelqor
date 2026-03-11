@@ -68,6 +68,7 @@ export interface GameState {
 
 export interface GameEvent {
   type: string;
+  __eventKey?: string;
   [key: string]: unknown;
 }
 
@@ -94,7 +95,24 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
         setGameState(msg.state as GameState);
         break;
       case "game_tick": {
-        const tickEvents = (msg.events as GameEvent[]) || [];
+        const tickBase = String(msg.tick ?? "0");
+        const rawTickEvents = (msg.events as GameEvent[]) || [];
+        const tickEvents = rawTickEvents.map((event, index) => ({
+          ...event,
+          __eventKey:
+            typeof event.__eventKey === "string"
+              ? event.__eventKey
+              : [
+                  tickBase,
+                  index,
+                  event.type,
+                  String(event.player_id ?? ""),
+                  String(event.source_region_id ?? event.region_id ?? ""),
+                  String(event.target_region_id ?? ""),
+                  String(event.unit_type ?? event.building_type ?? ""),
+                  String(event.units ?? event.quantity ?? ""),
+                ].join(":"),
+        }));
         const isGameOver = tickEvents.some((e) => e.type === "game_over");
         setGameState((prev) => {
           if (!prev) return prev;

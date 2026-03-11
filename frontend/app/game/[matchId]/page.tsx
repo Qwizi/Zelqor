@@ -67,51 +67,6 @@ function getSeaDistanceScore(sourceRegion: GameRegion, targetId: string) {
   return null;
 }
 
-function getReachableRegionIds(
-  sourceId: string,
-  regions: Record<string, GameRegion>,
-  neighborMap: Record<string, string[]>,
-  centroids: Record<string, [number, number]>,
-  movementType: string,
-  seaRange: number,
-  maxDepth: number,
-  canVisit: (regionId: string) => boolean
-) {
-  if (movementType === "sea") {
-    const sourceRegion = regions[sourceId];
-    if (!sourceRegion?.is_coastal) return [];
-    const reachable = new Set<string>();
-    for (const [candidateId, candidate] of Object.entries(regions)) {
-      if (candidateId === sourceId || !candidate?.is_coastal || !canVisit(candidateId)) continue;
-      const score = getSeaDistanceScore(sourceRegion, candidateId);
-      if (score !== null && score <= seaRange) {
-        reachable.add(candidateId);
-      }
-    }
-    return Array.from(reachable);
-  }
-
-  const visited = new Set([sourceId]);
-  const queue: Array<{ regionId: string; depth: number }> = [{ regionId: sourceId, depth: 0 }];
-  const reachable = new Set<string>();
-
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    if (current.depth >= maxDepth) continue;
-
-    for (const neighborId of neighborMap[current.regionId] || []) {
-      if (visited.has(neighborId) || !(neighborId in regions) || !canVisit(neighborId)) {
-        continue;
-      }
-      visited.add(neighborId);
-      reachable.add(neighborId);
-      queue.push({ regionId: neighborId, depth: current.depth + 1 });
-    }
-  }
-
-  return Array.from(reachable);
-}
-
 function getTravelDistance(
   sourceId: string,
   targetId: string,
@@ -150,120 +105,12 @@ function getTravelDistance(
   return null;
 }
 
-function getPreferredUnitTypeForTarget(params: {
-  sourceId: string;
-  targetId: string;
-  sourceRegion: GameRegion;
-  regions: Record<string, GameRegion>;
-  neighborMap: Record<string, string[]>;
-  centroids: Record<string, [number, number]>;
-  unitsConfig: UnitType[];
-  myUserId: string;
-}) {
-  const {
-    sourceId,
-    targetId,
-    sourceRegion,
-    regions,
-    neighborMap,
-    centroids,
-    unitsConfig,
-    myUserId,
-  } = params;
-
-  const targetRegion = regions[targetId];
-  if (!targetRegion) return null;
-
-  const availableUnitTypes = Object.entries(sourceRegion.units ?? {})
-    .filter(([, count]) => count > 0)
-    .map(([unitType]) => unitType);
-  if (availableUnitTypes.length === 0) return null;
-
-  const isFriendlyTarget = targetRegion.owner_id === myUserId;
-  const reachableTypes = availableUnitTypes.filter((unitType) => {
-    const rules = getUnitRules(unitsConfig, unitType);
-    const movementType = rules.movement_type;
-    const seaRange = Math.max(0, rules.sea_range || 0);
-    const maxDepth = Math.max(1, isFriendlyTarget ? rules.speed || 1 : rules.attack_range || 1);
-    const reachable = getReachableRegionIds(
-      sourceId,
-      regions,
-      neighborMap,
-      centroids,
-      movementType,
-      seaRange,
-      maxDepth,
-      (regionId) => {
-        const region = regions[regionId];
-        if (!region) return false;
-        if (movementType === "sea" && !region.is_coastal) return false;
-        return isFriendlyTarget ? region.owner_id === myUserId : true;
-      }
-    );
-    return reachable.includes(targetId);
-  });
-
-  if (reachableTypes.length === 0) return null;
-  if (reachableTypes.includes("infantry")) return "infantry";
-
-  return reachableTypes.sort((left, right) => {
-    const leftOrder = unitsConfig.find((unit) => unit.slug === left)?.order ?? 9999;
-    const rightOrder = unitsConfig.find((unit) => unit.slug === right)?.order ?? 9999;
-    return leftOrder - rightOrder;
-  })[0];
-}
-
-function isTargetReachableByUnitType(params: {
-  sourceId: string;
-  targetId: string;
-  sourceRegion: GameRegion;
-  regions: Record<string, GameRegion>;
-  neighborMap: Record<string, string[]>;
-  centroids: Record<string, [number, number]>;
-  unitsConfig: UnitType[];
-  myUserId: string;
-  unitType: string;
-}) {
-  const {
-    sourceId,
-    targetId,
-    sourceRegion,
-    regions,
-    neighborMap,
-    centroids,
-    unitsConfig,
-    myUserId,
-    unitType,
-  } = params;
-
-  if ((sourceRegion.units?.[unitType] ?? 0) < 1) return false;
-
-  const targetRegion = regions[targetId];
-  if (!targetRegion) return false;
-
-  const rules = getUnitRules(unitsConfig, unitType);
-  const movementType = rules.movement_type;
-  const seaRange = Math.max(0, rules.sea_range || 0);
-  const isFriendlyTarget = targetRegion.owner_id === myUserId;
-  const maxDepth = Math.max(1, isFriendlyTarget ? rules.speed || 1 : rules.attack_range || 1);
-  const reachable = getReachableRegionIds(
-    sourceId,
-    regions,
-    neighborMap,
-    centroids,
-    movementType,
-    seaRange,
-    maxDepth,
-    (regionId) => {
-      const region = regions[regionId];
-      if (!region) return false;
-      if (movementType === "sea" && !region.is_coastal) return false;
-      return isFriendlyTarget ? region.owner_id === myUserId : true;
-    }
-  );
-
-  return reachable.includes(targetId);
-}
+type ReachabilityEntry = {
+  moveTargets: Set<string>;
+  attackTargets: Set<string>;
+  moveDistanceByTarget: Map<string, number>;
+  attackDistanceByTarget: Map<string, number>;
+};
 
 export default function GamePage({
   params,
@@ -368,6 +215,10 @@ export default function GamePage({
     return m;
   }, [buildings]);
 
+  const unitConfigBySlug = useMemo(() => {
+    return Object.fromEntries(unitsConfig.map((unit) => [unit.slug, unit] as const));
+  }, [unitsConfig]);
+
   // Guard against double capital selection while waiting for server confirmation
   const hasSelectedCapital = !!gameState?.players[myUserId]?.capital_region_id;
 
@@ -393,10 +244,122 @@ export default function GamePage({
     sourceRegionData.owner_id === myUserId &&
     sourceRegionData.unit_count > 0;
 
-  const highlightedNeighbors = useMemo(() => {
-    if (!isSource || !selectedRegion || status !== "in_progress") return [];
+  const reachabilityByUnitType = useMemo(() => {
+    if (!selectedRegion || status !== "in_progress") {
+      return {} as Record<string, ReachabilityEntry>;
+    }
+
     const mapRegions = gameState?.regions || {};
     const sourceRegion = mapRegions[selectedRegion];
+    if (!sourceRegion) {
+      return {} as Record<string, ReachabilityEntry>;
+    }
+
+    const result: Record<string, ReachabilityEntry> = {};
+
+    for (const [unitType, count] of Object.entries(sourceRegion.units ?? {})) {
+      if (count < 1) continue;
+
+      const rules = unitConfigBySlug[unitType] ?? getUnitRules(unitsConfig, unitType);
+      const movementType = rules.movement_type;
+      const seaRange = Math.max(0, rules.sea_range || 0);
+      const moveRange = Math.max(1, rules.speed || 1);
+      const attackRange = Math.max(1, rules.attack_range || 1);
+      const moveTargets = new Set<string>();
+      const attackTargets = new Set<string>();
+      const moveDistanceByTarget = new Map<string, number>();
+      const attackDistanceByTarget = new Map<string, number>();
+
+      for (const [regionId, region] of Object.entries(mapRegions)) {
+        if (regionId === selectedRegion) continue;
+        if (movementType === "sea" && !region.is_coastal) continue;
+
+        if (region.owner_id === myUserId) {
+          const moveDistance = getTravelDistance(
+            selectedRegion,
+            regionId,
+            mapRegions,
+            neighborMap,
+            centroids,
+            movementType,
+            seaRange,
+            moveRange,
+            (candidateRegionId) => {
+              const candidate = mapRegions[candidateRegionId];
+              if (!candidate) return false;
+              if (movementType === "sea" && !candidate.is_coastal) return false;
+              return candidate.owner_id === myUserId;
+            }
+          );
+          if (moveDistance !== null) {
+            moveTargets.add(regionId);
+            moveDistanceByTarget.set(regionId, moveDistance);
+          }
+          continue;
+        }
+
+        const attackDistance = getTravelDistance(
+          selectedRegion,
+          regionId,
+          mapRegions,
+          neighborMap,
+          centroids,
+          movementType,
+          seaRange,
+          attackRange,
+          (candidateRegionId) => {
+            const candidate = mapRegions[candidateRegionId];
+            if (!candidate) return false;
+            if (movementType === "sea" && !candidate.is_coastal) return false;
+            return true;
+          }
+        );
+        if (attackDistance !== null) {
+          attackTargets.add(regionId);
+          attackDistanceByTarget.set(regionId, attackDistance);
+        }
+      }
+
+      result[unitType] = {
+        moveTargets,
+        attackTargets,
+        moveDistanceByTarget,
+        attackDistanceByTarget,
+      };
+    }
+
+    return result;
+  }, [centroids, gameState?.regions, myUserId, neighborMap, selectedRegion, status, unitConfigBySlug, unitsConfig]);
+
+  const getPreferredReachableUnitType = useCallback((targetId: string) => {
+    if (!sourceRegionData) return null;
+    const targetRegion = gameState?.regions[targetId];
+    if (!targetRegion) return null;
+
+    const candidates = Object.entries(sourceRegionData.units ?? {})
+      .filter(([, count]) => count > 0)
+      .map(([unitType]) => unitType)
+      .filter((unitType) => {
+        const entry = reachabilityByUnitType[unitType];
+        if (!entry) return false;
+        return targetRegion.owner_id === myUserId
+          ? entry.moveTargets.has(targetId)
+          : entry.attackTargets.has(targetId);
+      });
+
+    if (candidates.length === 0) return null;
+    if (candidates.includes("infantry")) return "infantry";
+
+    return candidates.sort((left, right) => {
+      const leftOrder = unitConfigBySlug[left]?.order ?? 9999;
+      const rightOrder = unitConfigBySlug[right]?.order ?? 9999;
+      return leftOrder - rightOrder;
+    })[0];
+  }, [gameState?.regions, myUserId, reachabilityByUnitType, sourceRegionData, unitConfigBySlug]);
+
+  const highlightedNeighbors = useMemo(() => {
+    if (!isSource || !selectedRegion || status !== "in_progress") return [];
+    const sourceRegion = gameState?.regions?.[selectedRegion];
     if (!sourceRegion) return [];
 
     const candidateUnitTypes = selectedActionUnitType
@@ -405,50 +368,14 @@ export default function GamePage({
     const reachable = new Set<string>();
 
     for (const unitType of candidateUnitTypes) {
-      if ((sourceRegion.units?.[unitType] ?? 0) < 1) continue;
-      const rules = getUnitRules(unitsConfig, unitType);
-      const movementType = rules.movement_type;
-      const seaRange = Math.max(0, rules.sea_range || 0);
-      const moveRange = Math.max(1, rules.speed || 1);
-      const attackRange = Math.max(1, rules.attack_range || 1);
-
-      const moveTargets = getReachableRegionIds(
-        selectedRegion,
-        mapRegions,
-        neighborMap,
-        centroids,
-        movementType,
-        seaRange,
-        moveRange,
-        (regionId) => {
-          const region = mapRegions[regionId];
-          if (!region) return false;
-          if (movementType === "sea" && !region.is_coastal) return false;
-          return region.owner_id === myUserId;
-        }
-      );
-
-      const attackTargets = getReachableRegionIds(
-        selectedRegion,
-        mapRegions,
-        neighborMap,
-        centroids,
-        movementType,
-        seaRange,
-        attackRange,
-        (regionId) => {
-          const region = mapRegions[regionId];
-          if (!region) return false;
-          if (movementType === "sea" && !region.is_coastal) return false;
-          return true;
-        }
-      ).filter((regionId) => mapRegions[regionId]?.owner_id !== myUserId);
-
-      [...moveTargets, ...attackTargets].forEach((regionId) => reachable.add(regionId));
+      const entry = reachabilityByUnitType[unitType];
+      if (!entry) continue;
+      entry.moveTargets.forEach((regionId) => reachable.add(regionId));
+      entry.attackTargets.forEach((regionId) => reachable.add(regionId));
     }
 
     return Array.from(reachable);
-  }, [centroids, selectedActionUnitType, gameState?.regions, isSource, myUserId, neighborMap, selectedRegion, status, unitsConfig]);
+  }, [gameState?.regions, isSource, reachabilityByUnitType, selectedActionUnitType, selectedRegion, status]);
 
   // Per-map minimum distance between capitals (comes from MapConfig → settings_snapshot → Redis meta)
   const MIN_CAPITAL_DISTANCE = parseInt(
@@ -527,7 +454,7 @@ export default function GamePage({
   useEffect(() => {
     if (events.length === 0) return;
 
-    const eventKeys = events.map((event, index) => JSON.stringify([event.type, event, index]));
+    const eventKeys = events.map((event, index) => event.__eventKey || `${event.type}:${index}`);
     const lastProcessedKey = lastProcessedEventKeyRef.current;
     const startIndex =
       lastProcessedKey === null
@@ -630,35 +557,17 @@ export default function GamePage({
         highlightedNeighbors.includes(regionId)
       ) {
         const sourceRegion = gameState?.regions[selectedRegion];
-        const preferredUnitType =
-          sourceRegion
-            ? getPreferredUnitTypeForTarget({
-                sourceId: selectedRegion,
-                targetId: regionId,
-                sourceRegion,
-                regions: gameState?.regions || {},
-                neighborMap,
-                centroids,
-                unitsConfig,
-                myUserId,
-              })
-            : null;
+        const preferredUnitType = sourceRegion ? getPreferredReachableUnitType(regionId) : null;
 
         const effectiveUnitType = selectedActionUnitType || preferredUnitType;
         if (
           sourceRegion &&
           effectiveUnitType &&
-          !isTargetReachableByUnitType({
-            sourceId: selectedRegion,
-            targetId: regionId,
-            sourceRegion,
-            regions: gameState?.regions || {},
-            neighborMap,
-            centroids,
-            unitsConfig,
-            myUserId,
-            unitType: effectiveUnitType,
-          })
+          !(
+            gameState?.regions?.[regionId]?.owner_id === myUserId
+              ? (reachabilityByUnitType[effectiveUnitType]?.moveTargets.has(regionId) ?? false)
+              : (reachabilityByUnitType[effectiveUnitType]?.attackTargets.has(regionId) ?? false)
+          )
         ) {
           toast.error("Ten cel nie jest osiągalny dla wybranego typu jednostki");
           return;
@@ -705,10 +614,9 @@ export default function GamePage({
       selectCapital,
       mapReady,
       hasSelectedCapital,
-      neighborMap,
-      centroids,
-      unitsConfig,
+      getPreferredReachableUnitType,
       myUserId,
+      reachabilityByUnitType,
       selectedActionUnitType,
     ]
   );
@@ -723,50 +631,19 @@ export default function GamePage({
       const tickMs = parseInt(gameState.meta?.tick_interval_ms || "1000", 10);
       for (const { regionId, units } of allocations) {
         const target = gameState.regions[regionId];
-        const sourceRegion = gameState.regions[selectedRegion];
-        if (!target || !sourceRegion) continue;
-        if (
-          !isTargetReachableByUnitType({
-            sourceId: selectedRegion,
-            targetId: regionId,
-            sourceRegion,
-            regions: gameState.regions,
-            neighborMap,
-            centroids,
-            unitsConfig,
-            myUserId,
-            unitType,
-          })
-        ) {
+        if (!target) continue;
+        const reachability = reachabilityByUnitType[unitType];
+        const isAttackTarget = target.owner_id !== myUserId;
+        const distance = isAttackTarget
+          ? (reachability?.attackDistanceByTarget.get(regionId) ?? null)
+          : (reachability?.moveDistanceByTarget.get(regionId) ?? null);
+        if (distance === null) {
           toast.error("Wybrany typ jednostki nie moze dosiegnac tego celu");
           continue;
         }
-        const rules = getUnitRules(unitsConfig, unitType);
-        const maxDepth =
-          target.owner_id !== myUserId
-            ? Math.max(1, rules.attack_range || 1)
-            : Math.max(1, rules.speed || 1);
-        const seaRange = Math.max(0, rules.sea_range || 0);
-        const distance = getTravelDistance(
-          selectedRegion,
-          regionId,
-          gameState.regions,
-          neighborMap,
-          centroids,
-          rules.movement_type,
-          seaRange,
-          maxDepth,
-          (candidateRegionId) => {
-            const candidate = gameState.regions[candidateRegionId];
-            if (!candidate) return false;
-            return target.owner_id !== myUserId ? true : candidate.owner_id === myUserId;
-          }
-        );
-        const travelTicks = Math.max(
-          1,
-          Math.ceil((Math.max(1, distance ?? 1)) / Math.max(1, rules.speed || 1))
-        );
-        const actionType = target.owner_id !== myUserId ? "attack" : "move";
+        const rules = unitConfigBySlug[unitType] ?? getUnitRules(unitsConfig, unitType);
+        const travelTicks = Math.max(1, Math.ceil(Math.max(1, distance) / Math.max(1, rules.speed || 1)));
+        const actionType = isAttackTarget ? "attack" : "move";
         const dispatchKey = [
           actionType,
           myUserId,
@@ -800,7 +677,7 @@ export default function GamePage({
       setSelectedActionUnitType(null);
       setActionTargets([]);
     },
-    [selectedRegion, gameState, myUserId, attack, move, neighborMap, centroids, unitsConfig]
+    [selectedRegion, gameState, myUserId, attack, move, reachabilityByUnitType, unitConfigBySlug, unitsConfig]
   );
 
   const handleBuild = useCallback(
@@ -836,7 +713,7 @@ export default function GamePage({
   useEffect(() => {
     if (events.length === 0) return;
 
-    const eventKeys = events.map((e, i) => `${e.type}:${i}`);
+    const eventKeys = events.map((e, i) => e.__eventKey || `${e.type}:${i}`);
     const lastAudioKey = lastProcessedAudioKeyRef.current;
     const startIndex =
       lastAudioKey === null
@@ -925,17 +802,9 @@ export default function GamePage({
   const visibleActionTargets = actionTargets.filter((regionId) => {
     if (!highlightedNeighbors.includes(regionId)) return false;
     if (!selectedRegion || !sourceRegionData || !selectedUnitTypeForAction) return true;
-    return isTargetReachableByUnitType({
-      sourceId: selectedRegion,
-      targetId: regionId,
-      sourceRegion: sourceRegionData,
-      regions,
-      neighborMap,
-      centroids,
-      unitsConfig,
-      myUserId,
-      unitType: selectedUnitTypeForAction,
-    });
+    return regions[regionId]?.owner_id === myUserId
+      ? (reachabilityByUnitType[selectedUnitTypeForAction]?.moveTargets.has(regionId) ?? false)
+      : (reachabilityByUnitType[selectedUnitTypeForAction]?.attackTargets.has(regionId) ?? false);
   });
   const targets: TargetEntry[] = visibleActionTargets
     .map((rid) => {
