@@ -1,17 +1,23 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, use } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useGameSocket } from "@/hooks/useGameSocket";
-import { getRegions, getConfig, type GeoJSON, type BuildingType } from "@/lib/api";
+import {
+  getRegionsGraph,
+  getRegionTilesUrl,
+  getConfig,
+  type RegionGraphEntry,
+  type BuildingType,
+} from "@/lib/api";
 import GameMap, {
   type TroopAnimation,
   ANIMATION_DURATION_MS,
 } from "@/components/map/GameMap";
 import GameHUD from "@/components/game/GameHUD";
 import RegionPanel from "@/components/game/RegionPanel";
-import ActionBar from "@/components/game/ActionBar";
+import ActionBar, { type TargetEntry } from "@/components/game/ActionBar";
 import BuildQueue from "@/components/game/BuildQueue";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -35,11 +41,19 @@ export default function GamePage({
     build,
   } = useGameSocket(matchId);
 
-  const [geojson, setGeojson] = useState<GeoJSON | null>(null);
+  const [regionGraph, setRegionGraph] = useState<RegionGraphEntry[]>([]);
   const [buildings, setBuildings] = useState<BuildingType[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
-  const [actionTarget, setActionTarget] = useState<string | null>(null);
+  const [actionTargets, setActionTargets] = useState<string[]>([]);
   const [animations, setAnimations] = useState<TroopAnimation[]>([]);
+  const [mapReady, setMapReady] = useState(false);
+
+  // Keep a ref to gameState so event-driven animation effect can read latest players/colors
+  const gameStateRef = useRef(gameState);
+  useLayoutEffect(() => { gameStateRef.current = gameState; });
+
+  // Track how many events we've already processed for animations
+  const processedEventCountRef = useRef(0);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -48,13 +62,13 @@ export default function GamePage({
     }
   }, [user, authLoading, router]);
 
-  // Load geo data and config
+  // Load geo graph filtered to this match's map config, plus global config
   useEffect(() => {
-    getRegions().then(setGeojson).catch(console.error);
+    getRegionsGraph(matchId).then(setRegionGraph).catch(console.error);
     getConfig()
       .then((cfg) => setBuildings(cfg.buildings))
       .catch(console.error);
-  }, []);
+  }, [matchId]);
 
   // Prune finished animations
   useEffect(() => {
@@ -70,15 +84,16 @@ export default function GamePage({
     return () => clearInterval(timer);
   }, []);
 
-  // Build neighbor lookup
-  const neighborMap = useMemo(() => {
-    if (!geojson) return {};
-    const m: Record<string, string[]> = {};
-    for (const f of geojson.features) {
-      m[f.properties.id] = f.properties.neighbor_ids || [];
+  // Build neighbor lookup and centroid map from the lightweight graph
+  const { neighborMap, centroids } = useMemo(() => {
+    const neighborMap: Record<string, string[]> = {};
+    const centroids: Record<string, [number, number]> = {};
+    for (const entry of regionGraph) {
+      neighborMap[entry.id] = entry.neighbor_ids;
+      if (entry.centroid) centroids[entry.id] = entry.centroid;
     }
-    return m;
-  }, [geojson]);
+    return { neighborMap, centroids };
+  }, [regionGraph]);
 
   // Building slug → emoji icon lookup
   const buildingIcons = useMemo(() => {
@@ -91,6 +106,9 @@ export default function GamePage({
 
   const myUserId = user?.id || "";
   const status = gameState?.meta?.status || "loading";
+
+  // Guard against double capital selection while waiting for server confirmation
+  const hasSelectedCapital = !!gameState?.players[myUserId]?.capital_region_id;
 
   // ── Derived state ──────────────────────────────────────────
 
@@ -111,12 +129,50 @@ export default function GamePage({
     return allNeighbors.filter((nid) => nid in mapRegions);
   }, [isSource, selectedRegion, status, neighborMap, gameState?.regions]);
 
-  const targetRegionData = actionTarget
-    ? gameState?.regions[actionTarget]
-    : null;
+  // Per-map minimum distance between capitals (comes from MapConfig → settings_snapshot → Redis meta)
+  const MIN_CAPITAL_DISTANCE = parseInt(
+    gameState?.meta?.min_capital_distance || "3",
+    10
+  );
 
-  const isAttack =
-    !!targetRegionData && targetRegionData.owner_id !== myUserId;
+  // Regions too close to any existing capital — dimmed on the map during selection
+  const dimmedRegions = useMemo(() => {
+    if (status !== "selecting") return [];
+    const mapRegions = gameState?.regions || {};
+    const existingCapitals = Object.entries(mapRegions)
+      .filter(([, r]) => r.is_capital)
+      .map(([id]) => id);
+    if (existingCapitals.length === 0) return [];
+
+    const tooClose = new Set<string>();
+    for (const capitalId of existingCapitals) {
+      const visited = new Set([capitalId]);
+      const queue: [string, number][] = [[capitalId, 0]];
+      while (queue.length > 0) {
+        const [current, dist] = queue.shift()!;
+        if (dist > 0 && current in mapRegions) tooClose.add(current);
+        if (dist >= MIN_CAPITAL_DISTANCE) continue;
+        for (const neighbor of neighborMap[current] || []) {
+          // Only traverse through match regions — keeps hop count within game graph
+          if (neighbor in mapRegions && !visited.has(neighbor)) {
+            visited.add(neighbor);
+            queue.push([neighbor, dist + 1]);
+          }
+        }
+      }
+      tooClose.delete(capitalId); // capital itself is already owned, not a candidate
+    }
+
+    // Safety net: if every unowned match region would be blocked, lift the restriction
+    const unowned = Object.entries(mapRegions)
+      .filter(([, r]) => !r.owner_id)
+      .map(([id]) => id);
+    if (unowned.length > 0 && unowned.every((id) => tooClose.has(id))) {
+      return [];
+    }
+
+    return Array.from(tooClose);
+  }, [status, gameState?.regions, neighborMap, MIN_CAPITAL_DISTANCE]);
 
   // My stats
   const { myRegionCount, myUnitCount } = useMemo(() => {
@@ -132,45 +188,74 @@ export default function GamePage({
     return { myRegionCount: rc, myUnitCount: uc };
   }, [gameState, myUserId]);
 
-  // ── Animation helper ───────────────────────────────────────
+  // ── Event-driven animations (visible to ALL clients) ───────
+  //
+  // Instead of triggering animations locally (only visible to the acting player),
+  // we derive them from server events so every connected client sees the same
+  // troop movements and attacks.
 
-  const triggerAnimation = useCallback(
-    (
-      sourceId: string,
-      targetId: string,
-      units: number,
-      type: "attack" | "move"
-    ) => {
-      const myPlayer = gameState?.players[myUserId];
-      setAnimations((prev) => [
-        ...prev,
-        {
+  useEffect(() => {
+    if (events.length <= processedEventCountRef.current) return;
+    const newEvents = events.slice(processedEventCountRef.current);
+    processedEventCountRef.current = events.length;
+
+    const newAnims: TroopAnimation[] = [];
+    for (const e of newEvents) {
+      if (e.type === "attack_success" || e.type === "attack_failed") {
+        const playerId = e.player_id as string;
+        const color = gameStateRef.current?.players[playerId]?.color ?? "#3b82f6";
+        newAnims.push({
           id: crypto.randomUUID(),
-          sourceId,
-          targetId,
-          color: myPlayer?.color || "#3b82f6",
-          units,
-          type,
+          sourceId: e.source_region_id as string,
+          targetId: e.target_region_id as string,
+          color,
+          units: (e.units as number) || 0,
+          type: "attack",
           startTime: Date.now(),
-        },
-      ]);
-    },
-    [gameState, myUserId]
-  );
+        });
+      } else if (e.type === "units_moved") {
+        const playerId = e.player_id as string;
+        const color = gameStateRef.current?.players[playerId]?.color ?? "#3b82f6";
+        newAnims.push({
+          id: crypto.randomUUID(),
+          sourceId: e.source_region_id as string,
+          targetId: e.target_region_id as string,
+          color,
+          units: (e.units as number) || 0,
+          type: "move",
+          startTime: Date.now(),
+        });
+      }
+    }
+
+    if (newAnims.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAnimations((prev) => [...prev, ...newAnims]);
+    }
+  }, [events]);
 
   // ── Click handler ──────────────────────────────────────────
 
   const handleRegionClick = useCallback(
     (regionId: string) => {
+      if (!mapReady) return;
+
       // Capital selection phase
       if (status === "selecting") {
+        if (hasSelectedCapital) return; // already selected, waiting for server confirmation
         const region = gameState?.regions[regionId];
-        if (!region) {
-          toast.error("Ten region nie jest częścią tej mapy");
-          return;
-        }
-        if (region.owner_id) {
-          toast.error("Ten region jest już zajęty");
+        // Region not part of this match — silently ignore (player may have clicked
+        // on a neighbouring country rendered in the tiles but not in the game)
+        if (!region) return;
+        // Already owned — player likely clicked near the border of another capital;
+        // silently ignore so they can try clicking a different region
+        if (region.owner_id) return;
+        // Too close to an existing capital
+        if (dimmedRegions.includes(regionId)) {
+          const minDist = parseInt(gameState?.meta?.min_capital_distance || "3", 10);
+          toast.error(
+            `Stolica musi być co najmniej ${minDist} regiony od stolicy innego gracza`
+          );
           return;
         }
         selectCapital(regionId);
@@ -190,29 +275,36 @@ export default function GamePage({
         isSource &&
         highlightedNeighbors.includes(regionId)
       ) {
-        setActionTarget(regionId);
+        // Toggle target in/out of selection
+        setActionTargets((prev) =>
+          prev.includes(regionId)
+            ? prev.filter((id) => id !== regionId)
+            : [...prev, regionId]
+        );
         return;
       }
 
       // Click same region → deselect everything
       if (regionId === selectedRegion) {
         setSelectedRegion(null);
-        setActionTarget(null);
+        setActionTargets([]);
         return;
       }
 
       // Select new region (switch source or info-only)
       setSelectedRegion(regionId);
-      setActionTarget(null);
+      setActionTargets([]);
     },
     [
       status,
       gameState,
-      myUserId,
       selectedRegion,
       isSource,
       highlightedNeighbors,
+      dimmedRegions,
       selectCapital,
+      mapReady,
+      hasSelectedCapital,
     ]
   );
 
@@ -220,34 +312,22 @@ export default function GamePage({
 
   // Confirm from ActionBar
   const handleConfirmAction = useCallback(
-    (units: number) => {
-      if (!selectedRegion || !actionTarget || !gameState) return;
-
-      if (isAttack) {
-        attack(selectedRegion, actionTarget, units);
-        toast.info(`⚔️ Atak: ${units} jednostek`);
-      } else {
-        move(selectedRegion, actionTarget, units);
-        toast.info(`📦 Przeniesienie: ${units} jednostek`);
+    (allocations: { regionId: string; units: number }[]) => {
+      if (!selectedRegion || !gameState) return;
+      for (const { regionId, units } of allocations) {
+        const target = gameState.regions[regionId];
+        if (!target) continue;
+        if (target.owner_id !== myUserId) {
+          attack(selectedRegion, regionId, units);
+        } else {
+          move(selectedRegion, regionId, units);
+        }
       }
-
-      triggerAnimation(
-        selectedRegion,
-        actionTarget,
-        units,
-        isAttack ? "attack" : "move"
-      );
-      setActionTarget(null);
+      toast.info(`Wysłano wojska do ${allocations.length} region${allocations.length > 1 ? "ów" : "u"}`);
+      setSelectedRegion(null);
+      setActionTargets([]);
     },
-    [
-      selectedRegion,
-      actionTarget,
-      gameState,
-      isAttack,
-      attack,
-      move,
-      triggerAnimation,
-    ]
+    [selectedRegion, gameState, myUserId, attack, move]
   );
 
   // Attack/move from RegionPanel
@@ -255,20 +335,22 @@ export default function GamePage({
     (targetId: string, units: number) => {
       if (!selectedRegion) return;
       attack(selectedRegion, targetId, units);
-      triggerAnimation(selectedRegion, targetId, units, "attack");
       toast.info(`⚔️ Atak: ${units} jednostek`);
+      setSelectedRegion(null);
+      setActionTargets([]);
     },
-    [selectedRegion, attack, triggerAnimation]
+    [selectedRegion, attack]
   );
 
   const handleMove = useCallback(
     (targetId: string, units: number) => {
       if (!selectedRegion) return;
       move(selectedRegion, targetId, units);
-      triggerAnimation(selectedRegion, targetId, units, "move");
       toast.info(`📦 Przeniesienie: ${units} jednostek`);
+      setSelectedRegion(null);
+      setActionTargets([]);
     },
-    [selectedRegion, move, triggerAnimation]
+    [selectedRegion, move]
   );
 
   const handleBuild = useCallback(
@@ -298,6 +380,9 @@ export default function GamePage({
     if (last.type === "player_eliminated" && last.player_id === myUserId) {
       toast.error("💀 Twoja stolica została zdobyta!");
     }
+    if (last.type === "server_error") {
+      toast.error(last.message as string);
+    }
   }, [events, myUserId, gameState?.players]);
 
   // ── Render ─────────────────────────────────────────────────
@@ -314,6 +399,19 @@ export default function GamePage({
   const regions = gameState?.regions || {};
   const currentTick = parseInt(gameState?.meta?.current_tick || "0", 10);
 
+  const targets: TargetEntry[] = actionTargets
+    .map((rid) => {
+      const r = regions[rid];
+      if (!r) return null;
+      return {
+        regionId: rid,
+        region: r,
+        name: r.name,
+        isAttack: r.owner_id !== myUserId,
+      } satisfies TargetEntry;
+    })
+    .filter(Boolean) as TargetEntry[];
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-zinc-950">
       {/* Connection status */}
@@ -326,22 +424,32 @@ export default function GamePage({
         </div>
       )}
 
+      {/* Map loading overlay */}
+      {!mapReady && connected && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-zinc-950/90">
+          <div className="flex flex-col items-center gap-3 rounded-lg bg-zinc-900 px-8 py-6">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+            <span className="text-sm text-zinc-300">Ładowanie mapy...</span>
+          </div>
+        </div>
+      )}
+
       {/* Capital selection overlay */}
-      {status === "selecting" && (
+      {mapReady && status === "selecting" && (
         <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-lg bg-yellow-600/90 px-6 py-3 text-center font-bold text-white backdrop-blur">
           👑 Kliknij na region, aby wybrać stolicę
         </div>
       )}
 
       {/* Source selection hint */}
-      {status === "in_progress" && !selectedRegion && (
+      {mapReady && status === "in_progress" && !selectedRegion && (
         <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-lg bg-zinc-800/80 px-4 py-2 text-sm text-zinc-300 backdrop-blur">
           Kliknij swój region, aby wybrać źródło
         </div>
       )}
 
       {/* Target selection hint */}
-      {status === "in_progress" && isSource && !actionTarget && (
+      {mapReady && status === "in_progress" && isSource && actionTargets.length === 0 && (
         <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-lg bg-blue-800/80 px-4 py-2 text-sm text-blue-200 backdrop-blur">
           Kliknij sąsiedni region, aby zaatakować lub przenieść jednostki
         </div>
@@ -364,16 +472,19 @@ export default function GamePage({
 
       {/* Map */}
       <GameMap
-        geojson={geojson}
+        tilesUrl={getRegionTilesUrl(matchId)}
+        dimmedRegions={dimmedRegions}
+        centroids={centroids}
         regions={regions}
         players={players}
         selectedRegion={selectedRegion}
-        targetRegion={actionTarget}
+        targetRegions={actionTargets}
         highlightedNeighbors={highlightedNeighbors}
         onRegionClick={handleRegionClick}
         myUserId={myUserId}
         animations={animations}
         buildingIcons={buildingIcons}
+        onMapReady={() => setMapReady(true)}
       />
 
       {/* HUD */}
@@ -394,24 +505,25 @@ export default function GamePage({
         myUserId={myUserId}
       />
 
-      {/* Action Bar (click-to-attack) */}
-      {actionTarget &&
-        sourceRegionData &&
-        targetRegionData &&
-        selectedRegion && (
-          <ActionBar
-            sourceRegion={sourceRegionData}
-            targetRegion={targetRegionData}
-            sourceName={sourceRegionData.name}
-            targetName={targetRegionData.name}
-            isAttack={isAttack}
-            onConfirm={handleConfirmAction}
-            onCancel={() => setActionTarget(null)}
-          />
-        )}
+      {/* Action Bar (multi-target) */}
+      {actionTargets.length > 0 && sourceRegionData && selectedRegion && (
+        <ActionBar
+          sourceRegion={sourceRegionData}
+          sourceName={sourceRegionData.name}
+          targets={targets}
+          onConfirm={handleConfirmAction}
+          onRemoveTarget={(rid) =>
+            setActionTargets((prev) => prev.filter((id) => id !== rid))
+          }
+          onCancel={() => {
+            setSelectedRegion(null);
+            setActionTargets([]);
+          }}
+        />
+      )}
 
       {/* Region panel (info + panel-based actions) */}
-      {sourceRegionData && selectedRegion && !actionTarget && (
+      {sourceRegionData && selectedRegion && actionTargets.length === 0 && (
         <RegionPanel
           regionId={selectedRegion}
           region={sourceRegionData}
@@ -425,7 +537,7 @@ export default function GamePage({
           onBuild={handleBuild}
           onClose={() => {
             setSelectedRegion(null);
-            setActionTarget(null);
+            setActionTargets([]);
           }}
         />
       )}

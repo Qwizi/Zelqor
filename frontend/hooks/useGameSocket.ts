@@ -36,6 +36,7 @@ export interface GameState {
     current_tick: string;
     tick_interval_ms: string;
     max_players: string;
+    min_capital_distance: string;
   };
   players: Record<string, GamePlayer>;
   regions: Record<string, GameRegion>;
@@ -106,6 +107,10 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
         break;
       case "error":
         console.error("Game error:", msg.message);
+        setEvents((prev) => [
+          ...prev.slice(-50),
+          { type: "server_error", message: msg.message as string },
+        ]);
         break;
     }
   }, []);

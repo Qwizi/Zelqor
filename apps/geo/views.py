@@ -1,6 +1,9 @@
 import json
 from typing import List
+
 from django.contrib.gis.serializers.geojson import Serializer as GeoJSONSerializer
+from django.db import connection
+from django.http import HttpResponse
 from ninja_extra import api_controller, route
 
 from apps.geo.models import Country, Region
@@ -14,9 +17,109 @@ class GeoController:
     def list_countries(self):
         return list(Country.objects.all())
 
+    @route.get('/regions/graph/', auth=None)
+    def regions_graph(self, match_id: str = None):
+        """Lightweight neighbor graph with centroids — no geometry.
+        Used by frontend to build neighborMap and animation centroids.
+        Pass match_id to filter by that match's map config (country_codes).
+        """
+        qs = Region.objects.prefetch_related('neighbors').all()
+        if match_id:
+            country_codes = self._country_codes_for_match(match_id)
+            if country_codes:
+                qs = qs.filter(country__code__in=country_codes)
+        return [
+            {
+                "id": str(r.id),
+                "neighbor_ids": [str(n.id) for n in r.neighbors.all()],
+                "centroid": [r.centroid.x, r.centroid.y] if r.centroid else None,
+            }
+            for r in qs
+        ]
+
+    @route.get('/tiles/{z}/{x}/{y}/', auth=None)
+    def get_tile(self, z: int, x: int, y: int, match_id: str = None):
+        """Serves MVT vector tiles for the regions layer.
+        MapLibre requests only tiles visible in the current viewport.
+        Pass match_id to filter by that match's map config (country_codes).
+        """
+        country_codes = self._country_codes_for_match(match_id) if match_id else []
+
+        if country_codes:
+            sql = """
+                SELECT ST_AsMVT(q, 'regions', 4096, 'geom')
+                FROM (
+                    SELECT
+                        r.id::text          AS id,
+                        r.name,
+                        r.is_coastal,
+                        c.code              AS country_code,
+                        c.name              AS country_name,
+                        ST_AsMVTGeom(
+                            ST_Transform(r.geometry, 3857),
+                            ST_TileEnvelope(%s, %s, %s),
+                            4096, 64, true
+                        ) AS geom
+                    FROM geo_region r
+                    JOIN geo_country c ON c.id = r.country_id
+                    WHERE r.geometry && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
+                      AND c.code = ANY(%s)
+                ) q
+                WHERE geom IS NOT NULL
+            """
+            params = [z, x, y, z, x, y, country_codes]
+        else:
+            sql = """
+                SELECT ST_AsMVT(q, 'regions', 4096, 'geom')
+                FROM (
+                    SELECT
+                        r.id::text          AS id,
+                        r.name,
+                        r.is_coastal,
+                        c.code              AS country_code,
+                        c.name              AS country_name,
+                        ST_AsMVTGeom(
+                            ST_Transform(r.geometry, 3857),
+                            ST_TileEnvelope(%s, %s, %s),
+                            4096, 64, true
+                        ) AS geom
+                    FROM geo_region r
+                    JOIN geo_country c ON c.id = r.country_id
+                    WHERE r.geometry && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
+                ) q
+                WHERE geom IS NOT NULL
+            """
+            params = [z, x, y, z, x, y]
+
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            tile = cursor.fetchone()[0]
+
+        if tile:
+            response = HttpResponse(bytes(tile), content_type='application/x-protobuf')
+        else:
+            # Empty tile — 204 so MapLibre doesn't retry
+            response = HttpResponse(b'', content_type='application/x-protobuf', status=204)
+
+        # Tiles are static geometry — cache aggressively in CDN / browser
+        response['Cache-Control'] = 'public, max-age=86400, stale-while-revalidate=3600'
+        return response
+
+    @staticmethod
+    def _country_codes_for_match(match_id: str) -> list:
+        """Return country_codes list for the given match's map_config, or [] if unrestricted."""
+        try:
+            from apps.matchmaking.models import Match
+            match = Match.objects.select_related('map_config').get(id=match_id)
+            if match.map_config and match.map_config.country_codes:
+                return match.map_config.country_codes
+        except Exception:
+            pass
+        return []
+
     @route.get('/regions/', auth=None)
     def list_regions(self, country_code: str = None):
-        """Returns regions as GeoJSON FeatureCollection."""
+        """Returns regions as GeoJSON FeatureCollection (kept for tooling/debug)."""
         qs = Region.objects.select_related('country').prefetch_related('neighbors')
         if country_code:
             qs = qs.filter(country__code=country_code)
@@ -29,7 +132,6 @@ class GeoController:
         )
         geojson = json.loads(geojson_str)
 
-        # Enrich properties
         regions_by_pk = {str(r.pk): r for r in qs}
         for feature in geojson['features']:
             pk = feature['properties'].get('pk') or feature.get('id')
