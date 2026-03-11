@@ -15,6 +15,7 @@ import {
   type UnitType,
 } from "@/lib/api";
 import { getBuildingAsset, getUnitAsset } from "@/lib/gameAssets";
+import { getSeaTravelRange, getTravelDistance } from "@/lib/gameTravel.js";
 import GameMap, {
   type TroopAnimation,
   ANIMATION_DURATION_MS,
@@ -56,57 +57,6 @@ function getAnimationPower(
   const rules = getUnitRules(unitsConfig, unitType);
   const scale = Math.max(1, rules.manpower_cost || 1);
   return carrierCount * scale;
-}
-
-function getSeaDistanceScore(sourceRegion: GameRegion, targetId: string) {
-  for (const band of sourceRegion.sea_distances ?? []) {
-    if ((band.provinces ?? []).includes(targetId)) {
-      return Math.max(0, band.r || 0);
-    }
-  }
-  return null;
-}
-
-function getSeaTravelRange(unit: Pick<UnitType, "sea_range" | "sea_hop_distance_km">) {
-  return Math.max(0, unit.sea_range || unit.sea_hop_distance_km || 0);
-}
-
-function getTravelDistance(
-  sourceId: string,
-  targetId: string,
-  regions: Record<string, GameRegion>,
-  neighborMap: Record<string, string[]>,
-  centroids: Record<string, [number, number]>,
-  movementType: string,
-  seaRange: number,
-  maxDepth: number,
-  canVisit: (regionId: string) => boolean
-) {
-  if (movementType === "sea") {
-    const sourceRegion = regions[sourceId];
-    if (!sourceRegion?.is_coastal) return null;
-    const score = getSeaDistanceScore(sourceRegion, targetId);
-    if (score === null || score > seaRange || !canVisit(targetId)) return null;
-    return Math.max(1, Math.ceil(score / 20));
-  }
-
-  const visited = new Set([sourceId]);
-  const queue: Array<{ regionId: string; depth: number }> = [{ regionId: sourceId, depth: 0 }];
-
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    if (current.regionId === targetId) return current.depth;
-    if (current.depth >= maxDepth) continue;
-
-    for (const neighborId of neighborMap[current.regionId] || []) {
-      const region = regions[neighborId];
-      if (!region || visited.has(neighborId) || !canVisit(neighborId)) continue;
-      visited.add(neighborId);
-      queue.push({ regionId: neighborId, depth: current.depth + 1 });
-    }
-  }
-
-  return null;
 }
 
 type ReachabilityEntry = {
@@ -276,11 +226,10 @@ export default function GamePage({
             regionId,
             mapRegions,
             neighborMap,
-            centroids,
             movementType,
             seaRange,
             moveRange,
-            (candidateRegionId) => {
+            (candidateRegionId: string) => {
               const candidate = mapRegions[candidateRegionId];
               if (!candidate) return false;
               if (movementType === "sea" && !candidate.is_coastal) return false;
@@ -299,11 +248,10 @@ export default function GamePage({
           regionId,
           mapRegions,
           neighborMap,
-          centroids,
           movementType,
           seaRange,
           attackRange,
-          (candidateRegionId) => {
+          (candidateRegionId: string) => {
             const candidate = mapRegions[candidateRegionId];
             if (!candidate) return false;
             if (movementType === "sea" && !candidate.is_coastal) return false;

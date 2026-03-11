@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:sea-range": "node --test scripts/sea-range.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
