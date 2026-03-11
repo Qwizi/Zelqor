@@ -209,7 +209,15 @@ export async function getRegionsGraph(matchId?: string): Promise<RegionGraphEntr
  *  MapLibre requires absolute URLs — use window.location.origin as base.
  *  Pass matchId to restrict tiles to that match's map config. */
 export function getRegionTilesUrl(matchId?: string): string {
-  const base = `${API_BASE.replace(/\/api\/v1$/, "")}/api/v1/geo/tiles/{z}/{x}/{y}/`;
+  const apiRoot = API_BASE.replace(/\/api\/v1$/, "");
+  // MapLibre requires an absolute URL — prepend origin when using relative path
+  const origin =
+    apiRoot.startsWith("http")
+      ? apiRoot
+      : typeof window !== "undefined"
+        ? window.location.origin + apiRoot
+        : apiRoot;
+  const base = `${origin}/api/v1/geo/tiles/{z}/{x}/{y}/`;
   return matchId ? `${base}?match_id=${matchId}` : base;
 }
 
