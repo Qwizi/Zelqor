@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import logging
 import random
 import time
@@ -533,24 +534,26 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
     async def _game_loop(self, engine: GameEngine, tick_interval: float):
         """Main game loop — runs until game over or cancelled. Raises on error."""
         snapshot_interval = 30  # save snapshot every N ticks
+        next_tick_at = asyncio.get_running_loop().time() + tick_interval
 
         while True:
+            await asyncio.sleep(max(0.0, next_tick_at - asyncio.get_running_loop().time()))
             tick_start = asyncio.get_running_loop().time()
 
             # Single pipeline read — replaces 7 individual Redis calls
             tick, players, regions, actions, buildings, unit_queue, transit_queue = (
                 await self.state_manager.get_tick_data()
             )
+            regions_before_tick = copy.deepcopy(regions)
 
             result = engine.process_tick(players, regions, actions, buildings, unit_queue, transit_queue)
 
             # Delta broadcast — only send regions that changed this tick,
             # and strip sea_distances (static, sent once on game_state init).
-            changed_regions = {
-                rid: {k: v for k, v in data.items() if k != "sea_distances"}
-                for rid, data in result["regions"].items()
-                if data != regions.get(rid)
-            }
+            changed_regions = self._compute_changed_regions(
+                previous_regions=regions_before_tick,
+                current_regions=result["regions"],
+            )
 
             # Write only dirty regions to Redis — avoids N HSET per tick on large maps.
             dirty_ids = set(changed_regions.keys())
@@ -589,7 +592,17 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
             # Compensate for processing time — sleep only the remaining portion
             # of the tick interval so ticks don't drift on slow hardware (Pi).
             elapsed = asyncio.get_running_loop().time() - tick_start
-            await asyncio.sleep(max(0.0, tick_interval - elapsed))
+            next_tick_at += tick_interval
+            if elapsed > tick_interval:
+                next_tick_at = asyncio.get_running_loop().time()
+
+    @staticmethod
+    def _compute_changed_regions(previous_regions: dict, current_regions: dict) -> dict:
+        return {
+            rid: {k: v for k, v in data.items() if k != "sea_distances"}
+            for rid, data in current_regions.items()
+            if data != previous_regions.get(rid)
+        }
 
     async def _dispatch_finalization(self, winner_id: str | None, total_ticks: int):
         """Get final state from Redis and dispatch Celery tasks for DB persistence."""
