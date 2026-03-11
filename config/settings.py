@@ -107,7 +107,11 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [{'host': config('REDIS_HOST', default='redis'), 'port': config('REDIS_PORT', default=6379, cast=int), 'db': 3}],
+            'hosts': [(config('REDIS_HOST', default='redis'), config('REDIS_PORT', default=6379, cast=int))],
+            # Limit queue depth — prevents tick messages piling up on slow hardware.
+            # If a consumer can't keep up, older ticks are dropped rather than queued forever.
+            'capacity': 50,
+            'expiry': 5,  # seconds — drop stale messages after 5s
         },
     },
 }

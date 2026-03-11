@@ -187,13 +187,18 @@ class GameStateManager:
         transit_queue = [msgpack.unpackb(item, raw=False) for item in results[7]]
         return tick, players, regions, actions, buildings, unit_queue, transit_queue
 
-    async def set_tick_result(self, result: dict):
-        """Write all tick results in a single Redis pipeline."""
+    async def set_tick_result(self, result: dict, dirty_region_ids: set | None = None):
+        """Write tick results in a single Redis pipeline.
+
+        If dirty_region_ids is provided, only those regions are written to Redis
+        (avoids writing hundreds of unchanged regions every tick — critical on low-RAM ARM).
+        """
         pipe = self.redis.pipeline()
 
         regions_key = self._key("regions")
         for region_id, data in result["regions"].items():
-            pipe.hset(regions_key, region_id, msgpack.packb(data))
+            if dirty_region_ids is None or region_id in dirty_region_ids:
+                pipe.hset(regions_key, region_id, msgpack.packb(data))
 
         players_key = self._key("players")
         for pid, pdata in result["players"].items():

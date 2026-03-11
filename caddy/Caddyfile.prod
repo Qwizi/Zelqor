@@ -1,26 +1,22 @@
-{
-	auto_https off
-}
-
-:80 {
+{$DOMAIN} {
 	# API
 	handle /api/* {
 		reverse_proxy backend:8000 {
-			header_up X-Forwarded-Proto {header.X-Forwarded-Proto}
+			header_up X-Forwarded-Proto {scheme}
 		}
 	}
 
 	# Django Admin
 	handle /admin/* {
 		reverse_proxy backend:8000 {
-			header_up X-Forwarded-Proto {header.X-Forwarded-Proto}
+			header_up X-Forwarded-Proto {scheme}
 		}
 	}
 
 	# WebSocket
 	handle /ws/* {
 		reverse_proxy backend:8000 {
-			header_up X-Forwarded-Proto {header.X-Forwarded-Proto}
+			header_up X-Forwarded-Proto {scheme}
 		}
 	}
 
@@ -41,7 +37,7 @@
 	# Frontend (Next.js) — catch-all
 	handle {
 		reverse_proxy frontend:3000 {
-			header_up X-Forwarded-Proto {header.X-Forwarded-Proto}
+			header_up X-Forwarded-Proto {scheme}
 		}
 	}
 }

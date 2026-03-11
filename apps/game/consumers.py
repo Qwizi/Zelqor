@@ -535,7 +535,7 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
         snapshot_interval = 30  # save snapshot every N ticks
 
         while True:
-            await asyncio.sleep(tick_interval)
+            tick_start = asyncio.get_running_loop().time()
 
             # Single pipeline read — replaces 7 individual Redis calls
             tick, players, regions, actions, buildings, unit_queue, transit_queue = (
@@ -544,9 +544,6 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
 
             result = engine.process_tick(players, regions, actions, buildings, unit_queue, transit_queue)
 
-            # Single pipeline write — replaces N+4 individual Redis calls
-            await self.state_manager.set_tick_result(result)
-
             # Delta broadcast — only send regions that changed this tick,
             # and strip sea_distances (static, sent once on game_state init).
             changed_regions = {
@@ -554,6 +551,11 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
                 for rid, data in result["regions"].items()
                 if data != regions.get(rid)
             }
+
+            # Write only dirty regions to Redis — avoids N HSET per tick on large maps.
+            dirty_ids = set(changed_regions.keys())
+            await self.state_manager.set_tick_result(result, dirty_region_ids=dirty_ids)
+
             await self.channel_layer.group_send(self.game_group, {
                 "type": "game_tick",
                 "tick": tick,
@@ -583,6 +585,11 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
                         winner_event.get("winner_id"), tick
                     )
                 return
+
+            # Compensate for processing time — sleep only the remaining portion
+            # of the tick interval so ticks don't drift on slow hardware (Pi).
+            elapsed = asyncio.get_running_loop().time() - tick_start
+            await asyncio.sleep(max(0.0, tick_interval - elapsed))
 
     async def _dispatch_finalization(self, winner_id: str | None, total_ticks: int):
         """Get final state from Redis and dispatch Celery tasks for DB persistence."""

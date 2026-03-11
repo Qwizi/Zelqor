@@ -8,7 +8,6 @@ services:
       -c shared_buffers=64MB
       -c work_mem=4MB
       -c effective_cache_size=512MB
-      -c max_connections=20
       -c checkpoint_completion_target=0.9
       -c wal_buffers=4MB
     environment:
@@ -105,8 +104,12 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
     ports:
       - "80:80"
+      - "443:443"
+      - "443:443/udp"
     volumes:
       - ./caddy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
       - static_data:/srv/static:ro
