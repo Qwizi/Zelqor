@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
@@ -122,6 +123,16 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
         meta = await self.state_manager.get_meta()
         starting_units = int(meta.get("starting_units", 10))
 
+        # Distance check — capitals must be at least N hops apart
+        settings_snapshot = await self._get_settings_snapshot()
+        min_dist = int(settings_snapshot.get("min_capital_distance", 3))
+        if await self._is_capital_too_close(region_id, min_dist):
+            await self.send_json({
+                "type": "error",
+                "message": f"Stolica musi być co najmniej {min_dist} regiony od stolicy innego gracza",
+            })
+            return
+
         player["capital_region_id"] = region_id
         await self.state_manager.set_player(player_id, player)
 
@@ -139,9 +150,38 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
 
         await self._check_all_capitals_selected()
 
+    async def _is_capital_too_close(self, region_id: str, min_distance: int) -> bool:
+        """BFS from region_id; returns True if any existing capital is within min_distance hops."""
+        from collections import deque
+        regions = await self.state_manager.get_all_regions()
+        existing_capitals = {rid for rid, r in regions.items() if r.get("is_capital")}
+        if not existing_capitals:
+            return False
+        neighbor_map = await self._load_neighbor_map()
+        visited = {region_id}
+        queue = deque([(region_id, 0)])
+        while queue:
+            current, dist = queue.popleft()
+            if dist > 0 and current in existing_capitals:
+                return True
+            if dist >= min_distance:
+                continue
+            for neighbor in neighbor_map.get(current, []):
+                # Only traverse match regions — hop count must reflect in-game graph
+                if neighbor not in visited and neighbor in regions:
+                    visited.add(neighbor)
+                    queue.append((neighbor, dist + 1))
+        return False
+
     async def _check_all_capitals_selected(self):
         players = await self.state_manager.get_all_players()
-        if all(p.get("capital_region_id") is not None for p in players.values()):
+        meta = await self.state_manager.get_meta()
+        expected = int(meta.get("max_players", 0))
+        if (
+            players
+            and len(players) >= expected
+            and all(p.get("capital_region_id") is not None for p in players.values())
+        ):
             await self.state_manager.set_meta_field("status", "in_progress")
             await self._update_match_status_db("in_progress")
             await self.channel_layer.group_send(self.game_group, {
@@ -353,6 +393,9 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
             "starting_units", settings_snapshot.get("starting_units", 10)
         )
         await self.state_manager.set_meta_field(
+            "min_capital_distance", settings_snapshot.get("min_capital_distance", 3)
+        )
+        await self.state_manager.set_meta_field(
             "neutral_region_units", settings_snapshot.get("neutral_region_units", 3)
         )
 
@@ -365,8 +408,9 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
                 "capital_region_id": None,
             })
 
-        neutral_units = int(settings_snapshot.get("neutral_region_units", 3))
+        neutral_min = int(settings_snapshot.get("neutral_region_min_units", 1))
+        neutral_max = int(settings_snapshot.get("neutral_region_max_units", 11))
         regions = await self._load_regions_for_match()
         for region in regions.values():
-            region["unit_count"] = neutral_units
+            region["unit_count"] = random.randint(neutral_min, neutral_max)
         await self.state_manager.set_regions_bulk(regions)

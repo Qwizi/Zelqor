@@ -134,6 +134,12 @@ class MapConfig(models.Model):
         default=list, blank=True,
         help_text='List of ISO country codes to include. Empty = all countries.'
     )
+
+    # Capital placement rules
+    min_capital_distance = models.PositiveIntegerField(
+        default=3,
+        help_text='Minimum hop distance between starting capitals (0 = no restriction).'
+    )
     
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

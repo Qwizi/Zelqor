@@ -103,6 +103,7 @@ class MatchmakingConsumer(AsyncJsonWebsocketConsumer):
                 'starting_units': settings.starting_units,
                 'neutral_region_units': settings.neutral_region_units,
                 'building_types': building_types,
+                'min_capital_distance': map_config.min_capital_distance if map_config else 3,
             },
         )
         

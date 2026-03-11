@@ -166,8 +166,28 @@ export interface GeoFeature {
   };
 }
 
+export interface RegionGraphEntry {
+  id: string;
+  neighbor_ids: string[];
+  centroid: [number, number] | null;
+}
+
 export async function getRegions(): Promise<GeoJSON> {
   return fetchAPI<GeoJSON>("/geo/regions/");
+}
+
+/** Lightweight neighbor graph + centroids (no geometry).
+ *  Pass matchId to restrict to that match's map config. */
+export async function getRegionsGraph(matchId?: string): Promise<RegionGraphEntry[]> {
+  const qs = matchId ? `?match_id=${matchId}` : "";
+  return fetchAPI<RegionGraphEntry[]>(`/geo/regions/graph/${qs}`);
+}
+
+/** URL template for MVT vector tiles (MapLibre vector source).
+ *  Pass matchId to restrict tiles to that match's map config. */
+export function getRegionTilesUrl(matchId?: string): string {
+  const base = `${API_BASE}/geo/tiles/{z}/{x}/{y}/`;
+  return matchId ? `${base}?match_id=${matchId}` : base;
 }
 
 // --- Matches ---

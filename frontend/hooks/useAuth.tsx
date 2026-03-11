@@ -74,6 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const accessToken = getAccessToken();
     if (accessToken) {
+      // loadUser is async — setState is called inside promise callbacks, not synchronously
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadUser(accessToken).finally(() => setLoading(false));
     } else {
       setLoading(false);

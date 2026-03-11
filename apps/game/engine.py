@@ -155,6 +155,7 @@ class GameEngine:
                 "source_region_id": source_id,
                 "target_region_id": target_id,
                 "player_id": player_id,
+                "units": units,
                 "old_owner_id": old_owner,
                 "surviving_units": surviving,
             })
@@ -179,6 +180,7 @@ class GameEngine:
                 "source_region_id": source_id,
                 "target_region_id": target_id,
                 "player_id": player_id,
+                "units": units,
                 "defender_surviving": surviving_defenders,
             })
 

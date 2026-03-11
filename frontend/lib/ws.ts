@@ -29,8 +29,10 @@ export function createSocket(
     onClose?.(event.code);
   };
 
-  ws.onerror = (event) => {
-    console.error("WS error:", event);
+  ws.onerror = () => {
+    // Browser intentionally hides WebSocket error details for security reasons.
+    // The connection will close and onclose will fire with a code.
+    console.warn("WS connection error (details unavailable in browser)");
   };
 
   return ws;
