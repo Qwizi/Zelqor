@@ -1,0 +1,6 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3 uid="uid://bl3tb176v5w6r"]
+
+[ext_resource type="Texture2D" uid="uid://cq1c06f5ajovv" path="res://assets/objects/textures_2/chest_xl_titan.webp" id="1"]
+
+[resource]
+albedo_texture = ExtResource("1")

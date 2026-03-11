@@ -23,10 +23,10 @@ class CountryAdmin(GISModelAdmin):
 
 @admin.register(Region)
 class RegionAdmin(GISModelAdmin):
-    list_display = ('name', 'country', 'is_coastal', 'population_weight', 'neighbor_count')
+    list_display = ('name', 'country', 'map_source_id', 'is_coastal', 'population_weight', 'neighbor_count')
     list_filter = ('country', 'is_coastal')
     search_fields = ('name', 'country__name')
-    readonly_fields = ('centroid',)
+    readonly_fields = ('centroid', 'sea_distances')
     filter_horizontal = ('neighbors',)
 
     def neighbor_count(self, obj):

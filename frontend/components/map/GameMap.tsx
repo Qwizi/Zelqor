@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { GameRegion } from "@/hooks/useGameSocket";
+import { getBuildingAsset, getUnitAsset } from "@/lib/gameAssets";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -13,8 +14,10 @@ export interface TroopAnimation {
   targetId: string;
   color: string;
   units: number;
+  unitType?: string | null;
   type: "attack" | "move";
   startTime: number;
+  durationMs?: number;
 }
 
 interface InternalAnim {
@@ -22,6 +25,7 @@ interface InternalAnim {
   path: [number, number][];
   color: string;
   units: number;
+  unitType?: string | null;
   startTime: number;
   duration: number;
   targetCentroid: [number, number];
@@ -53,6 +57,49 @@ const TARGET_FRIENDLY = "#60a5fa";
 export const ANIMATION_DURATION_MS = 2200;
 const NUM_TRAIL_DOTS = 8;
 const DOT_SPACING = 0.055;
+const AIR_ASSET = "/assets/units/planes/bomber_h300.webp";
+const SHIP_ASSET = "/assets/units/ships/ship1.png";
+const TANK_ASSET = "/assets/units/ground_unit_sphere_h300.png";
+
+function getAnimationIconId(unitType?: string | null) {
+  const normalized = (unitType || "default")
+    .replace(/[^a-z0-9_-]/gi, "-")
+    .toLowerCase();
+  return `anim-unit-${normalized}`;
+}
+
+function resolveAnimationKind(unitType?: string | null) {
+  const asset = getUnitAsset(unitType ?? "default");
+  if (asset === AIR_ASSET) return "fighter";
+  if (asset === SHIP_ASSET) return "ship";
+  if (asset === TANK_ASSET) return "tank";
+  return "infantry";
+}
+
+function loadMapImage(
+  map: maplibregl.Map,
+  id: string,
+  url: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (map.hasImage(id)) {
+      resolve();
+      return;
+    }
+
+    map.loadImage(url, (error, image) => {
+      if (error || !image) {
+        reject(error ?? new Error(`Failed to load image: ${url}`));
+        return;
+      }
+
+      if (!map.hasImage(id)) {
+        map.addImage(id, image);
+      }
+      resolve();
+    });
+  });
+}
 
 // ── Geometry helpers ─────────────────────────────────────────
 
@@ -114,6 +161,9 @@ export default function GameMap({
   const applyFeatureStatesRef = useRef<(() => void) | null>(null);
   const animsRef = useRef<InternalAnim[]>([]);
   const rafRef = useRef(0);
+  const capitalMarkersRef = useRef(new Map<string, maplibregl.Marker>());
+  const buildingMarkersRef = useRef(new Map<string, maplibregl.Marker>());
+  const animationMarkersRef = useRef(new Map<string, maplibregl.Marker>());
   const [layersReady, setLayersReady] = useState(false);
 
   useLayoutEffect(() => { onRegionClickRef.current = onRegionClick; });
@@ -132,6 +182,9 @@ export default function GameMap({
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    const capitalMarkers = capitalMarkersRef.current;
+    const buildingMarkers = buildingMarkersRef.current;
+    const animationMarkers = animationMarkersRef.current;
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: {
@@ -141,18 +194,24 @@ export default function GameMap({
           {
             id: "background",
             type: "background",
-            paint: { "background-color": "#0f172a" },
+            paint: { "background-color": "#08111d" },
           },
         ],
       },
       center: [15, 51],
       zoom: 4,
-      maxZoom: 7,   // cap zoom — too many tiles at high zoom
-      minZoom: 4,   // prevent zooming out to a point where tiny tile count is wasteful
+      maxZoom: 7,
+      minZoom: 1.5,
     });
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     mapRef.current = map;
     return () => {
+      capitalMarkers.forEach((marker) => marker.remove());
+      capitalMarkers.clear();
+      buildingMarkers.forEach((marker) => marker.remove());
+      buildingMarkers.clear();
+      animationMarkers.forEach((marker) => marker.remove());
+      animationMarkers.clear();
       map.remove();
       mapRef.current = null;
     };
@@ -169,40 +228,62 @@ export default function GameMap({
     const map = mapRef.current;
     if (!map || !tilesUrl) return;
 
-    const setup = () => {
-      if (map.getSource("regions")) return;
+    const addSourceIfMissing = (id: string, spec: maplibregl.AnySourceData) => {
+      if (map.getSource(id)) return;
+      try {
+        map.addSource(id, spec);
+      } catch (error) {
+        console.error(`GameMap source failed: ${id}`, error);
+      }
+    };
 
-      // Vector tile source — MapLibre requests only tiles in the current viewport
-      map.addSource("regions", {
+    const addLayerIfMissing = (layer: maplibregl.LayerSpecification) => {
+      if (map.getLayer(layer.id)) return;
+      try {
+        map.addLayer(layer);
+      } catch (error) {
+        console.error(`GameMap layer failed: ${layer.id}`, error);
+      }
+    };
+
+    const setup = () => {
+      addSourceIfMissing("regions", {
         type: "vector",
         tiles: [tilesUrl],
         minzoom: 0,
-        maxzoom: 10,          // don't request higher-resolution tiles than zoom 10
+        maxzoom: 10,
         promoteId: { regions: "id" },
       });
-
-      // Label source: small point GeoJSON (centroid + text) updated via setData().
-      // Needed because feature-state is NOT supported in layout properties like text-field.
-      map.addSource("region-labels", {
+      addSourceIfMissing("region-labels", {
+        type: "geojson",
+        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
+      });
+      addSourceIfMissing("anim-lines", {
+        type: "geojson",
+        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
+      });
+      addSourceIfMissing("anim-dots", {
+        type: "geojson",
+        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
+      });
+      addSourceIfMissing("anim-icons", {
+        type: "geojson",
+        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
+      });
+      addSourceIfMissing("defend-pulses", {
+        type: "geojson",
+        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
+      });
+      addSourceIfMissing("selected-marker", {
+        type: "geojson",
+        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
+      });
+      addSourceIfMissing("target-markers", {
         type: "geojson",
         data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
       });
 
-      map.addSource("anim-lines", {
-        type: "geojson",
-        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
-      });
-      map.addSource("anim-dots", {
-        type: "geojson",
-        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
-      });
-      map.addSource("defend-pulses", {
-        type: "geojson",
-        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
-      });
-
-      // 1. Region fill — color driven by feature-state (set per-tick via setFeatureState)
-      map.addLayer({
+      addLayerIfMissing({
         id: "regions-fill",
         type: "fill",
         source: "regions",
@@ -216,9 +297,7 @@ export default function GameMap({
           ],
         },
       });
-
-      // 2. Dim overlay — darkens regions that are invalid during capital selection
-      map.addLayer({
+      addLayerIfMissing({
         id: "regions-dim",
         type: "fill",
         source: "regions",
@@ -226,18 +305,14 @@ export default function GameMap({
         paint: { "fill-color": "#000000", "fill-opacity": 0.45 },
         filter: ["==", ["get", "id"], ""],
       });
-
-      // 3. Region border
-      map.addLayer({
+      addLayerIfMissing({
         id: "regions-border",
         type: "line",
         source: "regions",
         "source-layer": "regions",
         paint: { "line-color": "#1e293b", "line-width": 0.8 },
       });
-
-      // 3. Neighbor highlight (valid targets) — controlled via setFilter
-      map.addLayer({
+      addLayerIfMissing({
         id: "regions-neighbor-glow",
         type: "line",
         source: "regions",
@@ -249,9 +324,7 @@ export default function GameMap({
         },
         filter: ["==", ["get", "id"], ""],
       });
-
-      // 4. Selected source border
-      map.addLayer({
+      addLayerIfMissing({
         id: "regions-selected",
         type: "line",
         source: "regions",
@@ -259,9 +332,7 @@ export default function GameMap({
         paint: { "line-color": SELECTED_COLOR, "line-width": 3 },
         filter: ["==", ["get", "id"], ""],
       });
-
-      // 5b. Selected targets outline (multi-target)
-      map.addLayer({
+      addLayerIfMissing({
         id: "regions-targets",
         type: "line",
         source: "regions",
@@ -269,9 +340,7 @@ export default function GameMap({
         paint: { "line-color": "#f97316", "line-width": 2.5 },
         filter: ["==", ["get", "id"], ""],
       });
-
-      // 5. Capital outline
-      map.addLayer({
+      addLayerIfMissing({
         id: "regions-capital",
         type: "line",
         source: "regions",
@@ -279,22 +348,18 @@ export default function GameMap({
         paint: { "line-color": CAPITAL_OUTLINE, "line-width": 3 },
         filter: ["==", ["get", "id"], ""],
       });
-
-      // 6. Animation lines
-      map.addLayer({
+      addLayerIfMissing({
         id: "anim-lines",
         type: "line",
         source: "anim-lines",
         paint: {
           "line-color": ["get", "color"],
-          "line-width": 2,
+          "line-width": ["get", "width"],
           "line-opacity": ["get", "opacity"],
-          "line-dasharray": [4, 3],
+          "line-blur": ["get", "blur"],
         },
       });
-
-      // 7. Animation dots
-      map.addLayer({
+      addLayerIfMissing({
         id: "anim-dots",
         type: "circle",
         source: "anim-dots",
@@ -307,9 +372,23 @@ export default function GameMap({
           "circle-stroke-opacity": ["get", "opacity"],
         },
       });
-
-      // 8. Defender pulse rings — pulsing concentric circles at attacked region centroid
-      map.addLayer({
+      addLayerIfMissing({
+        id: "anim-icons",
+        type: "symbol",
+        source: "anim-icons",
+        layout: {
+          "icon-image": ["get", "icon"],
+          "icon-size": ["get", "icon_size"],
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-rotation-alignment": "map",
+          "icon-rotate": ["get", "rotation"],
+        },
+        paint: {
+          "icon-opacity": ["get", "opacity"],
+        },
+      });
+      addLayerIfMissing({
         id: "defend-pulse",
         type: "circle",
         source: "defend-pulses",
@@ -322,9 +401,7 @@ export default function GameMap({
           "circle-stroke-opacity": ["get", "opacity"],
         },
       });
-
-      // 9. Animation labels
-      map.addLayer({
+      addLayerIfMissing({
         id: "anim-labels",
         type: "symbol",
         source: "anim-dots",
@@ -341,10 +418,7 @@ export default function GameMap({
           "text-halo-width": 1,
         },
       });
-
-      // 9. Region unit labels — from region-labels GeoJSON source (["get", "units_text"])
-      //    Only included in the source for owned regions or the current attack target.
-      map.addLayer({
+      addLayerIfMissing({
         id: "regions-labels",
         type: "symbol",
         source: "region-labels",
@@ -360,86 +434,161 @@ export default function GameMap({
           "text-halo-width": 1.5,
         },
       });
-
-      // 10. Building icons — from same region-labels GeoJSON source
-      map.addLayer({
-        id: "regions-building-icons",
-        type: "symbol",
-        source: "region-labels",
-        layout: {
-          "text-field": ["get", "building_icon"],
-          "text-size": 20,
-          "text-offset": [0, 1.2],
-          "text-allow-overlap": true,
-          "text-ignore-placement": true,
-        },
-        paint: {
-          "text-halo-color": "rgba(0,0,0,0.7)",
-          "text-halo-width": 2,
-        },
-      });
-
-      // 11. Capital star icon — shown above the unit/name label
-      map.addLayer({
-        id: "regions-capital-icon",
-        type: "symbol",
-        source: "region-labels",
-        filter: ["!=", ["get", "capital_icon"], ""],
-        layout: {
-          "text-field": ["get", "capital_icon"],
-          "text-size": 18,
-          "text-offset": [0, -1.4],
-          "text-allow-overlap": true,
-          "text-ignore-placement": true,
-        },
-        paint: {
-          "text-halo-color": "rgba(0,0,0,0.8)",
-          "text-halo-width": 2,
-        },
-      });
-
-      // Click / hover events
-      map.on("click", "regions-fill", (e) => {
-        const id = e.features?.[0]?.properties?.id;
-        if (id) onRegionClickRef.current(id as string);
-      });
-      map.on("mouseenter", "regions-fill", () => {
-        map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", "regions-fill", () => {
-        map.getCanvas().style.cursor = "";
-      });
-      map.on("mousemove", "regions-fill", (e) => {
-        if (e.features?.[0]) {
-          const id = e.features[0].properties?.id as string;
-          if (hoveredRef.current && hoveredRef.current !== id) {
-            map.setFeatureState(
-              { source: "regions", sourceLayer: "regions", id: hoveredRef.current },
-              { hover: false }
-            );
-          }
-          hoveredRef.current = id;
-          map.setFeatureState(
-            { source: "regions", sourceLayer: "regions", id },
-            { hover: true }
-          );
+        if (!(map as typeof map & { __maplord_handlers_bound?: boolean }).__maplord_handlers_bound) {
+          map.on("click", "regions-fill", (e) => {
+            const id = e.features?.[0]?.properties?.id;
+            if (id) onRegionClickRef.current(id as string);
+          });
+          map.on("mouseenter", "regions-fill", () => {
+            map.getCanvas().style.cursor = "pointer";
+          });
+          map.on("mouseleave", "regions-fill", () => {
+            map.getCanvas().style.cursor = "";
+          });
+          map.on("mousemove", "regions-fill", (e) => {
+            if (e.features?.[0]) {
+              const id = e.features[0].properties?.id as string;
+              if (hoveredRef.current && hoveredRef.current !== id) {
+                map.setFeatureState(
+                  { source: "regions", sourceLayer: "regions", id: hoveredRef.current },
+                  { hover: false }
+                );
+              }
+              hoveredRef.current = id;
+              map.setFeatureState(
+                { source: "regions", sourceLayer: "regions", id },
+                { hover: true }
+              );
+            }
+          });
+          map.on("sourcedata", (e) => {
+            if (e.sourceId === "regions" && e.isSourceLoaded) {
+              applyFeatureStatesRef.current?.();
+            }
+          });
+          (map as typeof map & { __maplord_handlers_bound?: boolean }).__maplord_handlers_bound = true;
         }
-      });
 
-      // Re-apply feature states whenever new tiles are loaded into memory
-      map.on("sourcedata", (e) => {
-        if (e.sourceId === "regions" && e.isSourceLoaded) {
-          applyFeatureStatesRef.current?.();
+        const baseLayersReady =
+          !!map.getSource("regions") &&
+          !!map.getLayer("regions-fill") &&
+          !!map.getLayer("regions-border");
+        if (baseLayersReady) {
+          setLayersReady(true);
+          onMapReadyRef.current?.();
+        } else {
+          console.error("GameMap setup incomplete: base layers missing");
+          onMapReadyRef.current?.();
         }
-      });
-
-      setLayersReady(true);
-      onMapReadyRef.current?.();
     };
 
+    const onLoad = () => setup();
     if (map.loaded()) setup();
-    else map.on("load", setup);
+    else map.on("load", onLoad);
+
+    return () => {
+      map.off("load", onLoad);
+    };
   }, [tilesUrl]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !layersReady) return;
+
+    let cancelled = false;
+
+    const ensureMarkerLayers = async () => {
+      try {
+        await Promise.all([
+          loadMapImage(map, "selected-region-marker", "/assets/units/cursor.webp"),
+          loadMapImage(map, "target-region-marker", "/assets/units/moving_border.webp"),
+        ]);
+      } catch {
+        return;
+      }
+
+      if (cancelled) return;
+
+      try {
+        if (!map.getLayer("target-markers")) {
+          map.addLayer({
+            id: "target-markers",
+            type: "symbol",
+            source: "target-markers",
+            layout: {
+              "icon-image": "target-region-marker",
+              "icon-size": 0.34,
+              "icon-allow-overlap": true,
+              "icon-ignore-placement": true,
+            },
+            paint: {
+              "icon-opacity": 0.92,
+            },
+          });
+        }
+
+        if (!map.getLayer("selected-marker")) {
+          map.addLayer({
+            id: "selected-marker",
+            type: "symbol",
+            source: "selected-marker",
+            layout: {
+              "icon-image": "selected-region-marker",
+              "icon-size": 0.52,
+              "icon-offset": [0, -6],
+              "icon-allow-overlap": true,
+              "icon-ignore-placement": true,
+            },
+            paint: {
+              "icon-opacity": 0.98,
+            },
+          });
+        }
+
+      } catch {
+        // Marker layers are decorative. Base map should continue to work without them.
+      }
+    };
+
+    void ensureMarkerLayers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [buildingIcons, layersReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !layersReady) return;
+
+    let cancelled = false;
+
+    const ensureAnimationIcons = async () => {
+      const distinctUnitTypes = Array.from(
+        new Set(
+          animations.map((animation) => animation.unitType || "default")
+        )
+      );
+
+      try {
+        await Promise.all(
+          distinctUnitTypes.map((unitType) =>
+            loadMapImage(map, getAnimationIconId(unitType), getUnitAsset(unitType))
+          )
+        );
+      } catch (error) {
+        if (!cancelled) {
+          console.error("GameMap animation icon load failed", error);
+        }
+      }
+    };
+
+    void ensureAnimationIcons();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [animations, layersReady]);
 
   // ── Effect A: per-region updates (color via feature-state, labels via setData) ──
   //
@@ -484,9 +633,10 @@ export default function GameMap({
       } else if (r.owner_id) {
         labelText = players[r.owner_id]?.username ?? "";
       }
-      const buildingIcon = r.building_type ? (buildingIcons[r.building_type] ?? "") : "";
-      const capitalIcon = r.is_capital ? "⭐" : "";
-      if (!labelText && !buildingIcon && !capitalIcon) continue;
+      if (!labelText) {
+        const hasBuildingAsset = r.building_type ? Boolean(buildingIcons[r.building_type]) : false;
+        if (!hasBuildingAsset) continue;
+      }
       const centroid = centroids[rid];
       if (!centroid) continue;
       labelFeatures.push({
@@ -494,8 +644,6 @@ export default function GameMap({
         geometry: { type: "Point", coordinates: centroid },
         properties: {
           units_text: labelText,
-          building_icon: buildingIcon,
-          capital_icon: capitalIcon,
         },
       });
     }
@@ -507,7 +655,162 @@ export default function GameMap({
     } catch {
       // source not ready yet
     }
-  }, [regions, players, myUserId, animations, getRegionColor, buildingIcons, centroids, layersReady]);
+
+    const selectedMarker =
+      selectedRegion && centroids[selectedRegion]
+        ? [
+            {
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: centroids[selectedRegion],
+              },
+              properties: {},
+            },
+          ]
+        : [];
+    const targetMarkerFeatures = targetRegions
+      .map((rid) =>
+        centroids[rid]
+          ? {
+              type: "Feature",
+              geometry: { type: "Point", coordinates: centroids[rid] },
+              properties: {},
+            }
+          : null
+      )
+      .filter(Boolean);
+    try {
+      (map.getSource("selected-marker") as maplibregl.GeoJSONSource).setData({
+        type: "FeatureCollection",
+        features: selectedMarker,
+      } as unknown as GeoJSON.FeatureCollection);
+      (map.getSource("target-markers") as maplibregl.GeoJSONSource).setData({
+        type: "FeatureCollection",
+        features: targetMarkerFeatures,
+      } as unknown as GeoJSON.FeatureCollection);
+    } catch {
+      // sources not ready yet
+    }
+
+  }, [
+    regions,
+    players,
+    myUserId,
+    animations,
+    getRegionColor,
+    buildingIcons,
+    centroids,
+    layersReady,
+    selectedRegion,
+    targetRegions,
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !layersReady) return;
+
+    const capitalMarkers = capitalMarkersRef.current;
+    const buildingMarkers = buildingMarkersRef.current;
+
+    const desiredCapitalIds = new Set<string>();
+    const desiredBuildingIds = new Set<string>();
+
+    for (const [regionId, region] of Object.entries(regions)) {
+      const centroid = centroids[regionId];
+      if (!centroid) continue;
+
+      if (region.is_capital) {
+        desiredCapitalIds.add(regionId);
+        const existing = capitalMarkers.get(regionId);
+        if (existing) {
+          existing.setLngLat(centroid);
+        } else {
+          const element = document.createElement("div");
+          element.className = "pointer-events-none select-none";
+          element.innerHTML =
+            '<img src="/assets/units/capital_star.png" alt="" draggable="false" style="width:26px;height:26px;display:block;filter:drop-shadow(0 0 10px rgba(251,191,36,0.55));" />';
+          capitalMarkers.set(
+            regionId,
+            new maplibregl.Marker({ element, anchor: "center", offset: [0, -18] })
+              .setLngLat(centroid)
+              .addTo(map)
+          );
+        }
+      }
+
+      const buildingEntries = Object.entries(region.buildings ?? {})
+        .filter(([, count]) => count > 0)
+        .map(([slug, count]) => {
+          const assetKey = buildingIcons[slug] || slug;
+          const assetUrl = getBuildingAsset(assetKey);
+          return assetUrl ? { slug, count, assetUrl } : null;
+        })
+        .filter((entry): entry is { slug: string; count: number; assetUrl: string } => !!entry);
+      if (buildingEntries.length === 0) continue;
+
+      desiredBuildingIds.add(regionId);
+      const existing = buildingMarkers.get(regionId);
+      const markerHtml = `
+        <div style="display:flex;align-items:center;gap:4px;padding:3px 6px;border:1px solid rgba(255,255,255,0.08);border-radius:999px;background:rgba(8,17,29,0.82);backdrop-filter:blur(8px);box-shadow:0 0 8px rgba(8,17,29,0.45);">
+          ${buildingEntries
+            .map(
+              ({ slug, count, assetUrl }) => `
+                <div title="${slug}" style="position:relative;width:22px;height:22px;flex:0 0 auto;">
+                  <img src="${assetUrl}" alt="" draggable="false" style="width:22px;height:22px;display:block;filter:drop-shadow(0 0 6px rgba(8,17,29,0.7));" />
+                  ${
+                    count > 1
+                      ? `<span style="position:absolute;right:-5px;bottom:-5px;min-width:14px;height:14px;padding:0 3px;border-radius:999px;background:rgba(2,6,23,0.95);border:1px solid rgba(255,255,255,0.1);font-size:9px;line-height:12px;color:#fff;text-align:center;">${count}</span>`
+                      : ""
+                  }
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+      `;
+      if (existing) {
+        existing.setLngLat(centroid);
+        const element = existing.getElement();
+        if (element.innerHTML !== markerHtml) {
+          element.innerHTML = markerHtml;
+        }
+      } else {
+        const element = document.createElement("div");
+        element.className = "pointer-events-none select-none";
+        element.innerHTML = markerHtml;
+        buildingMarkers.set(
+          regionId,
+          new maplibregl.Marker({ element, anchor: "center", offset: [22, 18] })
+            .setLngLat(centroid)
+            .addTo(map)
+        );
+      }
+    }
+
+    capitalMarkers.forEach((marker, regionId) => {
+      if (!desiredCapitalIds.has(regionId)) {
+        marker.remove();
+        capitalMarkers.delete(regionId);
+      }
+    });
+
+    buildingMarkers.forEach((marker, regionId) => {
+      if (!desiredBuildingIds.has(regionId)) {
+        marker.remove();
+        buildingMarkers.delete(regionId);
+      }
+    });
+
+    return () => {
+      if (!mapRef.current) {
+        capitalMarkers.forEach((marker) => marker.remove());
+        capitalMarkers.clear();
+        buildingMarkers.forEach((marker) => marker.remove());
+        buildingMarkers.clear();
+      }
+    };
+  }, [regions, centroids, buildingIcons, layersReady]);
 
   // ── Effect B: selection & highlight filters/opacity ───────────────────
   //
@@ -596,13 +899,23 @@ export default function GameMap({
       const from = centroids[a.sourceId];
       const to = centroids[a.targetId];
       if (!from || !to) continue;
+      const animKind = resolveAnimationKind(a.unitType);
       newAnims.push({
         id: a.id,
         path: computeArc(from, to),
         color: a.color,
         units: a.units,
+        unitType: a.unitType,
         startTime: a.startTime,
-        duration: ANIMATION_DURATION_MS,
+        duration:
+          a.durationMs ??
+          (animKind === "fighter"
+            ? 1100
+            : animKind === "ship"
+              ? 3200
+              : animKind === "tank"
+                ? 2400
+                : 1900),
         targetCentroid: to,
       });
     }
@@ -616,9 +929,10 @@ export default function GameMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    const animationMarkers = animationMarkersRef.current;
 
     const tick = () => {
-      if (!map.getSource("anim-lines") || !map.getSource("anim-dots")) {
+      if (!map.getSource("anim-lines") || !map.getSource("anim-dots") || !map.getSource("anim-icons")) {
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
@@ -630,19 +944,66 @@ export default function GameMap({
 
       const lineFeats: unknown[] = [];
       const dotFeats: unknown[] = [];
+      const iconFeats: unknown[] = [];
       const pulseFeats: unknown[] = [];
+      const activeAnimationIds = new Set<string>();
 
       for (const a of animsRef.current) {
+        activeAnimationIds.add(a.id);
         const progress = Math.min((now - a.startTime) / a.duration, 1);
         const fadeOut = progress > 0.85 ? 1 - (progress - 0.85) / 0.15 : 1;
+        const animKind = resolveAnimationKind(a.unitType);
+        const animColor =
+          animKind === "fighter"
+            ? "#f59e0b"
+            : animKind === "ship"
+              ? "#38bdf8"
+              : a.color;
+        const iconName = getAnimationIconId(a.unitType);
+        const pulseColor =
+          animKind === "fighter"
+            ? "#fbbf24"
+            : animKind === "ship"
+              ? "#38bdf8"
+              : "#ef4444";
+        const lineWidth =
+          animKind === "fighter"
+            ? 4.5
+            : animKind === "ship"
+              ? 3.8
+              : animKind === "tank"
+                ? 3.4
+                : 2.8;
+        const lineBlur =
+          animKind === "fighter"
+            ? 1.2
+            : animKind === "ship"
+              ? 0.6
+              : 0.15;
+        const trailDots =
+          animKind === "fighter"
+            ? 4
+            : animKind === "ship"
+              ? 6
+              : NUM_TRAIL_DOTS;
 
         lineFeats.push({
           type: "Feature",
           geometry: { type: "LineString", coordinates: a.path },
-          properties: { color: a.color, opacity: 0.4 * fadeOut },
+          properties: {
+            color: animColor,
+            opacity:
+              animKind === "fighter"
+                ? 0.85 * fadeOut
+                : animKind === "ship"
+                  ? 0.65 * fadeOut
+                  : 0.45 * fadeOut,
+            width: lineWidth,
+            blur: lineBlur,
+          },
         });
 
-        for (let i = 0; i < NUM_TRAIL_DOTS; i++) {
+        for (let i = 0; i < trailDots; i++) {
           const dp = progress - i * DOT_SPACING;
           if (dp < 0 || dp > 1) continue;
           const idx = Math.min(
@@ -653,12 +1014,95 @@ export default function GameMap({
             type: "Feature",
             geometry: { type: "Point", coordinates: a.path[idx] },
             properties: {
-              color: a.color,
+              color: animColor,
               units: i === 0 ? a.units : 0,
-              opacity: (1 - (i / NUM_TRAIL_DOTS) * 0.7) * fadeOut,
-              size: i === 0 ? 8 : 5 - i * 0.3,
+              opacity: (1 - (i / trailDots) * 0.7) * fadeOut,
+              size:
+                i === 0
+                  ? animKind === "fighter"
+                    ? 6
+                    : animKind === "ship"
+                      ? 7
+                      : 8
+                  : Math.max(2.5, 4.5 - i * 0.35),
             },
           });
+        }
+
+        const headIndex = Math.min(
+          Math.floor(progress * (a.path.length - 1)),
+          a.path.length - 1
+        );
+        const nextIndex = Math.min(headIndex + 1, a.path.length - 1);
+        const currentPoint = a.path[headIndex];
+        const nextPoint = a.path[nextIndex];
+        const rotation =
+          currentPoint && nextPoint
+            ? Math.atan2(nextPoint[0] - currentPoint[0], nextPoint[1] - currentPoint[1]) * (180 / Math.PI)
+            : 0;
+        iconFeats.push({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: currentPoint },
+          properties: {
+            icon: iconName,
+            icon_size:
+              animKind === "fighter"
+                ? 0.42
+                : animKind === "ship"
+                  ? 0.34
+                  : animKind === "tank"
+                    ? 0.28
+                    : 0.24,
+            rotation,
+            opacity: fadeOut,
+          },
+        });
+
+        if (currentPoint) {
+          const existingMarker = animationMarkers.get(a.id);
+          if (existingMarker) {
+            const element = existingMarker.getElement() as HTMLDivElement;
+            element.style.opacity = String(fadeOut);
+            const img = element.firstElementChild as HTMLImageElement | null;
+            if (img) {
+              img.style.transform = `rotate(${rotation}deg)`;
+            }
+            existingMarker.setLngLat(currentPoint);
+          } else {
+            const element = document.createElement("div");
+            element.className = "pointer-events-none select-none";
+            element.style.opacity = String(fadeOut);
+
+            const img = document.createElement("img");
+            img.src = getUnitAsset(a.unitType ?? "default");
+            img.alt = "";
+            img.draggable = false;
+            img.style.display = "block";
+            img.style.width =
+              animKind === "fighter"
+                ? "34px"
+                : animKind === "ship"
+                  ? "30px"
+                  : animKind === "tank"
+                    ? "24px"
+                    : "20px";
+            img.style.height = "auto";
+            img.style.transform = `rotate(${rotation}deg)`;
+            img.style.filter =
+              animKind === "fighter"
+                ? "drop-shadow(0 0 12px rgba(245,158,11,0.65))"
+                : animKind === "ship"
+                  ? "drop-shadow(0 0 10px rgba(56,189,248,0.6))"
+                  : "drop-shadow(0 0 8px rgba(8,17,29,0.75))";
+            element.appendChild(img);
+
+            animationMarkers.set(
+              a.id,
+              new maplibregl.Marker({ element, anchor: "center" })
+                .setLngLat(currentPoint)
+                .addTo(map)
+            );
+          }
         }
 
         // Defender pulse rings — 3 concentric expanding rings at the target centroid
@@ -670,12 +1114,19 @@ export default function GameMap({
             geometry: { type: "Point", coordinates: a.targetCentroid },
             properties: {
               radius: 8 + phase * 44,           // grows from 8px to 52px
-              color: "#ef4444",
+              color: pulseColor,
               opacity: (1 - phase) * 0.75 * fadeOut,
             },
           });
         }
       }
+
+      animationMarkers.forEach((marker, animationId) => {
+        if (!activeAnimationIds.has(animationId)) {
+          marker.remove();
+          animationMarkers.delete(animationId);
+        }
+      });
 
       try {
         (map.getSource("anim-lines") as maplibregl.GeoJSONSource).setData({
@@ -685,6 +1136,10 @@ export default function GameMap({
         (map.getSource("anim-dots") as maplibregl.GeoJSONSource).setData({
           type: "FeatureCollection",
           features: dotFeats,
+        } as unknown as GeoJSON.FeatureCollection);
+        (map.getSource("anim-icons") as maplibregl.GeoJSONSource).setData({
+          type: "FeatureCollection",
+          features: iconFeats,
         } as unknown as GeoJSON.FeatureCollection);
         (map.getSource("defend-pulses") as maplibregl.GeoJSONSource).setData({
           type: "FeatureCollection",
@@ -698,8 +1153,24 @@ export default function GameMap({
     };
 
     rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      animationMarkers.forEach((marker) => marker.remove());
+      animationMarkers.clear();
+    };
   }, []);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  return (
+    <div
+      className="h-full w-full bg-[#08111d]"
+      style={{
+        backgroundImage:
+          "linear-gradient(rgba(5,10,18,0.72), rgba(5,10,18,0.72)), url('/assets/map_textures/mapka_coast.webp'), url('/assets/ui/hex_bg_tile.webp')",
+        backgroundSize: "cover, cover, 220px",
+        backgroundPosition: "center, center, center",
+      }}
+    >
+      <div ref={containerRef} className="h-full w-full" />
+    </div>
+  );
 }

@@ -1,0 +1,6 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3 uid="uid://bn2chklhi3n72"]
+
+[ext_resource type="Texture2D" uid="uid://dqh81g5uuaffi" path="res://assets/objects/textures_2/chest_sm_wooden_iron.webp" id="1"]
+
+[resource]
+albedo_texture = ExtResource("1")

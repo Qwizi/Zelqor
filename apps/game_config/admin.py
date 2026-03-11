@@ -35,7 +35,7 @@ class GameSettingsAdmin(admin.ModelAdmin):
 class UnitTypeInline(admin.TabularInline):
     model = UnitType
     extra = 0
-    fields = ('name', 'slug', 'icon', 'attack', 'defense', 'speed', 'movement_type', 'production_cost', 'production_time_ticks', 'is_active')
+    fields = ('name', 'slug', 'icon', 'attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type', 'production_cost', 'production_time_ticks', 'is_active')
 
 
 @admin.register(BuildingType)
@@ -49,7 +49,7 @@ class BuildingTypeAdmin(admin.ModelAdmin):
 
 @admin.register(UnitType)
 class UnitTypeAdmin(admin.ModelAdmin):
-    list_display = ('icon', 'name', 'slug', 'attack', 'defense', 'speed', 'movement_type', 'produced_by', 'production_cost', 'is_active', 'order')
+    list_display = ('icon', 'name', 'slug', 'attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type', 'produced_by', 'production_cost', 'is_active', 'order')
     list_filter = ('is_active', 'movement_type', 'produced_by')
     search_fields = ('name', 'slug')
     prepopulated_fields = {'slug': ('name',)}

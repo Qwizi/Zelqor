@@ -14,7 +14,6 @@ import {
   register as apiRegister,
   refreshToken as apiRefresh,
   type User,
-  type APIError,
 } from "@/lib/api";
 import {
   getAccessToken,
