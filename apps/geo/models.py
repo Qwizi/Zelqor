@@ -21,10 +21,12 @@ class Region(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
     country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name='regions')
+    map_source_id = models.PositiveIntegerField(null=True, blank=True, db_index=True)
     geometry = gis_models.MultiPolygonField(srid=4326)
     centroid = gis_models.PointField(srid=4326, null=True, blank=True)
     neighbors = models.ManyToManyField('self', symmetrical=True, blank=True)
     is_coastal = models.BooleanField(default=False)
+    sea_distances = models.JSONField(default=list, blank=True)
     population_weight = models.FloatField(default=1.0, help_text='Weight for unit generation rate')
 
     class Meta:

@@ -19,6 +19,9 @@ class GameSettings(models.Model):
     # Unit generation
     base_unit_generation_rate = models.FloatField(default=1.0, help_text='Units generated per tick per region')
     capital_generation_bonus = models.FloatField(default=2.0, help_text='Multiplier for capital region')
+    starting_currency = models.PositiveIntegerField(default=120, help_text='Starting strategic currency for each player')
+    base_currency_per_tick = models.FloatField(default=2.0, help_text='Base currency generated per tick for each player')
+    region_currency_per_tick = models.FloatField(default=0.35, help_text='Currency generated per owned region each tick')
     
     # Combat
     attacker_advantage = models.FloatField(default=0.0, help_text='Bonus for attacker (e.g. 0.1 = 10%)')
@@ -63,11 +66,13 @@ class BuildingType(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
+    asset_key = models.SlugField(max_length=100, blank=True, default='')
     description = models.TextField(blank=True)
     icon = models.CharField(max_length=50, blank=True, default='🏗️')
     
     # Costs & timing
     cost = models.PositiveIntegerField(default=50, help_text='Unit cost to build')
+    currency_cost = models.PositiveIntegerField(default=50, help_text='Currency cost to build')
     build_time_ticks = models.PositiveIntegerField(default=10, help_text='Ticks to complete building')
     
     # Constraints
@@ -78,6 +83,7 @@ class BuildingType(models.Model):
     defense_bonus = models.FloatField(default=0.0, help_text='Defense bonus for region (e.g. 0.2 = 20%)')
     vision_range = models.PositiveIntegerField(default=0, help_text='Extra vision range in regions')
     unit_generation_bonus = models.FloatField(default=0.0, help_text='Extra units generated per tick')
+    currency_generation_bonus = models.FloatField(default=0.0, help_text='Extra currency generated per tick by the region')
     
     is_active = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)
@@ -93,6 +99,7 @@ class UnitType(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
+    asset_key = models.SlugField(max_length=100, blank=True, default='')
     description = models.TextField(blank=True)
     icon = models.CharField(max_length=50, blank=True, default='⚔️')
     
@@ -101,6 +108,14 @@ class UnitType(models.Model):
     defense = models.FloatField(default=1.0)
     speed = models.PositiveIntegerField(default=1, help_text='Regions moved per tick')
     attack_range = models.PositiveIntegerField(default=1, help_text='Attack range in regions')
+    sea_range = models.PositiveIntegerField(
+        default=0,
+        help_text='Sea distance score for maritime reach on custom maps (0 = disabled)'
+    )
+    sea_hop_distance_km = models.PositiveIntegerField(
+        default=0,
+        help_text='Max maritime hop distance in km for sea units (0 = use global fallback)'
+    )
     
     # Production
     produced_by = models.ForeignKey(
@@ -109,6 +124,7 @@ class UnitType(models.Model):
     )
     production_cost = models.PositiveIntegerField(default=5, help_text='Unit cost to produce')
     production_time_ticks = models.PositiveIntegerField(default=5, help_text='Ticks to produce')
+    manpower_cost = models.PositiveIntegerField(default=1, help_text='How many base units are consumed to produce one token of this unit')
     
     # Type
     movement_type = models.CharField(max_length=10, choices=MovementType.choices, default=MovementType.LAND)
@@ -121,6 +137,10 @@ class UnitType(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.get_movement_type_display()})"
+
+    @property
+    def produced_by_slug(self):
+        return self.produced_by.slug if self.produced_by_id else None
 
 
 class MapConfig(models.Model):

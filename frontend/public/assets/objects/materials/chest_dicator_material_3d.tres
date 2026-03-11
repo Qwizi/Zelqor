@@ -1,0 +1,13 @@
+[gd_resource type="StandardMaterial3D" load_steps=3 format=3 uid="uid://ch1u1skhhj3td"]
+
+[ext_resource type="Texture2D" uid="uid://cc5a4gakd0d8k" path="res://assets/objects/textures/chest_dictator_texture.png" id="1"]
+[ext_resource type="Texture2D" uid="uid://dt2p7jjcjawho" path="res://assets/objects/textures/chest_dictator_texture_nm.png" id="2"]
+
+[resource]
+diffuse_mode = 3
+albedo_texture = ExtResource("1")
+roughness_texture_channel = 4
+normal_enabled = true
+normal_texture = ExtResource("2")
+refraction_scale = 0.02
+proximity_fade_distance = 0.0

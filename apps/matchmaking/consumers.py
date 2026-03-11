@@ -56,7 +56,7 @@ class MatchmakingConsumer(AsyncJsonWebsocketConsumer):
     def try_create_match(self):
         """Try to create a match if enough players in queue."""
         from apps.matchmaking.models import MatchQueue, Match, MatchPlayer
-        from apps.game_config.models import GameSettings, MapConfig, BuildingType
+        from apps.game_config.models import GameSettings, MapConfig, BuildingType, UnitType
         
         settings = GameSettings.get()
         min_players = settings.min_players
@@ -76,15 +76,51 @@ class MatchmakingConsumer(AsyncJsonWebsocketConsumer):
         building_types = {
             bt.slug: {
                 'cost': bt.cost,
+                'currency_cost': bt.currency_cost,
                 'build_time_ticks': bt.build_time_ticks,
+                'max_per_region': bt.max_per_region,
                 'defense_bonus': bt.defense_bonus,
                 'vision_range': bt.vision_range,
                 'unit_generation_bonus': bt.unit_generation_bonus,
+                'currency_generation_bonus': bt.currency_generation_bonus,
+                'requires_coastal': bt.requires_coastal,
                 'icon': bt.icon,
                 'name': bt.name,
+                'asset_key': bt.asset_key,
+                'order': bt.order,
+                'produced_unit_slug': (
+                    bt.unit_types.filter(is_active=True).order_by('order').values_list('slug', flat=True).first()
+                ),
             }
             for bt in BuildingType.objects.filter(is_active=True)
         }
+
+        unit_types = {
+            ut.slug: {
+                'name': ut.name,
+                'asset_key': ut.asset_key,
+                'attack': float(ut.attack),
+                'defense': float(ut.defense),
+                'speed': int(ut.speed),
+                'attack_range': int(ut.attack_range),
+                'sea_range': int(ut.sea_range),
+                'sea_hop_distance_km': int(ut.sea_hop_distance_km),
+                'movement_type': ut.movement_type,
+                'produced_by_slug': ut.produced_by.slug if ut.produced_by_id else None,
+                'production_cost': int(ut.production_cost),
+                'production_time_ticks': int(ut.production_time_ticks),
+                'manpower_cost': int(ut.manpower_cost),
+            }
+            for ut in UnitType.objects.select_related('produced_by').filter(is_active=True)
+        }
+
+        default_unit_type_slug = (
+            UnitType.objects.filter(is_active=True, produced_by__isnull=True)
+            .order_by('order')
+            .values_list('slug', flat=True)
+            .first()
+            or 'infantry'
+        )
         
         # Create match
         match = Match.objects.create(
@@ -97,12 +133,17 @@ class MatchmakingConsumer(AsyncJsonWebsocketConsumer):
                 'capital_selection_time_seconds': settings.capital_selection_time_seconds,
                 'base_unit_generation_rate': settings.base_unit_generation_rate,
                 'capital_generation_bonus': settings.capital_generation_bonus,
+                'starting_currency': settings.starting_currency,
+                'base_currency_per_tick': settings.base_currency_per_tick,
+                'region_currency_per_tick': settings.region_currency_per_tick,
                 'attacker_advantage': settings.attacker_advantage,
                 'defender_advantage': settings.defender_advantage,
                 'combat_randomness': settings.combat_randomness,
                 'starting_units': settings.starting_units,
                 'neutral_region_units': settings.neutral_region_units,
                 'building_types': building_types,
+                'unit_types': unit_types,
+                'default_unit_type_slug': default_unit_type_slug,
                 'min_capital_distance': map_config.min_capital_distance if map_config else 3,
             },
         )

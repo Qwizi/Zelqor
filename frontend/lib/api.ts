@@ -100,26 +100,39 @@ export interface BuildingType {
   id: string;
   name: string;
   slug: string;
+  asset_key: string;
   description: string;
   icon: string;
   cost: number;
+  currency_cost: number;
   build_time_ticks: number;
+  max_per_region: number;
   requires_coastal: boolean;
   defense_bonus: number;
   vision_range: number;
   unit_generation_bonus: number;
+  currency_generation_bonus: number;
+  order: number;
 }
 
 export interface UnitType {
   id: string;
   name: string;
   slug: string;
+  asset_key: string;
   description: string;
   icon: string;
   attack: number;
   defense: number;
   speed: number;
+  attack_range: number;
+  sea_range: number;
+  sea_hop_distance_km: number;
   movement_type: string;
+  produced_by_slug?: string | null;
+  production_cost: number;
+  production_time_ticks: number;
+  manpower_cost: number;
 }
 
 export interface GameSettings {
@@ -128,6 +141,9 @@ export interface GameSettings {
   tick_interval_ms: number;
   starting_units: number;
   base_unit_generation_rate: number;
+  starting_currency: number;
+  base_currency_per_tick: number;
+  region_currency_per_tick: number;
 }
 
 export interface MapConfigItem {
@@ -192,9 +208,7 @@ export async function getRegionsGraph(matchId?: string): Promise<RegionGraphEntr
  *  MapLibre requires absolute URLs — use window.location.origin as base.
  *  Pass matchId to restrict tiles to that match's map config. */
 export function getRegionTilesUrl(matchId?: string): string {
-  const origin =
-    typeof window !== "undefined" ? window.location.origin : "";
-  const base = `${origin}/api/v1/geo/tiles/{z}/{x}/{y}/`;
+  const base = `${API_BASE.replace(/\/api\/v1$/, "")}/api/v1/geo/tiles/{z}/{x}/{y}/`;
   return matchId ? `${base}?match_id=${matchId}` : base;
 }
 

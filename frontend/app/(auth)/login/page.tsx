@@ -3,17 +3,10 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import AuthScreen from "@/components/auth/AuthScreen";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -39,55 +32,81 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4">
-      <Card className="w-full max-w-md border-zinc-800 bg-zinc-900">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold tracking-tight">
-            🗺️ MapLord
-          </CardTitle>
-          <CardDescription>Zaloguj się, aby grać</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@example.com"
-                required
-                autoComplete="email"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Hasło</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                autoComplete="current-password"
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Logowanie..." : "Zaloguj się"}
-            </Button>
-          </form>
-          <p className="mt-4 text-center text-sm text-zinc-400">
-            Nie masz konta?{" "}
-            <Link
-              href="/register"
-              className="text-blue-400 hover:text-blue-300"
-            >
-              Zarejestruj się
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+    <AuthScreen
+      eyebrow="Access Portal"
+      title="Logowanie"
+      description="Wejdz do panelu dowodzenia i wracaj do swoich meczow bez przechodzenia przez kolejny placeholderowy ekran."
+      altPrompt="Nie masz konta?"
+      altHref="/register"
+      altLabel="Zarejestruj się"
+    >
+      <div className="space-y-5">
+        <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300 sm:grid-cols-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+              Region
+            </p>
+            <p className="mt-1 font-display text-lg text-cyan-200">EU-Central</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+              Status
+            </p>
+            <p className="mt-1 font-display text-lg text-emerald-300">Online</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+              Queue
+            </p>
+            <p className="mt-1 font-display text-lg text-amber-200">Ready</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-slate-300">
+              Email
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="dowodca@maplord.gg"
+              required
+              autoComplete="email"
+              className="h-11 rounded-xl border-white/10 bg-slate-900/80 px-4 text-zinc-100 placeholder:text-slate-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-slate-300">
+              Hasło
+            </Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              autoComplete="current-password"
+              className="h-11 rounded-xl border-white/10 bg-slate-900/80 px-4 text-zinc-100 placeholder:text-slate-500"
+            />
+          </div>
+          <Button
+            type="submit"
+            className="h-11 w-full rounded-xl border border-cyan-300/30 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] font-display text-sm uppercase tracking-[0.22em] text-slate-950 hover:opacity-95"
+            disabled={loading}
+          >
+            {loading ? "Logowanie..." : "Wejdz do gry"}
+          </Button>
+        </form>
+
+        <div className="rounded-2xl border border-amber-300/12 bg-amber-300/5 px-4 py-3 text-xs leading-6 text-slate-400">
+          Dostep przez Google, Discord i Apple jest juz przygotowany wizualnie,
+          ale nie jest jeszcze podlaczony po stronie backendu.
+        </div>
+      </div>
+    </AuthScreen>
   );
 }

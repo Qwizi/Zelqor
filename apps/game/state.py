@@ -112,6 +112,34 @@ class GameStateManager:
             pipe.rpush(key, msgpack.packb(b))
         await pipe.execute()
 
+    # --- Unit Queue ---
+
+    async def get_all_unit_queue(self) -> list:
+        raw = await self.redis.lrange(self._key("unit_queue"), 0, -1)
+        return [msgpack.unpackb(item, raw=False) for item in raw]
+
+    async def set_unit_queue(self, queue: list):
+        key = self._key("unit_queue")
+        pipe = self.redis.pipeline()
+        pipe.delete(key)
+        for item in queue:
+            pipe.rpush(key, msgpack.packb(item))
+        await pipe.execute()
+
+    # --- Transit Queue ---
+
+    async def get_all_transit_queue(self) -> list:
+        raw = await self.redis.lrange(self._key("transit_queue"), 0, -1)
+        return [msgpack.unpackb(item, raw=False) for item in raw]
+
+    async def set_transit_queue(self, queue: list):
+        key = self._key("transit_queue")
+        pipe = self.redis.pipeline()
+        pipe.delete(key)
+        for item in queue:
+            pipe.rpush(key, msgpack.packb(item))
+        await pipe.execute()
+
     # --- Full State ---
 
     async def get_full_state(self) -> dict:
@@ -124,6 +152,8 @@ class GameStateManager:
             "players": players,
             "regions": regions,
             "buildings_queue": buildings,
+            "unit_queue": await self.get_all_unit_queue(),
+            "transit_queue": await self.get_all_transit_queue(),
         }
 
     # --- Cleanup ---
@@ -136,5 +166,7 @@ class GameStateManager:
             self._key("regions"),
             self._key("actions"),
             self._key("buildings_queue"),
+            self._key("unit_queue"),
+            self._key("transit_queue"),
         ]
         await self.redis.delete(*keys)
