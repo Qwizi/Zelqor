@@ -67,6 +67,10 @@ function getSeaDistanceScore(sourceRegion: GameRegion, targetId: string) {
   return null;
 }
 
+function getSeaTravelRange(unit: Pick<UnitType, "sea_range" | "sea_hop_distance_km">) {
+  return Math.max(0, unit.sea_range || unit.sea_hop_distance_km || 0);
+}
+
 function getTravelDistance(
   sourceId: string,
   targetId: string,
@@ -230,14 +234,6 @@ export default function GamePage({
   const availableSourceUnitTypes = Object.entries(sourceRegionData?.units ?? {})
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1]);
-  const selectedUnitTypeForAction =
-    (selectedActionUnitType &&
-    availableSourceUnitTypes.some(([unitType]) => unitType === selectedActionUnitType)
-      ? selectedActionUnitType
-      : null) ||
-    availableSourceUnitTypes[0]?.[0] ||
-    sourceRegionData?.unit_type ||
-    null;
 
   const isSource =
     !!sourceRegionData &&
@@ -262,7 +258,7 @@ export default function GamePage({
 
       const rules = unitConfigBySlug[unitType] ?? getUnitRules(unitsConfig, unitType);
       const movementType = rules.movement_type;
-      const seaRange = Math.max(0, rules.sea_range || 0);
+      const seaRange = getSeaTravelRange(rules);
       const moveRange = Math.max(1, rules.speed || 1);
       const attackRange = Math.max(1, rules.attack_range || 1);
       const moveTargets = new Set<string>();
@@ -356,6 +352,16 @@ export default function GamePage({
       return leftOrder - rightOrder;
     })[0];
   }, [gameState?.regions, myUserId, reachabilityByUnitType, sourceRegionData, unitConfigBySlug]);
+
+  const selectedUnitTypeForAction =
+    (selectedActionUnitType &&
+    availableSourceUnitTypes.some(([unitType]) => unitType === selectedActionUnitType)
+      ? selectedActionUnitType
+      : null) ||
+    (actionTargets.length > 0 ? getPreferredReachableUnitType(actionTargets[0]) : null) ||
+    availableSourceUnitTypes[0]?.[0] ||
+    sourceRegionData?.unit_type ||
+    null;
 
   const highlightedNeighbors = useMemo(() => {
     if (!isSource || !selectedRegion || status !== "in_progress") return [];
