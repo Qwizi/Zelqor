@@ -2,12 +2,22 @@ services:
   db:
     image: imresamu/postgis:16-3.4-alpine
     restart: unless-stopped
+    # Tuned for low-RAM ARM (Pi 4 / 4GB)
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c work_mem=4MB
+      -c effective_cache_size=512MB
+      -c max_connections=20
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=4MB
     environment:
       POSTGRES_DB: ${DB_NAME:-maplord}
       POSTGRES_USER: ${DB_USER:-maplord}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    mem_limit: 256m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-maplord}"]
       interval: 10s
@@ -17,8 +27,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    volumes:
-      - redis_data:/data
+    # Disable RDB/AOF persistence — eliminates SD card I/O on every write
+    command: redis-server --save "" --appendonly no
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -55,12 +65,13 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       DEBUG: "False"
+    mem_limit: 192m
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: uv run celery -A config worker -l info
+    command: uv run celery -A config worker -l warning --concurrency 2
 
   celery-beat:
     image: ghcr.io/qwizi/maplord:${TAG:-latest}
@@ -86,6 +97,8 @@ services:
     restart: unless-stopped
     environment:
       API_URL: http://backend:8000/api/v1
+      NODE_OPTIONS: --max-old-space-size=256
+    mem_limit: 350m
     depends_on:
       - backend
 

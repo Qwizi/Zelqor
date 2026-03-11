@@ -2,6 +2,7 @@ import json
 from typing import List
 
 from django.contrib.gis.serializers.geojson import Serializer as GeoJSONSerializer
+from django.core.cache import cache
 from django.db import connection
 from django.http import HttpResponse
 from ninja_extra import api_controller, route
@@ -42,8 +43,18 @@ class GeoController:
         """Serves MVT vector tiles for the regions layer.
         MapLibre requests only tiles visible in the current viewport.
         Pass match_id to filter by that match's map config (country_codes).
+        Tiles are cached in Redis — geometry never changes during a match.
         """
         country_codes = self._country_codes_for_match(match_id) if match_id else []
+
+        codes_key = "|".join(sorted(country_codes)) if country_codes else "all"
+        cache_key = f"mvt:{z}:{x}:{y}:{codes_key}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            response = HttpResponse(cached or b'', content_type='application/x-protobuf',
+                                    status=200 if cached else 204)
+            response['Cache-Control'] = 'public, max-age=86400, stale-while-revalidate=3600'
+            return response
 
         if country_codes:
             sql = """
@@ -95,26 +106,37 @@ class GeoController:
             cursor.execute(sql, params)
             tile = cursor.fetchone()[0]
 
-        if tile:
-            response = HttpResponse(bytes(tile), content_type='application/x-protobuf')
+        tile_bytes = bytes(tile) if tile else b''
+        # Cache for 24h — geometry is immutable
+        cache.set(cache_key, tile_bytes, timeout=86400)
+
+        if tile_bytes:
+            response = HttpResponse(tile_bytes, content_type='application/x-protobuf')
         else:
-            # Empty tile — 204 so MapLibre doesn't retry
             response = HttpResponse(b'', content_type='application/x-protobuf', status=204)
 
-        # Tiles are static geometry — cache aggressively in CDN / browser
         response['Cache-Control'] = 'public, max-age=86400, stale-while-revalidate=3600'
         return response
 
     @staticmethod
     def _country_codes_for_match(match_id: str) -> list:
-        """Return country_codes list for the given match's map_config, or [] if unrestricted."""
+        """Return country_codes list for the given match's map_config, or [] if unrestricted.
+        Cached in Redis for 1h — map_config doesn't change during a match.
+        """
+        cache_key = f"match_country_codes:{match_id}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
         try:
             from apps.matchmaking.models import Match
             match = Match.objects.select_related('map_config').get(id=match_id)
             if match.map_config and match.map_config.country_codes:
-                return match.map_config.country_codes
+                result = match.map_config.country_codes
+                cache.set(cache_key, result, timeout=3600)
+                return result
         except Exception:
             pass
+        cache.set(cache_key, [], timeout=3600)
         return []
 
     @route.get('/regions/', auth=None)

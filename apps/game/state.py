@@ -140,20 +140,90 @@ class GameStateManager:
             pipe.rpush(key, msgpack.packb(item))
         await pipe.execute()
 
+    async def set_players_bulk(self, players: dict):
+        """Set multiple players at once using pipeline."""
+        pipe = self.redis.pipeline()
+        key = self._key("players")
+        for player_id, data in players.items():
+            pipe.hset(key, player_id, msgpack.packb(data))
+        await pipe.execute()
+
+    # --- Tick helpers (pipelined reads + writes) ---
+
+    async def get_tick_data(self) -> tuple:
+        """Fetch all data needed for one tick in a single Redis pipeline.
+        Returns (tick, players, regions, actions, buildings, unit_queue, transit_queue).
+        """
+        pipe = self.redis.pipeline()
+        pipe.hincrby(self._key("meta"), "current_tick", 1)
+        pipe.hgetall(self._key("players"))
+        pipe.hgetall(self._key("regions"))
+        actions_key = self._key("actions")
+        pipe.lrange(actions_key, 0, -1)
+        pipe.delete(actions_key)
+        pipe.lrange(self._key("buildings_queue"), 0, -1)
+        pipe.lrange(self._key("unit_queue"), 0, -1)
+        pipe.lrange(self._key("transit_queue"), 0, -1)
+        results = await pipe.execute()
+
+        tick = results[0]
+        players = {k.decode(): msgpack.unpackb(v, raw=False) for k, v in results[1].items()}
+        regions = {k.decode(): msgpack.unpackb(v, raw=False) for k, v in results[2].items()}
+        actions = [msgpack.unpackb(item, raw=False) for item in results[3]]
+        buildings = [msgpack.unpackb(item, raw=False) for item in results[5]]
+        unit_queue = [msgpack.unpackb(item, raw=False) for item in results[6]]
+        transit_queue = [msgpack.unpackb(item, raw=False) for item in results[7]]
+        return tick, players, regions, actions, buildings, unit_queue, transit_queue
+
+    async def set_tick_result(self, result: dict):
+        """Write all tick results in a single Redis pipeline."""
+        pipe = self.redis.pipeline()
+
+        regions_key = self._key("regions")
+        for region_id, data in result["regions"].items():
+            pipe.hset(regions_key, region_id, msgpack.packb(data))
+
+        players_key = self._key("players")
+        for pid, pdata in result["players"].items():
+            pipe.hset(players_key, pid, msgpack.packb(pdata))
+
+        buildings_key = self._key("buildings_queue")
+        pipe.delete(buildings_key)
+        for b in result["buildings_queue"]:
+            pipe.rpush(buildings_key, msgpack.packb(b))
+
+        unit_key = self._key("unit_queue")
+        pipe.delete(unit_key)
+        for item in result["unit_queue"]:
+            pipe.rpush(unit_key, msgpack.packb(item))
+
+        transit_key = self._key("transit_queue")
+        pipe.delete(transit_key)
+        for item in result["transit_queue"]:
+            pipe.rpush(transit_key, msgpack.packb(item))
+
+        await pipe.execute()
+
     # --- Full State ---
 
     async def get_full_state(self) -> dict:
-        meta = await self.get_meta()
-        players = await self.get_all_players()
-        regions = await self.get_all_regions()
-        buildings = await self.get_all_buildings()
+        """Fetch full game state in a single Redis pipeline."""
+        pipe = self.redis.pipeline()
+        pipe.hgetall(self._key("meta"))
+        pipe.hgetall(self._key("players"))
+        pipe.hgetall(self._key("regions"))
+        pipe.lrange(self._key("buildings_queue"), 0, -1)
+        pipe.lrange(self._key("unit_queue"), 0, -1)
+        pipe.lrange(self._key("transit_queue"), 0, -1)
+        meta_raw, players_raw, regions_raw, buildings_raw, unit_raw, transit_raw = await pipe.execute()
+
         return {
-            "meta": meta,
-            "players": players,
-            "regions": regions,
-            "buildings_queue": buildings,
-            "unit_queue": await self.get_all_unit_queue(),
-            "transit_queue": await self.get_all_transit_queue(),
+            "meta": {k.decode(): v.decode() for k, v in meta_raw.items()},
+            "players": {k.decode(): msgpack.unpackb(v, raw=False) for k, v in players_raw.items()},
+            "regions": {k.decode(): msgpack.unpackb(v, raw=False) for k, v in regions_raw.items()},
+            "buildings_queue": [msgpack.unpackb(i, raw=False) for i in buildings_raw],
+            "unit_queue": [msgpack.unpackb(i, raw=False) for i in unit_raw],
+            "transit_queue": [msgpack.unpackb(i, raw=False) for i in transit_raw],
         }
 
     # --- Cleanup ---

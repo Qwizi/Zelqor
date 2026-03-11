@@ -537,23 +537,15 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
         while True:
             await asyncio.sleep(tick_interval)
 
-            tick = await self.state_manager.increment_tick()
-            players = await self.state_manager.get_all_players()
-            regions = await self.state_manager.get_all_regions()
-            actions = await self.state_manager.pop_all_actions()
-            buildings = await self.state_manager.get_all_buildings()
-            unit_queue = await self.state_manager.get_all_unit_queue()
-            transit_queue = await self.state_manager.get_all_transit_queue()
+            # Single pipeline read — replaces 7 individual Redis calls
+            tick, players, regions, actions, buildings, unit_queue, transit_queue = (
+                await self.state_manager.get_tick_data()
+            )
 
             result = engine.process_tick(players, regions, actions, buildings, unit_queue, transit_queue)
 
-            # Persist updated state
-            await self.state_manager.set_regions_bulk(result["regions"])
-            for pid, pdata in result["players"].items():
-                await self.state_manager.set_player(pid, pdata)
-            await self.state_manager.set_buildings(result["buildings_queue"])
-            await self.state_manager.set_unit_queue(result["unit_queue"])
-            await self.state_manager.set_transit_queue(result["transit_queue"])
+            # Single pipeline write — replaces N+4 individual Redis calls
+            await self.state_manager.set_tick_result(result)
 
             # Broadcast tick
             await self.channel_layer.group_send(self.game_group, {
