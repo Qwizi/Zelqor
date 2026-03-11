@@ -2,6 +2,22 @@ import msgpack
 import redis.asyncio as aioredis
 from django.conf import settings
 
+# Shared connection pool — all consumers reuse the same pool instead of
+# each creating their own (default pool = 10 connections each).
+_pool: aioredis.ConnectionPool | None = None
+
+
+def _get_pool() -> aioredis.ConnectionPool:
+    global _pool
+    if _pool is None:
+        _pool = aioredis.ConnectionPool(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=settings.REDIS_GAME_DB,
+            max_connections=20,
+        )
+    return _pool
+
 
 class GameStateManager:
     """Manages game state in Redis using Hashes and Lists."""
@@ -11,15 +27,11 @@ class GameStateManager:
         self.redis = None
 
     async def connect(self):
-        self.redis = aioredis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_GAME_DB,
-        )
+        self.redis = aioredis.Redis(connection_pool=_get_pool())
 
     async def close(self):
-        if self.redis:
-            await self.redis.aclose()
+        # Don't close the shared pool — just release the reference
+        self.redis = None
 
     def _key(self, suffix: str) -> str:
         return f"game:{self.match_id}:{suffix}"

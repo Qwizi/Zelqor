@@ -106,7 +106,9 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
               ...(isGameOver ? { status: "finished" } : {}),
             },
             players: (msg.players as Record<string, GamePlayer>) || prev.players,
-            regions: (msg.regions as Record<string, GameRegion>) || prev.regions,
+            regions: msg.regions
+              ? { ...prev.regions, ...(msg.regions as Record<string, GameRegion>) }
+              : prev.regions,
             buildings_queue: (msg.buildings_queue as BuildingQueueItem[]) ?? prev.buildings_queue,
             unit_queue: (msg.unit_queue as UnitQueueItem[]) ?? prev.unit_queue,
             transit_queue: (msg.transit_queue as Array<Record<string, unknown>>) ?? prev.transit_queue,
