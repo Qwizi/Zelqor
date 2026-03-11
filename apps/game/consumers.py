@@ -547,12 +547,18 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
             # Single pipeline write — replaces N+4 individual Redis calls
             await self.state_manager.set_tick_result(result)
 
-            # Broadcast tick
+            # Delta broadcast — only send regions that changed this tick,
+            # and strip sea_distances (static, sent once on game_state init).
+            changed_regions = {
+                rid: {k: v for k, v in data.items() if k != "sea_distances"}
+                for rid, data in result["regions"].items()
+                if data != regions.get(rid)
+            }
             await self.channel_layer.group_send(self.game_group, {
                 "type": "game_tick",
                 "tick": tick,
                 "events": result["events"],
-                "regions": result["regions"],
+                "regions": changed_regions,
                 "players": result["players"],
                 "buildings_queue": result["buildings_queue"],
                 "unit_queue": result["unit_queue"],
