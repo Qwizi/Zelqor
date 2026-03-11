@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
 import { useGameSocket } from "@/hooks/useGameSocket";
+import { useAudio } from "@/hooks/useAudio";
 import {
   getRegionsGraph,
   getRegionTilesUrl,
@@ -284,6 +285,8 @@ export default function GamePage({
     produceUnit,
   } = useGameSocket(matchId);
 
+  const { startMusic, stopMusic, playSound, toggleMute, muted } = useAudio();
+
   const [regionGraph, setRegionGraph] = useState<RegionGraphEntry[]>([]);
   const [buildings, setBuildings] = useState<BuildingType[]>([]);
   const [unitsConfig, setUnitsConfig] = useState<UnitType[]>([]);
@@ -302,6 +305,7 @@ export default function GamePage({
 
   // Track the last processed event batch so animation derivation survives event list trimming.
   const lastProcessedEventKeyRef = useRef<string | null>(null);
+  const lastProcessedAudioKeyRef = useRef<string | null>(null);
   const localDispatchKeysRef = useRef(new Map<string, number>());
 
   // Redirect if not logged in
@@ -817,30 +821,91 @@ export default function GamePage({
     [selectedRegion, produceUnit]
   );
 
+  // ── Music ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (status === "in_progress" || status === "selecting") {
+      startMusic();
+    } else if (status === "finished") {
+      stopMusic();
+    }
+  }, [status, startMusic, stopMusic]);
+
   // ── Events ─────────────────────────────────────────────────
 
   useEffect(() => {
     if (events.length === 0) return;
-    const last = events[events.length - 1];
-    if (last.type === "game_over") {
-      const winnerId = last.winner_id as string;
-      const winner = gameState?.players[winnerId];
-      if (winnerId === myUserId) {
-        toast.success("Wygrales");
-      } else {
-        toast.error(`Przegrales. Wygrywa: ${winner?.username || "?"}`);
+
+    const eventKeys = events.map((e, i) => `${e.type}:${i}`);
+    const lastAudioKey = lastProcessedAudioKeyRef.current;
+    const startIndex =
+      lastAudioKey === null
+        ? 0
+        : Math.max(0, eventKeys.findIndex((k) => k === lastAudioKey) + 1);
+    const newEvents = events.slice(startIndex);
+    const latestKey = eventKeys.at(-1) ?? null;
+    if (latestKey) lastProcessedAudioKeyRef.current = latestKey;
+    if (newEvents.length === 0) return;
+
+    for (const e of newEvents) {
+      if (e.type === "game_over") {
+        const winnerId = e.winner_id as string;
+        const winner = gameState?.players[winnerId];
+        if (winnerId === myUserId) {
+          toast.success("Wygrales");
+          playSound("popup");
+        } else {
+          toast.error(`Przegrales. Wygrywa: ${winner?.username || "?"}`);
+          playSound("buzzer");
+        }
+      }
+      if (e.type === "player_eliminated" && e.player_id === myUserId) {
+        toast.error("Twoja stolica zostala zdobyta");
+        playSound("buzzer");
+      }
+      if (e.type === "build_started" && e.player_id === myUserId) {
+        playSound("build");
+      }
+      if (e.type === "troops_sent") {
+        const unitType = e.unit_type as string | undefined;
+        const actionType = e.action_type as string | undefined;
+        const targetRegionId = e.target_region_id as string | undefined;
+        const attackerId = e.player_id as string | undefined;
+
+        if (unitType === "fighter") playSound("plane_start");
+        else playSound("click2");
+
+        // Incoming attack on my region
+        if (
+          actionType === "attack" &&
+          attackerId !== myUserId &&
+          targetRegionId &&
+          gameStateRef.current?.regions[targetRegionId]?.owner_id === myUserId
+        ) {
+          const attackerName = gameStateRef.current?.players[attackerId ?? ""]?.username ?? "Wróg";
+          const regionName = gameStateRef.current?.regions[targetRegionId]?.name ?? targetRegionId;
+          playSound("alert");
+          toast.warning(`⚔️ ${attackerName} atakuje ${regionName}!`, {
+            duration: 5000,
+          });
+        }
+      }
+      if (e.type === "attack_success" && e.player_id !== myUserId) {
+        const targetRegionId = e.target_region_id as string | undefined;
+        // Region was mine before — lost
+        if (targetRegionId && gameStateRef.current?.regions[targetRegionId]?.owner_id === myUserId) {
+          playSound("missile_explosion");
+        }
+      }
+      if (e.type === "action_rejected" && e.player_id === myUserId) {
+        toast.error(String(e.message ?? "Akcja zostala odrzucona"));
+        playSound("fail");
+      }
+      if (e.type === "server_error") {
+        toast.error(e.message as string);
       }
     }
-    if (last.type === "player_eliminated" && last.player_id === myUserId) {
-      toast.error("Twoja stolica zostala zdobyta");
-    }
-    if (last.type === "action_rejected" && last.player_id === myUserId) {
-      toast.error(String(last.message ?? "Akcja zostala odrzucona"));
-    }
-    if (last.type === "server_error") {
-      toast.error(last.message as string);
-    }
-  }, [events, myUserId, gameState?.players]);
+  }, [events, myUserId, gameState?.players, playSound]);
 
   // ── Render ─────────────────────────────────────────────────
 
@@ -948,6 +1013,13 @@ export default function GamePage({
                 {user.username}
               </div>
             </div>
+            <button
+              onClick={toggleMute}
+              title={muted ? "Włącz dźwięk" : "Wycisz dźwięk"}
+              className="rounded-full border border-white/10 bg-white/[0.04] p-2 text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-white"
+            >
+              {muted ? "🔇" : "🔊"}
+            </button>
             <button
               onClick={() => router.push("/dashboard")}
               className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-white/[0.08]"
@@ -1158,22 +1230,41 @@ export default function GamePage({
       )}
 
       {status === "finished" && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="rounded-[28px] border border-white/10 bg-slate-950/90 p-8 text-center backdrop-blur-xl">
-            <Image
-              src="/assets/notifications/shop_new_special_offer.webp"
-              alt=""
-              width={72}
-              height={72}
-              className="mx-auto mb-4 h-[72px] w-[72px] rounded-2xl object-cover"
-            />
-            <h2 className="mb-4 font-display text-3xl text-zinc-50">Koniec gry</h2>
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="rounded-full bg-cyan-500 px-6 py-2 font-medium text-slate-950 hover:bg-cyan-400"
-            >
-              Wróć do lobby
-            </button>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+          <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/92 p-0 text-center shadow-[0_32px_80px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+            <div className="relative h-36 w-full overflow-hidden">
+              <Image
+                src="/assets/match_gui/finish/g77116.webp"
+                alt=""
+                fill
+                className="object-cover opacity-60"
+              />
+              <Image
+                src="/assets/match_gui/finish/g86466.webp"
+                alt=""
+                fill
+                className="object-cover opacity-40 mix-blend-screen"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Image
+                  src="/assets/match_gui/finish/g208476.webp"
+                  alt=""
+                  width={80}
+                  height={80}
+                  className="h-20 w-20 object-contain drop-shadow-[0_0_24px_rgba(255,200,50,0.5)]"
+                />
+              </div>
+            </div>
+            <div className="px-10 py-6">
+              <h2 className="mb-1 font-display text-4xl text-zinc-50">Koniec gry</h2>
+              <p className="mb-6 text-sm text-slate-400">Rozgrywka zakończona</p>
+              <button
+                onClick={() => router.push("/dashboard")}
+                className="rounded-full bg-cyan-500 px-8 py-2.5 font-medium text-slate-950 transition-colors hover:bg-cyan-400"
+              >
+                Wróć do lobby
+              </button>
+            </div>
           </div>
         </div>
       )}

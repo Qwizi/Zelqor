@@ -8,7 +8,8 @@ from apps.geo.models import Country, Region
 
 GEOJSON_PATH = (
     Path(__file__).resolve().parent.parent.parent.parent.parent
-    / "frontend/public/assets/maps/provinces.geojson"
+    / "fixtures"
+    / "provinces.geojson"
 )
 
 GAME_COUNTRY_CODE = "GAM"

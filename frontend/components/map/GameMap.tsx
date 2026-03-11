@@ -537,7 +537,7 @@ export default function GameMap({
             layout: {
               "icon-image": "selected-region-marker",
               "icon-size": 0.52,
-              "icon-offset": [0, -6],
+              "icon-offset": [0, -140],
               "icon-allow-overlap": true,
               "icon-ignore-placement": true,
             },
@@ -734,7 +734,7 @@ export default function GameMap({
             '<img src="/assets/units/capital_star.png" alt="" draggable="false" style="width:26px;height:26px;display:block;filter:drop-shadow(0 0 10px rgba(251,191,36,0.55));" />';
           capitalMarkers.set(
             regionId,
-            new maplibregl.Marker({ element, anchor: "center", offset: [0, -18] })
+            new maplibregl.Marker({ element, anchor: "bottom", offset: [0, -34] })
               .setLngLat(centroid)
               .addTo(map)
           );
@@ -783,7 +783,7 @@ export default function GameMap({
         element.innerHTML = markerHtml;
         buildingMarkers.set(
           regionId,
-          new maplibregl.Marker({ element, anchor: "center", offset: [22, 18] })
+          new maplibregl.Marker({ element, anchor: "top", offset: [0, 26] })
             .setLngLat(centroid)
             .addTo(map)
         );

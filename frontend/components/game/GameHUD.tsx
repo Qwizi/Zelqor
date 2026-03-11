@@ -89,7 +89,7 @@ export default function GameHUD({
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3">
             <div className="flex items-center gap-2">
               <Image
-                src="/assets/units/capital_star.png"
+                src="/assets/icons/storage_icon.webp"
                 alt=""
                 width={18}
                 height={18}

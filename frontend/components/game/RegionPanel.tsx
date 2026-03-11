@@ -179,7 +179,7 @@ export default function RegionPanel({
                             height={18}
                             className="h-[18px] w-[18px] object-contain"
                           />
-                          <span className="truncate text-sm text-zinc-100">{type}</span>
+                          <span className="truncate text-sm text-zinc-100">{getUnitConfig(type)?.name ?? type}</span>
                         </div>
                         {isBaseInfantry && reservedInfantry > 0 && (
                           <div className="mt-1 text-[11px] text-zinc-500">
@@ -372,6 +372,16 @@ export default function RegionPanel({
                       className="h-3.5 w-3.5 object-contain"
                     />
                     {building.currency_cost}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Image
+                      src="/assets/icons/time_icon.png"
+                      alt=""
+                      width={14}
+                      height={14}
+                      className="h-3.5 w-3.5 object-contain opacity-70"
+                    />
+                    {building.build_time_ticks} tick
                   </span>
                   <span className="block">
                     Limit: {(buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0)}/{building.max_per_region}
