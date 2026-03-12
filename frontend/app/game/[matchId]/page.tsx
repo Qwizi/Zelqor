@@ -209,7 +209,7 @@ export default function GamePage({
       const rules = unitConfigBySlug[unitType] ?? getUnitRules(unitsConfig, unitType);
       const movementType = rules.movement_type;
       const seaRange = getSeaTravelRange(rules);
-      const moveRange = Math.max(1, rules.speed || 1);
+      const moveRange = Math.max(1, rules.speed || 1, rules.attack_range || 1);
       const attackRange = Math.max(1, rules.attack_range || 1);
       const moveTargets = new Set<string>();
       const attackTargets = new Set<string>();
@@ -233,6 +233,7 @@ export default function GamePage({
               const candidate = mapRegions[candidateRegionId];
               if (!candidate) return false;
               if (movementType === "sea" && !candidate.is_coastal) return false;
+              if (movementType === "air") return true;
               return candidate.owner_id === myUserId;
             }
           );
@@ -316,9 +317,10 @@ export default function GamePage({
     const sourceRegion = gameState?.regions?.[selectedRegion];
     if (!sourceRegion) return [];
 
-    const candidateUnitTypes = selectedActionUnitType
-      ? [selectedActionUnitType]
-      : Object.keys(sourceRegion.units ?? {});
+    const candidateUnitTypes =
+      actionTargets.length > 0 && selectedActionUnitType
+        ? [selectedActionUnitType]
+        : Object.keys(sourceRegion.units ?? {});
     const reachable = new Set<string>();
 
     for (const unitType of candidateUnitTypes) {
@@ -329,7 +331,7 @@ export default function GamePage({
     }
 
     return Array.from(reachable);
-  }, [gameState?.regions, isSource, reachabilityByUnitType, selectedActionUnitType, selectedRegion, status]);
+  }, [actionTargets.length, gameState?.regions, isSource, reachabilityByUnitType, selectedActionUnitType, selectedRegion, status]);
 
   // Per-map minimum distance between capitals (comes from MapConfig → settings_snapshot → Redis meta)
   const MIN_CAPITAL_DISTANCE = parseInt(
@@ -755,10 +757,7 @@ export default function GamePage({
 
   const visibleActionTargets = actionTargets.filter((regionId) => {
     if (!highlightedNeighbors.includes(regionId)) return false;
-    if (!selectedRegion || !sourceRegionData || !selectedUnitTypeForAction) return true;
-    return regions[regionId]?.owner_id === myUserId
-      ? (reachabilityByUnitType[selectedUnitTypeForAction]?.moveTargets.has(regionId) ?? false)
-      : (reachabilityByUnitType[selectedUnitTypeForAction]?.attackTargets.has(regionId) ?? false);
+    return true;
   });
   const targets: TargetEntry[] = visibleActionTargets
     .map((rid) => {

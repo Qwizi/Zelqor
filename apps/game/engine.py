@@ -328,13 +328,14 @@ class GameEngine:
             return []
         unit_config = self._get_unit_config(unit_type)
         speed = max(1, int(unit_config.get("speed", 1)))
+        move_range = max(speed, int(unit_config.get("attack_range", 1)))
 
         distance = self._get_travel_distance(
             source_id,
             target_id,
             regions,
             unit_config,
-            max_depth=speed,
+            max_depth=move_range,
             player_id=player_id,
         )
         if distance is None:
@@ -930,6 +931,10 @@ class GameEngine:
 
         if movement_type == "sea" and not region.get("is_coastal"):
             return False
+
+        # Air units can traverse over non-owned regions; only the target legality matters.
+        if movement_type == "air":
+            return True
 
         if player_id is not None and region_id != target_id and region.get("owner_id") != player_id:
             return False
