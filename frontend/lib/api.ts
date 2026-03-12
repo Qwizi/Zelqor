@@ -199,10 +199,29 @@ export interface GameMode extends GameModeListItem {
   is_active: boolean;
 }
 
+export interface AbilityType {
+  id: string;
+  name: string;
+  slug: string;
+  asset_key: string;
+  description: string;
+  icon: string;
+  sound_key: string;
+  target_type: "enemy" | "own" | "any";
+  range: number;
+  currency_cost: number;
+  cooldown_ticks: number;
+  damage: number;
+  effect_duration_ticks: number;
+  effect_params: Record<string, number>;
+  order: number;
+}
+
 export interface FullConfig {
   settings: GameSettings;
   buildings: BuildingType[];
   units: UnitType[];
+  abilities: AbilityType[];
   maps: MapConfigItem[];
   game_modes: GameModeListItem[];
 }

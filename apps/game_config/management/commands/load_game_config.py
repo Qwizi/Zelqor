@@ -4,7 +4,7 @@ from pathlib import Path
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.game_config.models import BuildingType, GameMode, GameSettings, MapConfig, UnitType
+from apps.game_config.models import AbilityType, BuildingType, GameMode, GameSettings, MapConfig, UnitType
 from apps.matchmaking.models import Match
 
 
@@ -44,6 +44,7 @@ class Command(BaseCommand):
         unit_entries = []
         map_entries = []
         game_mode_entries = []
+        ability_entries = []
 
         for entry in payload:
             model = entry.get("model")
@@ -57,6 +58,8 @@ class Command(BaseCommand):
                 map_entries.append(entry)
             elif model == "game_config.gamemode":
                 game_mode_entries.append(entry)
+            elif model == "game_config.abilitytype":
+                ability_entries.append(entry)
 
         if not settings_entry:
             raise CommandError("Fixture does not contain game_config.gamesettings")
@@ -64,6 +67,7 @@ class Command(BaseCommand):
         self.stdout.write("Clearing existing game config...")
         Match.objects.update(map_config=None, game_mode=None)
         GameMode.objects.all().delete()
+        AbilityType.objects.all().delete()
         UnitType.objects.all().delete()
         BuildingType.objects.all().delete()
         MapConfig.objects.all().delete()
@@ -73,10 +77,14 @@ class Command(BaseCommand):
         self._load_settings(settings_entry)
         building_map = self._load_buildings(building_entries)
         self._load_units(unit_entries, building_entries, building_map)
+        self._load_abilities(ability_entries)
         self._load_maps(map_entries)
         self._load_game_modes(game_mode_entries)
 
         self.stdout.write(self.style.SUCCESS("Game config loaded successfully"))
+
+        self.stdout.write("\nFlushing game state from Redis...")
+        call_command("flush_game_redis", stdout=self.stdout, stderr=self.stderr)
 
         if not options["skip_provinces"]:
             self.stdout.write("\nRunning import_provinces --clear ...")
@@ -123,6 +131,16 @@ class Command(BaseCommand):
             count += 1
 
         self.stdout.write(f"  UnitType: {count} created")
+
+    def _load_abilities(self, entries: list[dict]):
+        count = 0
+
+        for entry in entries:
+            fields = dict(entry.get("fields") or {})
+            AbilityType.objects.create(**fields)
+            count += 1
+
+        self.stdout.write(f"  AbilityType: {count} created")
 
     def _load_maps(self, entries: list[dict]):
         count = 0

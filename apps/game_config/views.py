@@ -1,7 +1,7 @@
 from typing import List
 from ninja_extra import api_controller, route
 
-from apps.game_config.models import GameSettings, BuildingType, UnitType, MapConfig, GameMode
+from apps.game_config.models import GameSettings, BuildingType, UnitType, MapConfig, GameMode, AbilityType
 from apps.game_config.schemas import FullConfigOutSchema, GameModeOutSchema, GameModeListSchema
 
 
@@ -14,12 +14,14 @@ class ConfigController:
         settings = GameSettings.get()
         buildings = list(BuildingType.objects.filter(is_active=True))
         units = list(UnitType.objects.filter(is_active=True))
+        abilities = list(AbilityType.objects.filter(is_active=True))
         maps = list(MapConfig.objects.filter(is_active=True))
         game_modes = list(GameMode.objects.filter(is_active=True))
         return {
             'settings': settings,
             'buildings': buildings,
             'units': units,
+            'abilities': abilities,
             'maps': maps,
             'game_modes': game_modes,
         }

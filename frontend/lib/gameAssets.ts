@@ -23,6 +23,8 @@ export function getUnitAsset(kind: string | null | undefined = "default"): strin
   switch (kind) {
     case "moving":
       return "/assets/units/moving.webp";
+    case "nuke_rocket":
+      return "/assets/units/nuke_icon.png";
     case "air":
     case "fighter":
     case "bomber":

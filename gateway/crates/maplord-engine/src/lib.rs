@@ -106,11 +106,16 @@ impl GameEngine {
         buildings_queue: &mut Vec<BuildingQueueItem>,
         unit_queue: &mut Vec<UnitQueueItem>,
         transit_queue: &mut Vec<TransitQueueItem>,
+        current_tick: i64,
+        active_effects: &mut Vec<ActiveEffect>,
     ) -> Vec<Event> {
         let mut events = Vec::new();
 
+        // Process persistent effects (virus damage, etc.)
+        events.extend(self.process_active_effects(regions, active_effects));
+
         events.extend(self.generate_currency(players, regions));
-        events.extend(self.generate_units(regions));
+        events.extend(self.generate_units_with_effects(regions, active_effects));
 
         let (remaining_buildings, build_events) = self.process_buildings(regions, buildings_queue);
         *buildings_queue = remaining_buildings;
@@ -121,19 +126,29 @@ impl GameEngine {
         events.extend(unit_events);
 
         let (remaining_transit, transit_events) =
-            self.process_transit_queue(players, regions, transit_queue);
+            self.process_transit_queue_with_shield(players, regions, transit_queue, active_effects);
         *transit_queue = remaining_transit;
         events.extend(transit_events);
 
         for action in actions {
-            events.extend(self.process_action(
-                action,
-                players,
-                regions,
-                buildings_queue,
-                unit_queue,
-                transit_queue,
-            ));
+            if action.action_type == "use_ability" {
+                events.extend(self.process_ability(
+                    action,
+                    players,
+                    regions,
+                    current_tick,
+                    active_effects,
+                ));
+            } else {
+                events.extend(self.process_action(
+                    action,
+                    players,
+                    regions,
+                    buildings_queue,
+                    unit_queue,
+                    transit_queue,
+                ));
+            }
         }
 
         events.extend(self.check_conditions(players, regions));
@@ -178,102 +193,6 @@ impl GameEngine {
             if whole > 0 {
                 player.currency += whole;
                 player.currency_accum -= whole as f64;
-            }
-        }
-
-        Vec::new()
-    }
-
-    // --- Unit generation ---
-
-    fn generate_units(&self, regions: &mut HashMap<String, Region>) -> Vec<Event> {
-        let base_rate = self.settings.base_unit_generation_rate;
-        let capital_bonus = self.settings.capital_generation_bonus;
-        let default_unit_type = self.default_unit_type_slug();
-
-        // ── Phase 1: compute per-rate-group canonical accumulator ──
-        // Group regions by (owner, effective rate) so that regions with the
-        // same generation rate stay synchronised — they all tick up together
-        // instead of drifting apart when newly-acquired regions start at 0.
-        let mut rate_group_accum: HashMap<(String, u64), f64> = HashMap::new();
-        let mut region_rates: Vec<(String, f64)> = Vec::new();
-
-        for (rid, region) in regions.iter() {
-            let owner = match &region.owner_id {
-                Some(o) => o.clone(),
-                None => continue,
-            };
-
-            let mut rate = base_rate;
-            if region.is_capital {
-                rate *= capital_bonus;
-            }
-            rate += region.unit_generation_bonus;
-
-            // Quantise rate to fixed-point key (avoids f64 hashing issues)
-            let rate_key = (rate * 10000.0).round() as u64;
-            let group_key = (owner, rate_key);
-
-            // Use the highest accumulator in the group as the canonical value
-            // so newly-acquired regions catch up to existing ones immediately.
-            let entry = rate_group_accum.entry(group_key).or_insert(0.0_f64);
-            if region.unit_accum > *entry {
-                *entry = region.unit_accum;
-            }
-
-            region_rates.push((rid.clone(), rate));
-        }
-
-        // ── Phase 2: advance canonical accumulators ──
-        for ((_owner, _rate_key), accum) in rate_group_accum.iter_mut() {
-            // Recover rate from the quantised key
-            let rate = *_rate_key as f64 / 10000.0;
-            *accum += rate;
-        }
-
-        // ── Phase 3: distribute whole units, sync accumulators ──
-        for (rid, rate) in &region_rates {
-            let region = match regions.get_mut(rid) {
-                Some(r) => r,
-                None => continue,
-            };
-            let owner = match &region.owner_id {
-                Some(o) => o.clone(),
-                None => continue,
-            };
-            let rate_key = (*rate * 10000.0).round() as u64;
-            let group_key = (owner, rate_key);
-
-            let canonical = match rate_group_accum.get(&group_key) {
-                Some(a) => *a,
-                None => continue,
-            };
-
-            // Sync this region's accumulator to the group value
-            region.unit_accum = canonical;
-            let whole = region.unit_accum as i64;
-            if whole > 0 {
-                add_units(region, &default_unit_type, whole);
-                region.unit_accum -= whole as f64;
-            }
-        }
-
-        // Write back normalised accumulators so the group stays synced
-        for (rid, rate) in &region_rates {
-            let region = match regions.get_mut(rid) {
-                Some(r) => r,
-                None => continue,
-            };
-            let owner = match &region.owner_id {
-                Some(o) => o.clone(),
-                None => continue,
-            };
-            let rate_key = (*rate * 10000.0).round() as u64;
-            let group_key = (owner, rate_key);
-            if let Some(canonical) = rate_group_accum.get(&group_key) {
-                // All regions in the group should have the same remainder
-                let remainder = *canonical - (*canonical as i64) as f64;
-                region.unit_accum = remainder;
             }
         }
 
@@ -377,13 +296,112 @@ impl GameEngine {
         (remaining, events)
     }
 
-    // --- Transit queue ---
+    // --- Unit generation with virus reduction ---
 
-    fn process_transit_queue(
+    fn generate_units_with_effects(&self, regions: &mut HashMap<String, Region>, active_effects: &[ActiveEffect]) -> Vec<Event> {
+        // Collect virus-affected regions for production reduction
+        let mut virus_regions: HashMap<String, f64> = HashMap::new();
+        for effect in active_effects {
+            if effect.effect_type == "ab_virus" {
+                let reduction = effect.params.get("production_reduction")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.5);
+                for rid in std::iter::once(&effect.target_region_id).chain(effect.affected_region_ids.iter()) {
+                    let entry = virus_regions.entry(rid.clone()).or_insert(0.0);
+                    *entry = (*entry + reduction).min(1.0);
+                }
+            }
+        }
+
+        let base_rate = self.settings.base_unit_generation_rate;
+        let capital_bonus = self.settings.capital_generation_bonus;
+        let default_unit_type = self.default_unit_type_slug();
+
+        let mut rate_group_accum: HashMap<(String, u64), f64> = HashMap::new();
+        let mut region_rates: Vec<(String, f64)> = Vec::new();
+
+        for (rid, region) in regions.iter() {
+            let owner = match &region.owner_id {
+                Some(o) => o.clone(),
+                None => continue,
+            };
+
+            let mut rate = base_rate;
+            if region.is_capital {
+                rate *= capital_bonus;
+            }
+            rate += region.unit_generation_bonus;
+
+            // Apply virus production reduction
+            if let Some(reduction) = virus_regions.get(rid) {
+                rate *= 1.0 - reduction;
+            }
+
+            let rate_key = (rate * 10000.0).round() as u64;
+            let group_key = (owner, rate_key);
+            let entry = rate_group_accum.entry(group_key).or_insert(0.0_f64);
+            if region.unit_accum > *entry {
+                *entry = region.unit_accum;
+            }
+            region_rates.push((rid.clone(), rate));
+        }
+
+        for ((_owner, _rate_key), accum) in rate_group_accum.iter_mut() {
+            let rate = *_rate_key as f64 / 10000.0;
+            *accum += rate;
+        }
+
+        for (rid, rate) in &region_rates {
+            let region = match regions.get_mut(rid) {
+                Some(r) => r,
+                None => continue,
+            };
+            let owner = match &region.owner_id {
+                Some(o) => o.clone(),
+                None => continue,
+            };
+            let rate_key = (*rate * 10000.0).round() as u64;
+            let group_key = (owner, rate_key);
+            let canonical = match rate_group_accum.get(&group_key) {
+                Some(a) => *a,
+                None => continue,
+            };
+            region.unit_accum = canonical;
+            let whole = region.unit_accum as i64;
+            if whole > 0 {
+                add_units(region, &default_unit_type, whole);
+                region.unit_accum -= whole as f64;
+            }
+        }
+
+        for (rid, rate) in &region_rates {
+            let region = match regions.get_mut(rid) {
+                Some(r) => r,
+                None => continue,
+            };
+            let owner = match &region.owner_id {
+                Some(o) => o.clone(),
+                None => continue,
+            };
+            let rate_key = (*rate * 10000.0).round() as u64;
+            let group_key = (owner, rate_key);
+            if let Some(canonical) = rate_group_accum.get(&group_key) {
+                let remainder = *canonical - (*canonical as i64) as f64;
+                region.unit_accum = remainder;
+            }
+        }
+
+        Vec::new()
+    }
+
+    // --- Transit queue with shield ---
+
+    fn process_transit_queue_with_shield(
         &self,
         players: &mut HashMap<String, Player>,
         regions: &mut HashMap<String, Region>,
         transit_queue: &[TransitQueueItem],
+        active_effects: &[ActiveEffect],
     ) -> (Vec<TransitQueueItem>, Vec<Event>) {
         let mut events = Vec::new();
         let mut remaining = Vec::new();
@@ -398,12 +416,484 @@ impl GameEngine {
 
             match item.action_type.as_str() {
                 "move" => events.extend(self.resolve_move_arrival(&item, regions)),
-                "attack" => events.extend(self.resolve_attack_arrival(&item, players, regions)),
+                "attack" => {
+                    // Check for active shield on target
+                    if has_active_shield(&item.target_region_id, active_effects) {
+                        // Shield blocks the attack — return units to source
+                        if let Some(source) = regions.get_mut(&item.source_region_id) {
+                            receive_units_in_region(source, &item.unit_type, item.units, self);
+                        }
+                        events.push(Event::ShieldBlocked {
+                            target_region_id: item.target_region_id.clone(),
+                            attacker_id: item.player_id.clone(),
+                            units: item.units,
+                        });
+                    } else {
+                        events.extend(self.resolve_attack_arrival(&item, players, regions));
+                    }
+                }
                 _ => {}
             }
         }
 
         (remaining, events)
+    }
+
+    // --- Ability processing ---
+
+    fn process_ability(
+        &self,
+        action: &Action,
+        players: &mut HashMap<String, Player>,
+        regions: &mut HashMap<String, Region>,
+        current_tick: i64,
+        active_effects: &mut Vec<ActiveEffect>,
+    ) -> Vec<Event> {
+        let player_id = match &action.player_id {
+            Some(id) => id,
+            None => return Vec::new(),
+        };
+        let ability_slug = match &action.ability_type {
+            Some(slug) => slug,
+            None => return vec![reject_action(player_id, "Brak typu zdolnosci", action)],
+        };
+        let target_region_id = match &action.target_region_id {
+            Some(id) => id,
+            None => return vec![reject_action(player_id, "Brak celu zdolnosci", action)],
+        };
+
+        let ability_config = match self.settings.ability_types.get(ability_slug) {
+            Some(c) => c.clone(),
+            None => return vec![reject_action(player_id, "Nieznana zdolnosc", action)],
+        };
+
+        let player = match players.get(player_id.as_str()) {
+            Some(p) => p,
+            None => return Vec::new(),
+        };
+
+        // Check cooldown
+        if let Some(&ready_tick) = player.ability_cooldowns.get(ability_slug) {
+            if current_tick < ready_tick {
+                return vec![reject_action(player_id, "Zdolnosc jest na cooldownie", action)];
+            }
+        }
+
+        // Check currency
+        if player.currency < ability_config.currency_cost {
+            return vec![reject_action(player_id, "Za malo waluty na zdolnosc", action)];
+        }
+
+        // Check target type validity
+        let target_region = match regions.get(target_region_id) {
+            Some(r) => r,
+            None => return vec![reject_action(player_id, "Region docelowy nie istnieje", action)],
+        };
+
+        match ability_config.target_type.as_str() {
+            "enemy" => {
+                if target_region.owner_id.as_deref() == Some(player_id) {
+                    return vec![reject_action(player_id, "Zdolnosc wymaga wrogiego celu", action)];
+                }
+            }
+            "own" => {
+                if target_region.owner_id.as_deref() != Some(player_id) {
+                    return vec![reject_action(player_id, "Zdolnosc wymaga wlasnego regionu", action)];
+                }
+            }
+            _ => {} // "any" — no restriction
+        }
+
+        // Check range via BFS from owned regions
+        if ability_config.range > 0 {
+            if !self.is_in_ability_range(player_id, target_region_id, regions, ability_config.range as usize) {
+                return vec![reject_action(player_id, "Cel poza zasiegiem zdolnosci", action)];
+            }
+        }
+
+        // Deduct currency and set cooldown
+        let player = players.get_mut(player_id.as_str()).unwrap();
+        player.currency -= ability_config.currency_cost;
+        player.ability_cooldowns.insert(
+            ability_slug.clone(),
+            current_tick + ability_config.cooldown_ticks,
+        );
+
+        let mut events = vec![Event::AbilityUsed {
+            player_id: player_id.clone(),
+            ability_type: ability_slug.clone(),
+            target_region_id: target_region_id.clone(),
+            sound_key: ability_config.sound_key.clone(),
+        }];
+
+        // Execute ability-specific logic
+        match ability_slug.as_str() {
+            "ab_province_nuke" => {
+                events.extend(self.execute_nuke(player_id, target_region_id, &ability_config, active_effects));
+            }
+            "ab_virus" => {
+                events.extend(self.execute_virus(
+                    player_id, target_region_id, &ability_config, regions, active_effects,
+                ));
+            }
+            "ab_pr_submarine" => {
+                self.execute_submarine(
+                    player_id, target_region_id, &ability_config, regions, active_effects,
+                );
+            }
+            "ab_shield" => {
+                self.execute_shield(
+                    player_id, target_region_id, &ability_config, active_effects,
+                );
+            }
+            "ab_conscription_point" => {
+                events.extend(self.execute_conscription(
+                    target_region_id, &ability_config, regions,
+                ));
+            }
+            _ => {}
+        }
+
+        events
+    }
+
+    fn is_in_ability_range(
+        &self,
+        player_id: &str,
+        target_id: &str,
+        regions: &HashMap<String, Region>,
+        max_range: usize,
+    ) -> bool {
+        // BFS from all owned regions to see if target is within range
+        let mut visited = std::collections::HashSet::new();
+        let mut queue = VecDeque::new();
+
+        for (rid, region) in regions {
+            if region.owner_id.as_deref() == Some(player_id) {
+                visited.insert(rid.clone());
+                queue.push_back((rid.clone(), 0usize));
+            }
+        }
+
+        while let Some((current, depth)) = queue.pop_front() {
+            if current == target_id {
+                return true;
+            }
+            if depth >= max_range {
+                continue;
+            }
+            if let Some(neighbors) = self.neighbor_map.get(&current) {
+                for neighbor in neighbors {
+                    if !visited.contains(neighbor) && regions.contains_key(neighbor) {
+                        visited.insert(neighbor.clone());
+                        queue.push_back((neighbor.clone(), depth + 1));
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    fn execute_nuke(
+        &self,
+        player_id: &str,
+        target_region_id: &str,
+        config: &AbilityConfig,
+        active_effects: &mut Vec<ActiveEffect>,
+    ) -> Vec<Event> {
+        // Nuke is delayed — damage applied on impact (after flight time)
+        const NUKE_FLIGHT_TICKS: i64 = 8;
+
+        let mut affected_neighbors = Vec::new();
+        if let Some(neighbors) = self.neighbor_map.get(target_region_id) {
+            for nid in neighbors {
+                affected_neighbors.push(nid.clone());
+            }
+        }
+
+        active_effects.push(ActiveEffect {
+            effect_type: "ab_province_nuke".into(),
+            source_player_id: player_id.to_string(),
+            target_region_id: target_region_id.to_string(),
+            affected_region_ids: affected_neighbors,
+            ticks_remaining: NUKE_FLIGHT_TICKS,
+            total_ticks: NUKE_FLIGHT_TICKS,
+            params: serde_json::json!({ "damage": config.damage }),
+        });
+
+        Vec::new()
+    }
+
+    fn apply_nuke_damage(
+        &self,
+        target_region_id: &str,
+        affected_region_ids: &[String],
+        damage: f64,
+        regions: &mut HashMap<String, Region>,
+    ) -> Vec<Event> {
+        let kill_pct = (damage / 100.0).min(1.0);
+
+        // Target gets full damage, neighbors get 50% splash
+        let mut targets: Vec<(&str, f64)> = Vec::new();
+        targets.push((target_region_id, 1.0));
+        for nid in affected_region_ids {
+            targets.push((nid.as_str(), 0.5));
+        }
+
+        for (rid, damage_mult) in &targets {
+            let region = match regions.get_mut(*rid) {
+                Some(r) => r,
+                None => continue,
+            };
+            let effective_kill_pct = (kill_pct * damage_mult).min(1.0);
+            let is_capital = region.is_capital;
+            let mut new_units: HashMap<String, i64> = HashMap::new();
+            let mut total_remaining: i64 = 0;
+            for (unit_type, count) in &region.units {
+                let killed = (*count as f64 * effective_kill_pct).round() as i64;
+                let remaining = (*count - killed).max(0);
+                if remaining > 0 {
+                    new_units.insert(unit_type.clone(), remaining);
+                    total_remaining += remaining;
+                }
+            }
+            // Capital must keep at least 1 unit to prevent losing via nuke
+            if is_capital && total_remaining == 0 {
+                if let Some(unit_type) = region.units.keys().next().cloned() {
+                    new_units.insert(unit_type, 1);
+                }
+            }
+            region.units = new_units;
+            sync_region_unit_meta(region, self);
+        }
+
+        Vec::new()
+    }
+
+    fn execute_virus(
+        &self,
+        player_id: &str,
+        target_region_id: &str,
+        config: &AbilityConfig,
+        regions: &HashMap<String, Region>,
+        active_effects: &mut Vec<ActiveEffect>,
+    ) -> Vec<Event> {
+        let spread_range = config.effect_params.get("spread_range")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(1) as usize;
+
+        // BFS to find affected neighbors within spread_range
+        let mut affected = Vec::new();
+        let mut visited = std::collections::HashSet::new();
+        visited.insert(target_region_id.to_string());
+        let mut queue = VecDeque::new();
+        queue.push_back((target_region_id.to_string(), 0usize));
+
+        while let Some((current, depth)) = queue.pop_front() {
+            if depth > 0 {
+                affected.push(current.clone());
+            }
+            if depth >= spread_range {
+                continue;
+            }
+            if let Some(neighbors) = self.neighbor_map.get(&current) {
+                for neighbor in neighbors {
+                    if !visited.contains(neighbor) && regions.contains_key(neighbor) {
+                        visited.insert(neighbor.clone());
+                        queue.push_back((neighbor.clone(), depth + 1));
+                    }
+                }
+            }
+        }
+
+        active_effects.push(ActiveEffect {
+            effect_type: "ab_virus".into(),
+            source_player_id: player_id.to_string(),
+            target_region_id: target_region_id.to_string(),
+            affected_region_ids: affected,
+            ticks_remaining: config.effect_duration_ticks,
+            total_ticks: config.effect_duration_ticks,
+            params: config.effect_params.clone(),
+        });
+
+        Vec::new()
+    }
+
+    fn execute_submarine(
+        &self,
+        player_id: &str,
+        target_region_id: &str,
+        config: &AbilityConfig,
+        regions: &HashMap<String, Region>,
+        active_effects: &mut Vec<ActiveEffect>,
+    ) {
+        // Reveal target + neighboring enemy regions
+        let mut revealed = Vec::new();
+        if let Some(neighbors) = self.neighbor_map.get(target_region_id) {
+            for nid in neighbors {
+                if let Some(r) = regions.get(nid.as_str()) {
+                    if r.owner_id.is_some() && r.owner_id.as_deref() != Some(player_id) {
+                        revealed.push(nid.clone());
+                    }
+                }
+            }
+        }
+
+        active_effects.push(ActiveEffect {
+            effect_type: "ab_pr_submarine".into(),
+            source_player_id: player_id.to_string(),
+            target_region_id: target_region_id.to_string(),
+            affected_region_ids: revealed,
+            ticks_remaining: config.effect_duration_ticks,
+            total_ticks: config.effect_duration_ticks,
+            params: serde_json::json!({}),
+        });
+    }
+
+    fn execute_shield(
+        &self,
+        player_id: &str,
+        target_region_id: &str,
+        config: &AbilityConfig,
+        active_effects: &mut Vec<ActiveEffect>,
+    ) {
+        active_effects.push(ActiveEffect {
+            effect_type: "ab_shield".into(),
+            source_player_id: player_id.to_string(),
+            target_region_id: target_region_id.to_string(),
+            affected_region_ids: Vec::new(),
+            ticks_remaining: config.effect_duration_ticks,
+            total_ticks: config.effect_duration_ticks,
+            params: serde_json::json!({}),
+        });
+    }
+
+    fn execute_conscription(
+        &self,
+        target_region_id: &str,
+        config: &AbilityConfig,
+        regions: &mut HashMap<String, Region>,
+    ) -> Vec<Event> {
+        let collect_percent = config.effect_params.get("collect_percent")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.3);
+
+        let default_unit_type = self.default_unit_type_slug();
+
+        // Find neutral neighbors
+        let neighbors = match self.neighbor_map.get(target_region_id) {
+            Some(n) => n.clone(),
+            None => return Vec::new(),
+        };
+
+        let mut total_collected = 0i64;
+        for neighbor_id in &neighbors {
+            let neighbor = match regions.get_mut(neighbor_id) {
+                Some(r) => r,
+                None => continue,
+            };
+            // Only collect from neutral (unowned) regions
+            if neighbor.owner_id.is_some() {
+                continue;
+            }
+            let base_units = neighbor.units.get(&default_unit_type).copied().unwrap_or(0);
+            let collected = (base_units as f64 * collect_percent).round() as i64;
+            if collected > 0 {
+                remove_units(neighbor, &default_unit_type, collected);
+                sync_region_unit_meta(neighbor, self);
+                total_collected += collected;
+            }
+        }
+
+        if total_collected > 0 {
+            let target = regions.get_mut(target_region_id).unwrap();
+            add_units(target, &default_unit_type, total_collected);
+            sync_region_unit_meta(target, self);
+        }
+
+        Vec::new()
+    }
+
+    fn process_active_effects(
+        &self,
+        regions: &mut HashMap<String, Region>,
+        active_effects: &mut Vec<ActiveEffect>,
+    ) -> Vec<Event> {
+        let mut events = Vec::new();
+        let mut i = 0;
+
+        while i < active_effects.len() {
+            active_effects[i].ticks_remaining -= 1;
+
+            // Submarine: emit tick event so frontend knows revealed regions
+            if active_effects[i].effect_type == "ab_pr_submarine" {
+                events.push(Event::AbilityEffectTick {
+                    effect_type: "ab_pr_submarine".into(),
+                    target_region_id: active_effects[i].target_region_id.clone(),
+                    affected_region_ids: active_effects[i].affected_region_ids.clone(),
+                    ticks_remaining: active_effects[i].ticks_remaining,
+                });
+            }
+
+            if active_effects[i].effect_type == "ab_virus" {
+                let kill_percent = active_effects[i].params.get("unit_kill_percent")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.05);
+
+                let all_affected: Vec<String> = std::iter::once(active_effects[i].target_region_id.clone())
+                    .chain(active_effects[i].affected_region_ids.clone())
+                    .collect();
+
+                for rid in &all_affected {
+                    if let Some(region) = regions.get_mut(rid) {
+                        let mut new_units: HashMap<String, i64> = HashMap::new();
+                        for (unit_type, count) in &region.units {
+                            let killed = (*count as f64 * kill_percent).ceil() as i64;
+                            let remaining = (*count - killed).max(0);
+                            if remaining > 0 {
+                                new_units.insert(unit_type.clone(), remaining);
+                            }
+                        }
+                        region.units = new_units;
+                        sync_region_unit_meta(region, self);
+                    }
+                }
+
+                events.push(Event::AbilityEffectTick {
+                    effect_type: "ab_virus".into(),
+                    target_region_id: active_effects[i].target_region_id.clone(),
+                    affected_region_ids: active_effects[i].affected_region_ids.clone(),
+                    ticks_remaining: active_effects[i].ticks_remaining,
+                });
+            }
+
+            if active_effects[i].ticks_remaining <= 0 {
+                let expired = active_effects.remove(i);
+
+                // Nuke: apply damage on impact (when flight time expires)
+                if expired.effect_type == "ab_province_nuke" {
+                    let damage = expired.params.get("damage")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(50.0);
+                    events.extend(self.apply_nuke_damage(
+                        &expired.target_region_id,
+                        &expired.affected_region_ids,
+                        damage,
+                        regions,
+                    ));
+                }
+
+                events.push(Event::AbilityEffectExpired {
+                    effect_type: expired.effect_type,
+                    target_region_id: expired.target_region_id,
+                });
+            } else {
+                i += 1;
+            }
+        }
+
+        events
     }
 
     // --- Action processing ---
@@ -1437,6 +1927,12 @@ fn get_region_sea_distance_score(source: &Region, target_id: &str) -> Option<i64
         }
     }
     None
+}
+
+fn has_active_shield(region_id: &str, active_effects: &[ActiveEffect]) -> bool {
+    active_effects.iter().any(|e| {
+        e.effect_type == "ab_shield" && e.target_region_id == region_id && e.ticks_remaining > 0
+    })
 }
 
 fn reject_action(player_id: &str, message: &str, action: &Action) -> Event {

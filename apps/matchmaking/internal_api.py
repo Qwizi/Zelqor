@@ -119,7 +119,7 @@ class MatchmakingInternalController(ControllerBase):
             return self.create_response(request, {'error': 'Unauthorized'}, status_code=403)
 
         from django.utils import timezone
-        from apps.game_config.models import BuildingType, GameMode, GameSettings, MapConfig, UnitType
+        from apps.game_config.models import AbilityType, BuildingType, GameMode, GameSettings, MapConfig, UnitType
         from apps.matchmaking.models import Match, MatchPlayer, MatchQueue
 
         # Resolve game mode
@@ -195,6 +195,22 @@ class MatchmakingInternalController(ControllerBase):
             for ut in UnitType.objects.select_related('produced_by').filter(is_active=True)
         }
 
+        ability_types = {
+            at.slug: {
+                'name': at.name,
+                'asset_key': at.asset_key,
+                'sound_key': at.sound_key,
+                'target_type': at.target_type,
+                'range': int(at.range),
+                'currency_cost': int(at.currency_cost),
+                'cooldown_ticks': int(at.cooldown_ticks),
+                'damage': int(at.damage),
+                'effect_duration_ticks': int(at.effect_duration_ticks),
+                'effect_params': at.effect_params or {},
+            }
+            for at in AbilityType.objects.filter(is_active=True)
+        }
+
         default_unit_type_slug = (
             UnitType.objects.filter(is_active=True, produced_by__isnull=True)
             .order_by('order')
@@ -226,6 +242,7 @@ class MatchmakingInternalController(ControllerBase):
                 'neutral_region_units': src.neutral_region_units,
                 'building_types': building_types,
                 'unit_types': unit_types,
+                'ability_types': ability_types,
                 'default_unit_type_slug': default_unit_type_slug,
                 'min_capital_distance': map_config.min_capital_distance if map_config else 3,
                 'elo_k_factor': src.elo_k_factor,

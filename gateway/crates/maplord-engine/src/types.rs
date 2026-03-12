@@ -33,6 +33,8 @@ pub struct GameSettings {
     #[serde(default)]
     pub unit_types: HashMap<String, UnitConfig>,
     #[serde(default)]
+    pub ability_types: HashMap<String, AbilityConfig>,
+    #[serde(default)]
     pub default_unit_type_slug: Option<String>,
     #[serde(default = "default_min_capital_distance")]
     pub min_capital_distance: i64,
@@ -119,6 +121,53 @@ pub struct UnitConfig {
     pub asset_key: String,
 }
 
+/// Ability config — mirrors Django AbilityType snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AbilityConfig {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub asset_key: String,
+    #[serde(default)]
+    pub sound_key: String,
+    #[serde(default = "default_target_type")]
+    pub target_type: String,
+    #[serde(default)]
+    pub range: i64,
+    #[serde(default)]
+    pub currency_cost: i64,
+    #[serde(default = "default_cooldown")]
+    pub cooldown_ticks: i64,
+    #[serde(default)]
+    pub damage: i64,
+    #[serde(default)]
+    pub effect_duration_ticks: i64,
+    #[serde(default)]
+    pub effect_params: serde_json::Value,
+}
+
+fn default_target_type() -> String { "enemy".into() }
+fn default_cooldown() -> i64 { 60 }
+
+/// Active persistent effect during a match.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveEffect {
+    #[serde(default)]
+    pub effect_type: String,
+    #[serde(default)]
+    pub source_player_id: String,
+    #[serde(default)]
+    pub target_region_id: String,
+    #[serde(default)]
+    pub affected_region_ids: Vec<String>,
+    #[serde(default)]
+    pub ticks_remaining: i64,
+    #[serde(default)]
+    pub total_ticks: i64,
+    #[serde(default)]
+    pub params: serde_json::Value,
+}
+
 fn default_f64_one() -> f64 { 1.0 }
 fn default_i64_one() -> i64 { 1 }
 fn default_movement_type() -> String { "land".into() }
@@ -149,6 +198,8 @@ pub struct Player {
     pub currency: i64,
     #[serde(default)]
     pub currency_accum: f64,
+    #[serde(default)]
+    pub ability_cooldowns: HashMap<String, i64>,
 }
 
 fn default_true() -> bool { true }
@@ -210,6 +261,8 @@ pub struct Action {
     pub unit_type: Option<String>,
     #[serde(default)]
     pub building_type: Option<String>,
+    #[serde(default)]
+    pub ability_type: Option<String>,
 }
 
 /// Building queue item.
@@ -349,6 +402,31 @@ pub enum Event {
     #[serde(rename = "game_over")]
     GameOver {
         winner_id: Option<String>,
+    },
+    #[serde(rename = "ability_used")]
+    AbilityUsed {
+        player_id: String,
+        ability_type: String,
+        target_region_id: String,
+        sound_key: String,
+    },
+    #[serde(rename = "ability_effect_tick")]
+    AbilityEffectTick {
+        effect_type: String,
+        target_region_id: String,
+        affected_region_ids: Vec<String>,
+        ticks_remaining: i64,
+    },
+    #[serde(rename = "ability_effect_expired")]
+    AbilityEffectExpired {
+        effect_type: String,
+        target_region_id: String,
+    },
+    #[serde(rename = "shield_blocked")]
+    ShieldBlocked {
+        target_region_id: String,
+        attacker_id: String,
+        units: i64,
     },
     #[serde(rename = "action_rejected")]
     ActionRejected {

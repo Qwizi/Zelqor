@@ -25,6 +25,12 @@ export const SOUNDS = {
   fail: "/assets/audio/sounds/fail.ogg",
   buzzer: "/assets/audio/sounds/buzzer.ogg",
   missile_explosion: "/assets/audio/sounds/missile_explosion.ogg",
+  nuke: "/assets/audio/sounds/abilities/nuke.ogg",
+  nuke_explosion: "/assets/audio/sounds/abilities/nuke_2.ogg",
+  virus: "/assets/audio/sounds/abilities/virus.ogg",
+  submarine: "/assets/audio/sounds/abilities/submarine.ogg",
+  shield: "/assets/audio/sounds/abilities/shield.ogg",
+  quick_gain: "/assets/audio/sounds/abilities/quick_gain.ogg",
 } as const;
 
 export type SoundKey = keyof typeof SOUNDS;

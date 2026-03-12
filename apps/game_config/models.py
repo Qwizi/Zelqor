@@ -205,6 +205,46 @@ class GameMode(models.Model):
         super().save(*args, **kwargs)
 
 
+class TargetType(models.TextChoices):
+    ENEMY = 'enemy', 'Enemy'
+    OWN = 'own', 'Own'
+    ANY = 'any', 'Any'
+
+
+class AbilityType(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True)
+    asset_key = models.SlugField(max_length=100, blank=True, default='')
+    description = models.TextField(blank=True)
+    icon = models.CharField(max_length=50, blank=True, default='')
+    sound_key = models.CharField(max_length=100, blank=True, default='')
+
+    # Targeting
+    target_type = models.CharField(max_length=10, choices=TargetType.choices, default=TargetType.ENEMY)
+    range = models.PositiveIntegerField(default=1, help_text='Max hops from owned regions to target')
+
+    # Costs & timing
+    currency_cost = models.PositiveIntegerField(default=50, help_text='Currency cost to use')
+    cooldown_ticks = models.PositiveIntegerField(default=60, help_text='Cooldown in ticks after use')
+
+    # Instant effects
+    damage = models.PositiveIntegerField(default=0, help_text='Instant damage (units killed)')
+
+    # Persistent effects
+    effect_duration_ticks = models.PositiveIntegerField(default=0, help_text='Duration for persistent effects')
+    effect_params = models.JSONField(default=dict, blank=True, help_text='Per-ability params: production_reduction, unit_kill_percent, spread_range, collect_percent')
+
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
 class MapConfig(models.Model):
     """Defines which regions are included in a map configuration."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

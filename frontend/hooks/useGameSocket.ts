@@ -4,6 +4,26 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { createSocket, type WSMessage } from "@/lib/ws";
 import { getAccessToken } from "@/lib/auth";
 
+/** Fast shallow comparison for active_effects — avoids re-renders when data is identical. */
+function shallowEqualEffects(
+  prev: ActiveEffect[] | undefined,
+  next: ActiveEffect[] | undefined
+): boolean {
+  if (prev === next) return true;
+  if (!prev || !next) return false;
+  if (prev.length !== next.length) return false;
+  for (let i = 0; i < prev.length; i++) {
+    const a = prev[i], b = next[i];
+    if (
+      a.effect_type !== b.effect_type ||
+      a.target_region_id !== b.target_region_id ||
+      a.ticks_remaining !== b.ticks_remaining ||
+      a.source_player_id !== b.source_player_id
+    ) return false;
+  }
+  return true;
+}
+
 export interface GameRegion {
   name: string;
   country_code: string;
@@ -33,6 +53,17 @@ export interface GamePlayer {
   left_match_at?: number | null;
   capital_region_id: string | null;
   currency: number;
+  ability_cooldowns?: Record<string, number>;
+}
+
+export interface ActiveEffect {
+  effect_type: string;
+  source_player_id: string;
+  target_region_id: string;
+  affected_region_ids: string[];
+  ticks_remaining: number;
+  total_ticks: number;
+  params: Record<string, number>;
 }
 
 export interface BuildingQueueItem {
@@ -67,6 +98,7 @@ export interface GameState {
   buildings_queue: BuildingQueueItem[];
   unit_queue: UnitQueueItem[];
   transit_queue?: Array<Record<string, unknown>>;
+  active_effects?: ActiveEffect[];
 }
 
 export interface GameEvent {
@@ -84,6 +116,7 @@ interface UseGameSocketReturn {
   move: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
   build: (regionId: string, buildingType: string) => void;
   produceUnit: (regionId: string, unitType: string) => void;
+  useAbility: (targetRegionId: string, abilityType: string) => void;
   leaveMatch: () => Promise<boolean>;
 }
 
@@ -146,6 +179,9 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
             buildings_queue: (msg.buildings_queue as BuildingQueueItem[]) ?? prev.buildings_queue,
             unit_queue: (msg.unit_queue as UnitQueueItem[]) ?? prev.unit_queue,
             transit_queue: (msg.transit_queue as Array<Record<string, unknown>>) ?? prev.transit_queue,
+            active_effects: shallowEqualEffects(prev.active_effects, msg.active_effects as ActiveEffect[] | undefined)
+              ? prev.active_effects
+              : (msg.active_effects as ActiveEffect[]) ?? prev.active_effects,
           };
         });
         if (tickEvents.length > 0) {
@@ -270,6 +306,12 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     [send]
   );
 
+  const useAbility = useCallback(
+    (targetRegionId: string, abilityType: string) =>
+      send({ action: "use_ability", target_region_id: targetRegionId, ability_type: abilityType }),
+    [send]
+  );
+
   const leaveMatch = useCallback(() => {
     return new Promise<boolean>((resolve) => {
       if (wsRef.current?.readyState !== WebSocket.OPEN) {
@@ -298,6 +340,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     move,
     build,
     produceUnit,
+    useAbility,
     leaveMatch,
   };
 }

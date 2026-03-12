@@ -201,7 +201,7 @@ async fn handle_game_message(
                 reason: "Left match".into(),
             })));
         }
-        "attack" | "move" | "build" | "produce_unit" => {
+        "attack" | "move" | "build" | "produce_unit" | "use_ability" => {
             let mut action_data: serde_json::Map<String, serde_json::Value> =
                 content.as_object().cloned().unwrap_or_default();
             action_data.remove("action");
@@ -512,6 +512,8 @@ async fn game_loop(
             &mut tick_data.buildings_queue,
             &mut tick_data.unit_queue,
             &mut tick_data.transit_queue,
+            tick,
+            &mut tick_data.active_effects,
         );
 
         if !timeout_events.is_empty() {
@@ -542,6 +544,7 @@ async fn game_loop(
                 &tick_data.buildings_queue,
                 &tick_data.unit_queue,
                 &tick_data.transit_queue,
+                &tick_data.active_effects,
                 Some(&dirty_ids),
             )
             .await?;
@@ -563,6 +566,7 @@ async fn game_loop(
             "buildings_queue": tick_data.buildings_queue,
             "unit_queue": tick_data.unit_queue,
             "transit_queue": tick_data.transit_queue,
+            "active_effects": tick_data.active_effects,
         });
         broadcast_to_match(match_id, &tick_msg, &state.game_connections);
 
@@ -930,6 +934,7 @@ async fn initialize_game(
             capital_region_id: None,
             currency: settings.starting_currency,
             currency_accum: 0.0,
+            ability_cooldowns: HashMap::new(),
         };
         players.insert(p.user_id.clone(), player);
     }

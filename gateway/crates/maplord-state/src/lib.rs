@@ -1,5 +1,5 @@
 use maplord_engine::{
-    Action, BuildingQueueItem, Player, Region, TransitQueueItem, UnitQueueItem,
+    Action, ActiveEffect, BuildingQueueItem, Player, Region, TransitQueueItem, UnitQueueItem,
 };
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
@@ -22,6 +22,7 @@ pub struct TickData {
     pub buildings_queue: Vec<BuildingQueueItem>,
     pub unit_queue: Vec<UnitQueueItem>,
     pub transit_queue: Vec<TransitQueueItem>,
+    pub active_effects: Vec<ActiveEffect>,
 }
 
 /// Full game state for snapshots.
@@ -33,6 +34,7 @@ pub struct FullGameState {
     pub buildings_queue: Vec<BuildingQueueItem>,
     pub unit_queue: Vec<UnitQueueItem>,
     pub transit_queue: Vec<TransitQueueItem>,
+    pub active_effects: Vec<ActiveEffect>,
 }
 
 impl GameStateManager {
@@ -175,6 +177,7 @@ impl GameStateManager {
         let buildings_key = self.key("buildings_queue");
         let unit_key = self.key("unit_queue");
         let transit_key = self.key("transit_queue");
+        let effects_key = self.key("active_effects");
 
         pipe.hincr(&meta_key, "current_tick", 1i64);
         pipe.hgetall(&players_key);
@@ -184,6 +187,7 @@ impl GameStateManager {
         pipe.lrange(&buildings_key, 0, -1);
         pipe.lrange(&unit_key, 0, -1);
         pipe.lrange(&transit_key, 0, -1);
+        pipe.lrange(&effects_key, 0, -1);
 
         let mut conn = self.redis.clone();
         let results: (
@@ -192,6 +196,7 @@ impl GameStateManager {
             HashMap<String, Vec<u8>>,
             Vec<Vec<u8>>,
             (),
+            Vec<Vec<u8>>,
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
@@ -228,6 +233,11 @@ impl GameStateManager {
             .iter()
             .map(|v| rmp_serde::from_slice(v).unwrap())
             .collect();
+        let active_effects = results
+            .8
+            .iter()
+            .map(|v| rmp_serde::from_slice(v).unwrap())
+            .collect();
 
         Ok(TickData {
             tick,
@@ -237,6 +247,7 @@ impl GameStateManager {
             buildings_queue,
             unit_queue,
             transit_queue,
+            active_effects,
         })
     }
 
@@ -247,6 +258,7 @@ impl GameStateManager {
         buildings_queue: &[BuildingQueueItem],
         unit_queue: &[UnitQueueItem],
         transit_queue: &[TransitQueueItem],
+        active_effects: &[ActiveEffect],
         dirty_region_ids: Option<&std::collections::HashSet<String>>,
     ) -> redis::RedisResult<()> {
         let mut pipe = redis::pipe();
@@ -289,6 +301,13 @@ impl GameStateManager {
             pipe.rpush(&transit_key, packed).ignore();
         }
 
+        let effects_key = self.key("active_effects");
+        pipe.del(&effects_key).ignore();
+        for item in active_effects {
+            let packed = rmp_serde::to_vec(item).unwrap();
+            pipe.rpush(&effects_key, packed).ignore();
+        }
+
         let mut conn = self.redis.clone();
         pipe.exec_async(&mut conn).await
     }
@@ -305,12 +324,14 @@ impl GameStateManager {
         pipe.lrange(self.key("buildings_queue"), 0, -1);
         pipe.lrange(self.key("unit_queue"), 0, -1);
         pipe.lrange(self.key("transit_queue"), 0, -1);
+        pipe.lrange(self.key("active_effects"), 0, -1);
 
         let mut conn = self.redis.clone();
         let results: (
             HashMap<String, String>,
             HashMap<String, Vec<u8>>,
             HashMap<String, Vec<u8>>,
+            Vec<Vec<u8>>,
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
@@ -343,6 +364,11 @@ impl GameStateManager {
                 .iter()
                 .map(|v| rmp_serde::from_slice(v).unwrap())
                 .collect(),
+            active_effects: results
+                .6
+                .iter()
+                .map(|v| rmp_serde::from_slice(v).unwrap())
+                .collect(),
         })
     }
 
@@ -358,6 +384,7 @@ impl GameStateManager {
             self.key("buildings_queue"),
             self.key("unit_queue"),
             self.key("transit_queue"),
+            self.key("active_effects"),
         ];
         redis::cmd("DEL")
             .arg(&keys)

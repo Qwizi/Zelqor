@@ -13,6 +13,7 @@ import {
   type RegionGraphEntry,
   type BuildingType,
   type UnitType,
+  type AbilityType,
 } from "@/lib/api";
 import { getSeaTravelRange, getTravelDistance } from "@/lib/gameTravel.js";
 import GameMap, {
@@ -24,6 +25,7 @@ import RegionPanel from "@/components/game/RegionPanel";
 import ActionBar, { type TargetEntry } from "@/components/game/ActionBar";
 import BuildQueue from "@/components/game/BuildQueue";
 import MobileBuildSheet from "@/components/game/MobileBuildSheet";
+import AbilityBar from "@/components/game/AbilityBar";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -87,6 +89,7 @@ export default function GamePage({
     move,
     build,
     produceUnit,
+    useAbility,
     leaveMatch,
   } = useGameSocket(matchId);
 
@@ -96,10 +99,13 @@ export default function GamePage({
   const [regionGraph, setRegionGraph] = useState<RegionGraphEntry[]>([]);
   const [buildings, setBuildings] = useState<BuildingType[]>([]);
   const [unitsConfig, setUnitsConfig] = useState<UnitType[]>([]);
+  const [abilitiesConfig, setAbilitiesConfig] = useState<AbilityType[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [selectedActionUnitType, setSelectedActionUnitType] = useState<string | null>(null);
   const [actionTargets, setActionTargets] = useState<string[]>([]);
+  const [selectedAbility, setSelectedAbility] = useState<string | null>(null);
   const [animations, setAnimations] = useState<TroopAnimation[]>([]);
+  const [nukeBlackout, setNukeBlackout] = useState<Array<{ rid: string; startTime: number }>>([]);
   const [mapReady, setMapReady] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const myUserId = user?.id || "";
@@ -128,18 +134,25 @@ export default function GamePage({
       .then((cfg) => {
         setBuildings(cfg.buildings);
         setUnitsConfig(cfg.units);
+        setAbilitiesConfig(cfg.abilities || []);
       })
       .catch(console.error);
   }, [matchId]);
 
-  // Prune finished animations
+  // Prune finished animations + nuke blackout
   useEffect(() => {
+    const NUKE_BLACKOUT_DURATION = 3000;
     const timer = setInterval(() => {
+      const now = Date.now();
       setAnimations((prev) => {
-        const now = Date.now();
-        const active = prev.filter(
-          (a) => now - a.startTime < ANIMATION_DURATION_MS + 500
-        );
+        const active = prev.filter((a) => {
+          const maxDur = a.unitType === "nuke_rocket" ? (a.durationMs || 8000) + 2000 : ANIMATION_DURATION_MS + 500;
+          return now - a.startTime < maxDur;
+        });
+        return active.length !== prev.length ? active : prev;
+      });
+      setNukeBlackout((prev) => {
+        const active = prev.filter((b) => now - b.startTime < NUKE_BLACKOUT_DURATION);
         return active.length !== prev.length ? active : prev;
       });
     }, 500);
@@ -350,6 +363,65 @@ export default function GamePage({
     return Array.from(reachable);
   }, [gameState?.regions, isSource, reachabilityByUnitType, selectedRegion, selectedUnitTypeForAction, status]);
 
+  // Ability targeting: compute valid target regions via BFS from owned regions
+  const abilityTargets = useMemo(() => {
+    if (!selectedAbility || status !== "in_progress") return [];
+    const abilityDef = abilitiesConfig.find((a) => a.slug === selectedAbility);
+    if (!abilityDef) return [];
+
+    const mapRegions = gameState?.regions || {};
+
+    // Collect all owned region IDs
+    const ownedRegions = new Set<string>();
+    for (const [rid, r] of Object.entries(mapRegions)) {
+      if (r.owner_id === myUserId) ownedRegions.add(rid);
+    }
+
+    // BFS from all owned regions up to ability range
+    const inRange = new Set<string>();
+    if (abilityDef.range === 0 && abilityDef.target_type === "own") {
+      // range 0 + own target = own regions only (shield, conscription)
+      for (const rid of ownedRegions) inRange.add(rid);
+    } else if (abilityDef.range === 0) {
+      // range 0 + enemy/any = unlimited range (nuke)
+      for (const rid of Object.keys(mapRegions)) inRange.add(rid);
+    } else {
+      const visited = new Set<string>();
+      const queue: [string, number][] = [];
+      for (const rid of ownedRegions) {
+        visited.add(rid);
+        queue.push([rid, 0]);
+      }
+      while (queue.length > 0) {
+        const [current, dist] = queue.shift()!;
+        inRange.add(current);
+        if (dist >= abilityDef.range) continue;
+        for (const neighbor of neighborMap[current] || []) {
+          if (neighbor in mapRegions && !visited.has(neighbor)) {
+            visited.add(neighbor);
+            queue.push([neighbor, dist + 1]);
+          }
+        }
+      }
+    }
+
+    // Filter by target_type
+    const validTargets: string[] = [];
+    for (const rid of inRange) {
+      const region = mapRegions[rid];
+      if (!region) continue;
+      if (abilityDef.target_type === "any") {
+        validTargets.push(rid);
+      } else if (abilityDef.target_type === "enemy" && region.owner_id && region.owner_id !== myUserId) {
+        validTargets.push(rid);
+      } else if (abilityDef.target_type === "own" && region.owner_id === myUserId) {
+        validTargets.push(rid);
+      }
+    }
+
+    return validTargets;
+  }, [selectedAbility, abilitiesConfig, gameState?.regions, myUserId, neighborMap, status]);
+
   // Per-map minimum distance between capitals (comes from MapConfig → settings_snapshot → Redis meta)
   const MIN_CAPITAL_DISTANCE = parseInt(
     gameState?.meta?.min_capital_distance || "3",
@@ -555,6 +627,28 @@ export default function GamePage({
       const region = gameState?.regions[regionId];
       if (!region) return;
 
+      // Ability targeting mode — use ability on clicked region
+      if (selectedAbility) {
+        const abilityDef = abilitiesConfig.find((a) => a.slug === selectedAbility);
+        if (abilityDef) {
+          const isValidTarget =
+            abilityDef.target_type === "any" ||
+            (abilityDef.target_type === "enemy" && region.owner_id !== myUserId) ||
+            (abilityDef.target_type === "own" && region.owner_id === myUserId);
+          if (!isValidTarget) {
+            toast.error(
+              abilityDef.target_type === "enemy"
+                ? "Zdolnosc wymaga wrogiego celu"
+                : "Zdolnosc wymaga wlasnego regionu"
+            );
+            return;
+          }
+          useAbility(regionId, selectedAbility);
+          setSelectedAbility(null);
+          return;
+        }
+      }
+
       // If we have a source and clicked a valid neighbor → set as target
       if (
         selectedRegion &&
@@ -619,6 +713,9 @@ export default function GamePage({
       getPreferredReachableUnitType,
       isTargetReachableForUnitType,
       selectedActionUnitType,
+      selectedAbility,
+      abilitiesConfig,
+      useAbility,
     ]
   );
 
@@ -710,6 +807,17 @@ export default function GamePage({
     setSelectedRegion(null);
     setSelectedActionUnitType(null);
     setActionTargets([]);
+    setSelectedAbility(null);
+  }, []);
+
+  const handleSelectAbility = useCallback((slug: string | null) => {
+    setSelectedAbility(slug);
+    if (slug) {
+      // Clear normal action state when entering ability mode
+      setSelectedRegion(null);
+      setSelectedActionUnitType(null);
+      setActionTargets([]);
+    }
   }, []);
 
   const handleRemoveTarget = useCallback((rid: string) => {
@@ -804,6 +912,82 @@ export default function GamePage({
         // Region was mine before — lost
         if (targetRegionId && gameStateRef.current?.regions[targetRegionId]?.owner_id === myUserId) {
           playSound("missile_explosion");
+        }
+      }
+      if (e.type === "ability_used") {
+        const soundKey = e.sound_key as string | undefined;
+        const abilityName = e.ability_type as string;
+        const isMyAbility = e.player_id === myUserId;
+        const isNuke = abilityName === "ab_province_nuke";
+        // Play launch sound (skip nuke — it has custom timing)
+        if (!isNuke) {
+          const abilitySounds: Record<string, Parameters<typeof playSound>[0]> = {
+            virus: "virus", submarine: "submarine", shield: "shield", quick_gain: "quick_gain",
+          };
+          if (soundKey && abilitySounds[soundKey]) {
+            playSound(abilitySounds[soundKey]);
+          }
+        }
+        if (isMyAbility) {
+          toast.success(`Uzyto: ${abilityName}`);
+        } else {
+          const attackerName = gameStateRef.current?.players[String(e.player_id)]?.username ?? "Wrog";
+          toast.warning(`${attackerName} uzyl zdolnosci: ${abilityName}`);
+        }
+        // Nuke rocket animation — flies from caster's capital to target
+        if (isNuke) {
+          const casterId = e.player_id as string;
+          const casterCapital = gameStateRef.current?.players[casterId]?.capital_region_id;
+          const targetId = e.target_region_id as string;
+          if (casterCapital && targetId && casterCapital !== targetId) {
+            const color = gameStateRef.current?.players[casterId]?.color ?? "#ef4444";
+            // Launch sound
+            playSound("nuke");
+            // Explosion sound at impact (after 8s flight)
+            setTimeout(() => playSound("nuke_explosion"), 8000);
+            setAnimations((prev) => [...prev, {
+              id: `nuke-${crypto.randomUUID()}`,
+              sourceId: casterCapital,
+              targetId: targetId,
+              color,
+              units: 0,
+              unitType: "nuke_rocket",
+              type: "attack" as const,
+              startTime: Date.now(),
+              durationMs: 8000,
+            }]);
+            // Darken target + neighbors for a few seconds after impact
+            setTimeout(() => {
+              setNukeBlackout((prev) => {
+                const targetNeighbors = neighborMap[targetId] || [];
+                const allAffected = [targetId, ...targetNeighbors];
+                return [...prev, ...allAffected.map((rid) => ({ rid, startTime: Date.now() }))];
+              });
+            }, 8000);
+          }
+        }
+      }
+      if (e.type === "shield_blocked") {
+        const targetRegionName = gameStateRef.current?.regions[String(e.target_region_id)]?.name ?? "region";
+        if (e.attacker_id === myUserId) {
+          toast.error(`Atak na ${targetRegionName} zostal zablokowany przez tarcze!`);
+          playSound("shield");
+        } else {
+          const targetOwner = gameStateRef.current?.regions[String(e.target_region_id)]?.owner_id;
+          if (targetOwner === myUserId) {
+            toast.success(`Tarcza ochronila ${targetRegionName}!`);
+            playSound("shield");
+          }
+        }
+      }
+      if (e.type === "ability_effect_expired") {
+        const effectType = e.effect_type as string;
+        const targetRegionName = gameStateRef.current?.regions[String(e.target_region_id)]?.name ?? "region";
+        if (effectType === "ab_shield") {
+          const regionOwner = gameStateRef.current?.regions[String(e.target_region_id)]?.owner_id;
+          if (regionOwner === myUserId) {
+            toast.info(`Tarcza na ${targetRegionName} wygasla`);
+          }
         }
       }
       if (e.type === "action_rejected" && e.player_id === myUserId) {
@@ -1017,11 +1201,13 @@ export default function GamePage({
         players={players}
         selectedRegion={selectedRegion}
         targetRegions={actionTargets}
-        highlightedNeighbors={highlightedNeighbors}
+        highlightedNeighbors={selectedAbility ? abilityTargets : highlightedNeighbors}
         onRegionClick={handleRegionClick}
         myUserId={myUserId}
         animations={animations}
         buildingIcons={buildingIcons}
+        activeEffects={gameState?.active_effects}
+        nukeBlackout={nukeBlackout}
         onMapReady={handleMapReady}
       />
 
@@ -1081,6 +1267,35 @@ export default function GamePage({
             onProduceUnit={handleProduceUnit}
             onClose={handleCancelAction}
           />
+        </div>
+      )}
+
+      {/* Ability Bar */}
+      {status === "in_progress" && abilitiesConfig.length > 0 && (
+        <AbilityBar
+          abilities={abilitiesConfig}
+          myCurrency={myCurrency}
+          abilityCooldowns={gameState?.players[myUserId]?.ability_cooldowns ?? {}}
+          currentTick={currentTick}
+          selectedAbility={selectedAbility}
+          onSelectAbility={handleSelectAbility}
+        />
+      )}
+
+      {/* Ability targeting hint */}
+      {selectedAbility && (
+        <div className="absolute left-1/2 top-12 z-20 -translate-x-1/2 sm:top-16">
+          <div className="flex items-center gap-2 rounded-full border border-amber-300/20 bg-slate-950/88 px-4 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+            <span className="text-sm text-amber-200">
+              Wybierz cel dla: {abilitiesConfig.find((a) => a.slug === selectedAbility)?.name}
+            </span>
+            <button
+              onClick={() => setSelectedAbility(null)}
+              className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-zinc-300 hover:bg-white/20"
+            >
+              Anuluj
+            </button>
+          </div>
         </div>
       )}
 

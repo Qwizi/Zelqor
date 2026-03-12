@@ -1,5 +1,5 @@
 from django.contrib import admin
-from apps.game_config.models import GameSettings, BuildingType, UnitType, MapConfig, GameMode
+from apps.game_config.models import GameSettings, BuildingType, UnitType, MapConfig, GameMode, AbilityType
 
 
 @admin.register(GameSettings)
@@ -86,6 +86,15 @@ class UnitTypeAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'movement_type', 'produced_by')
     search_fields = ('name', 'slug')
     prepopulated_fields = {'slug': ('name',)}
+
+
+@admin.register(AbilityType)
+class AbilityTypeAdmin(admin.ModelAdmin):
+    list_display = ('icon', 'name', 'slug', 'target_type', 'range', 'currency_cost', 'cooldown_ticks', 'damage', 'effect_duration_ticks', 'is_active', 'order')
+    list_filter = ('is_active', 'target_type')
+    search_fields = ('name', 'slug')
+    prepopulated_fields = {'slug': ('name',)}
+    list_editable = ('is_active', 'order')
 
 
 @admin.register(MapConfig)

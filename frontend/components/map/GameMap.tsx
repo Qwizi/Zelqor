@@ -3,7 +3,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { GameRegion } from "@/hooks/useGameSocket";
+import type { GameRegion, ActiveEffect } from "@/hooks/useGameSocket";
 import { getBuildingAsset, getUnitAsset } from "@/lib/gameAssets";
 
 // ── Types ────────────────────────────────────────────────────
@@ -41,6 +41,7 @@ interface ImpactFlash {
   color: string;
   startTime: number;
   isAttack: boolean;
+  isNuke?: boolean;
 }
 
 interface GameMapProps {
@@ -56,6 +57,8 @@ interface GameMapProps {
   myUserId: string;
   animations: TroopAnimation[];
   buildingIcons: Record<string, string>;
+  activeEffects?: ActiveEffect[];
+  nukeBlackout?: Array<{ rid: string; startTime: number }>;
   onMapReady?: () => void;
 }
 
@@ -73,6 +76,16 @@ const AIR_ASSET = "/assets/units/planes/bomber_h300.webp";
 const SHIP_ASSET = "/assets/units/ships/ship1.png";
 const TANK_ASSET = "/assets/units/ground_unit_sphere_h300.png";
 
+// Ability effect overlay config — color tint + icon at centroid + dashed border
+const EFFECT_CONFIG: Record<string, { color: string; borderColor: string; icon: string }> = {
+  ab_virus: { color: "#22c55e", borderColor: "#16a34a", icon: "/assets/abilities/ab_virus.webp" },
+  ab_shield: { color: "#3b82f6", borderColor: "#60a5fa", icon: "/assets/abilities/ab_shield.webp" },
+  ab_pr_submarine: { color: "#a855f7", borderColor: "#c084fc", icon: "/assets/abilities/ab_pr_submarine.webp" },
+  ab_province_nuke: { color: "#ef4444", borderColor: "#f87171", icon: "/assets/abilities/ab_province_nuke.webp" },
+  ab_conscription_point: { color: "#f59e0b", borderColor: "#fbbf24", icon: "/assets/abilities/ab_conscription_point.webp" },
+};
+const EFFECT_TYPES = Object.keys(EFFECT_CONFIG);
+
 function regionMarkerOffset(kind: "capital" | "buildings", buildingCount = 0): [number, number] {
   if (kind === "capital") {
     return [-28, -30];
@@ -89,6 +102,7 @@ function getAnimationIconId(unitType?: string | null) {
 }
 
 function resolveAnimationKind(unitType?: string | null) {
+  if (unitType === "nuke_rocket") return "fighter";
   const asset = getUnitAsset(unitType ?? "default");
   if (asset === AIR_ASSET) return "fighter";
   if (asset === SHIP_ASSET) return "ship";
@@ -99,7 +113,8 @@ function resolveAnimationKind(unitType?: string | null) {
 function loadMapImage(
   map: maplibregl.Map,
   id: string,
-  url: string
+  url: string,
+  options?: { pixelRatio?: number }
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (map.hasImage(id)) {
@@ -114,7 +129,7 @@ function loadMapImage(
       }
 
       if (!map.hasImage(id)) {
-        map.addImage(id, image);
+        map.addImage(id, image, { pixelRatio: options?.pixelRatio ?? 1 });
       }
       resolve();
     }).catch((error) => {
@@ -186,8 +201,13 @@ function computeMarchPath(
 function buildAnimationPath(
   kind: "fighter" | "ship" | "tank" | "infantry",
   from: [number, number],
-  to: [number, number]
+  to: [number, number],
+  unitType?: string | null
 ): [number, number][] {
+  // Nuke: high-arc ballistic trajectory with many points for smoothness
+  if (unitType === "nuke_rocket") {
+    return computeCurvePath(from, to, 0.35, 200);
+  }
   if (kind === "fighter") {
     return computeCurvePath(from, to, 0.24, 52);
   }
@@ -217,6 +237,19 @@ function easeAnimationProgress(
   return t * t * (3 - 2 * t);
 }
 
+/** Interpolate smoothly along a path at fractional progress [0,1]. */
+function lerpPath(path: [number, number][], t: number): [number, number] {
+  const n = path.length - 1;
+  if (n <= 0) return path[0];
+  const f = Math.max(0, Math.min(1, t)) * n;
+  const i = Math.min(Math.floor(f), n - 1);
+  const frac = f - i;
+  return [
+    path[i][0] + (path[i + 1][0] - path[i][0]) * frac,
+    path[i][1] + (path[i + 1][1] - path[i][1]) * frac,
+  ];
+}
+
 const EMPTY_FC = { type: "FeatureCollection" as const, features: [] as unknown[] };
 
 // ── Component ────────────────────────────────────────────────
@@ -234,6 +267,8 @@ export default memo(function GameMap({
   myUserId,
   animations,
   buildingIcons,
+  activeEffects = [],
+  nukeBlackout = [],
   onMapReady,
 }: GameMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -252,6 +287,8 @@ export default memo(function GameMap({
   const prevRegionsRef = useRef<Record<string, GameRegion>>({});
   const prevPlayersRef = useRef<Record<string, { color: string; username: string }>>({});
   const prevMarkerRegionsRef = useRef<Record<string, GameRegion>>({});
+  // Track previous effect filters to skip redundant setFilter calls
+  const prevEffectFiltersRef = useRef<Record<string, string>>({});
   // Track unit count changes for label pulse animation
   const unitPulsesRef = useRef<Map<string, { startTime: number; delta: number }>>(new Map());
   const prevUnitCountsRef = useRef<Map<string, number>>(new Map());
@@ -398,6 +435,67 @@ export default memo(function GameMap({
         "source-layer": "regions",
         paint: { "fill-color": "#000000", "fill-opacity": 0.45 },
         filter: ["==", ["get", "id"], ""],
+      });
+      // Active ability effect — single colored overlay + dashed border
+      addLayerIfMissing({
+        id: "regions-effect-fill",
+        type: "fill",
+        source: "regions",
+        "source-layer": "regions",
+        paint: {
+          "fill-color": ["coalesce", ["feature-state", "effectColor"], "#ffffff"],
+          "fill-opacity": ["case",
+            ["boolean", ["feature-state", "hasEffect"], false], 0.3,
+            0,
+          ],
+        },
+      });
+      addLayerIfMissing({
+        id: "regions-effect-border",
+        type: "line",
+        source: "regions",
+        "source-layer": "regions",
+        paint: {
+          "line-color": ["coalesce", ["feature-state", "effectBorderColor"], "#ffffff"],
+          "line-width": 2.5,
+          "line-dasharray": [3, 2],
+          "line-opacity": ["case",
+            ["boolean", ["feature-state", "hasEffect"], false], 0.8,
+            0,
+          ],
+        },
+      });
+      // Nuke blackout overlay — provinces go very dark after nuke impact
+      addLayerIfMissing({
+        id: "regions-nuke-blackout",
+        type: "fill",
+        source: "regions",
+        "source-layer": "regions",
+        paint: {
+          "fill-color": "#000000",
+          "fill-opacity": ["coalesce", ["feature-state", "nukeOpacity"], 0],
+        },
+      });
+      // Ability icons at centroids of affected provinces
+      addSourceIfMissing("effect-icons", {
+        type: "geojson",
+        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
+      });
+      addLayerIfMissing({
+        id: "effect-icons",
+        type: "symbol",
+        source: "effect-icons",
+        layout: {
+          "icon-image": ["get", "icon"],
+          "icon-size": 0.09,
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-anchor": "top",
+          "icon-offset": [0, 4],
+        },
+        paint: {
+          "icon-opacity": 0.9,
+        },
       });
       addLayerIfMissing({
         id: "regions-border",
@@ -582,6 +680,14 @@ export default memo(function GameMap({
             }
           });
           (map as typeof map & { __maplord_handlers_bound?: boolean }).__maplord_handlers_bound = true;
+        }
+
+        // Load ability effect icons into map sprite
+        for (const effectType of EFFECT_TYPES) {
+          const config = EFFECT_CONFIG[effectType];
+          loadMapImage(map, `effect-${effectType}`, config.icon).catch(() => {
+            // Icon failed to load — effect will still show color overlay
+          });
         }
 
         const baseLayersReady =
@@ -777,10 +883,18 @@ export default memo(function GameMap({
 
     // ② Labels: small GeoJSON point source (layout property workaround)
     const animatedTargets = new Set(animations.map((a) => a.targetId));
+    // Submarine reveal — show unit counts on enemy provinces revealed by our submarines
+    const revealedRegions = new Set<string>();
+    for (const effect of activeEffects) {
+      if (effect.effect_type === "ab_pr_submarine" && effect.source_player_id === myUserId) {
+        if (effect.target_region_id) revealedRegions.add(effect.target_region_id);
+        for (const rid of effect.affected_region_ids || []) revealedRegions.add(rid);
+      }
+    }
     const labelFeatures: unknown[] = [];
     for (const [rid, r] of Object.entries(regions)) {
       let labelText = "";
-      if (r.owner_id === myUserId || animatedTargets.has(rid)) {
+      if (r.owner_id === myUserId || animatedTargets.has(rid) || revealedRegions.has(rid)) {
         labelText = r.unit_count > 0 ? String(r.unit_count) : "";
       } else if (r.owner_id) {
         labelText = players[r.owner_id]?.username ?? "";
@@ -810,7 +924,7 @@ export default memo(function GameMap({
 
     prevRegionsRef.current = regions;
     prevPlayersRef.current = players;
-  }, [regions, players, myUserId, animations, getRegionColor, buildingIcons, centroids, layersReady]);
+  }, [regions, players, myUserId, animations, getRegionColor, buildingIcons, centroids, activeEffects, layersReady]);
 
   // ── Effect A2: selection + target markers ──
   //
@@ -1088,6 +1202,140 @@ export default memo(function GameMap({
     }
   }, [selectedRegion, targetRegions, highlightedNeighbors, dimmedRegions, myUserId, regions, layersReady]);
 
+  // ── Nuke blackout — darken provinces after nuke impact ──────
+  //
+  // Animated fade: starts at 0.85 opacity (very dark), fades to 0 over 3s.
+  // Uses rAF-driven feature-state updates for smooth fade.
+
+  const nukeBlackoutRef = useRef(nukeBlackout);
+  useLayoutEffect(() => { nukeBlackoutRef.current = nukeBlackout; });
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !layersReady || nukeBlackout.length === 0) return;
+
+    const NUKE_FADE_MS = 3000;
+    let raf = 0;
+    const prevRids = new Set<string>();
+
+    const tick = () => {
+      const now = Date.now();
+      const current = nukeBlackoutRef.current;
+      const activeRids = new Set<string>();
+
+      for (const b of current) {
+        const elapsed = now - b.startTime;
+        if (elapsed >= NUKE_FADE_MS) continue;
+        activeRids.add(b.rid);
+        const t = elapsed / NUKE_FADE_MS;
+        const opacity = 0.85 * Math.pow(1 - t, 2);
+        try {
+          map.setFeatureState(
+            { source: "regions", sourceLayer: "regions", id: b.rid },
+            { nukeOpacity: opacity }
+          );
+        } catch { /* tile not loaded */ }
+      }
+
+      // Clear expired
+      for (const rid of prevRids) {
+        if (!activeRids.has(rid)) {
+          try {
+            map.setFeatureState(
+              { source: "regions", sourceLayer: "regions", id: rid },
+              { nukeOpacity: 0 }
+            );
+          } catch { /* */ }
+        }
+      }
+      prevRids.clear();
+      for (const rid of activeRids) prevRids.add(rid);
+
+      if (activeRids.size > 0) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [nukeBlackout, layersReady]);
+
+  // ── Effect: active ability effects on provinces ──────────────
+  //
+  // Uses feature-state for color tint + border (no extra layers per type),
+  // and a single GeoJSON symbol layer for ability icons at centroids.
+  // Skips updates when nothing changed.
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !layersReady) return;
+
+    try {
+      // Build map: regionId → effect config
+      const affected = new Map<string, { color: string; borderColor: string; effectType: string }>();
+      for (const effect of activeEffects) {
+        const config = EFFECT_CONFIG[effect.effect_type];
+        if (!config) continue;
+        const entry = { color: config.color, borderColor: config.borderColor, effectType: effect.effect_type };
+        if (effect.target_region_id) affected.set(effect.target_region_id, entry);
+        for (const rid of effect.affected_region_ids || []) {
+          if (!affected.has(rid)) affected.set(rid, entry);
+        }
+      }
+
+      // Build cache key to skip redundant updates
+      const key = affected.size > 0
+        ? [...affected.entries()].map(([rid, e]) => `${rid}:${e.effectType}`).sort().join(",")
+        : "";
+      if (prevEffectFiltersRef.current.__all === key) return;
+      prevEffectFiltersRef.current.__all = key;
+
+      // Clear previous effect states for regions no longer affected
+      const prevRids = prevEffectFiltersRef.current.__rids?.split(",").filter(Boolean) || [];
+      for (const rid of prevRids) {
+        if (!affected.has(rid)) {
+          try {
+            map.setFeatureState(
+              { source: "regions", sourceLayer: "regions", id: rid },
+              { hasEffect: false }
+            );
+          } catch { /* tile not loaded */ }
+        }
+      }
+      prevEffectFiltersRef.current.__rids = [...affected.keys()].join(",");
+
+      // Set feature-state for affected regions
+      for (const [rid, config] of affected) {
+        try {
+          map.setFeatureState(
+            { source: "regions", sourceLayer: "regions", id: rid },
+            { hasEffect: true, effectColor: config.color, effectBorderColor: config.borderColor }
+          );
+        } catch { /* tile not loaded */ }
+      }
+
+      // Update icon GeoJSON — one icon per affected province centroid
+      const iconFeatures: unknown[] = [];
+      for (const [rid, config] of affected) {
+        const c = centroids[rid];
+        if (!c) continue;
+        iconFeatures.push({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: c },
+          properties: { icon: `effect-${config.effectType}` },
+        });
+      }
+      try {
+        (map.getSource("effect-icons") as maplibregl.GeoJSONSource)?.setData({
+          type: "FeatureCollection",
+          features: iconFeatures,
+        } as unknown as GeoJSON.FeatureCollection);
+      } catch { /* source not ready */ }
+    } catch {
+      // map not ready
+    }
+  }, [activeEffects, centroids, layersReady]);
+
   // ── Sync animation props → internal ref ──────────────────
 
   useEffect(() => {
@@ -1100,7 +1348,7 @@ export default memo(function GameMap({
       const animKind = resolveAnimationKind(a.unitType);
       newAnims.push({
         id: a.id,
-        path: buildAnimationPath(animKind, from, to),
+        path: buildAnimationPath(animKind, from, to, a.unitType),
         color: a.color,
         units: a.units,
         unitType: a.unitType,
@@ -1149,6 +1397,7 @@ export default memo(function GameMap({
 
       const now = Date.now();
       const IMPACT_DURATION_MS = 600;
+      const NUKE_IMPACT_DURATION_MS = 1800;
 
       // Clean up finished animations + trigger impact flash on arrival
       animsRef.current = animsRef.current.filter((a) => {
@@ -1161,14 +1410,16 @@ export default memo(function GameMap({
             color: a.actionType === "attack" ? "#ef4444" : a.color,
             startTime: now,
             isAttack: a.actionType === "attack",
+            isNuke: a.unitType === "nuke_rocket",
           });
         }
-        return elapsed < a.duration + IMPACT_DURATION_MS;
+        const impactDur = a.unitType === "nuke_rocket" ? NUKE_IMPACT_DURATION_MS : IMPACT_DURATION_MS;
+        return elapsed < a.duration + impactDur;
       });
 
       // Clean up old impact flashes and arrived tracking
       impactFlashesRef.current = impactFlashesRef.current.filter(
-        (f) => now - f.startTime < IMPACT_DURATION_MS
+        (f) => now - f.startTime < (f.isNuke ? NUKE_IMPACT_DURATION_MS : IMPACT_DURATION_MS)
       );
       if (arrivedAnimsRef.current.size > 200) {
         arrivedAnimsRef.current.clear();
@@ -1181,14 +1432,22 @@ export default memo(function GameMap({
 
       for (const a of animsRef.current) {
         const rawLinear = Math.min((now - a.startTime) / a.duration, 1);
-        const progress = easeAnimationProgress(a.animKind, rawLinear);
         const animKind = a.animKind;
+        const isNukeRocket = a.unitType === "nuke_rocket";
+        // Nuke: smooth ease-in-out (slow launch, cruise, accelerate to target)
+        const progress = isNukeRocket
+          ? rawLinear < 0.5
+            ? 2 * rawLinear * rawLinear
+            : 1 - Math.pow(-2 * rawLinear + 2, 2) / 2
+          : easeAnimationProgress(animKind, rawLinear);
 
         // Smooth fadeout: gentle from 75%, accelerating to 0 at 100%
-        // Uses cubic ease-out for natural deceleration feel
-        const fadeOut = rawLinear > 0.75
-          ? Math.pow(1 - (rawLinear - 0.75) / 0.25, 2)
-          : 1;
+        // Nuke stays fully visible until impact
+        const fadeOut = isNukeRocket
+          ? (rawLinear >= 1 ? 0 : 1)
+          : rawLinear > 0.75
+            ? Math.pow(1 - (rawLinear - 0.75) / 0.25, 2)
+            : 1;
 
         const animColor =
           animKind === "fighter"
@@ -1203,8 +1462,9 @@ export default memo(function GameMap({
             : animKind === "ship"
               ? "#38bdf8"
               : "#ef4444";
-        const lineWidth =
-          animKind === "fighter"
+        const lineWidth = isNukeRocket
+          ? 6
+          : animKind === "fighter"
             ? 4.5
             : animKind === "ship"
               ? 3.2
@@ -1217,8 +1477,9 @@ export default memo(function GameMap({
             : animKind === "ship"
               ? 0.2
               : 0.15;
-        const trailDots =
-          animKind === "fighter"
+        const trailDots = isNukeRocket
+          ? 12
+          : animKind === "fighter"
             ? 4
             : animKind === "ship"
               ? 5
@@ -1231,7 +1492,7 @@ export default memo(function GameMap({
           Math.floor(progress * (a.path.length - 1)),
           a.path.length - 1
         );
-        const trailLength = animKind === "fighter" ? 0.18 : animKind === "ship" ? 0.22 : 0.3;
+        const trailLength = isNukeRocket ? 0.12 : animKind === "fighter" ? 0.18 : animKind === "ship" ? 0.22 : 0.3;
         const tailProgress = Math.max(0, progress - trailLength);
         const tailIdx = Math.max(0, Math.floor(tailProgress * (a.path.length - 1)));
         const trailSlice = a.path.slice(tailIdx, headIdx + 1);
@@ -1256,21 +1517,21 @@ export default memo(function GameMap({
           });
         }
 
+        const nukeTrailSpacing = isNukeRocket ? 0.008 : DOT_SPACING;
         for (let i = 0; i < trailDots; i++) {
-          const dp = progress - i * DOT_SPACING;
+          const dp = progress - i * nukeTrailSpacing;
           if (dp < 0 || dp > 1) continue;
           // Skip dots behind the visible trail
           if (dp < tailProgress) continue;
-          const idx = Math.min(
-            Math.floor(dp * (a.path.length - 1)),
-            a.path.length - 1
-          );
+          const dotPos = isNukeRocket
+            ? lerpPath(a.path, dp)
+            : a.path[Math.min(Math.floor(dp * (a.path.length - 1)), a.path.length - 1)];
           // Smooth fade per dot based on distance from head
           const dotFade = 1 - (i / trailDots);
           const dotScale = 1 - (i / trailDots) * 0.4;
           dotFeats.push({
             type: "Feature",
-            geometry: { type: "Point", coordinates: a.path[idx] },
+            geometry: { type: "Point", coordinates: dotPos },
             properties: {
               color: animColor,
               units: i === 0 ? a.units : 0,
@@ -1290,12 +1551,16 @@ export default memo(function GameMap({
           });
         }
 
-        const nextIndex = Math.min(headIdx + 1, a.path.length - 1);
-        const currentPoint = a.path[headIdx];
-        const nextPoint = a.path[nextIndex];
+        // Smooth interpolated position for icon (especially important for nuke)
+        const currentPoint = isNukeRocket
+          ? lerpPath(a.path, progress)
+          : a.path[headIdx];
+        const lookAhead = isNukeRocket
+          ? lerpPath(a.path, Math.min(1, progress + 0.005))
+          : a.path[Math.min(headIdx + 1, a.path.length - 1)];
         const rotation =
-          currentPoint && nextPoint
-            ? Math.atan2(nextPoint[0] - currentPoint[0], nextPoint[1] - currentPoint[1]) * (180 / Math.PI)
+          currentPoint && lookAhead
+            ? Math.atan2(lookAhead[0] - currentPoint[0], lookAhead[1] - currentPoint[1]) * (180 / Math.PI)
             : 0;
 
         // Slight scale pulse on the icon as it moves (breathing effect)
@@ -1308,14 +1573,25 @@ export default memo(function GameMap({
               : animKind === "tank"
                 ? 0.28
                 : 0.2;
+        // Nuke: grows on launch (0→0.7), shrinks on approach (0.7→0.3)
+        const nukeScale = isNukeRocket
+          ? rawLinear < 0.3
+            ? 0.15 + 0.55 * (rawLinear / 0.3)           // grow: 0.15 → 0.7
+            : rawLinear > 0.75
+              ? 0.7 - 0.4 * ((rawLinear - 0.75) / 0.25)  // shrink: 0.7 → 0.3
+              : 0.7                                        // cruise
+          : 0;
+        const finalIconSize = isNukeRocket
+          ? nukeScale
+          : baseIconSize * breathe * (0.6 + 0.4 * fadeOut);
         iconFeats.push({
           type: "Feature",
           geometry: { type: "Point", coordinates: currentPoint },
           properties: {
             icon: iconName,
-            icon_size: baseIconSize * breathe * (0.6 + 0.4 * fadeOut),
+            icon_size: finalIconSize,
             rotation,
-            opacity: Math.min(1, fadeOut * 1.3),
+            opacity: Math.min(1, isNukeRocket ? 1 : fadeOut * 1.3),
           },
         });
 
@@ -1339,32 +1615,89 @@ export default memo(function GameMap({
 
       // Impact flash effects — burst ring + inner glow on arrival
       for (const flash of impactFlashesRef.current) {
-        const flashProgress = (now - flash.startTime) / IMPACT_DURATION_MS;
-        const flashFade = Math.pow(1 - flashProgress, 1.5);
-        const burstRadius = 6 + flashProgress * 52;
+        const dur = flash.isNuke ? NUKE_IMPACT_DURATION_MS : IMPACT_DURATION_MS;
+        const flashProgress = (now - flash.startTime) / dur;
 
-        // Outer expanding ring
-        pulseFeats.push({
-          type: "Feature",
-          geometry: { type: "Point", coordinates: flash.centroid },
-          properties: {
-            radius: burstRadius,
-            color: flash.isAttack ? "#ef4444" : "#22d3ee",
-            opacity: flashFade * 0.9,
-          },
-        });
-        // Inner bright core
-        if (flashProgress < 0.4) {
-          const coreFade = 1 - flashProgress / 0.4;
+        if (flash.isNuke) {
+          // === NUKE EXPLOSION — massive multi-ring expanding blast ===
+          const fade = Math.pow(1 - flashProgress, 1.2);
+          // Outer shockwave ring
           pulseFeats.push({
             type: "Feature",
             geometry: { type: "Point", coordinates: flash.centroid },
             properties: {
-              radius: 4 + flashProgress * 12,
-              color: flash.isAttack ? "#fca5a5" : "#a5f3fc",
-              opacity: coreFade * coreFade * 0.8,
+              radius: 10 + flashProgress * 140,
+              color: "#ff6b00",
+              opacity: fade * 0.7,
             },
           });
+          // Mid fire ring
+          if (flashProgress < 0.7) {
+            const midFade = Math.pow(1 - flashProgress / 0.7, 1.5);
+            pulseFeats.push({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: flash.centroid },
+              properties: {
+                radius: 8 + flashProgress * 90,
+                color: "#ef4444",
+                opacity: midFade * 0.85,
+              },
+            });
+          }
+          // Inner fireball core
+          if (flashProgress < 0.5) {
+            const coreFade = 1 - flashProgress / 0.5;
+            pulseFeats.push({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: flash.centroid },
+              properties: {
+                radius: 6 + flashProgress * 40,
+                color: "#fbbf24",
+                opacity: coreFade * 0.95,
+              },
+            });
+          }
+          // White-hot center
+          if (flashProgress < 0.25) {
+            const whiteFade = 1 - flashProgress / 0.25;
+            pulseFeats.push({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: flash.centroid },
+              properties: {
+                radius: 4 + flashProgress * 18,
+                color: "#ffffff",
+                opacity: whiteFade * whiteFade,
+              },
+            });
+          }
+        } else {
+          // Normal impact flash
+          const flashFade = Math.pow(1 - flashProgress, 1.5);
+          const burstRadius = 6 + flashProgress * 52;
+
+          // Outer expanding ring
+          pulseFeats.push({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: flash.centroid },
+            properties: {
+              radius: burstRadius,
+              color: flash.isAttack ? "#ef4444" : "#22d3ee",
+              opacity: flashFade * 0.9,
+            },
+          });
+          // Inner bright core
+          if (flashProgress < 0.4) {
+            const coreFade = 1 - flashProgress / 0.4;
+            pulseFeats.push({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: flash.centroid },
+              properties: {
+                radius: 4 + flashProgress * 12,
+                color: flash.isAttack ? "#fca5a5" : "#a5f3fc",
+                opacity: coreFade * coreFade * 0.8,
+              },
+            });
+          }
         }
       }
 

@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from apps.game_config.models import BuildingType, GameMode, GameSettings, UnitType
+from apps.game_config.models import AbilityType, BuildingType, GameMode, GameSettings, UnitType
 
 
 GAME_MODES = [
@@ -317,8 +317,92 @@ UNITS = [
 ]
 
 
+ABILITIES = [
+    {
+        "name": "Nuke",
+        "slug": "ab_province_nuke",
+        "asset_key": "ab_province_nuke",
+        "description": "Natychmiastowe uderzenie nuklearne zabijające jednostki w prowincji.",
+        "icon": "☢️",
+        "sound_key": "nuke",
+        "target_type": "enemy",
+        "range": 0,
+        "currency_cost": 80,
+        "cooldown_ticks": 60,
+        "damage": 50,
+        "effect_duration_ticks": 0,
+        "effect_params": {},
+        "order": 0,
+    },
+    {
+        "name": "Virus",
+        "slug": "ab_virus",
+        "asset_key": "ab_virus",
+        "description": "Rozprzestrzenia wirusa zabijającego jednostki i redukującego produkcję.",
+        "icon": "🦠",
+        "sound_key": "virus",
+        "target_type": "enemy",
+        "range": 2,
+        "currency_cost": 100,
+        "cooldown_ticks": 90,
+        "damage": 0,
+        "effect_duration_ticks": 15,
+        "effect_params": {"production_reduction": 0.5, "unit_kill_percent": 0.05, "spread_range": 1},
+        "order": 1,
+    },
+    {
+        "name": "Submarine",
+        "slug": "ab_pr_submarine",
+        "asset_key": "ab_pr_submarine",
+        "description": "Ujawnia jednostki wroga w prowincji na określony czas.",
+        "icon": "🔍",
+        "sound_key": "submarine",
+        "target_type": "enemy",
+        "range": 3,
+        "currency_cost": 40,
+        "cooldown_ticks": 45,
+        "damage": 0,
+        "effect_duration_ticks": 10,
+        "effect_params": {},
+        "order": 2,
+    },
+    {
+        "name": "Shield",
+        "slug": "ab_shield",
+        "asset_key": "ab_shield",
+        "description": "Tworzy tarczę blokującą ataki na prowincję.",
+        "icon": "🛡️",
+        "sound_key": "shield",
+        "target_type": "own",
+        "range": 0,
+        "currency_cost": 60,
+        "cooldown_ticks": 60,
+        "damage": 0,
+        "effect_duration_ticks": 20,
+        "effect_params": {},
+        "order": 3,
+    },
+    {
+        "name": "Conscription",
+        "slug": "ab_conscription_point",
+        "asset_key": "ab_conscription_point",
+        "description": "Zbiera procent jednostek z neutralnych sąsiednich prowincji.",
+        "icon": "📯",
+        "sound_key": "quick_gain",
+        "target_type": "own",
+        "range": 0,
+        "currency_cost": 50,
+        "cooldown_ticks": 45,
+        "damage": 0,
+        "effect_duration_ticks": 0,
+        "effect_params": {"collect_percent": 0.3},
+        "order": 4,
+    },
+]
+
+
 class Command(BaseCommand):
-    help = "Seed default GameSettings, BuildingTypes, and UnitTypes"
+    help = "Seed default GameSettings, BuildingTypes, UnitTypes, and AbilityTypes"
 
     def handle(self, *args, **options):
         # GameSettings singleton
@@ -362,6 +446,17 @@ class Command(BaseCommand):
             self.stdout.write(f"  UnitType {obj.name}: {status}")
 
         UnitType.objects.exclude(slug__in=[u["slug"] for u in UNITS]).update(is_active=False)
+
+        # Abilities
+        for data in ABILITIES:
+            obj, created = AbilityType.objects.update_or_create(
+                slug=data["slug"],
+                defaults={k: v for k, v in data.items() if k != "slug"},
+            )
+            status = "created" if created else "updated"
+            self.stdout.write(f"  AbilityType {obj.name}: {status}")
+
+        AbilityType.objects.exclude(slug__in=[a["slug"] for a in ABILITIES]).update(is_active=False)
 
         # Game Modes
         for data in GAME_MODES:

@@ -127,9 +127,31 @@ class GameModeListSchema(Schema):
         from_attributes = True
 
 
+class AbilityTypeOutSchema(Schema):
+    id: uuid.UUID
+    name: str
+    slug: str
+    asset_key: str
+    description: str
+    icon: str
+    sound_key: str
+    target_type: str
+    range: int
+    currency_cost: int
+    cooldown_ticks: int
+    damage: int
+    effect_duration_ticks: int
+    effect_params: dict
+    order: int
+
+    class Config:
+        from_attributes = True
+
+
 class FullConfigOutSchema(Schema):
     settings: GameSettingsOutSchema
     buildings: List[BuildingTypeOutSchema]
     units: List[UnitTypeOutSchema]
+    abilities: List[AbilityTypeOutSchema]
     maps: List[MapConfigOutSchema]
     game_modes: List[GameModeListSchema]
