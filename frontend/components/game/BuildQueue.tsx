@@ -35,43 +35,81 @@ export default memo(function BuildQueue({
 
   if (myBuilds.length === 0 && myUnits.length === 0) return null;
 
-  return (
-    <div className="absolute bottom-[5.5rem] left-2 right-2 z-20 space-y-2 sm:bottom-4 sm:left-4 sm:right-auto sm:w-[320px] sm:space-y-3 lg:bottom-4">
-      {myBuilds.length > 0 && (
-        <QueueSection
-          title={`Budowa (${myBuilds.length})`}
-          asset={getActionAsset("build")}
-          items={myBuilds.map((item, idx) => {
-            const config = buildingMap[item.building_type];
-            return {
-              key: `${item.region_id}-${idx}`,
-              name: config?.name || item.building_type,
-              remaining: item.ticks_remaining,
-              total: item.total_ticks || 1,
-              image: getBuildingAsset(config?.asset_key || item.building_type) || getActionAsset("build"),
-            };
-          })}
-        />
-      )}
+  const buildItems = myBuilds.map((item, idx) => {
+    const config = buildingMap[item.building_type];
+    return {
+      key: `${item.region_id}-${idx}`,
+      name: config?.name || item.building_type,
+      remaining: item.ticks_remaining,
+      total: item.total_ticks || 1,
+      image: getBuildingAsset(config?.asset_key || item.building_type) || getActionAsset("build"),
+    };
+  });
 
-      {myUnits.length > 0 && (
-        <QueueSection
-          title={`Produkcja (${myUnits.length})`}
-          asset={getUnitAsset("default")}
-          items={myUnits.map((item, idx) => {
-            const config = unitMap[item.unit_type];
-            return {
-              key: `${item.region_id}-${item.unit_type}-${idx}`,
-              name: config?.name || item.unit_type,
-              remaining: item.ticks_remaining,
-              total: item.total_ticks || 1,
-              image: getUnitAsset(config?.asset_key || item.unit_type),
-            };
-          })}
-          accentClass="from-cyan-400 to-cyan-200"
-        />
-      )}
-    </div>
+  const unitItems = myUnits.map((item, idx) => {
+    const config = unitMap[item.unit_type];
+    return {
+      key: `${item.region_id}-${item.unit_type}-${idx}`,
+      name: config?.name || item.unit_type,
+      remaining: item.ticks_remaining,
+      total: item.total_ticks || 1,
+      image: getUnitAsset(config?.asset_key || item.unit_type),
+    };
+  });
+
+  return (
+    <>
+      {/* Desktop */}
+      <div className="absolute bottom-4 left-4 z-20 hidden w-[320px] space-y-3 sm:block lg:bottom-4">
+        {buildItems.length > 0 && (
+          <QueueSection
+            title={`Budowa (${buildItems.length})`}
+            asset={getActionAsset("build")}
+            items={buildItems}
+          />
+        )}
+        {unitItems.length > 0 && (
+          <QueueSection
+            title={`Produkcja (${unitItems.length})`}
+            asset={getUnitAsset("default")}
+            items={unitItems}
+            accentClass="from-cyan-400 to-cyan-200"
+          />
+        )}
+      </div>
+
+      {/* Mobile – compact icons row below HUD */}
+      <div className="absolute left-2 top-[120px] z-20 flex flex-wrap gap-1.5 sm:hidden">
+        {[...buildItems, ...unitItems].map((item) => {
+          const progress = Math.max(0, Math.min(1, 1 - item.remaining / item.total));
+          const percent = Math.round(progress * 100);
+          return (
+            <div
+              key={item.key}
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-950/85 backdrop-blur-md"
+              title={`${item.name} – ${percent}%`}
+            >
+              <Image
+                src={item.image}
+                alt={item.name}
+                width={22}
+                height={22}
+                className="h-[22px] w-[22px] object-contain"
+              />
+              {/* Circular-ish progress ring via bottom border */}
+              <div className="absolute inset-0 rounded-xl border-2 border-transparent" />
+              <div
+                className="absolute bottom-0 left-0 h-1 rounded-b-xl bg-gradient-to-r from-amber-500 to-amber-300"
+                style={{ width: `${percent}%` }}
+              />
+              <span className="absolute -bottom-1 -right-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-slate-900 px-0.5 text-[8px] font-bold text-amber-300">
+                {percent}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 });
 

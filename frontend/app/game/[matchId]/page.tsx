@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
 import { useGameSocket } from "@/hooks/useGameSocket";
-import { useAudio } from "@/hooks/useAudio";
+import { useAudio, MUSIC_TRACKS } from "@/hooks/useAudio";
 import {
   getRegionsGraph,
   getRegionTilesUrl,
@@ -23,6 +23,7 @@ import GameHUD from "@/components/game/GameHUD";
 import RegionPanel from "@/components/game/RegionPanel";
 import ActionBar, { type TargetEntry } from "@/components/game/ActionBar";
 import BuildQueue from "@/components/game/BuildQueue";
+import MobileBuildSheet from "@/components/game/MobileBuildSheet";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -89,7 +90,8 @@ export default function GamePage({
     leaveMatch,
   } = useGameSocket(matchId);
 
-  const { startMusic, stopMusic, playSound, toggleMute, muted } = useAudio();
+  const { startMusic, stopMusic, playSound, toggleMute, muted, currentTrackIndex, selectTrack } = useAudio();
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false);
 
   const [regionGraph, setRegionGraph] = useState<RegionGraphEntry[]>([]);
   const [buildings, setBuildings] = useState<BuildingType[]>([]);
@@ -865,13 +867,51 @@ export default function GamePage({
       )}
 
       <div className="absolute right-2 top-2 z-20 flex items-center gap-2 sm:right-4 sm:top-4">
-        <button
-          onClick={toggleMute}
-          title={muted ? "Włącz dźwięk" : "Wycisz dźwięk"}
-          className="rounded-full border border-white/10 bg-slate-950/84 p-2 text-slate-300 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-white/[0.08] hover:text-white"
-        >
-          {muted ? "🔇" : "🔊"}
-        </button>
+        <div className="relative">
+          <button
+            onClick={toggleMute}
+            title={muted ? "Włącz dźwięk" : "Wycisz dźwięk"}
+            className="rounded-full border border-white/10 bg-slate-950/84 p-2 text-slate-300 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-white/[0.08] hover:text-white"
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
+          <button
+            onClick={() => setMusicPickerOpen((prev) => !prev)}
+            title="Wybierz muzyke"
+            className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-[10px] text-slate-400 transition-colors hover:text-white"
+          >
+            ♫
+          </button>
+          {musicPickerOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setMusicPickerOpen(false)} />
+              <div className="absolute right-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-[0_16px_48px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+                <div className="px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                  Muzyka
+                </div>
+                {MUSIC_TRACKS.map((track, i) => (
+                  <button
+                    key={track.src}
+                    onClick={() => {
+                      selectTrack(i);
+                      setMusicPickerOpen(false);
+                    }}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.06] ${
+                      i === currentTrackIndex
+                        ? "bg-white/[0.04] text-amber-200"
+                        : "text-zinc-300"
+                    }`}
+                  >
+                    <span className="w-4 text-center text-xs">
+                      {i === currentTrackIndex && !muted ? "▶" : ""}
+                    </span>
+                    <span className="truncate">{track.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <button
           onClick={() => router.push("/dashboard")}
           className="rounded-full border border-white/10 bg-slate-950/84 px-3 py-2 text-xs text-slate-200 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-white/[0.08] sm:px-4"
@@ -1025,7 +1065,7 @@ export default function GamePage({
         />
       )}
 
-      {/* Region panel (info + panel-based actions) */}
+      {/* Region panel – desktop only */}
       {sourceRegionData && selectedRegion && actionTargets.length === 0 && (
         <div className="hidden sm:block">
           <RegionPanel
@@ -1042,6 +1082,20 @@ export default function GamePage({
             onClose={handleCancelAction}
           />
         </div>
+      )}
+
+      {/* Mobile build button – visible whenever own region is selected */}
+      {sourceRegionData && selectedRegion && sourceRegionData.owner_id === myUserId && status === "in_progress" && (
+        <MobileBuildSheet
+          region={sourceRegionData}
+          regionId={selectedRegion}
+          myCurrency={myCurrency}
+          buildings={buildings}
+          buildingQueue={buildingsQueue}
+          units={unitsConfig}
+          onBuild={handleBuild}
+          onProduceUnit={handleProduceUnit}
+        />
       )}
     </div>
   );

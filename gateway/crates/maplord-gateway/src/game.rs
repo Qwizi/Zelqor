@@ -721,6 +721,30 @@ async fn eliminate_player(
     let _ = state_mgr.set_players_bulk(&players).await;
     let _ = state.django.set_player_alive(match_id, player_id, false).await;
 
+    // Clear provinces owned by the eliminated player
+    if let Ok(mut regions) = state_mgr.get_all_regions().await {
+        let mut changed = false;
+        for region in regions.values_mut() {
+            if region.owner_id.as_deref() == Some(player_id) {
+                region.owner_id = None;
+                region.units.clear();
+                region.unit_count = 0;
+                region.unit_type = None;
+                region.is_capital = false;
+                region.buildings.clear();
+                region.building_type = None;
+                region.defense_bonus = 0.0;
+                region.vision_range = 0;
+                region.unit_generation_bonus = 0.0;
+                region.currency_generation_bonus = 0.0;
+                changed = true;
+            }
+        }
+        if changed {
+            let _ = state_mgr.set_regions_bulk(&regions).await;
+        }
+    }
+
     let mut events: Vec<Event> = vec![Event::PlayerEliminated {
         player_id: player_id.to_string(),
         reason: reason.to_string(),
@@ -746,11 +770,12 @@ async fn eliminate_player(
         });
     }
 
+    let regions = state_mgr.get_all_regions().await.unwrap_or_default();
     let tick_msg = json!({
         "type": "game_tick",
         "tick": current_tick,
         "events": events,
-        "regions": {},
+        "regions": regions,
         "players": players,
         "buildings_queue": state_mgr.get_all_buildings().await.unwrap_or_default(),
         "unit_queue": state_mgr.get_all_unit_queue().await.unwrap_or_default(),

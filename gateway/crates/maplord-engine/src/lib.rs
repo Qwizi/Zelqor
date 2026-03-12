@@ -1026,9 +1026,10 @@ impl GameEngine {
     fn check_conditions(
         &self,
         players: &mut HashMap<String, Player>,
-        regions: &HashMap<String, Region>,
+        regions: &mut HashMap<String, Region>,
     ) -> Vec<Event> {
         let mut events = Vec::new();
+        let mut eliminated_ids = Vec::new();
 
         for (player_id, player) in players.iter_mut() {
             if !player.is_alive {
@@ -1040,11 +1041,31 @@ impl GameEngine {
                     if region.owner_id.as_deref() != Some(player_id) {
                         player.is_alive = false;
                         player.eliminated_reason = Some("capital_lost".into());
+                        eliminated_ids.push(player_id.clone());
                         events.push(Event::PlayerEliminated {
                             player_id: player_id.clone(),
                             reason: "capital_lost".into(),
                         });
                     }
+                }
+            }
+        }
+
+        // Clear provinces owned by eliminated players
+        for eliminated_id in &eliminated_ids {
+            for region in regions.values_mut() {
+                if region.owner_id.as_deref() == Some(eliminated_id) {
+                    region.owner_id = None;
+                    region.units.clear();
+                    region.unit_count = 0;
+                    region.unit_type = None;
+                    region.is_capital = false;
+                    region.buildings.clear();
+                    region.building_type = None;
+                    region.defense_bonus = 0.0;
+                    region.vision_range = 0;
+                    region.unit_generation_bonus = 0.0;
+                    region.currency_generation_bonus = 0.0;
                 }
             }
         }
