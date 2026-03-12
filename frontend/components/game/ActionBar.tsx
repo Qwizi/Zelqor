@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import type { GameRegion } from "@/hooks/useGameSocket";
@@ -53,9 +53,28 @@ export default function ActionBar({
 }: ActionBarProps) {
   const availableUnitsByType = sourceRegion.units ?? {};
   const unitTypes = Object.entries(availableUnitsByType).filter(([, count]) => count > 0);
-  const maxUnits = availableUnitsByType[selectedUnitType] ?? 0;
+  const liveMax = availableUnitsByType[selectedUnitType] ?? 0;
   const hasAttack = targets.some((target) => target.isAttack);
   const accentClass = hasAttack ? "border-red-800/60" : "border-cyan-900/60";
+
+  // Freeze maxUnits so tick updates don't move the slider while user is interacting.
+  // Only update when: unit type changes, or live count grows (new units arrived).
+  const [frozenMax, setFrozenMax] = useState(liveMax);
+  const prevUnitTypeRef = useRef(selectedUnitType);
+  useEffect(() => {
+    if (selectedUnitType !== prevUnitTypeRef.current) {
+      // Unit type switched — reset to live value
+      setFrozenMax(liveMax);
+      prevUnitTypeRef.current = selectedUnitType;
+    } else if (liveMax > frozenMax) {
+      // Units grew (generation) — raise ceiling silently without moving slider
+      setFrozenMax(liveMax);
+    }
+    // If liveMax < frozenMax (units spent elsewhere), keep frozen to avoid slider jump.
+    // safeTotalUnits clamp handles the edge case.
+  }, [liveMax, selectedUnitType, frozenMax]);
+
+  const maxUnits = Math.max(1, frozenMax);
   const [totalUnits, setTotalUnits] = useState(Math.max(1, Math.floor(maxUnits / 2) || 1));
   const [mobileStep, setMobileStep] = useState<"setup" | "targets">("setup");
   const minUnits = targets.length > 0 ? Math.min(targets.length, maxUnits) : 1;
@@ -132,8 +151,8 @@ export default function ActionBar({
 
               <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
                 <div className="mb-1.5 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                  <span>Sila</span>
-                  <span>{safeTotalUnits * selectedUnitScale}</span>
+                  <span>{hasAttack ? "Atak" : "Przenies"}: {safeTotalUnits} / {maxUnits}</span>
+                  <span className="text-amber-200/70">Moc {safeTotalUnits * selectedUnitScale}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <input
@@ -147,6 +166,9 @@ export default function ActionBar({
                   <div className="w-10 text-right font-display text-lg text-zinc-50">
                     {safeTotalUnits}
                   </div>
+                </div>
+                <div className="mt-1 text-[10px] text-zinc-600">
+                  Zostaje w regionie: {maxUnits - safeTotalUnits}
                 </div>
               </div>
 
@@ -265,14 +287,16 @@ export default function ActionBar({
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-              <div className="grid flex-1 grid-cols-3 gap-2 sm:min-w-[280px] sm:max-w-[340px]">
+              <div className="grid flex-1 grid-cols-4 gap-2 sm:min-w-[340px] sm:max-w-[400px]">
                 <QuickPill label="Cele" value={targets.length} />
-                <QuickPill label="Nosniki" value={safeTotalUnits} />
+                <QuickPill label="Wysylam" value={safeTotalUnits} />
                 <QuickPill label="Moc" value={safeTotalUnits * selectedUnitScale} />
+                <QuickPill label="Zostaje" value={maxUnits - safeTotalUnits} />
               </div>
 
               <div className="flex flex-col gap-2 sm:min-w-[320px] sm:flex-1">
                 <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-zinc-500 whitespace-nowrap">{minUnits}</span>
                   <input
                     type="range"
                     min={minUnits}
@@ -282,6 +306,7 @@ export default function ActionBar({
                     disabled={targets.length === 0}
                     className={`min-w-0 flex-1 ${hasAttack ? "accent-red-500" : "accent-cyan-400"}`}
                   />
+                  <span className="text-[10px] text-zinc-500 whitespace-nowrap">{maxUnits}</span>
                   <div className="w-10 text-right font-display text-sm text-zinc-50">
                     {safeTotalUnits}
                   </div>

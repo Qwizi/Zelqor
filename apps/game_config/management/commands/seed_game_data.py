@@ -1,6 +1,135 @@
 from django.core.management.base import BaseCommand
 
-from apps.game_config.models import BuildingType, GameSettings, UnitType
+from apps.game_config.models import BuildingType, GameMode, GameSettings, UnitType
+
+
+GAME_MODES = [
+    {
+        "name": "Standard 1v1",
+        "slug": "standard-1v1",
+        "description": "Klasyczny mecz 1 na 1. Szybki i intensywny.",
+        "max_players": 2,
+        "min_players": 2,
+        "tick_interval_ms": 1000,
+        "capital_selection_time_seconds": 30,
+        "match_duration_limit_minutes": 30,
+        "base_unit_generation_rate": 1.0,
+        "capital_generation_bonus": 2.0,
+        "starting_currency": 120,
+        "base_currency_per_tick": 2.0,
+        "region_currency_per_tick": 0.35,
+        "attacker_advantage": 0.0,
+        "defender_advantage": 0.1,
+        "combat_randomness": 0.2,
+        "starting_units": 10,
+        "starting_regions": 1,
+        "neutral_region_units": 3,
+        "elo_k_factor": 32,
+        "is_active": True,
+        "is_default": True,
+        "order": 1,
+    },
+    {
+        "name": "Standard 3 Players",
+        "slug": "standard-3p",
+        "description": "Mecz na 3 graczy. Dyplomacja i sojusze.",
+        "max_players": 3,
+        "min_players": 3,
+        "tick_interval_ms": 1000,
+        "capital_selection_time_seconds": 30,
+        "match_duration_limit_minutes": 45,
+        "base_unit_generation_rate": 1.0,
+        "capital_generation_bonus": 2.0,
+        "starting_currency": 150,
+        "base_currency_per_tick": 2.5,
+        "region_currency_per_tick": 0.35,
+        "attacker_advantage": 0.0,
+        "defender_advantage": 0.1,
+        "combat_randomness": 0.2,
+        "starting_units": 10,
+        "starting_regions": 1,
+        "neutral_region_units": 4,
+        "elo_k_factor": 28,
+        "is_active": True,
+        "is_default": False,
+        "order": 2,
+    },
+    {
+        "name": "Standard 4 Players",
+        "slug": "standard-4p",
+        "description": "Mecz na 4 graczy. Wielkie bitwy na duzej mapie.",
+        "max_players": 4,
+        "min_players": 4,
+        "tick_interval_ms": 1000,
+        "capital_selection_time_seconds": 45,
+        "match_duration_limit_minutes": 60,
+        "base_unit_generation_rate": 1.0,
+        "capital_generation_bonus": 2.0,
+        "starting_currency": 180,
+        "base_currency_per_tick": 3.0,
+        "region_currency_per_tick": 0.4,
+        "attacker_advantage": 0.0,
+        "defender_advantage": 0.1,
+        "combat_randomness": 0.2,
+        "starting_units": 12,
+        "starting_regions": 1,
+        "neutral_region_units": 5,
+        "elo_k_factor": 24,
+        "is_active": True,
+        "is_default": False,
+        "order": 3,
+    },
+    {
+        "name": "Blitz 1v1",
+        "slug": "blitz-1v1",
+        "description": "Szybki mecz 1v1. Wiecej zasobow, krotszy czas.",
+        "max_players": 2,
+        "min_players": 2,
+        "tick_interval_ms": 800,
+        "capital_selection_time_seconds": 20,
+        "match_duration_limit_minutes": 15,
+        "base_unit_generation_rate": 2.0,
+        "capital_generation_bonus": 3.0,
+        "starting_currency": 250,
+        "base_currency_per_tick": 5.0,
+        "region_currency_per_tick": 0.7,
+        "attacker_advantage": 0.1,
+        "defender_advantage": 0.05,
+        "combat_randomness": 0.25,
+        "starting_units": 20,
+        "starting_regions": 1,
+        "neutral_region_units": 2,
+        "elo_k_factor": 24,
+        "is_active": True,
+        "is_default": False,
+        "order": 4,
+    },
+    {
+        "name": "Custom",
+        "slug": "custom",
+        "description": "Tryb niestandardowy. Mozna dostosowac ustawienia w panelu admina.",
+        "max_players": 4,
+        "min_players": 2,
+        "tick_interval_ms": 1000,
+        "capital_selection_time_seconds": 30,
+        "match_duration_limit_minutes": 60,
+        "base_unit_generation_rate": 1.0,
+        "capital_generation_bonus": 2.0,
+        "starting_currency": 120,
+        "base_currency_per_tick": 2.0,
+        "region_currency_per_tick": 0.35,
+        "attacker_advantage": 0.0,
+        "defender_advantage": 0.1,
+        "combat_randomness": 0.2,
+        "starting_units": 10,
+        "starting_regions": 1,
+        "neutral_region_units": 3,
+        "elo_k_factor": 16,
+        "is_active": True,
+        "is_default": False,
+        "order": 10,
+    },
+]
 
 
 BUILDINGS = [
@@ -233,5 +362,14 @@ class Command(BaseCommand):
             self.stdout.write(f"  UnitType {obj.name}: {status}")
 
         UnitType.objects.exclude(slug__in=[u["slug"] for u in UNITS]).update(is_active=False)
+
+        # Game Modes
+        for data in GAME_MODES:
+            obj, created = GameMode.objects.update_or_create(
+                slug=data["slug"],
+                defaults={k: v for k, v in data.items() if k != "slug"},
+            )
+            status = "created" if created else "updated"
+            self.stdout.write(f"  GameMode {obj.name}: {status}")
 
         self.stdout.write(self.style.SUCCESS("Seed complete!"))

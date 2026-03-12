@@ -44,8 +44,10 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
 
         self.match_id = self.scope["url_route"]["kwargs"]["match_id"]
         self.game_group = f"game_{self.match_id}"
+        logger.info("GameConsumer.connect: user=%s match=%s", self.user, self.match_id)
 
         if not await self._verify_player():
+            logger.warning("GameConsumer.connect: player not verified, closing")
             await self.close(code=4003)
             return
 
@@ -57,10 +59,12 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
 
         await self._ensure_game_initialized()
         if not await self._mark_player_connected():
+            logger.warning("GameConsumer.connect: mark_player_connected failed, closing")
             await self.close(code=4004)
             return
 
         meta = await self.state_manager.get_meta()
+        logger.info("GameConsumer.connect: meta status=%s for match=%s", meta.get("status"), self.match_id)
         if meta.get("status") == "selecting":
             await self._finalize_expired_disconnects()
             await self._finalize_capital_selection_if_expired()
@@ -73,9 +77,13 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
             await self._try_resume_game_loop()
 
         state = await self.state_manager.get_full_state()
+        logger.info("GameConsumer.connect: sending game_state, regions=%d players=%d",
+                     len(state.get("regions", {})), len(state.get("players", {})))
         await self.send_json({"type": "game_state", "state": state})
 
     async def disconnect(self, close_code):
+        logger.info("GameConsumer.disconnect: user=%s match=%s code=%s",
+                     getattr(self, 'user', None), self.match_id, close_code)
         if self.state_manager and self.user and not self.user.is_anonymous:
             try:
                 await self._mark_player_disconnected()
@@ -123,6 +131,8 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
 
     async def receive_json(self, content):
         action = content.get("action")
+        logger.info("GameConsumer.receive_json: user=%s action=%s match=%s",
+                     self.user, action, self.match_id)
 
         if action == "select_capital":
             await self._handle_select_capital(content)

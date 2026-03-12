@@ -9,7 +9,7 @@ interface UseMatchmakingReturn {
   playersInQueue: number;
   matchId: string | null;
   activeMatchId: string | null;
-  joinQueue: () => void;
+  joinQueue: (gameModeSlug?: string) => void;
   leaveQueue: () => void;
 }
 
@@ -41,12 +41,16 @@ export function useMatchmaking(): UseMatchmakingReturn {
     }
   }, []);
 
-  const joinQueue = useCallback(() => {
+  const joinQueue = useCallback((gameModeSlug?: string) => {
     const token = getAccessToken();
     if (!token) return;
     if (wsRef.current) return;
 
-    const ws = createSocket("/matchmaking/", token, handleMessage, () => {
+    const path = gameModeSlug
+      ? `/matchmaking/${gameModeSlug}/`
+      : `/matchmaking/`;
+
+    const ws = createSocket(path, token, handleMessage, () => {
       setInQueue(false);
       wsRef.current = null;
     });

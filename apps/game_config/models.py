@@ -143,6 +143,68 @@ class UnitType(models.Model):
         return self.produced_by.slug if self.produced_by_id else None
 
 
+class GameMode(models.Model):
+    """Defines a game mode with its own settings (e.g., Standard 2P, 3P, 4P, Custom)."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+
+    # Match settings
+    max_players = models.PositiveIntegerField(default=2, help_text='Maximum players per match')
+    min_players = models.PositiveIntegerField(default=2, help_text='Minimum players to start match')
+
+    # Timing
+    tick_interval_ms = models.PositiveIntegerField(default=1000, help_text='Game tick interval in milliseconds')
+    capital_selection_time_seconds = models.PositiveIntegerField(default=30, help_text='Time to select capital')
+    match_duration_limit_minutes = models.PositiveIntegerField(default=60, help_text='Max match duration (0=unlimited)')
+
+    # Unit generation
+    base_unit_generation_rate = models.FloatField(default=1.0, help_text='Units generated per tick per region')
+    capital_generation_bonus = models.FloatField(default=2.0, help_text='Multiplier for capital region')
+    starting_currency = models.PositiveIntegerField(default=120, help_text='Starting strategic currency for each player')
+    base_currency_per_tick = models.FloatField(default=2.0, help_text='Base currency generated per tick for each player')
+    region_currency_per_tick = models.FloatField(default=0.35, help_text='Currency generated per owned region each tick')
+
+    # Combat
+    attacker_advantage = models.FloatField(default=0.0, help_text='Bonus for attacker (e.g. 0.1 = 10%)')
+    defender_advantage = models.FloatField(default=0.1, help_text='Bonus for defender (e.g. 0.1 = 10%)')
+    combat_randomness = models.FloatField(default=0.2, help_text='Random factor in combat (0-1)')
+
+    # Starting conditions
+    starting_units = models.PositiveIntegerField(default=10, help_text='Units in capital at start')
+    starting_regions = models.PositiveIntegerField(default=1, help_text='Number of starting regions')
+    neutral_region_units = models.PositiveIntegerField(
+        default=3, help_text='Garrison units in unowned (neutral) regions'
+    )
+
+    # ELO
+    elo_k_factor = models.PositiveIntegerField(default=32, help_text='K-factor for ELO calculation')
+
+    # Map
+    map_config = models.ForeignKey(
+        'MapConfig', on_delete=models.PROTECT, related_name='game_modes',
+        null=True, blank=True,
+    )
+
+    # Metadata
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False, help_text='Default game mode shown first')
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if self.is_default:
+            GameMode.objects.filter(is_default=True).exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)
+
+
 class MapConfig(models.Model):
     """Defines which regions are included in a map configuration."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

@@ -168,15 +168,55 @@ export interface MapConfigItem {
   country_codes: string[];
 }
 
+export interface GameModeListItem {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  max_players: number;
+  min_players: number;
+  is_default: boolean;
+  order: number;
+}
+
+export interface GameMode extends GameModeListItem {
+  tick_interval_ms: number;
+  capital_selection_time_seconds: number;
+  match_duration_limit_minutes: number;
+  base_unit_generation_rate: number;
+  capital_generation_bonus: number;
+  starting_currency: number;
+  base_currency_per_tick: number;
+  region_currency_per_tick: number;
+  attacker_advantage: number;
+  defender_advantage: number;
+  combat_randomness: number;
+  starting_units: number;
+  starting_regions: number;
+  neutral_region_units: number;
+  elo_k_factor: number;
+  map_config_id: string | null;
+  is_active: boolean;
+}
+
 export interface FullConfig {
   settings: GameSettings;
   buildings: BuildingType[];
   units: UnitType[];
   maps: MapConfigItem[];
+  game_modes: GameModeListItem[];
 }
 
 export async function getConfig(): Promise<FullConfig> {
   return fetchAPI<FullConfig>("/config/");
+}
+
+export async function getGameModes(): Promise<GameModeListItem[]> {
+  return fetchAPI<GameModeListItem[]>("/config/game-modes/");
+}
+
+export async function getGameMode(slug: string): Promise<GameMode> {
+  return fetchAPI<GameMode>(`/config/game-modes/${slug}/`);
 }
 
 // --- Geo ---
@@ -249,6 +289,7 @@ export interface Match {
   id: string;
   status: string;
   max_players: number;
+  game_mode_id: string | null;
   players: MatchPlayer[];
   started_at: string | null;
   finished_at: string | null;

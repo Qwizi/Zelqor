@@ -20,6 +20,7 @@ class MatchOutSchema(Schema):
     id: uuid.UUID
     status: str
     max_players: int
+    game_mode_id: Optional[uuid.UUID] = None
     map_config_id: Optional[uuid.UUID] = None
     winner_id: Optional[uuid.UUID] = None
     players: List[MatchPlayerOutSchema] = []
@@ -34,6 +35,7 @@ class MatchOutSchema(Schema):
 class MatchQueueOutSchema(Schema):
     id: uuid.UUID
     user_id: uuid.UUID
+    game_mode_id: Optional[uuid.UUID] = None
     joined_at: datetime
 
     class Config:

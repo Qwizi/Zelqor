@@ -15,13 +15,25 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { getMyMatches, type Match } from "@/lib/api";
+import { getMyMatches, getConfig, type Match, type GameModeListItem } from "@/lib/api";
 import {
   Swords,
   User,
   Trophy,
   Search,
+  Users,
+  Zap,
+  Clock,
+  Settings2,
 } from "lucide-react";
+
+const MODE_ICONS: Record<string, typeof Users> = {
+  "standard-1v1": Swords,
+  "standard-3p": Users,
+  "standard-4p": Users,
+  "blitz-1v1": Zap,
+  "custom": Settings2,
+};
 
 export default function DashboardPage() {
   const { user, loading: authLoading, refreshUser, token } = useAuth();
@@ -29,6 +41,8 @@ export default function DashboardPage() {
     useMatchmaking();
   const router = useRouter();
   const [recentMatches, setRecentMatches] = useState<Match[]>([]);
+  const [gameModes, setGameModes] = useState<GameModeListItem[]>([]);
+  const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const activeMatch = recentMatches.find(
     (match) =>
       (match.status === "selecting" || match.status === "in_progress") &&
@@ -57,6 +71,19 @@ export default function DashboardPage() {
     }
   }, [token, refreshUser]);
 
+  // Fetch game modes
+  useEffect(() => {
+    getConfig()
+      .then((cfg) => {
+        setGameModes(cfg.game_modes);
+        const defaultMode = cfg.game_modes.find((m) => m.is_default);
+        if (defaultMode && !selectedMode) {
+          setSelectedMode(defaultMode.slug);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Redirect to game when match found
   useEffect(() => {
     if (matchId) {
@@ -84,6 +111,8 @@ export default function DashboardPage() {
     );
   }
 
+  const currentMode = gameModes.find((m) => m.slug === selectedMode);
+
   return (
     <div className="space-y-6">
         <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -104,9 +133,8 @@ export default function DashboardPage() {
                 Szybki powrot do bitwy o mape.
               </h2>
               <p className="mt-4 text-sm leading-7 text-slate-300/85">
-                Dashboard nie musi byc lista kart. To powinien byc lobby screen,
-                ktory od razu prowadzi do kolejki, pokazuje aktywnosc gracza i
-                przygotowuje pod dalsze ekrany gry.
+                Wybierz tryb gry i dolacz do kolejki. Kazdy tryb ma inne zasady,
+                liczbe graczy i tempo rozgrywki.
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
@@ -127,10 +155,10 @@ export default function DashboardPage() {
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                    Historia
+                    Tryb
                   </div>
-                  <div className="mt-2 font-display text-2xl text-zinc-50">
-                    {recentMatches.length}
+                  <div className="mt-2 font-display text-lg text-zinc-50 truncate">
+                    {currentMode?.name ?? "—"}
                   </div>
                 </div>
               </div>
@@ -176,6 +204,68 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        {/* Game Mode Selector */}
+        {gameModes.length > 0 && !activeMatch && !inQueue && (
+          <Card className="overflow-hidden rounded-[28px] border-white/10 bg-slate-950/55 shadow-[0_25px_80px_rgba(0,0,0,0.35)]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings2 className="h-5 w-5 text-purple-400" />
+                Wybierz tryb gry
+              </CardTitle>
+              <CardDescription>
+                Kazdy tryb ma inne zasady, liczbe graczy i tempo rozgrywki
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {gameModes.map((mode) => {
+                  const isSelected = selectedMode === mode.slug;
+                  const Icon = MODE_ICONS[mode.slug] ?? Swords;
+                  return (
+                    <button
+                      key={mode.id}
+                      onClick={() => setSelectedMode(mode.slug)}
+                      className={`group relative flex flex-col items-start gap-2 rounded-2xl border px-5 py-4 text-left transition-all ${
+                        isSelected
+                          ? "border-cyan-400/50 bg-cyan-500/10 shadow-[0_0_20px_rgba(34,211,238,0.1)]"
+                          : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <Icon className={`h-5 w-5 ${isSelected ? "text-cyan-300" : "text-slate-500"}`} />
+                          <span className={`font-display text-base ${isSelected ? "text-zinc-50" : "text-zinc-300"}`}>
+                            {mode.name}
+                          </span>
+                        </div>
+                        {mode.is_default && (
+                          <Badge className="border-0 bg-amber-500/20 text-amber-200 text-[10px] hover:bg-amber-500/20">
+                            Domyslny
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs leading-5 text-slate-500">
+                        {mode.description}
+                      </p>
+                      <div className="flex items-center gap-3 text-[11px] uppercase tracking-wider text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {mode.min_players === mode.max_players
+                            ? `${mode.max_players} graczy`
+                            : `${mode.min_players}-${mode.max_players} graczy`}
+                        </span>
+                      </div>
+                      {isSelected && (
+                        <div className="absolute -top-px -right-px h-3 w-3 rounded-bl-lg rounded-tr-2xl bg-cyan-400" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Find game */}
         <Card className="overflow-hidden rounded-[28px] border-white/10 bg-slate-950/55 shadow-[0_25px_80px_rgba(0,0,0,0.35)]">
           <CardHeader>
@@ -185,17 +275,19 @@ export default function DashboardPage() {
             </CardTitle>
             <CardDescription>
               {activeMatch
-                ? "Najpierw dokończ aktualną rozgrywkę"
-                : "Dołącz do kolejki i walcz o dominację na mapie"}
+                ? "Najpierw dokoncz aktualna rozgrywke"
+                : inQueue
+                  ? `Szukanie meczu — ${currentMode?.name ?? "domyslny tryb"}`
+                  : "Dolacz do kolejki i walcz o dominacje na mapie"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {activeMatch ? (
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-sm leading-6 text-slate-400">
-                  Masz już aktywny mecz w statusie{" "}
+                  Masz juz aktywny mecz w statusie{" "}
                   <span className="font-medium text-zinc-100">{activeMatch.status}</span>.
-                  Nie możesz dołączyć do nowej gry, dopóki tamta się nie zakończy.
+                  Nie mozesz dolaczyc do nowej gry, dopoki tamta sie nie zakonczy.
                 </div>
                 <Button
                   size="lg"
@@ -203,7 +295,7 @@ export default function DashboardPage() {
                   onClick={() => router.push(`/game/${activeMatch.id}`)}
                 >
                   <Search className="h-5 w-5" />
-                  Wróć do gry
+                  Wroc do gry
                 </Button>
               </div>
             ) : inQueue ? (
@@ -221,6 +313,11 @@ export default function DashboardPage() {
                     <Badge className="border-0 bg-white/10 text-slate-200 hover:bg-white/10">
                       {playersInQueue} w kolejce
                     </Badge>
+                    {currentMode && (
+                      <Badge className="border-0 bg-purple-500/20 text-purple-200 hover:bg-purple-500/20">
+                        {currentMode.name}
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <Button
@@ -235,12 +332,15 @@ export default function DashboardPage() {
             ) : (
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-sm leading-6 text-slate-400">
-                  W kolejce jest teraz {playersInQueue} {playersInQueue === 1 ? "gracz" : playersInQueue < 5 ? "graczy" : "graczy"}.
+                  {currentMode
+                    ? `Tryb: ${currentMode.name} (${currentMode.min_players === currentMode.max_players ? currentMode.max_players : `${currentMode.min_players}-${currentMode.max_players}`} graczy)`
+                    : "Wybierz tryb gry powyzej"}
                 </div>
                 <Button
                   size="lg"
                   className="h-11 gap-2 rounded-full border border-cyan-300/30 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] px-6 font-display uppercase tracking-[0.2em] text-slate-950"
-                  onClick={joinQueue}
+                  onClick={() => joinQueue(selectedMode ?? undefined)}
+                  disabled={!selectedMode}
                 >
                   <Search className="h-5 w-5" />
                   Szukaj gry
@@ -321,7 +421,7 @@ export default function DashboardPage() {
                             router.push(`/game/${match.id}`)
                           }
                         >
-                          Wróć do gry
+                          Wroc do gry
                         </Button>
                       )}
                     </div>

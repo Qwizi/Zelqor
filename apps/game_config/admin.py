@@ -1,5 +1,5 @@
 from django.contrib import admin
-from apps.game_config.models import GameSettings, BuildingType, UnitType, MapConfig
+from apps.game_config.models import GameSettings, BuildingType, UnitType, MapConfig, GameMode
 
 
 @admin.register(GameSettings)
@@ -30,6 +30,39 @@ class GameSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(GameMode)
+class GameModeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'min_players', 'max_players', 'is_active', 'is_default', 'order')
+    list_filter = ('is_active', 'is_default')
+    list_editable = ('is_active', 'is_default', 'order')
+    search_fields = ('name', 'slug')
+    prepopulated_fields = {'slug': ('name',)}
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'slug', 'description', 'map_config', 'is_active', 'is_default', 'order'),
+        }),
+        ('Match Settings', {
+            'fields': ('max_players', 'min_players'),
+        }),
+        ('Timing', {
+            'fields': ('tick_interval_ms', 'capital_selection_time_seconds', 'match_duration_limit_minutes'),
+        }),
+        ('Economy', {
+            'fields': ('starting_currency', 'base_currency_per_tick', 'region_currency_per_tick',
+                       'base_unit_generation_rate', 'capital_generation_bonus'),
+        }),
+        ('Combat', {
+            'fields': ('attacker_advantage', 'defender_advantage', 'combat_randomness'),
+        }),
+        ('Starting Conditions', {
+            'fields': ('starting_units', 'starting_regions', 'neutral_region_units'),
+        }),
+        ('ELO', {
+            'fields': ('elo_k_factor',),
+        }),
+    )
 
 
 class UnitTypeInline(admin.TabularInline):

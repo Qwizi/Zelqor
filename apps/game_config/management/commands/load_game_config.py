@@ -4,7 +4,7 @@ from pathlib import Path
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.game_config.models import BuildingType, GameSettings, MapConfig, UnitType
+from apps.game_config.models import BuildingType, GameMode, GameSettings, MapConfig, UnitType
 from apps.matchmaking.models import Match
 
 
@@ -43,6 +43,7 @@ class Command(BaseCommand):
         building_entries = []
         unit_entries = []
         map_entries = []
+        game_mode_entries = []
 
         for entry in payload:
             model = entry.get("model")
@@ -54,12 +55,15 @@ class Command(BaseCommand):
                 unit_entries.append(entry)
             elif model == "game_config.mapconfig":
                 map_entries.append(entry)
+            elif model == "game_config.gamemode":
+                game_mode_entries.append(entry)
 
         if not settings_entry:
             raise CommandError("Fixture does not contain game_config.gamesettings")
 
         self.stdout.write("Clearing existing game config...")
-        Match.objects.update(map_config=None)
+        Match.objects.update(map_config=None, game_mode=None)
+        GameMode.objects.all().delete()
         UnitType.objects.all().delete()
         BuildingType.objects.all().delete()
         MapConfig.objects.all().delete()
@@ -70,6 +74,7 @@ class Command(BaseCommand):
         building_map = self._load_buildings(building_entries)
         self._load_units(unit_entries, building_entries, building_map)
         self._load_maps(map_entries)
+        self._load_game_modes(game_mode_entries)
 
         self.stdout.write(self.style.SUCCESS("Game config loaded successfully"))
 
@@ -128,3 +133,121 @@ class Command(BaseCommand):
             count += 1
 
         self.stdout.write(f"  MapConfig: {count} created")
+
+    def _load_game_modes(self, entries: list[dict]):
+        if entries:
+            count = 0
+            for entry in entries:
+                fields = {k: v for k, v in (entry.get("fields") or {}).items() if k != "created_at"}
+                map_config_name = fields.pop("map_config", None)
+                if map_config_name:
+                    fields["map_config"] = MapConfig.objects.filter(name=map_config_name).first()
+                GameMode.objects.create(**fields)
+                count += 1
+            self.stdout.write(f"  GameMode: {count} created")
+            return
+
+        # No game modes in fixture — create defaults
+        settings = GameSettings.objects.first()
+        if not settings:
+            return
+
+        map_config = MapConfig.objects.filter(is_active=True).first()
+        defaults = [
+            {
+                "name": "Standard 1v1",
+                "slug": "standard-1v1",
+                "description": "Klasyczny mecz 1 na 1. Szybki i intensywny.",
+                "max_players": 2,
+                "min_players": 2,
+                "is_default": True,
+                "order": 1,
+            },
+            {
+                "name": "Standard 3P",
+                "slug": "standard-3p",
+                "description": "Mecz na 3 graczy. Dyplomacja i sojusze.",
+                "max_players": 3,
+                "min_players": 3,
+                "starting_currency": 150,
+                "base_currency_per_tick": 2.5,
+                "neutral_region_units": 4,
+                "match_duration_limit_minutes": 45,
+                "elo_k_factor": 28,
+                "order": 2,
+            },
+            {
+                "name": "Standard 4P",
+                "slug": "standard-4p",
+                "description": "Mecz na 4 graczy. Wielkie bitwy na duzej mapie.",
+                "max_players": 4,
+                "min_players": 4,
+                "capital_selection_time_seconds": 45,
+                "starting_currency": 180,
+                "base_currency_per_tick": 3.0,
+                "region_currency_per_tick": 0.4,
+                "starting_units": 12,
+                "neutral_region_units": 5,
+                "match_duration_limit_minutes": 60,
+                "elo_k_factor": 24,
+                "order": 3,
+            },
+            {
+                "name": "Blitz 1v1",
+                "slug": "blitz-1v1",
+                "description": "Szybki mecz 1v1. Wiecej zasobow, krotszy czas.",
+                "max_players": 2,
+                "min_players": 2,
+                "tick_interval_ms": 800,
+                "capital_selection_time_seconds": 20,
+                "match_duration_limit_minutes": 15,
+                "base_unit_generation_rate": 2.0,
+                "capital_generation_bonus": 3.0,
+                "starting_currency": 250,
+                "base_currency_per_tick": 5.0,
+                "region_currency_per_tick": 0.7,
+                "attacker_advantage": 0.1,
+                "defender_advantage": 0.05,
+                "combat_randomness": 0.25,
+                "starting_units": 20,
+                "neutral_region_units": 2,
+                "elo_k_factor": 24,
+                "order": 4,
+            },
+            {
+                "name": "Custom",
+                "slug": "custom",
+                "description": "Tryb niestandardowy do dostosowania w panelu admina.",
+                "max_players": 4,
+                "min_players": 2,
+                "elo_k_factor": 16,
+                "order": 10,
+            },
+        ]
+
+        # Base values from GameSettings for fields not overridden
+        base = {
+            "tick_interval_ms": settings.tick_interval_ms,
+            "capital_selection_time_seconds": settings.capital_selection_time_seconds,
+            "match_duration_limit_minutes": settings.match_duration_limit_minutes,
+            "base_unit_generation_rate": settings.base_unit_generation_rate,
+            "capital_generation_bonus": settings.capital_generation_bonus,
+            "starting_currency": settings.starting_currency,
+            "base_currency_per_tick": settings.base_currency_per_tick,
+            "region_currency_per_tick": settings.region_currency_per_tick,
+            "attacker_advantage": settings.attacker_advantage,
+            "defender_advantage": settings.defender_advantage,
+            "combat_randomness": settings.combat_randomness,
+            "starting_units": settings.starting_units,
+            "starting_regions": settings.starting_regions,
+            "neutral_region_units": settings.neutral_region_units,
+            "elo_k_factor": settings.elo_k_factor,
+        }
+
+        count = 0
+        for mode_data in defaults:
+            fields = {**base, **mode_data, "map_config": map_config}
+            GameMode.objects.create(**fields)
+            count += 1
+
+        self.stdout.write(f"  GameMode: {count} created (defaults from GameSettings)")

@@ -89,8 +89,12 @@ def finalize_match_results_sync(
 
         regions = final_state.get("regions", {})
         players_data = final_state.get("players", {})
-        settings_obj = GameSettings.get()
-        k_factor = max(1, int(settings_obj.elo_k_factor))
+        snapshot_k = match.settings_snapshot.get("elo_k_factor") if match.settings_snapshot else None
+        if snapshot_k is not None:
+            k_factor = max(1, int(snapshot_k))
+        else:
+            settings_obj = GameSettings.get()
+            k_factor = max(1, int(settings_obj.elo_k_factor))
 
         player_rows = []
         for mp in match.players.select_related("user").all():
