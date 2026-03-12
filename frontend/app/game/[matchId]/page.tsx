@@ -416,19 +416,28 @@ export default function GamePage({
   }, [gameState, myUserId]);
 
   const rankedPlayers = useMemo(() => {
+    // Single pass over regions to aggregate per-player stats: O(regions) instead of O(players * regions)
+    const statsMap = new Map<string, { regionCount: number; unitCount: number }>();
+    for (const region of Object.values(regions)) {
+      if (!region.owner_id) continue;
+      let stats = statsMap.get(region.owner_id);
+      if (!stats) {
+        stats = { regionCount: 0, unitCount: 0 };
+        statsMap.set(region.owner_id, stats);
+      }
+      stats.regionCount++;
+      stats.unitCount += intOrZero(region.unit_count);
+    }
     return Object.values(players)
       .filter((player) => player.is_alive)
       .map((player) => {
-        const regionCount = Object.values(regions).filter((region) => region.owner_id === player.user_id).length;
-        const unitCount = Object.values(regions)
-          .filter((region) => region.owner_id === player.user_id)
-          .reduce((total, region) => total + intOrZero(region.unit_count), 0);
+        const stats = statsMap.get(player.user_id);
         return {
           user_id: player.user_id,
           username: player.username,
           color: player.color,
-          regionCount,
-          unitCount,
+          regionCount: stats?.regionCount ?? 0,
+          unitCount: stats?.unitCount ?? 0,
           isAlive: player.is_alive,
         };
       })
@@ -692,6 +701,21 @@ export default function GamePage({
     setSelectedActionUnitType(unitType);
     setActionTargets((prev) => prev.filter((targetId) => isTargetReachableForUnitType(targetId, unitType)));
   }, [isTargetReachableForUnitType]);
+
+  const handleMapReady = useCallback(() => setMapReady(true), []);
+
+  const handleCancelAction = useCallback(() => {
+    setSelectedRegion(null);
+    setSelectedActionUnitType(null);
+    setActionTargets([]);
+  }, []);
+
+  const handleRemoveTarget = useCallback((rid: string) => {
+    setActionTargets((prev) => prev.filter((id) => id !== rid));
+  }, []);
+
+  const buildingsQueue = useMemo(() => gameState?.buildings_queue || [], [gameState?.buildings_queue]);
+  const unitQueue = useMemo(() => gameState?.unit_queue || [], [gameState?.unit_queue]);
 
   // ── Music ───────────────────────────────────────────────────
 
@@ -958,7 +982,7 @@ export default function GamePage({
         myUserId={myUserId}
         animations={animations}
         buildingIcons={buildingIcons}
-        onMapReady={() => setMapReady(true)}
+        onMapReady={handleMapReady}
       />
 
       {/* HUD */}
@@ -976,8 +1000,8 @@ export default function GamePage({
 
       {/* Build queue progress */}
       <BuildQueue
-        queue={gameState?.buildings_queue || []}
-        unitQueue={gameState?.unit_queue || []}
+        queue={buildingsQueue}
+        unitQueue={unitQueue}
         buildings={buildings}
         units={unitsConfig}
         myUserId={myUserId}
@@ -996,14 +1020,8 @@ export default function GamePage({
           }
           onSelectedUnitTypeChange={handleSelectedActionUnitTypeChange}
           onConfirm={handleConfirmAction}
-          onRemoveTarget={(rid) =>
-            setActionTargets((prev) => prev.filter((id) => id !== rid))
-          }
-          onCancel={() => {
-            setSelectedRegion(null);
-            setSelectedActionUnitType(null);
-            setActionTargets([]);
-          }}
+          onRemoveTarget={handleRemoveTarget}
+          onCancel={handleCancelAction}
         />
       )}
 
@@ -1017,15 +1035,11 @@ export default function GamePage({
             myUserId={myUserId}
             myCurrency={myCurrency}
             buildings={buildings}
-            buildingQueue={gameState?.buildings_queue || []}
+            buildingQueue={buildingsQueue}
             units={unitsConfig}
             onBuild={handleBuild}
             onProduceUnit={handleProduceUnit}
-            onClose={() => {
-              setSelectedRegion(null);
-              setSelectedActionUnitType(null);
-              setActionTargets([]);
-            }}
+            onClose={handleCancelAction}
           />
         </div>
       )}

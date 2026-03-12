@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import Image from "next/image";
 import type { GamePlayer } from "@/hooks/useGameSocket";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,7 @@ function statusLabel(status: string) {
   return status;
 }
 
-export default function GameHUD({
+export default memo(function GameHUD({
   tick,
   tickIntervalMs,
   status,
@@ -54,8 +55,11 @@ export default function GameHUD({
   myUnitCount,
   myCurrency,
 }: GameHUDProps) {
-  const aliveCount = Object.values(players).filter((player) => player.is_alive).length;
-  const formattedClock = formatClock(tick, tickIntervalMs);
+  const aliveCount = useMemo(
+    () => Object.values(players).filter((player) => player.is_alive).length,
+    [players]
+  );
+  const formattedClock = useMemo(() => formatClock(tick, tickIntervalMs), [tick, tickIntervalMs]);
 
   return (
     <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100vw-5rem)] flex-col gap-2 sm:left-4 sm:top-4 sm:max-w-[280px]">
@@ -118,9 +122,9 @@ export default function GameHUD({
       </div>
     </div>
   );
-}
+});
 
-function CompactStat({
+const CompactStat = memo(function CompactStat({
   icon,
   label,
   value,
@@ -146,4 +150,4 @@ function CompactStat({
       </div>
     </div>
   );
-}
+});

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import Image from "next/image";
 import type { GameRegion, GamePlayer, BuildingQueueItem } from "@/hooks/useGameSocket";
 import type { BuildingType, UnitType } from "@/lib/api";
@@ -21,7 +22,7 @@ interface RegionPanelProps {
   onClose: () => void;
 }
 
-export default function RegionPanel({
+export default memo(function RegionPanel({
   regionId,
   region,
   players,
@@ -36,46 +37,66 @@ export default function RegionPanel({
 }: RegionPanelProps) {
   const isOwned = region.owner_id === myUserId;
   const owner = region.owner_id ? players[region.owner_id] : null;
-  const buildingCounts = region.buildings ?? {};
-  const queuedBuildingCounts = buildingQueue
-    .filter((item) => item.region_id === regionId)
-    .reduce<Record<string, number>>((acc, item) => {
-      acc[item.building_type] = (acc[item.building_type] ?? 0) + 1;
-      return acc;
-    }, {});
+  const buildingCounts = useMemo(() => region.buildings ?? {}, [region.buildings]);
 
-  const buildOptions = [...buildings]
-    .filter((building) => !building.requires_coastal || region.is_coastal)
-    .filter(
-      (building) =>
-        (buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0) <
-        building.max_per_region
-    )
-    .sort((a, b) => a.order - b.order || a.currency_cost - b.currency_cost || a.name.localeCompare(b.name));
+  const unitConfigMap = useMemo(
+    () => new Map(units.map((unit) => [unit.slug, unit])),
+    [units]
+  );
+  const getUnitConfig = (slug: string) => unitConfigMap.get(slug) ?? null;
 
-  const producedUnits = [...units]
-    .filter((unit) => Boolean(unit.produced_by_slug))
-    .filter((unit) => (buildingCounts[unit.produced_by_slug ?? ""] ?? 0) > 0)
-    .sort((a, b) => a.order - b.order || a.production_cost - b.production_cost || a.name.localeCompare(b.name));
-  const compactBuildOptions = buildOptions.slice(0, 6);
-  const compactProducedUnits = producedUnits.slice(0, 4);
+  const queuedBuildingCounts = useMemo(
+    () =>
+      buildingQueue
+        .filter((item) => item.region_id === regionId)
+        .reduce<Record<string, number>>((acc, item) => {
+          acc[item.building_type] = (acc[item.building_type] ?? 0) + 1;
+          return acc;
+        }, {}),
+    [buildingQueue, regionId]
+  );
 
-  const displayedBuildings = [...buildings]
-    .filter((building) => (buildingCounts[building.slug] ?? 0) > 0)
-    .sort((a, b) => a.order - b.order);
-  const compactDisplayedBuildings = displayedBuildings.slice(0, 5);
-  const unitBreakdown = Object.entries(region.units ?? {})
-    .filter(([, count]) => count > 0)
-    .sort((a, b) => b[1] - a[1]);
-  const compactUnitBreakdown = unitBreakdown.slice(0, 4);
+  const { buildOptions, compactBuildOptions, producedUnits, compactProducedUnits, displayedBuildings, compactDisplayedBuildings } = useMemo(() => {
+    const buildOpts = [...buildings]
+      .filter((building) => !building.requires_coastal || region.is_coastal)
+      .filter(
+        (building) =>
+          (buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0) <
+          building.max_per_region
+      )
+      .sort((a, b) => a.order - b.order || a.currency_cost - b.currency_cost || a.name.localeCompare(b.name));
+    const produced = [...units]
+      .filter((unit) => Boolean(unit.produced_by_slug))
+      .filter((unit) => (buildingCounts[unit.produced_by_slug ?? ""] ?? 0) > 0)
+      .sort((a, b) => a.order - b.order || a.production_cost - b.production_cost || a.name.localeCompare(b.name));
+    const displayed = [...buildings]
+      .filter((building) => (buildingCounts[building.slug] ?? 0) > 0)
+      .sort((a, b) => a.order - b.order);
+    return {
+      buildOptions: buildOpts,
+      compactBuildOptions: buildOpts.slice(0, 6),
+      producedUnits: produced,
+      compactProducedUnits: produced.slice(0, 4),
+      displayedBuildings: displayed,
+      compactDisplayedBuildings: displayed.slice(0, 5),
+    };
+  }, [buildings, units, region.is_coastal, buildingCounts, queuedBuildingCounts]);
 
-  const getUnitConfig = (slug: string) =>
-    units.find((unit) => unit.slug === slug) ?? null;
-  const reservedInfantry = unitBreakdown.reduce((total, [type, count]) => {
-    if (type === "infantry") return total;
-    const manpowerCost = Math.max(1, getUnitConfig(type)?.manpower_cost ?? 1);
-    return total + count * manpowerCost;
-  }, 0);
+  const { unitBreakdown, compactUnitBreakdown, reservedInfantry } = useMemo(() => {
+    const breakdown = Object.entries(region.units ?? {})
+      .filter(([, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1]);
+    const reserved = breakdown.reduce((total, [type, count]) => {
+      if (type === "infantry") return total;
+      const manpowerCost = Math.max(1, unitConfigMap.get(type)?.manpower_cost ?? 1);
+      return total + count * manpowerCost;
+    }, 0);
+    return {
+      unitBreakdown: breakdown,
+      compactUnitBreakdown: breakdown.slice(0, 4),
+      reservedInfantry: reserved,
+    };
+  }, [region.units, unitConfigMap]);
 
   const unitType = region.unit_type ?? "infantry";
   const movementHint =
@@ -469,4 +490,4 @@ export default function RegionPanel({
       )}
     </div>
   );
-}
+});

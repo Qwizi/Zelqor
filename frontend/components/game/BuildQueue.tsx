@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import Image from "next/image";
 import type { BuildingQueueItem, UnitQueueItem } from "@/hooks/useGameSocket";
 import type { BuildingType, UnitType } from "@/lib/api";
@@ -13,19 +14,26 @@ interface BuildQueueProps {
   myUserId: string;
 }
 
-export default function BuildQueue({
+export default memo(function BuildQueue({
   queue,
   unitQueue,
   buildings,
   units,
   myUserId,
 }: BuildQueueProps) {
-  const myBuilds = queue.filter((item) => item.player_id === myUserId);
-  const myUnits = unitQueue.filter((item) => item.player_id === myUserId);
-  if (myBuilds.length === 0 && myUnits.length === 0) return null;
+  const myBuilds = useMemo(() => queue.filter((item) => item.player_id === myUserId), [queue, myUserId]);
+  const myUnits = useMemo(() => unitQueue.filter((item) => item.player_id === myUserId), [unitQueue, myUserId]);
 
-  const buildingMap = Object.fromEntries(buildings.map((building) => [building.slug, building]));
-  const unitMap = Object.fromEntries(units.map((unit) => [unit.slug, unit]));
+  const buildingMap = useMemo(
+    () => Object.fromEntries(buildings.map((building) => [building.slug, building])),
+    [buildings]
+  );
+  const unitMap = useMemo(
+    () => Object.fromEntries(units.map((unit) => [unit.slug, unit])),
+    [units]
+  );
+
+  if (myBuilds.length === 0 && myUnits.length === 0) return null;
 
   return (
     <div className="absolute bottom-[5.5rem] left-2 right-2 z-20 space-y-2 sm:bottom-4 sm:left-4 sm:right-auto sm:w-[320px] sm:space-y-3 lg:bottom-4">
@@ -65,9 +73,9 @@ export default function BuildQueue({
       )}
     </div>
   );
-}
+});
 
-function QueueSection({
+const QueueSection = memo(function QueueSection({
   title,
   asset,
   items,
@@ -128,7 +136,7 @@ function QueueSection({
             </div>
             <div className="h-1.5 w-full bg-white/10">
               <div
-                className={`h-full bg-gradient-to-r ${accentClass} transition-all duration-300`}
+                className={`h-full bg-gradient-to-r ${accentClass} transition-[width] duration-300`}
                 style={{ width: `${percent}%` }}
               />
             </div>
@@ -137,4 +145,4 @@ function QueueSection({
       })}
     </div>
   );
-}
+});

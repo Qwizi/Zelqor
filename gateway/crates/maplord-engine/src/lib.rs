@@ -191,10 +191,18 @@ impl GameEngine {
         let capital_bonus = self.settings.capital_generation_bonus;
         let default_unit_type = self.default_unit_type_slug();
 
-        for region in regions.values_mut() {
-            if region.owner_id.is_none() {
-                continue;
-            }
+        // ── Phase 1: compute per-rate-group canonical accumulator ──
+        // Group regions by (owner, effective rate) so that regions with the
+        // same generation rate stay synchronised — they all tick up together
+        // instead of drifting apart when newly-acquired regions start at 0.
+        let mut rate_group_accum: HashMap<(String, u64), f64> = HashMap::new();
+        let mut region_rates: Vec<(String, f64)> = Vec::new();
+
+        for (rid, region) in regions.iter() {
+            let owner = match &region.owner_id {
+                Some(o) => o.clone(),
+                None => continue,
+            };
 
             let mut rate = base_rate;
             if region.is_capital {
@@ -202,11 +210,70 @@ impl GameEngine {
             }
             rate += region.unit_generation_bonus;
 
-            region.unit_accum += rate;
+            // Quantise rate to fixed-point key (avoids f64 hashing issues)
+            let rate_key = (rate * 10000.0).round() as u64;
+            let group_key = (owner, rate_key);
+
+            // Use the highest accumulator in the group as the canonical value
+            // so newly-acquired regions catch up to existing ones immediately.
+            let entry = rate_group_accum.entry(group_key).or_insert(0.0_f64);
+            if region.unit_accum > *entry {
+                *entry = region.unit_accum;
+            }
+
+            region_rates.push((rid.clone(), rate));
+        }
+
+        // ── Phase 2: advance canonical accumulators ──
+        for ((_owner, _rate_key), accum) in rate_group_accum.iter_mut() {
+            // Recover rate from the quantised key
+            let rate = *_rate_key as f64 / 10000.0;
+            *accum += rate;
+        }
+
+        // ── Phase 3: distribute whole units, sync accumulators ──
+        for (rid, rate) in &region_rates {
+            let region = match regions.get_mut(rid) {
+                Some(r) => r,
+                None => continue,
+            };
+            let owner = match &region.owner_id {
+                Some(o) => o.clone(),
+                None => continue,
+            };
+            let rate_key = (*rate * 10000.0).round() as u64;
+            let group_key = (owner, rate_key);
+
+            let canonical = match rate_group_accum.get(&group_key) {
+                Some(a) => *a,
+                None => continue,
+            };
+
+            // Sync this region's accumulator to the group value
+            region.unit_accum = canonical;
             let whole = region.unit_accum as i64;
             if whole > 0 {
                 add_units(region, &default_unit_type, whole);
                 region.unit_accum -= whole as f64;
+            }
+        }
+
+        // Write back normalised accumulators so the group stays synced
+        for (rid, rate) in &region_rates {
+            let region = match regions.get_mut(rid) {
+                Some(r) => r,
+                None => continue,
+            };
+            let owner = match &region.owner_id {
+                Some(o) => o.clone(),
+                None => continue,
+            };
+            let rate_key = (*rate * 10000.0).round() as u64;
+            let group_key = (owner, rate_key);
+            if let Some(canonical) = rate_group_accum.get(&group_key) {
+                // All regions in the group should have the same remainder
+                let remainder = *canonical - (*canonical as i64) as f64;
+                region.unit_accum = remainder;
             }
         }
 

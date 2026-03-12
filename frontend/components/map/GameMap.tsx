@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { GameRegion } from "@/hooks/useGameSocket";
@@ -31,6 +31,16 @@ interface InternalAnim {
   startTime: number;
   duration: number;
   targetCentroid: [number, number];
+  sourceCentroid: [number, number];
+}
+
+// Impact flash at arrival — tracks per-animation arrival effects
+interface ImpactFlash {
+  id: string;
+  centroid: [number, number];
+  color: string;
+  startTime: number;
+  isAttack: boolean;
 }
 
 interface GameMapProps {
@@ -211,7 +221,7 @@ const EMPTY_FC = { type: "FeatureCollection" as const, features: [] as unknown[]
 
 // ── Component ────────────────────────────────────────────────
 
-export default function GameMap({
+export default memo(function GameMap({
   tilesUrl,
   centroids,
   regions,
@@ -234,16 +244,23 @@ export default function GameMap({
   // Holds the latest feature-state apply fn so the sourcedata listener can call it
   const applyFeatureStatesRef = useRef<(() => void) | null>(null);
   const animsRef = useRef<InternalAnim[]>([]);
+  const impactFlashesRef = useRef<ImpactFlash[]>([]);
+  const arrivedAnimsRef = useRef(new Set<string>());
   const rafRef = useRef(0);
   const capitalMarkersRef = useRef(new Map<string, maplibregl.Marker>());
   const buildingMarkersRef = useRef(new Map<string, maplibregl.Marker>());
   const prevRegionsRef = useRef<Record<string, GameRegion>>({});
   const prevPlayersRef = useRef<Record<string, { color: string; username: string }>>({});
   const prevMarkerRegionsRef = useRef<Record<string, GameRegion>>({});
+  // Track unit count changes for label pulse animation
+  const unitPulsesRef = useRef<Map<string, { startTime: number; delta: number }>>(new Map());
+  const prevUnitCountsRef = useRef<Map<string, number>>(new Map());
+  const centroidsRef = useRef(centroids);
   const [layersReady, setLayersReady] = useState(false);
 
   useLayoutEffect(() => { onRegionClickRef.current = onRegionClick; });
   useLayoutEffect(() => { onMapReadyRef.current = onMapReady; });
+  useLayoutEffect(() => { centroidsRef.current = centroids; });
 
   const getRegionColor = useCallback(
     (regionId: string): string => {
@@ -352,6 +369,10 @@ export default function GameMap({
         data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
       });
       addSourceIfMissing("target-markers", {
+        type: "geojson",
+        data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
+      });
+      addSourceIfMissing("unit-change-labels", {
         type: "geojson",
         data: EMPTY_FC as unknown as GeoJSON.FeatureCollection,
       });
@@ -507,6 +528,27 @@ export default function GameMap({
           "text-halo-width": 1.5,
         },
       });
+      // Floating +N / -N labels that drift upward when unit counts change
+      // text-offset doesn't support data-driven expressions, so we bake the
+      // vertical drift directly into the Point coordinates in the rAF loop.
+      addLayerIfMissing({
+        id: "unit-change-labels",
+        type: "symbol",
+        source: "unit-change-labels",
+        layout: {
+          "text-field": ["get", "label"],
+          "text-size": ["get", "size"],
+          "text-font": ["Open Sans Bold"],
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        },
+        paint: {
+          "text-color": ["get", "color"],
+          "text-opacity": ["get", "opacity"],
+          "text-halo-color": "#000000",
+          "text-halo-width": 1.2,
+        },
+      });
         if (!(map as typeof map & { __maplord_handlers_bound?: boolean }).__maplord_handlers_bound) {
           map.on("click", "regions-fill", (e) => {
             const id = e.features?.[0]?.properties?.id;
@@ -630,6 +672,8 @@ export default function GameMap({
     };
   }, [buildingIcons, layersReady]);
 
+  const loadedAnimIconsRef = useRef(new Set<string>());
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !layersReady) return;
@@ -637,18 +681,25 @@ export default function GameMap({
     let cancelled = false;
 
     const ensureAnimationIcons = async () => {
-      const distinctUnitTypes = Array.from(
+      const newUnitTypes = Array.from(
         new Set(
           animations.map((animation) => animation.unitType || "default")
         )
-      );
+      ).filter((unitType) => !loadedAnimIconsRef.current.has(unitType));
+
+      if (newUnitTypes.length === 0) return;
 
       try {
         await Promise.all(
-          distinctUnitTypes.map((unitType) =>
+          newUnitTypes.map((unitType) =>
             loadMapImage(map, getAnimationIconId(unitType), getUnitAsset(unitType))
           )
         );
+        if (!cancelled) {
+          for (const unitType of newUnitTypes) {
+            loadedAnimIconsRef.current.add(unitType);
+          }
+        }
       } catch (error) {
         if (!cancelled) {
           console.error("GameMap animation icon load failed", error);
@@ -663,16 +714,11 @@ export default function GameMap({
     };
   }, [animations, layersReady]);
 
-  // ── Effect A: per-region updates (color via feature-state, labels via setData) ──
+  // ── Effect A1: per-region color + label updates ──
   //
   // Runs every tick (when regions/players change).
-  //
-  // Colors: setFeatureState() on the vector tile source — O(n) GPU-side updates,
-  //   no expression recompilation. Supported in paint properties.
-  //
-  // Labels/icons: setData() on a small GeoJSON point source (centroids + text).
-  //   feature-state is NOT supported in layout properties (text-field), so we
-  //   maintain a separate in-memory GeoJSON with only the features that need labels.
+  // Colors: setFeatureState() — O(changed) GPU-side, no expression recompilation.
+  // Labels: setData() on a small GeoJSON point source.
 
   useEffect(() => {
     const map = mapRef.current;
@@ -692,7 +738,26 @@ export default function GameMap({
       }
     }
 
-    // ① Color: feature-state on vector tile source (paint property — supported)
+    // Detect unit count changes for floating +N/-N labels.
+    // Skip the very first render (seeding phase) so initial load doesn't flash.
+    const now = Date.now();
+    const prevCounts = prevUnitCountsRef.current;
+    const isSeeded = prevCounts.size > 0;
+    for (const [rid, region] of Object.entries(regions)) {
+      const currCount = region.unit_count;
+      if (isSeeded && region.owner_id === myUserId) {
+        const prevCount = prevCounts.get(rid);
+        if (prevCount !== undefined && currCount !== prevCount) {
+          unitPulsesRef.current.set(rid, {
+            startTime: now,
+            delta: currCount - prevCount,
+          });
+        }
+      }
+      prevCounts.set(rid, currCount);
+    }
+
+    // ① Color: feature-state on vector tile source
     const applyColors = () => {
       const regionIds = changedRegionIds.size > 0 ? Array.from(changedRegionIds) : Object.keys(regions);
       for (const rid of regionIds) {
@@ -710,9 +775,7 @@ export default function GameMap({
     applyFeatureStatesRef.current = applyColors;
     applyColors();
 
-    // ② Labels + building icons: small GeoJSON point source (layout property workaround)
-    //    Own regions: always show unit count.
-    //    Enemy/neutral: show only while an animation is flying toward that region.
+    // ② Labels: small GeoJSON point source (layout property workaround)
     const animatedTargets = new Set(animations.map((a) => a.targetId));
     const labelFeatures: unknown[] = [];
     for (const [rid, r] of Object.entries(regions)) {
@@ -744,6 +807,18 @@ export default function GameMap({
     } catch {
       // source not ready yet
     }
+
+    prevRegionsRef.current = regions;
+    prevPlayersRef.current = players;
+  }, [regions, players, myUserId, animations, getRegionColor, buildingIcons, centroids, layersReady]);
+
+  // ── Effect A2: selection + target markers ──
+  //
+  // Only runs when selectedRegion/targetRegions change — NOT on every game tick.
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !layersReady) return;
 
     const selectedMarker =
       selectedRegion && centroids[selectedRegion]
@@ -781,22 +856,7 @@ export default function GameMap({
     } catch {
       // sources not ready yet
     }
-
-    prevRegionsRef.current = regions;
-    prevPlayersRef.current = players;
-
-  }, [
-    regions,
-    players,
-    myUserId,
-    animations,
-    getRegionColor,
-    buildingIcons,
-    centroids,
-    layersReady,
-    selectedRegion,
-    targetRegions,
-  ]);
+  }, [selectedRegion, targetRegions, centroids, layersReady]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1057,6 +1117,7 @@ export default function GameMap({
                 ? 2400
                 : 1900),
         targetCentroid: to,
+        sourceCentroid: from,
       });
     }
     if (newAnims.length > 0) {
@@ -1069,6 +1130,17 @@ export default function GameMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    // Reusable arrays — cleared each frame to avoid GC pressure
+    let lineFeats: unknown[] = [];
+    let dotFeats: unknown[] = [];
+    let iconFeats: unknown[] = [];
+    let pulseFeats: unknown[] = [];
+    // Reusable GeoJSON wrappers
+    const lineGeoJSON = { type: "FeatureCollection" as const, features: lineFeats };
+    const dotGeoJSON = { type: "FeatureCollection" as const, features: dotFeats };
+    const iconGeoJSON = { type: "FeatureCollection" as const, features: iconFeats };
+    const pulseGeoJSON = { type: "FeatureCollection" as const, features: pulseFeats };
+
     const tick = () => {
       if (!map.getSource("anim-lines") || !map.getSource("anim-dots") || !map.getSource("anim-icons")) {
         rafRef.current = requestAnimationFrame(tick);
@@ -1076,18 +1148,48 @@ export default function GameMap({
       }
 
       const now = Date.now();
-      animsRef.current = animsRef.current.filter(
-        (a) => now - a.startTime < a.duration + 400
-      );
+      const IMPACT_DURATION_MS = 600;
 
-      const lineFeats: unknown[] = [];
-      const dotFeats: unknown[] = [];
-      const iconFeats: unknown[] = [];
-      const pulseFeats: unknown[] = [];
+      // Clean up finished animations + trigger impact flash on arrival
+      animsRef.current = animsRef.current.filter((a) => {
+        const elapsed = now - a.startTime;
+        if (elapsed >= a.duration && !arrivedAnimsRef.current.has(a.id)) {
+          arrivedAnimsRef.current.add(a.id);
+          impactFlashesRef.current.push({
+            id: a.id,
+            centroid: a.targetCentroid,
+            color: a.actionType === "attack" ? "#ef4444" : a.color,
+            startTime: now,
+            isAttack: a.actionType === "attack",
+          });
+        }
+        return elapsed < a.duration + IMPACT_DURATION_MS;
+      });
+
+      // Clean up old impact flashes and arrived tracking
+      impactFlashesRef.current = impactFlashesRef.current.filter(
+        (f) => now - f.startTime < IMPACT_DURATION_MS
+      );
+      if (arrivedAnimsRef.current.size > 200) {
+        arrivedAnimsRef.current.clear();
+      }
+
+      lineFeats = [];
+      dotFeats = [];
+      iconFeats = [];
+      pulseFeats = [];
+
       for (const a of animsRef.current) {
-        const progress = easeAnimationProgress(a.animKind, Math.min((now - a.startTime) / a.duration, 1));
-        const fadeOut = progress > 0.85 ? 1 - (progress - 0.85) / 0.15 : 1;
+        const rawLinear = Math.min((now - a.startTime) / a.duration, 1);
+        const progress = easeAnimationProgress(a.animKind, rawLinear);
         const animKind = a.animKind;
+
+        // Smooth fadeout: gentle from 75%, accelerating to 0 at 100%
+        // Uses cubic ease-out for natural deceleration feel
+        const fadeOut = rawLinear > 0.75
+          ? Math.pow(1 - (rawLinear - 0.75) / 0.25, 2)
+          : 1;
+
         const animColor =
           animKind === "fighter"
             ? "#f59e0b"
@@ -1124,40 +1226,57 @@ export default function GameMap({
                 ? 6
                 : NUM_TRAIL_DOTS + 2;
 
-        lineFeats.push({
-          type: "Feature",
-          geometry: { type: "LineString", coordinates: a.path },
-          properties: {
-            color: animColor,
-            opacity:
-              animKind === "fighter"
-                ? 0.85 * fadeOut
-                : animKind === "ship"
-                  ? 0.5 * fadeOut
-                  : animKind === "tank"
-                    ? 0.48 * fadeOut
-                    : 0.35 * fadeOut,
-            width: lineWidth,
-            blur: lineBlur,
-          },
-        });
+        // Progressive trail — only show line from trail tail to head, not full path
+        const headIdx = Math.min(
+          Math.floor(progress * (a.path.length - 1)),
+          a.path.length - 1
+        );
+        const trailLength = animKind === "fighter" ? 0.18 : animKind === "ship" ? 0.22 : 0.3;
+        const tailProgress = Math.max(0, progress - trailLength);
+        const tailIdx = Math.max(0, Math.floor(tailProgress * (a.path.length - 1)));
+        const trailSlice = a.path.slice(tailIdx, headIdx + 1);
+
+        if (trailSlice.length >= 2) {
+          lineFeats.push({
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: trailSlice },
+            properties: {
+              color: animColor,
+              opacity:
+                animKind === "fighter"
+                  ? 0.85 * fadeOut
+                  : animKind === "ship"
+                    ? 0.5 * fadeOut
+                    : animKind === "tank"
+                      ? 0.48 * fadeOut
+                      : 0.35 * fadeOut,
+              width: lineWidth * (0.7 + 0.3 * fadeOut),
+              blur: lineBlur,
+            },
+          });
+        }
 
         for (let i = 0; i < trailDots; i++) {
           const dp = progress - i * DOT_SPACING;
           if (dp < 0 || dp > 1) continue;
+          // Skip dots behind the visible trail
+          if (dp < tailProgress) continue;
           const idx = Math.min(
             Math.floor(dp * (a.path.length - 1)),
             a.path.length - 1
           );
+          // Smooth fade per dot based on distance from head
+          const dotFade = 1 - (i / trailDots);
+          const dotScale = 1 - (i / trailDots) * 0.4;
           dotFeats.push({
             type: "Feature",
             geometry: { type: "Point", coordinates: a.path[idx] },
             properties: {
               color: animColor,
               units: i === 0 ? a.units : 0,
-              opacity: (1 - (i / trailDots) * 0.7) * fadeOut,
+              opacity: dotFade * dotFade * fadeOut,
               size:
-                i === 0
+                (i === 0
                   ? animKind === "fighter"
                     ? 6
                     : animKind === "ship"
@@ -1165,75 +1284,136 @@ export default function GameMap({
                       : animKind === "tank"
                         ? 7
                         : 5.5
-                  : Math.max(2.2, animKind === "infantry" ? 3.8 - i * 0.22 : 4.5 - i * 0.35),
+                  : Math.max(2.2, animKind === "infantry" ? 3.8 - i * 0.22 : 4.5 - i * 0.35)
+                ) * dotScale,
             },
           });
         }
 
-        const headIndex = Math.min(
-          Math.floor(progress * (a.path.length - 1)),
-          a.path.length - 1
-        );
-        const nextIndex = Math.min(headIndex + 1, a.path.length - 1);
-        const currentPoint = a.path[headIndex];
+        const nextIndex = Math.min(headIdx + 1, a.path.length - 1);
+        const currentPoint = a.path[headIdx];
         const nextPoint = a.path[nextIndex];
         const rotation =
           currentPoint && nextPoint
             ? Math.atan2(nextPoint[0] - currentPoint[0], nextPoint[1] - currentPoint[1]) * (180 / Math.PI)
             : 0;
+
+        // Slight scale pulse on the icon as it moves (breathing effect)
+        const breathe = 1 + Math.sin(rawLinear * Math.PI * 6) * 0.06;
+        const baseIconSize =
+          animKind === "fighter"
+            ? 0.42
+            : animKind === "ship"
+              ? 0.28
+              : animKind === "tank"
+                ? 0.28
+                : 0.2;
         iconFeats.push({
           type: "Feature",
           geometry: { type: "Point", coordinates: currentPoint },
           properties: {
             icon: iconName,
-            icon_size:
-              animKind === "fighter"
-                ? 0.42
-                : animKind === "ship"
-                  ? 0.28
-                  : animKind === "tank"
-                    ? 0.28
-                    : 0.2,
+            icon_size: baseIconSize * breathe * (0.6 + 0.4 * fadeOut),
             rotation,
-            opacity: fadeOut,
+            opacity: Math.min(1, fadeOut * 1.3),
           },
         });
 
-        // Defender pulse rings — 3 concentric expanding rings at the target centroid
-        // Each ring is offset by 1/3 of the cycle so they stagger continuously
+        // Defender pulse rings at target during approach
         if (a.actionType === "attack" && progress > 0.58) {
           for (let ring = 0; ring < 3; ring++) {
             const phase = ((progress - 0.58) * 4 + ring / 3) % 1;
+            const ringFade = (1 - phase);
             pulseFeats.push({
               type: "Feature",
               geometry: { type: "Point", coordinates: a.targetCentroid },
               properties: {
                 radius: 8 + phase * 44,
                 color: pulseColor,
-                opacity: (1 - phase) * 0.75 * fadeOut,
+                opacity: ringFade * ringFade * 0.75 * fadeOut,
               },
             });
           }
         }
       }
 
+      // Impact flash effects — burst ring + inner glow on arrival
+      for (const flash of impactFlashesRef.current) {
+        const flashProgress = (now - flash.startTime) / IMPACT_DURATION_MS;
+        const flashFade = Math.pow(1 - flashProgress, 1.5);
+        const burstRadius = 6 + flashProgress * 52;
+
+        // Outer expanding ring
+        pulseFeats.push({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: flash.centroid },
+          properties: {
+            radius: burstRadius,
+            color: flash.isAttack ? "#ef4444" : "#22d3ee",
+            opacity: flashFade * 0.9,
+          },
+        });
+        // Inner bright core
+        if (flashProgress < 0.4) {
+          const coreFade = 1 - flashProgress / 0.4;
+          pulseFeats.push({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: flash.centroid },
+            properties: {
+              radius: 4 + flashProgress * 12,
+              color: flash.isAttack ? "#fca5a5" : "#a5f3fc",
+              opacity: coreFade * coreFade * 0.8,
+            },
+          });
+        }
+      }
+
+      // Floating +N / -N labels for unit count changes
+      const UNIT_CHANGE_DURATION = 1200;
+      const changeLabels: unknown[] = [];
+      unitPulsesRef.current.forEach((pulse, rid, map) => {
+        const elapsed = now - pulse.startTime;
+        if (elapsed >= UNIT_CHANGE_DURATION) {
+          map.delete(rid);
+          return;
+        }
+        const centroid = centroidsRef.current[rid];
+        if (!centroid) return;
+        const t = elapsed / UNIT_CHANGE_DURATION;
+        // Ease out — fast start, slow finish
+        const easedT = 1 - Math.pow(1 - t, 3);
+        const opacity = 1 - easedT;
+        // Drift upward by offsetting latitude directly in the coordinates
+        const driftLat = 0.15 + easedT * 0.45;
+        const isGain = pulse.delta > 0;
+        changeLabels.push({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [centroid[0], centroid[1] + driftLat] },
+          properties: {
+            label: isGain ? `+${pulse.delta}` : `${pulse.delta}`,
+            color: isGain ? "#4ade80" : "#f87171",
+            opacity: opacity * 0.95,
+            size: 13 + (1 - easedT) * 4,
+          },
+        });
+      });
+
       try {
-        (map.getSource("anim-lines") as maplibregl.GeoJSONSource).setData({
-          type: "FeatureCollection",
-          features: lineFeats,
-        } as unknown as GeoJSON.FeatureCollection);
-        (map.getSource("anim-dots") as maplibregl.GeoJSONSource).setData({
-          type: "FeatureCollection",
-          features: dotFeats,
-        } as unknown as GeoJSON.FeatureCollection);
-        (map.getSource("anim-icons") as maplibregl.GeoJSONSource).setData({
-          type: "FeatureCollection",
-          features: iconFeats,
-        } as unknown as GeoJSON.FeatureCollection);
-        (map.getSource("defend-pulses") as maplibregl.GeoJSONSource).setData({
-          type: "FeatureCollection",
-          features: pulseFeats,
-        } as unknown as GeoJSON.FeatureCollection);
+        lineGeoJSON.features = lineFeats;
+        dotGeoJSON.features = dotFeats;
+        iconGeoJSON.features = iconFeats;
+        pulseGeoJSON.features = pulseFeats;
+        (map.getSource("anim-lines") as maplibregl.GeoJSONSource).setData(lineGeoJSON as unknown as GeoJSON.FeatureCollection);
+        (map.getSource("anim-dots") as maplibregl.GeoJSONSource).setData(dotGeoJSON as unknown as GeoJSON.FeatureCollection);
+        (map.getSource("anim-icons") as maplibregl.GeoJSONSource).setData(iconGeoJSON as unknown as GeoJSON.FeatureCollection);
+        (map.getSource("defend-pulses") as maplibregl.GeoJSONSource).setData(pulseGeoJSON as unknown as GeoJSON.FeatureCollection);
+        const changeSource = map.getSource("unit-change-labels") as maplibregl.GeoJSONSource | undefined;
+        if (changeSource) {
+          changeSource.setData({
+            type: "FeatureCollection",
+            features: changeLabels,
+          } as unknown as GeoJSON.FeatureCollection);
+        }
       } catch {
         // source not ready
       }
@@ -1260,4 +1440,4 @@ export default function GameMap({
       <div ref={containerRef} className="h-full w-full" />
     </div>
   );
-}
+});

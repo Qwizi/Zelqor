@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { memo, useState, useRef, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import type { GameRegion } from "@/hooks/useGameSocket";
@@ -40,7 +40,7 @@ interface ActionBarProps {
   onCancel: () => void;
 }
 
-export default function ActionBar({
+export default memo(function ActionBar({
   sourceRegion,
   sourceName,
   targets,
@@ -51,8 +51,11 @@ export default function ActionBar({
   onRemoveTarget,
   onCancel,
 }: ActionBarProps) {
+  const unitTypes = useMemo(
+    () => Object.entries(sourceRegion.units ?? {}).filter(([, count]) => count > 0),
+    [sourceRegion.units]
+  );
   const availableUnitsByType = sourceRegion.units ?? {};
-  const unitTypes = Object.entries(availableUnitsByType).filter(([, count]) => count > 0);
   const liveMaxUnits = availableUnitsByType[selectedUnitType] ?? 0;
   const hasAttack = targets.some((target) => target.isAttack);
   const accentClass = hasAttack ? "border-red-800/60" : "border-cyan-900/60";
@@ -359,9 +362,9 @@ export default function ActionBar({
       </div>
     </div>
   );
-}
+});
 
-function QuickPill({
+const QuickPill = memo(function QuickPill({
   label,
   value,
   valueLabel,
@@ -376,4 +379,4 @@ function QuickPill({
       <div className="font-display text-sm text-zinc-50">{valueLabel ?? value ?? 0}</div>
     </div>
   );
-}
+});
