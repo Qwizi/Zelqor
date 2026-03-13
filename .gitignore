@@ -21,5 +21,10 @@ media/
 frontend/node_modules/
 frontend/.next/
 
+# Celery Beat schedule
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+
 # OS
 .DS_Store
