@@ -60,6 +60,7 @@ export interface User {
   role: string;
   elo_rating: number;
   date_joined: string;
+  tutorial_completed: boolean;
 }
 
 export async function login(
@@ -380,4 +381,27 @@ export async function getSnapshot(
   tick: number
 ): Promise<SnapshotDetail> {
   return fetchAPI<SnapshotDetail>(`/game/snapshots/${matchId}/${tick}/`, { token });
+}
+
+// --- Tutorial ---
+
+export async function startTutorial(token: string): Promise<{ match_id: string }> {
+  return fetchAPI<{ match_id: string }>("/matches/tutorial/start/", {
+    method: "POST",
+    token,
+  });
+}
+
+export async function completeTutorial(token: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>("/auth/tutorial/complete/", {
+    method: "POST",
+    token,
+  });
+}
+
+export async function cleanupTutorial(token: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>("/matches/tutorial/cleanup/", {
+    method: "POST",
+    token,
+  });
 }

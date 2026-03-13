@@ -11,6 +11,8 @@ interface AbilityBarProps {
   currentTick: number;
   selectedAbility: string | null;
   onSelectAbility: (slug: string | null) => void;
+  /** If set, only this ability slug is clickable (tutorial mode) */
+  allowedAbility?: string | null;
 }
 
 export default memo(function AbilityBar({
@@ -20,6 +22,7 @@ export default memo(function AbilityBar({
   currentTick,
   selectedAbility,
   onSelectAbility,
+  allowedAbility,
 }: AbilityBarProps) {
   const sorted = useMemo(
     () => [...abilities].sort((a, b) => a.order - b.order),
@@ -38,7 +41,7 @@ export default memo(function AbilityBar({
   return (
     <>
       {/* Desktop: vertical bar on left side */}
-      <div className="pointer-events-auto absolute left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col gap-3 rounded-2xl border border-white/15 bg-slate-950/90 px-2.5 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:flex">
+      <div data-tutorial="ability-bar" className="pointer-events-auto absolute left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col gap-3 rounded-2xl border border-white/15 bg-slate-950/90 px-2.5 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:flex">
         {sorted.map((ability) => (
           <AbilityButton
             key={ability.slug}
@@ -49,6 +52,7 @@ export default memo(function AbilityBar({
             isSelected={selectedAbility === ability.slug}
             onClick={handleClick}
             size="lg"
+            locked={allowedAbility != null && allowedAbility !== ability.slug}
           />
         ))}
       </div>
@@ -65,6 +69,7 @@ export default memo(function AbilityBar({
             isSelected={selectedAbility === ability.slug}
             onClick={handleClick}
             size="sm"
+            locked={allowedAbility != null && allowedAbility !== ability.slug}
           />
         ))}
       </div>
@@ -80,6 +85,7 @@ function AbilityButton({
   isSelected,
   onClick,
   size,
+  locked = false,
 }: {
   ability: AbilityType;
   abilityCooldowns: Record<string, number>;
@@ -88,6 +94,7 @@ function AbilityButton({
   isSelected: boolean;
   onClick: (slug: string) => void;
   size: "sm" | "lg";
+  locked?: boolean;
 }) {
   const cooldownReady = abilityCooldowns[ability.slug] ?? 0;
   const isOnCooldown = currentTick < cooldownReady;
@@ -97,7 +104,7 @@ function AbilityButton({
     ? cooldownRemaining / totalCooldown
     : 0;
   const canAfford = myCurrency >= ability.currency_cost;
-  const isDisabled = isOnCooldown || !canAfford;
+  const isDisabled = isOnCooldown || !canAfford || locked;
 
   const btnSize = size === "lg" ? "h-16 w-16 rounded-xl" : "h-11 w-11 rounded-lg";
   const imgSize = size === "lg" ? "h-10 w-10" : "h-7 w-7";

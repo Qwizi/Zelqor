@@ -16,7 +16,6 @@ import {
   Shield,
   Skull,
   Swords,
-  Trophy,
   Users,
   Hammer,
   TrendingUp,

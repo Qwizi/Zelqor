@@ -4,7 +4,7 @@ use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{Path, State, WebSocketUpgrade};
 use axum::response::Response;
 use dashmap::DashMap;
-use maplord_ai::BotBrain;
+use maplord_ai::{BotBrain, BotStrategy, TutorialBotBrain};
 use maplord_engine::{Action, Event, GameEngine, GameSettings, Player, Region};
 use maplord_state::{FullGameState, GameStateManager};
 use serde_json::json;
@@ -208,6 +208,18 @@ async fn handle_game_message(
                 reason: "Left match".into(),
             })));
         }
+        "set_tick_multiplier" => {
+            let multiplier = content
+                .get("multiplier")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(1)
+                .clamp(1, 10);
+            // Only allow in tutorial matches
+            let meta = state_mgr.get_meta().await.unwrap_or_default();
+            if meta.get("is_tutorial").map(|v| v == "1").unwrap_or(false) {
+                let _ = state_mgr.set_meta_field("tick_multiplier", &multiplier.to_string()).await;
+            }
+        }
         "attack" | "move" | "build" | "produce_unit" | "use_ability" => {
             let mut action_data: serde_json::Map<String, serde_json::Value> =
                 content.as_object().cloned().unwrap_or_default();
@@ -356,6 +368,12 @@ async fn handle_select_capital(
     if result.is_err() {
         error!("Error during capital selection: {:?}", result.err());
         return;
+    }
+
+    // In tutorial matches, auto-select bot capital close to the human player
+    let meta = state_mgr.get_meta().await.unwrap_or_default();
+    if meta.get("is_tutorial").map(|v| v == "1").unwrap_or(false) {
+        auto_select_tutorial_bot_capital(state_mgr, state, &region_id).await;
     }
 
     // Broadcast updated state
@@ -559,15 +577,36 @@ async fn game_loop(
 
     // Initialize BotBrains for bot players
     let initial_players = state_mgr.get_all_players().await?;
-    let bot_brains: HashMap<String, BotBrain> = initial_players
+    let is_tutorial = meta.get("is_tutorial").map(|v| v == "1").unwrap_or(false);
+    let bot_brains: HashMap<String, Box<dyn BotStrategy>> = initial_players
         .iter()
         .filter(|(_, p)| p.is_bot && p.is_alive)
-        .map(|(id, _)| (id.clone(), BotBrain::new(id.clone())))
+        .map(|(id, _)| {
+            let brain: Box<dyn BotStrategy> = if is_tutorial {
+                Box::new(TutorialBotBrain::new(id.clone()))
+            } else {
+                Box::new(BotBrain::new(id.clone()))
+            };
+            (id.clone(), brain)
+        })
         .collect();
+
+    let mut current_tick_multiplier: u64 = 1;
 
     loop {
         tokio::time::sleep_until(next_tick_at).await;
         let tick_start = tokio::time::Instant::now();
+
+        // Read tick multiplier for tutorial fast-forward
+        if is_tutorial {
+            if let Ok(m) = state_mgr.get_meta().await {
+                current_tick_multiplier = m
+                    .get("tick_multiplier")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(1)
+                    .clamp(1, 10);
+            }
+        }
 
         let mut tick_data = state_mgr.get_tick_data().await?;
         let tick = tick_data.tick;
@@ -668,6 +707,128 @@ async fn game_loop(
             "active_effects": tick_data.active_effects,
         });
         broadcast_to_match(match_id, &tick_msg, &state.game_connections);
+
+        let primary_game_over = events.iter().any(|e| matches!(e, Event::GameOver { .. }));
+
+        // Tutorial fast-forward: process additional ticks without sleeping
+        if is_tutorial && current_tick_multiplier > 1 && !primary_game_over {
+            for _ in 1..current_tick_multiplier {
+                let mut extra_tick = state_mgr.get_tick_data().await?;
+                let extra_tick_num = extra_tick.tick;
+
+                // Generate bot actions
+                for (bot_id, brain) in &bot_brains {
+                    if extra_tick.players.get(bot_id).map(|p| p.is_alive).unwrap_or(false) {
+                        let bot_actions = brain.decide(
+                            &extra_tick.players,
+                            &extra_tick.regions,
+                            &neighbor_map,
+                            &settings,
+                            extra_tick_num,
+                        );
+                        extra_tick.actions.extend(bot_actions);
+                    }
+                }
+
+                let extra_timeout_events = resolve_disconnect_timeout_events(&mut extra_tick.players);
+                if !extra_timeout_events.is_empty() {
+                    state_mgr.set_players_bulk(&extra_tick.players).await?;
+                }
+
+                let extra_regions_before = extra_tick.regions.clone();
+
+                let mut extra_events = engine.process_tick(
+                    &mut extra_tick.players,
+                    &mut extra_tick.regions,
+                    &extra_tick.actions,
+                    &mut extra_tick.buildings_queue,
+                    &mut extra_tick.unit_queue,
+                    &mut extra_tick.transit_queue,
+                    extra_tick_num,
+                    &mut extra_tick.active_effects,
+                );
+
+                if !extra_timeout_events.is_empty() {
+                    let mut combined = extra_timeout_events;
+                    combined.append(&mut extra_events);
+                    extra_events = combined;
+                }
+
+                for event in &extra_events {
+                    if let Event::PlayerEliminated { player_id, reason } = event {
+                        if let Some(player) = extra_tick.players.get_mut(player_id) {
+                            player.eliminated_reason = Some(reason.clone());
+                            player.eliminated_tick = Some(extra_tick_num);
+                        }
+                    }
+                }
+
+                let extra_changed = compute_changed_regions(&extra_regions_before, &extra_tick.regions);
+                let extra_dirty: HashSet<String> = extra_changed.keys().cloned().collect();
+
+                state_mgr.set_tick_result(
+                    &extra_tick.players,
+                    &extra_tick.regions,
+                    &extra_tick.buildings_queue,
+                    &extra_tick.unit_queue,
+                    &extra_tick.transit_queue,
+                    &extra_tick.active_effects,
+                    Some(&extra_dirty),
+                ).await?;
+
+                for event in &extra_events {
+                    if let Event::PlayerEliminated { player_id, .. } = event {
+                        let _ = state.django.set_player_alive(match_id, player_id, false).await;
+                    }
+                }
+
+                // Broadcast this extra tick
+                let extra_msg = json!({
+                    "type": "game_tick",
+                    "tick": extra_tick_num,
+                    "events": extra_events,
+                    "regions": extra_changed,
+                    "players": extra_tick.players,
+                    "buildings_queue": extra_tick.buildings_queue,
+                    "unit_queue": extra_tick.unit_queue,
+                    "transit_queue": extra_tick.transit_queue,
+                    "active_effects": extra_tick.active_effects,
+                });
+                broadcast_to_match(match_id, &extra_msg, &state.game_connections);
+
+                // Check game over in extra ticks
+                let extra_game_over = extra_events.iter().any(|e| matches!(e, Event::GameOver { .. }));
+                if extra_game_over {
+                    let _ = state_mgr.set_meta_field("status", "finished").await;
+                    let winner_id = extra_events.iter().find_map(|e| {
+                        if let Event::GameOver { winner_id } = e {
+                            winner_id.clone()
+                        } else {
+                            None
+                        }
+                    });
+                    if let Ok(full_state) = state_mgr.get_full_state().await {
+                        let state_json = serde_json::to_value(&full_state).unwrap_or_default();
+                        let _ = state.django.finalize_match(
+                            match_id,
+                            winner_id.as_deref(),
+                            extra_tick_num as u64,
+                            state_json,
+                        ).await;
+                    }
+                    let state_clone = state.clone();
+                    let match_id_clone = match_id.to_string();
+                    tokio::spawn(async move {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(120)).await;
+                        let _ = state_clone.django.cleanup_match(&match_id_clone).await;
+                    });
+                    return Ok(());
+                }
+
+                // Small sleep between extra ticks
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        }
 
         // Periodic snapshot
         if tick as u64 % snapshot_interval == 0 {
@@ -1050,6 +1211,9 @@ async fn initialize_game(
     state_mgr
         .set_meta_field("disconnect_grace_seconds", "180")
         .await?;
+    if match_data.is_tutorial {
+        state_mgr.set_meta_field("is_tutorial", "1").await?;
+    }
 
     // Set up players
     let mut players = HashMap::new();
@@ -1136,8 +1300,17 @@ async fn initialize_game(
     }
     state_mgr.set_regions_bulk(&regions).await?;
 
-    // Auto-select capitals for bot players
-    auto_select_bot_capitals(state_mgr, state).await?;
+    // Auto-select capitals for bot players (skip for tutorial — bot picks after human)
+    let is_tutorial_init = state_mgr
+        .get_meta()
+        .await
+        .unwrap_or_default()
+        .get("is_tutorial")
+        .map(|v| v == "1")
+        .unwrap_or(false);
+    if !is_tutorial_init {
+        auto_select_bot_capitals(state_mgr, state).await?;
+    }
 
     Ok(())
 }
@@ -1200,6 +1373,112 @@ async fn auto_select_bot_capitals(
     }
 
     Ok(())
+}
+
+/// In tutorial matches, pick the bot's capital as close as possible to the human's capital.
+async fn auto_select_tutorial_bot_capital(
+    state_mgr: &GameStateManager,
+    state: &AppState,
+    human_capital_id: &str,
+) {
+    let players = match state_mgr.get_all_players().await {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let mut regions = match state_mgr.get_all_regions().await {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    let meta = state_mgr.get_meta().await.unwrap_or_default();
+
+    // Find bot players without capitals
+    let bot_ids: Vec<String> = players
+        .iter()
+        .filter(|(_, p)| p.is_bot && p.is_alive && p.capital_region_id.is_none())
+        .map(|(id, _)| id.clone())
+        .collect();
+
+    if bot_ids.is_empty() {
+        return;
+    }
+
+    let starting_units: i64 = meta
+        .get("starting_units")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10);
+    let min_dist: usize = meta
+        .get("min_capital_distance")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1);
+
+    let neighbor_map = state.django.get_neighbor_map().await.unwrap_or_default();
+
+    // BFS from human's capital to find closest unowned region that respects min_dist
+    let mut visited = HashSet::new();
+    visited.insert(human_capital_id.to_string());
+    let mut queue = VecDeque::new();
+    queue.push_back((human_capital_id.to_string(), 0usize));
+
+    let mut best_region: Option<String> = None;
+
+    while let Some((current, dist)) = queue.pop_front() {
+        // Check if this region is a valid capital location
+        if dist >= min_dist {
+            if let Some(r) = regions.get(&current) {
+                if r.owner_id.is_none() {
+                    best_region = Some(current.clone());
+                    break;
+                }
+            }
+        }
+
+        if let Some(neighbors) = neighbor_map.get(&current) {
+            for neighbor in neighbors {
+                if !visited.contains(neighbor) && regions.contains_key(neighbor) {
+                    visited.insert(neighbor.clone());
+                    queue.push_back((neighbor.clone(), dist + 1));
+                }
+            }
+        }
+    }
+
+    // Assign capital to each bot
+    for bot_id in &bot_ids {
+        let region_id = match &best_region {
+            Some(id) => id.clone(),
+            None => {
+                // Fallback: any unowned region
+                match regions.iter().find(|(_, r)| r.owner_id.is_none()) {
+                    Some((id, _)) => id.clone(),
+                    None => continue,
+                }
+            }
+        };
+
+        let mut players = match state_mgr.get_all_players().await {
+            Ok(p) => p,
+            Err(_) => return,
+        };
+
+        if let Some(player) = players.get_mut(bot_id) {
+            player.capital_region_id = Some(region_id.clone());
+            player.total_regions_conquered += 1;
+            player.total_units_produced = player
+                .total_units_produced
+                .saturating_add(starting_units as u32);
+            let _ = state_mgr.set_player(bot_id, player).await;
+        }
+
+        if let Some(region) = regions.get_mut(&region_id) {
+            region.owner_id = Some(bot_id.clone());
+            region.is_capital = true;
+            region.unit_count = starting_units;
+            let ut = region.unit_type.clone().unwrap_or_else(|| "infantry".into());
+            region.units.insert(ut.clone(), starting_units);
+            region.unit_type = Some(ut);
+            let _ = state_mgr.set_region(&region_id, region).await;
+        }
+    }
 }
 
 async fn mark_player_connected(

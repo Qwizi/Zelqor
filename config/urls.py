@@ -8,7 +8,7 @@ from ninja_jwt.controller import NinjaJWTDefaultController
 from apps.accounts.views import AuthController
 from apps.geo.views import GeoController
 from apps.game_config.views import ConfigController
-from apps.matchmaking.views import MatchController
+from apps.matchmaking.views import MatchController, TutorialController
 from apps.game.views import GameController
 from apps.shop.views import ShopController
 from apps.game.internal_api import GameInternalController
@@ -21,6 +21,7 @@ api.register_controllers(
     GeoController,
     ConfigController,
     MatchController,
+    TutorialController,
     GameController,
     ShopController,
     GameInternalController,

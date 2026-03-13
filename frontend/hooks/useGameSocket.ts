@@ -99,6 +99,7 @@ export interface GameState {
     min_capital_distance: string;
     capital_selection_time_seconds?: string;
     capital_selection_ends_at?: string;
+    is_tutorial?: string;
   };
   players: Record<string, GamePlayer>;
   regions: Record<string, GameRegion>;
@@ -125,6 +126,7 @@ interface UseGameSocketReturn {
   produceUnit: (regionId: string, unitType: string) => void;
   useAbility: (targetRegionId: string, abilityType: string) => void;
   leaveMatch: () => Promise<boolean>;
+  send: (data: Record<string, unknown>) => void;
 }
 
 export function useGameSocket(matchId: string): UseGameSocketReturn {
@@ -395,5 +397,6 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     produceUnit,
     useAbility,
     leaveMatch,
+    send,
   };
 }

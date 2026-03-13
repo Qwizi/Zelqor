@@ -370,6 +370,7 @@ export default memo(function RegionPanel({
       {isOwned && (
         <>
           <Separator className="my-5 bg-white/10" />
+          <div data-tutorial="build-section">
           <h4 className="flex items-center gap-2 text-sm font-medium text-amber-400">
             <Image
               src={getActionAsset("build")}
@@ -435,6 +436,7 @@ export default memo(function RegionPanel({
               Pokazano {compactBuildOptions.length} z {buildOptions.length} mozliwych budynkow
             </div>
           )}
+          </div>{/* close data-tutorial="build-section" */}
 
           {compactProducedUnits.length > 0 && (
             <>

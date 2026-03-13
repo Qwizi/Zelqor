@@ -16,6 +16,7 @@ class UserOutSchema(Schema):
     username: str
     role: str
     elo_rating: int
+    tutorial_completed: bool
     date_joined: datetime
 
     class Config:

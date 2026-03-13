@@ -15,6 +15,8 @@ BOT_NAMES = [
     "Bot Hotel",
 ]
 
+TUTORIAL_BOT_UUID = uuid.UUID("00000000-0000-4000-b000-000000000099")
+
 
 class Command(BaseCommand):
     help = "Create bot users for AI opponents (idempotent)"
@@ -50,6 +52,20 @@ class Command(BaseCommand):
             if was_created:
                 created += 1
 
+        # Tutorial bot (always created) — match by username to handle legacy rows
+        _, tutorial_created = User.objects.update_or_create(
+            username="TutorialBot",
+            defaults={
+                "email": "tutorialbot@maplord.local",
+                "is_active": False,
+                "is_bot": True,
+                "elo_rating": 1000,
+                "password": "!",
+            },
+        )
+        if tutorial_created:
+            created += 1
+
         self.stdout.write(
-            self.style.SUCCESS(f"Done: {created} created, {count - created} already existed")
+            self.style.SUCCESS(f"Done: {created} created, {count + 1 - created} already existed")
         )

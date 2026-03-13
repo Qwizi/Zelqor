@@ -10,5 +10,5 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ('email', 'username')
     ordering = ('email',)
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('Game', {'fields': ('role', 'elo_rating', 'avatar')}),
+        ('Game', {'fields': ('role', 'elo_rating', 'avatar', 'tutorial_completed')}),
     )

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useRef, useEffect, useMemo } from "react";
+import { memo, useState, useMemo } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import type { GameRegion } from "@/hooks/useGameSocket";
@@ -61,24 +61,28 @@ export default memo(function ActionBar({
   const accentClass = hasAttack ? "border-red-800/60" : "border-cyan-900/60";
 
   // Freeze slider max so game ticks don't shift the thumb while user is interacting.
-  // Only update when user switches unit type.
-  const frozenMaxRef = useRef(liveMaxUnits);
-  const prevUnitTypeRef = useRef(selectedUnitType);
-  if (prevUnitTypeRef.current !== selectedUnitType) {
-    frozenMaxRef.current = liveMaxUnits;
-    prevUnitTypeRef.current = selectedUnitType;
-  }
-  // If live count drops below frozen (units were sent), adjust down
-  if (liveMaxUnits < frozenMaxRef.current) {
-    frozenMaxRef.current = liveMaxUnits;
-  }
-  const maxUnits = frozenMaxRef.current;
+  // Only update when user switches unit type, or live count drops below current frozen max.
+  const [maxUnits, setMaxUnits] = useState(liveMaxUnits);
+  const [prevSelectedUnitType, setPrevSelectedUnitType] = useState(selectedUnitType);
 
-  const [totalUnits, setTotalUnits] = useState(Math.max(1, Math.floor(maxUnits / 2) || 1));
-  // Reset slider when unit type changes
-  useEffect(() => {
-    setTotalUnits(Math.max(1, Math.floor(maxUnits / 2) || 1));
-  }, [selectedUnitType]);
+  if (prevSelectedUnitType !== selectedUnitType) {
+    setPrevSelectedUnitType(selectedUnitType);
+    setMaxUnits(liveMaxUnits);
+  } else if (liveMaxUnits < maxUnits) {
+    setMaxUnits(liveMaxUnits);
+  }
+
+  // Derived default for slider: half of maxUnits, reset whenever max or unit type changes
+  const defaultTotalUnits = Math.max(1, Math.floor(maxUnits / 2) || 1);
+  const [totalUnits, setTotalUnits] = useState(defaultTotalUnits);
+  const [prevMaxUnits, setPrevMaxUnits] = useState(maxUnits);
+  const [prevUnitTypeForSlider, setPrevUnitTypeForSlider] = useState(selectedUnitType);
+
+  if (prevUnitTypeForSlider !== selectedUnitType || prevMaxUnits !== maxUnits) {
+    setPrevUnitTypeForSlider(selectedUnitType);
+    setPrevMaxUnits(maxUnits);
+    setTotalUnits(defaultTotalUnits);
+  }
 
   const minUnits = targets.length > 0 ? Math.min(targets.length, maxUnits) : 1;
   const safeTotalUnits = Math.max(Math.min(totalUnits, maxUnits), minUnits);

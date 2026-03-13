@@ -1,3 +1,4 @@
+use crate::BotStrategy;
 use maplord_engine::{Action, GameSettings, Player, Region};
 use rand::Rng;
 use std::collections::HashMap;
@@ -288,6 +289,19 @@ impl BotBrain {
         }
 
         actions
+    }
+}
+
+impl BotStrategy for BotBrain {
+    fn decide(
+        &self,
+        players: &HashMap<String, Player>,
+        regions: &HashMap<String, Region>,
+        neighbor_map: &HashMap<String, Vec<String>>,
+        settings: &GameSettings,
+        current_tick: i64,
+    ) -> Vec<Action> {
+        self.decide(players, regions, neighbor_map, settings, current_tick)
     }
 }
 

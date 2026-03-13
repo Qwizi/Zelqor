@@ -126,6 +126,7 @@ class GameInternalController(ControllerBase):
             match = Match.objects.prefetch_related('players__user').get(id=match_id)
             return {
                 'max_players': match.max_players,
+                'is_tutorial': match.is_tutorial,
                 'settings_snapshot': match.settings_snapshot,
                 'players': [
                     {

@@ -25,6 +25,13 @@ class AuthController:
     def me(self, request):
         return request.auth
 
+    @route.post('/tutorial/complete/', auth=JWTAuth(), permissions=[IsAuthenticated])
+    def complete_tutorial(self, request):
+        user = request.auth
+        user.tutorial_completed = True
+        user.save(update_fields=['tutorial_completed'])
+        return {'ok': True}
+
     @route.get('/leaderboard', response=list[LeaderboardEntrySchema], auth=JWTAuth(), permissions=[IsAuthenticated])
     def leaderboard(self, request):
         rows = list(

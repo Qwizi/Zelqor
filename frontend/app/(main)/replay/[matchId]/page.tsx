@@ -90,7 +90,7 @@ export default function ReplayPage() {
         loadSnapshot(snapshotList[0].tick, 0);
       }
     }).catch(() => setLoading(false));
-  }, [authLoading, user, token, matchId, router]);
+  }, [authLoading, user, token, matchId, router, loadSnapshot]);
 
   // ── Load a snapshot ─────────────────────────────────────
   const loadSnapshot = useCallback(async (tick: number, index: number) => {
@@ -168,8 +168,8 @@ export default function ReplayPage() {
     return m;
   }, [buildingTypes]);
 
-  const regions = gameState?.regions ?? {};
-  const players = gameState?.players ?? {};
+  const regions = useMemo(() => gameState?.regions ?? {}, [gameState?.regions]);
+  const players = useMemo(() => gameState?.players ?? {}, [gameState?.players]);
   const currentTick = snapshots[currentIndex]?.tick ?? 0;
   const totalTicks = snapshots.length > 0 ? snapshots[snapshots.length - 1].tick : 0;
 

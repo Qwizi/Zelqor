@@ -33,6 +33,8 @@ pub struct MatchData {
     pub max_players: u32,
     pub players: Vec<MatchPlayerInfo>,
     pub settings_snapshot: serde_json::Value,
+    #[serde(default)]
+    pub is_tutorial: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

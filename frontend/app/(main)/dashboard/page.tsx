@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getMyMatches, getConfig, type Match, type GameModeListItem } from "@/lib/api";
+import { getMyMatches, getConfig, startTutorial, type Match, type GameModeListItem } from "@/lib/api";
 import Link from "next/link";
 import {
   Swords,
@@ -16,12 +16,12 @@ import {
   Search,
   Users,
   Zap,
-  Clock,
   Settings2,
   Shield,
   Target,
   Crown,
   ChevronRight,
+  GraduationCap,
 } from "lucide-react";
 
 const MODE_ICONS: Record<string, typeof Users> = {
@@ -48,6 +48,7 @@ export default function DashboardPage() {
   const [gameModes, setGameModes] = useState<GameModeListItem[]>([]);
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [queueSeconds, setQueueSeconds] = useState(0);
+  const [tutorialLoading, setTutorialLoading] = useState(false);
   const activeMatch = recentMatches.find(
     (match) =>
       (match.status === "selecting" || match.status === "in_progress") &&
@@ -81,21 +82,24 @@ export default function DashboardPage() {
       .then((cfg) => {
         setGameModes(cfg.game_modes);
         const defaultMode = cfg.game_modes.find((m) => m.is_default);
-        if (defaultMode && !selectedMode) {
-          setSelectedMode(defaultMode.slug);
+        if (defaultMode) {
+          setSelectedMode((prev) => prev ?? defaultMode.slug);
         }
       })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!inQueue) {
+    if (!inQueue) return;
+    const start = Date.now();
+    const interval = window.setInterval(
+      () => setQueueSeconds(Math.floor((Date.now() - start) / 1000)),
+      500
+    );
+    return () => {
+      window.clearInterval(interval);
       setQueueSeconds(0);
-      return;
-    }
-    setQueueSeconds(0);
-    const interval = window.setInterval(() => setQueueSeconds((s) => s + 1), 1000);
-    return () => window.clearInterval(interval);
+    };
   }, [inQueue]);
 
   useEffect(() => {
@@ -109,6 +113,18 @@ export default function DashboardPage() {
       router.push(`/game/${activeMatchId}`);
     }
   }, [activeMatchId, router]);
+
+  const handleStartTutorial = async () => {
+    if (!token || tutorialLoading) return;
+    setTutorialLoading(true);
+    try {
+      const result = await startTutorial(token);
+      router.push(`/game/${result.match_id}`);
+    } catch (err) {
+      console.error("Failed to start tutorial:", err);
+      setTutorialLoading(false);
+    }
+  };
 
   if (authLoading || !user) {
     return (
@@ -200,6 +216,40 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
+
+      {/* ── Tutorial card ─────────────────────────────────── */}
+      {user && !user.tutorial_completed && !activeMatch && !inQueue && (
+        <section className="rounded-[24px] border border-amber-300/20 bg-gradient-to-br from-amber-500/[0.06] to-cyan-500/[0.04] p-6 backdrop-blur-xl">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-400/10">
+                <GraduationCap className="h-6 w-6 text-amber-200" />
+              </div>
+              <div>
+                <h3 className="font-display text-xl text-zinc-50">Samouczek</h3>
+                <p className="text-sm text-slate-400">
+                  Nowy w grze? Przejdz krotki samouczek i naucz sie podstaw strategii!
+                </p>
+              </div>
+            </div>
+            <Button
+              size="lg"
+              className="h-11 gap-2 rounded-full border border-amber-300/30 bg-[linear-gradient(135deg,#fbbf24,#f59e0b)] px-6 font-display uppercase tracking-[0.2em] text-slate-950 hover:opacity-90"
+              onClick={handleStartTutorial}
+              disabled={tutorialLoading}
+            >
+              {tutorialLoading ? (
+                <>Ladowanie...</>
+              ) : (
+                <>
+                  <GraduationCap className="h-4 w-4" />
+                  Rozpocznij samouczek
+                </>
+              )}
+            </Button>
+          </div>
+        </section>
+      )}
 
       {/* ── Game mode selector ───────────────────────────────── */}
       {gameModes.length > 0 && !activeMatch && !inQueue && (

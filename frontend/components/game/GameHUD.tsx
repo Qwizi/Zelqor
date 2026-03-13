@@ -63,7 +63,7 @@ export default memo(function GameHUD({
   const formattedClock = useMemo(() => formatClock(tick, tickIntervalMs), [tick, tickIntervalMs]);
 
   return (
-    <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100vw-5rem)] flex-col gap-2 sm:left-4 sm:top-4 sm:max-w-[280px]">
+    <div data-tutorial="hud" className="absolute left-2 top-2 z-10 flex max-w-[calc(100vw-5rem)] flex-col gap-2 sm:left-4 sm:top-4 sm:max-w-[280px]">
       <div className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 bg-slate-950/86 px-3 py-2 text-[11px] text-zinc-200 shadow-[0_12px_32px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-3.5">
         <span className="font-display text-sm text-cyan-200 sm:text-base">{formattedClock}</span>
         <span className="h-1 w-1 rounded-full bg-white/20" />

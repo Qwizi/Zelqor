@@ -59,6 +59,7 @@ interface GameMapProps {
   buildingIcons: Record<string, string>;
   activeEffects?: ActiveEffect[];
   nukeBlackout?: Array<{ rid: string; startTime: number }>;
+  tutorialHighlightRegions?: string[];
   onMapReady?: () => void;
 }
 
@@ -269,6 +270,7 @@ export default memo(function GameMap({
   buildingIcons,
   activeEffects = [],
   nukeBlackout = [],
+  tutorialHighlightRegions = [],
   onMapReady,
 }: GameMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -513,6 +515,18 @@ export default memo(function GameMap({
           "line-color": TARGET_ENEMY,
           "line-width": 2.5,
           "line-dasharray": [4, 3],
+        },
+        filter: ["==", ["get", "id"], ""],
+      });
+      addLayerIfMissing({
+        id: "regions-tutorial-highlight",
+        type: "line",
+        source: "regions",
+        "source-layer": "regions",
+        paint: {
+          "line-color": "#ef4444",
+          "line-width": 3,
+          "line-dasharray": [6, 3],
         },
         filter: ["==", ["get", "id"], ""],
       });
@@ -1179,6 +1193,14 @@ export default memo(function GameMap({
           : ["==", ["get", "id"], ""]
       );
 
+      // Tutorial region highlights
+      map.setFilter(
+        "regions-tutorial-highlight",
+        tutorialHighlightRegions.length > 0
+          ? ["in", ["get", "id"], ["literal", tutorialHighlightRegions]]
+          : ["==", ["get", "id"], ""]
+      );
+
       // Neighbor highlights
       if (highlightedNeighbors.length > 0) {
         map.setFilter("regions-neighbor-glow", [
@@ -1200,7 +1222,7 @@ export default memo(function GameMap({
     } catch {
       // map not ready
     }
-  }, [selectedRegion, targetRegions, highlightedNeighbors, dimmedRegions, myUserId, regions, layersReady]);
+  }, [selectedRegion, targetRegions, highlightedNeighbors, dimmedRegions, tutorialHighlightRegions, myUserId, regions, layersReady]);
 
   // ── Nuke blackout — darken provinces after nuke impact ──────
   //

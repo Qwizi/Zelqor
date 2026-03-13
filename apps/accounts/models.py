@@ -14,6 +14,7 @@ class User(AbstractUser):
     elo_rating = models.IntegerField(default=1000)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     is_bot = models.BooleanField(default=False)
+    tutorial_completed = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']

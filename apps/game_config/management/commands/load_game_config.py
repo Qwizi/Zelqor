@@ -244,6 +244,28 @@ class Command(BaseCommand):
                 "elo_k_factor": 16,
                 "order": 10,
             },
+            {
+                "name": "Samouczek",
+                "slug": "tutorial",
+                "description": "Samouczek dla nowych graczy. 1v1 ze slabym botem.",
+                "max_players": 2,
+                "min_players": 2,
+                "is_active": False,
+                "is_default": False,
+                "tick_interval_ms": 1000,
+                "capital_selection_time_seconds": 60,
+                "match_duration_limit_minutes": 30,
+                "starting_currency": 500,
+                "starting_units": 20,
+                "neutral_region_units": 2,
+                "base_unit_generation_rate": 2.0,
+                "capital_generation_bonus": 4.0,
+                "base_currency_per_tick": 10.0,
+                "region_currency_per_tick": 2.0,
+                "combat_randomness": 0.1,
+                "elo_k_factor": 0,
+                "order": 99,
+            },
         ]
 
         # Base values from GameSettings for fields not overridden

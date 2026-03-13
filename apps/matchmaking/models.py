@@ -27,6 +27,7 @@ class Match(models.Model):
         null=True, blank=True, related_name='won_matches',
     )
     settings_snapshot = models.JSONField(default=dict, blank=True, help_text='Snapshot of GameSettings at match start')
+    is_tutorial = models.BooleanField(default=False)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

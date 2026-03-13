@@ -23,7 +23,10 @@ export function useMatchmaking(): UseMatchmakingReturn {
   const [fillBots, setFillBots] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
   const fillBotsRef = useRef(fillBots);
-  fillBotsRef.current = fillBots;
+
+  useEffect(() => {
+    fillBotsRef.current = fillBots;
+  }, [fillBots]);
 
   const handleMessage = useCallback((msg: WSMessage) => {
     switch (msg.type) {

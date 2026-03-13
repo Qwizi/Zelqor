@@ -28,6 +28,8 @@ import MobileBuildSheet from "@/components/game/MobileBuildSheet";
 import AbilityBar from "@/components/game/AbilityBar";
 import { Loader2 } from "lucide-react";
 import { useGameNotifications, GameNotificationOverlay } from "@/components/game/GameNotification";
+import { useTutorial } from "@/hooks/useTutorial";
+import TutorialOverlay from "@/components/game/TutorialOverlay";
 
 function getUnitRules(units: UnitType[], unitSlug: string | null | undefined) {
   return (
@@ -89,8 +91,9 @@ export default function GamePage({
     move,
     build,
     produceUnit,
-    useAbility,
+    useAbility: castAbility,
     leaveMatch,
+    send,
   } = useGameSocket(matchId);
 
   const { startMusic, stopMusic, playSound, toggleMute, muted, currentTrackIndex, selectTrack } = useAudio();
@@ -111,6 +114,10 @@ export default function GamePage({
   const [gameEndCountdown, setGameEndCountdown] = useState(10);
   const myUserId = user?.id || "";
   const status = gameState?.meta?.status || "loading";
+
+  // Tutorial
+  const isTutorial = gameState?.meta?.is_tutorial === "1";
+  const tutorial = useTutorial(gameState, user?.id, isTutorial, send);
 
   // Keep a ref to gameState so event-driven animation effect can read latest players/colors
   const gameStateRef = useRef(gameState);
@@ -178,6 +185,21 @@ export default function GamePage({
     }
     return { neighborMap, centroids };
   }, [regionGraph]);
+
+  const tutorialHighlightRegions = useMemo(() => {
+    if (!tutorial.isActive || !tutorial.currentStep?.getHighlightRegions || !gameState || !user?.id) return [];
+    return tutorial.currentStep.getHighlightRegions(gameState, user.id, neighborMap);
+  }, [tutorial.isActive, tutorial.currentStep, gameState, user?.id, neighborMap]);
+
+  // In tutorial, override ability/building costs to match the snapshot values
+  const effectiveAbilities = useMemo(() => {
+    if (!isTutorial) return abilitiesConfig;
+    return abilitiesConfig.map((a) => ({ ...a, currency_cost: 10, cooldown_ticks: 5 }));
+  }, [isTutorial, abilitiesConfig]);
+  const effectiveBuildings = useMemo(() => {
+    if (!isTutorial) return buildings;
+    return buildings.map((b) => ({ ...b, cost: 0, currency_cost: 10, build_time_ticks: 3 }));
+  }, [isTutorial, buildings]);
 
   // Building slug -> asset key for asset-based symbol markers on the map.
   const buildingIcons = useMemo(() => {
@@ -367,7 +389,7 @@ export default function GamePage({
   // Ability targeting: compute valid target regions via BFS from owned regions
   const abilityTargets = useMemo(() => {
     if (!selectedAbility || status !== "in_progress") return [];
-    const abilityDef = abilitiesConfig.find((a) => a.slug === selectedAbility);
+    const abilityDef = effectiveAbilities.find((a) => a.slug === selectedAbility);
     if (!abilityDef) return [];
 
     const mapRegions = gameState?.regions || {};
@@ -421,7 +443,7 @@ export default function GamePage({
     }
 
     return validTargets;
-  }, [selectedAbility, abilitiesConfig, gameState?.regions, myUserId, neighborMap, status]);
+  }, [selectedAbility, effectiveAbilities, gameState?.regions, myUserId, neighborMap, status]);
 
   // Per-map minimum distance between capitals (comes from MapConfig → settings_snapshot → Redis meta)
   const MIN_CAPITAL_DISTANCE = parseInt(
@@ -614,7 +636,6 @@ export default function GamePage({
     }
 
     if (newAnims.length > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAnimations((prev) => [...prev, ...newAnims]);
     }
   }, [events, myUserId, unitsConfig]);
@@ -659,7 +680,7 @@ export default function GamePage({
 
       // Ability targeting mode — use ability on clicked region
       if (selectedAbility) {
-        const abilityDef = abilitiesConfig.find((a) => a.slug === selectedAbility);
+        const abilityDef = effectiveAbilities.find((a) => a.slug === selectedAbility);
         if (abilityDef) {
           const isValidTarget =
             abilityDef.target_type === "any" ||
@@ -674,7 +695,7 @@ export default function GamePage({
             );
             return;
           }
-          useAbility(regionId, selectedAbility);
+          castAbility(regionId, selectedAbility);
           setSelectedAbility(null);
           return;
         }
@@ -734,6 +755,7 @@ export default function GamePage({
     [
       status,
       gameState,
+      myUserId,
       selectedRegion,
       isSource,
       highlightedNeighbors,
@@ -745,8 +767,8 @@ export default function GamePage({
       isTargetReachableForUnitType,
       selectedActionUnitType,
       selectedAbility,
-      abilitiesConfig,
-      useAbility,
+      effectiveAbilities,
+      castAbility,
       notify,
     ]
   );
@@ -872,7 +894,7 @@ export default function GamePage({
   // ── Game end auto-redirect countdown ───────────────────────
 
   useEffect(() => {
-    if (status !== "finished") return;
+    if (status !== "finished" || isTutorial) return;
     setGameEndCountdown(10);
     const interval = setInterval(() => {
       setGameEndCountdown((prev) => {
@@ -885,7 +907,7 @@ export default function GamePage({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [status, matchId, router]);
+  }, [status, matchId, router, isTutorial]);
 
   // ── Events ─────────────────────────────────────────────────
 
@@ -1046,7 +1068,7 @@ export default function GamePage({
         notify(e.message as string, "error");
       }
     }
-  }, [events, myUserId, gameState?.players, playSound, notify]);
+  }, [events, myUserId, neighborMap, gameState?.players, playSound, notify]);
 
   // ── Render ─────────────────────────────────────────────────
 
@@ -1099,6 +1121,18 @@ export default function GamePage({
       )}
 
       <GameNotificationOverlay notifications={notifications} onDismiss={dismiss} />
+
+      {tutorial.isActive && tutorial.currentStep && (
+        <TutorialOverlay
+          step={tutorial.currentStep}
+          stepIndex={tutorial.stepIndex}
+          totalSteps={tutorial.totalSteps}
+          canGoBack={tutorial.canGoBack}
+          onAdvance={tutorial.advanceStep}
+          onGoBack={tutorial.goBack}
+          onSkip={tutorial.skipTutorial}
+        />
+      )}
 
       <div className="absolute right-2 top-2 z-20 flex items-center gap-2 sm:right-4 sm:top-4">
         <div className="relative">
@@ -1202,7 +1236,7 @@ export default function GamePage({
         </div>
       )}
 
-      {status === "finished" && (
+      {status === "finished" && !tutorial.isActive && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
           <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/92 p-0 text-center shadow-[0_32px_80px_rgba(0,0,0,0.6)] backdrop-blur-xl">
             <div className="relative h-36 w-full overflow-hidden">
@@ -1294,22 +1328,23 @@ export default function GamePage({
 
       {/* Map */}
       <GameMap
-        tilesUrl={getRegionTilesUrl(matchId)}
-        dimmedRegions={dimmedRegions}
-        centroids={centroids}
-        regions={regions}
-        players={players}
-        selectedRegion={selectedRegion}
-        targetRegions={actionTargets}
-        highlightedNeighbors={selectedAbility ? abilityTargets : highlightedNeighbors}
-        onRegionClick={handleRegionClick}
-        myUserId={myUserId}
-        animations={animations}
-        buildingIcons={buildingIcons}
-        activeEffects={gameState?.active_effects}
-        nukeBlackout={nukeBlackout}
-        onMapReady={handleMapReady}
-      />
+          tilesUrl={getRegionTilesUrl(matchId)}
+          dimmedRegions={dimmedRegions}
+          centroids={centroids}
+          regions={regions}
+          players={players}
+          selectedRegion={selectedRegion}
+          targetRegions={actionTargets}
+          highlightedNeighbors={selectedAbility ? abilityTargets : highlightedNeighbors}
+          onRegionClick={handleRegionClick}
+          myUserId={myUserId}
+          animations={animations}
+          buildingIcons={buildingIcons}
+          activeEffects={gameState?.active_effects}
+          nukeBlackout={nukeBlackout}
+          tutorialHighlightRegions={tutorialHighlightRegions}
+          onMapReady={handleMapReady}
+        />
 
       {/* HUD */}
       <GameHUD
@@ -1328,7 +1363,7 @@ export default function GamePage({
       <BuildQueue
         queue={buildingsQueue}
         unitQueue={unitQueue}
-        buildings={buildings}
+        buildings={effectiveBuildings}
         units={unitsConfig}
         myUserId={myUserId}
       />
@@ -1353,14 +1388,14 @@ export default function GamePage({
 
       {/* Region panel – desktop only */}
       {sourceRegionData && selectedRegion && actionTargets.length === 0 && (
-        <div className="hidden sm:block">
+        <div className="hidden sm:block" data-tutorial="region-panel">
           <RegionPanel
             regionId={selectedRegion}
             region={sourceRegionData}
             players={players}
             myUserId={myUserId}
             myCurrency={myCurrency}
-            buildings={buildings}
+            buildings={effectiveBuildings}
             buildingQueue={buildingsQueue}
             units={unitsConfig}
             onBuild={handleBuild}
@@ -1371,14 +1406,15 @@ export default function GamePage({
       )}
 
       {/* Ability Bar */}
-      {status === "in_progress" && abilitiesConfig.length > 0 && (
+      {status === "in_progress" && effectiveAbilities.length > 0 && (
         <AbilityBar
-          abilities={abilitiesConfig}
+          abilities={effectiveAbilities}
           myCurrency={myCurrency}
           abilityCooldowns={gameState?.players[myUserId]?.ability_cooldowns ?? {}}
           currentTick={currentTick}
           selectedAbility={selectedAbility}
           onSelectAbility={handleSelectAbility}
+          allowedAbility={tutorial.isActive ? (tutorial.currentStep?.allowedAbility ?? null) : undefined}
         />
       )}
 
@@ -1387,7 +1423,7 @@ export default function GamePage({
         <div className="absolute left-1/2 top-12 z-20 -translate-x-1/2 sm:top-16">
           <div className="flex items-center gap-2 rounded-full border border-amber-300/20 bg-slate-950/88 px-4 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl">
             <span className="text-sm text-amber-200">
-              Wybierz cel dla: {abilitiesConfig.find((a) => a.slug === selectedAbility)?.name}
+              Wybierz cel dla: {effectiveAbilities.find((a) => a.slug === selectedAbility)?.name}
             </span>
             <button
               onClick={() => setSelectedAbility(null)}
@@ -1405,7 +1441,7 @@ export default function GamePage({
           region={sourceRegionData}
           regionId={selectedRegion}
           myCurrency={myCurrency}
-          buildings={buildings}
+          buildings={effectiveBuildings}
           buildingQueue={buildingsQueue}
           units={unitsConfig}
           onBuild={handleBuild}
