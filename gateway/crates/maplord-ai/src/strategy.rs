@@ -371,6 +371,10 @@ mod tests {
                 currency_accum: 0.0,
                 ability_cooldowns: HashMap::new(),
                 is_bot: true,
+                total_units_produced: 0,
+                total_units_lost: 0,
+                total_regions_conquered: 0,
+                total_buildings_built: 0,
             },
         );
 
@@ -441,6 +445,10 @@ mod tests {
                 currency_accum: 0.0,
                 ability_cooldowns: HashMap::new(),
                 is_bot: true,
+                total_units_produced: 0,
+                total_units_lost: 0,
+                total_regions_conquered: 0,
+                total_buildings_built: 0,
             },
         );
 

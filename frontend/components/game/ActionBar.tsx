@@ -75,8 +75,6 @@ export default memo(function ActionBar({
   const maxUnits = frozenMaxRef.current;
 
   const [totalUnits, setTotalUnits] = useState(Math.max(1, Math.floor(maxUnits / 2) || 1));
-  const [mobileStep, setMobileStep] = useState<"setup" | "targets">("setup");
-
   // Reset slider when unit type changes
   useEffect(() => {
     setTotalUnits(Math.max(1, Math.floor(maxUnits / 2) || 1));
@@ -95,14 +93,11 @@ export default memo(function ActionBar({
   return (
     <div className="absolute inset-x-0 bottom-0 z-30 px-2 pb-2 sm:left-1/2 sm:right-auto sm:w-[min(600px,calc(100vw-1rem))] sm:-translate-x-1/2 sm:px-0 sm:pb-3">
       <div className={`overflow-hidden rounded-[22px] border bg-slate-950/94 shadow-[0_-10px_32px_rgba(0,0,0,0.28)] backdrop-blur-xl ${accentClass}`}>
-        <div className="sm:hidden p-2">
-          <div className="mb-1.5 flex items-center justify-between gap-2">
+        <div className="sm:hidden p-2 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
                 {sourceName}
-              </div>
-              <div className="text-[11px] text-zinc-400">
-                {mobileStep === "setup" ? "Jednostka i sila" : "Wybierz cele na mapie"}
               </div>
             </div>
             <button
@@ -120,126 +115,83 @@ export default memo(function ActionBar({
             </button>
           </div>
 
-          {mobileStep === "setup" ? (
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-1.5">
-                {unitTypes.map(([unitType, count]) => {
-                  const active = unitType === selectedUnitType;
-                  return (
-                    <button
-                      key={unitType}
-                      onClick={() => onSelectedUnitTypeChange(unitType)}
-                      className={`inline-flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-2 text-left ${
-                        active
-                          ? "border-cyan-300/30 bg-cyan-400/15 text-cyan-100"
-                          : "border-white/10 bg-white/[0.04] text-zinc-300"
-                      }`}
-                    >
-                      <Image
-                        src={getUnitAsset(unitType)}
-                        alt=""
-                        width={18}
-                        height={18}
-                        className="h-[18px] w-[18px] object-contain"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[11px] font-medium leading-none">
-                          {getUnitLabel(unitType)}
-                        </span>
-                        <span className={`mt-0.5 block text-[10px] ${active ? "text-cyan-200/80" : "text-zinc-500"}`}>
-                          {count}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
-                <div className="mb-1.5 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                  <span>Wysylasz</span>
-                  <span className="font-display text-xs text-zinc-100">{safeTotalUnits} / {maxUnits}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={minUnits}
-                    max={maxUnits}
-                    value={safeTotalUnits}
-                    onChange={(e) => setTotalUnits(Number(e.target.value))}
-                    className={`min-w-0 flex-1 ${hasAttack ? "accent-red-500" : "accent-cyan-400"}`}
-                  />
-                </div>
-              </div>
-
-              <Button
-                onClick={() => setMobileStep("targets")}
-                className="h-9 w-full bg-cyan-500 text-slate-950 hover:bg-cyan-400"
-              >
-                Wybierz cele
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <div className="grid grid-cols-3 gap-2">
-                <QuickPill label="Typ" valueLabel={getUnitLabel(selectedUnitType)} />
-                <QuickPill label="Cele" value={targets.length} />
-                <QuickPill label="Moc" value={safeTotalUnits * selectedUnitScale} />
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
-                    Cele
-                  </div>
-                  <div className="text-[10px] text-zinc-500">
-                    {targets.length === 0 ? "Wybierz na mapie" : "Dotknij, aby usunac"}
-                  </div>
-                </div>
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-                  {targets.length > 0 ? (
-                    targets.map((target, index) => (
-                      <button
-                        key={target.regionId}
-                        onClick={() => onRemoveTarget(target.regionId)}
-                        className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-left text-[11px] ${
-                          target.isAttack
-                            ? "border-red-400/10 bg-red-950/25 text-red-100"
-                            : "border-cyan-400/10 bg-cyan-950/25 text-cyan-100"
-                        }`}
-                      >
-                        <span className="max-w-[110px] truncate">{target.name}</span>
-                        <span className="text-zinc-400">{allocations[index].units * selectedUnitScale}</span>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="text-[11px] text-zinc-500">
-                      Panel zostaje niski, a mapa jest glownym UI wyboru celu.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setMobileStep("setup")}
-                  className="h-9 border-zinc-700 text-zinc-300"
-                >
-                  Wstecz
-                </Button>
-                <Button
-                  onClick={() => onConfirm({ allocations, unitType: selectedUnitType })}
-                  disabled={targets.length === 0}
-                  className={`h-9 ${
-                    hasAttack ? "bg-red-600 text-white hover:bg-red-500" : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+          <div className="flex gap-1.5 overflow-x-auto">
+            {unitTypes.map(([unitType, count]) => {
+              const active = unitType === selectedUnitType;
+              return (
+                <button
+                  key={unitType}
+                  onClick={() => onSelectedUnitTypeChange(unitType)}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-2 py-1.5 text-left ${
+                    active
+                      ? "border-cyan-300/30 bg-cyan-400/15 text-cyan-100"
+                      : "border-white/10 bg-white/[0.04] text-zinc-300"
                   }`}
                 >
-                  {hasAttack ? "Atak" : "Ruch"}
-                </Button>
-              </div>
-            </div>
-          )}
+                  <Image
+                    src={getUnitAsset(unitType)}
+                    alt=""
+                    width={16}
+                    height={16}
+                    className="h-4 w-4 object-contain"
+                  />
+                  <span className="text-[11px] font-medium">{getUnitLabel(unitType)}</span>
+                  <span className={`text-[10px] ${active ? "text-cyan-200/80" : "text-zinc-500"}`}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+            <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Wysylasz</span>
+            <input
+              type="range"
+              min={minUnits}
+              max={maxUnits}
+              value={safeTotalUnits}
+              onChange={(e) => setTotalUnits(Number(e.target.value))}
+              className={`min-w-0 flex-1 ${hasAttack ? "accent-red-500" : "accent-cyan-400"}`}
+            />
+            <span className="font-display text-xs text-zinc-100">{safeTotalUnits}/{maxUnits}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            {targets.length > 0 ? (
+              targets.map((target, index) => (
+                <button
+                  key={target.regionId}
+                  onClick={() => onRemoveTarget(target.regionId)}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] ${
+                    target.isAttack
+                      ? "border-red-400/10 bg-red-950/25 text-red-100"
+                      : "border-cyan-400/10 bg-cyan-950/25 text-cyan-100"
+                  }`}
+                >
+                  <span className="max-w-[90px] truncate">{target.name}</span>
+                  <span className="text-zinc-400">{allocations[index].units * selectedUnitScale}</span>
+                </button>
+              ))
+            ) : (
+              <div className="text-[11px] text-zinc-500">Wybierz cele na mapie</div>
+            )}
+          </div>
+
+          <Button
+            onClick={() => onConfirm({ allocations, unitType: selectedUnitType })}
+            disabled={targets.length === 0}
+            className={`h-9 w-full ${
+              hasAttack ? "bg-red-600 text-white hover:bg-red-500" : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+            }`}
+          >
+            <Image
+              src={getActionAsset(hasAttack ? "attack" : "move", selectedUnitType)}
+              alt=""
+              width={14}
+              height={14}
+              className="mr-1.5 h-3.5 w-3.5 object-contain"
+            />
+            {hasAttack ? "Atak" : "Ruch"}
+          </Button>
         </div>
 
         <div className="hidden sm:block p-2.5 sm:px-3 sm:py-2.5">
@@ -366,19 +318,3 @@ export default memo(function ActionBar({
   );
 });
 
-const QuickPill = memo(function QuickPill({
-  label,
-  value,
-  valueLabel,
-}: {
-  label: string;
-  value?: number;
-  valueLabel?: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5">
-      <div className="text-[9px] uppercase tracking-[0.14em] text-slate-500">{label}</div>
-      <div className="font-display text-sm text-zinc-50">{valueLabel ?? value ?? 0}</div>
-    </div>
-  );
-});

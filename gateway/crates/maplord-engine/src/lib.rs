@@ -115,13 +115,14 @@ impl GameEngine {
         events.extend(self.process_active_effects(regions, active_effects));
 
         events.extend(self.generate_currency(players, regions));
-        events.extend(self.generate_units_with_effects(regions, active_effects));
+        events.extend(self.generate_units_with_effects(players, regions, active_effects));
 
-        let (remaining_buildings, build_events) = self.process_buildings(regions, buildings_queue);
+        let (remaining_buildings, build_events) =
+            self.process_buildings(players, regions, buildings_queue);
         *buildings_queue = remaining_buildings;
         events.extend(build_events);
 
-        let (remaining_units, unit_events) = self.process_unit_queue(regions, unit_queue);
+        let (remaining_units, unit_events) = self.process_unit_queue(players, regions, unit_queue);
         *unit_queue = remaining_units;
         events.extend(unit_events);
 
@@ -203,6 +204,7 @@ impl GameEngine {
 
     fn process_buildings(
         &self,
+        players: &mut HashMap<String, Player>,
         regions: &mut HashMap<String, Region>,
         buildings_queue: &[BuildingQueueItem],
     ) -> (Vec<BuildingQueueItem>, Vec<Event>) {
@@ -230,6 +232,10 @@ impl GameEngine {
             let building_count = *count;
             self.recompute_region_building_stats(region);
 
+            if let Some(player) = players.get_mut(&building.player_id) {
+                player.total_buildings_built += 1;
+            }
+
             events.push(Event::BuildingComplete {
                 region_id: building.region_id.clone(),
                 building_type: building.building_type.clone(),
@@ -245,6 +251,7 @@ impl GameEngine {
 
     fn process_unit_queue(
         &self,
+        players: &mut HashMap<String, Player>,
         regions: &mut HashMap<String, Region>,
         unit_queue: &[UnitQueueItem],
     ) -> (Vec<UnitQueueItem>, Vec<Event>) {
@@ -284,12 +291,19 @@ impl GameEngine {
                 continue;
             }
 
-            add_units(region, &item.unit_type, item.quantity.unwrap_or(1));
+            let qty = item.quantity.unwrap_or(1);
+            add_units(region, &item.unit_type, qty);
+
+            if let Some(player) = players.get_mut(&item.player_id) {
+                player.total_units_produced =
+                    player.total_units_produced.saturating_add(qty as u32);
+            }
+
             events.push(Event::UnitProductionComplete {
                 region_id: item.region_id.clone(),
                 unit_type: item.unit_type.clone(),
                 player_id: item.player_id.clone(),
-                quantity: item.quantity.unwrap_or(1),
+                quantity: qty,
             });
         }
 
@@ -298,7 +312,7 @@ impl GameEngine {
 
     // --- Unit generation with virus reduction ---
 
-    fn generate_units_with_effects(&self, regions: &mut HashMap<String, Region>, active_effects: &[ActiveEffect]) -> Vec<Event> {
+    fn generate_units_with_effects(&self, players: &mut HashMap<String, Player>, regions: &mut HashMap<String, Region>, active_effects: &[ActiveEffect]) -> Vec<Event> {
         // Collect virus-affected regions for production reduction
         let mut virus_regions: HashMap<String, f64> = HashMap::new();
         for effect in active_effects {
@@ -369,8 +383,15 @@ impl GameEngine {
             region.unit_accum = canonical;
             let whole = region.unit_accum as i64;
             if whole > 0 {
+                let owner_id = region.owner_id.clone();
                 add_units(region, &default_unit_type, whole);
                 region.unit_accum -= whole as f64;
+                if let Some(oid) = owner_id {
+                    if let Some(player) = players.get_mut(&oid) {
+                        player.total_units_produced =
+                            player.total_units_produced.saturating_add(whole as u32);
+                    }
+                }
             }
         }
 
@@ -1387,7 +1408,7 @@ impl GameEngine {
     fn resolve_attack_arrival(
         &self,
         item: &TransitQueueItem,
-        _players: &mut HashMap<String, Player>,
+        players: &mut HashMap<String, Player>,
         regions: &mut HashMap<String, Region>,
     ) -> Vec<Event> {
         let mut events = Vec::new();
@@ -1428,6 +1449,10 @@ impl GameEngine {
         let defender_power =
             self.get_region_defender_power(target, defender_bonus + defense_building);
 
+        // Snapshot defending unit total before any mutation so we can compute losses.
+        let defender_total_before: i64 = target.units.values().sum();
+        let old_owner_id: Option<String> = target.owner_id.clone();
+
         let mut rng = rand::thread_rng();
         let attacker_roll =
             attacker_power * (1.0 + rng.gen_range(-randomness..=randomness));
@@ -1444,11 +1469,26 @@ impl GameEngine {
             let surviving =
                 1i64.max((surviving_effective / unit_scale as f64).round() as i64);
 
-            let old_owner = target.owner_id.clone();
             let target = regions.get_mut(&item.target_region_id).unwrap();
             target.owner_id = Some(item.player_id.clone());
             target.units.clear();
             receive_units_in_region(target, &item.unit_type, surviving, self);
+
+            // Attacker: all defending units were wiped out; record losses for both sides.
+            let attacker_lost = (item.units - surviving).max(0) as u32;
+            if let Some(player) = players.get_mut(&item.player_id) {
+                player.total_units_lost =
+                    player.total_units_lost.saturating_add(attacker_lost);
+                player.total_regions_conquered += 1;
+            }
+            // Defender (previous owner): all their units in the region were destroyed.
+            if let Some(ref prev_owner) = old_owner_id {
+                let defender_lost = defender_total_before.max(0) as u32;
+                if let Some(player) = players.get_mut(prev_owner.as_str()) {
+                    player.total_units_lost =
+                        player.total_units_lost.saturating_add(defender_lost);
+                }
+            }
 
             events.push(Event::AttackSuccess {
                 source_region_id: item.source_region_id.clone(),
@@ -1456,17 +1496,17 @@ impl GameEngine {
                 player_id: item.player_id.clone(),
                 units: item.units,
                 unit_type: item.unit_type.clone(),
-                old_owner_id: old_owner.clone(),
+                old_owner_id: old_owner_id.clone(),
                 surviving_units: surviving,
             });
 
             let target = regions.get_mut(&item.target_region_id).unwrap();
-            if target.is_capital && old_owner.is_some() {
+            if target.is_capital && old_owner_id.is_some() {
                 target.is_capital = false;
                 events.push(Event::CapitalCaptured {
                     region_id: item.target_region_id.clone(),
                     captured_by: item.player_id.clone(),
-                    lost_by: old_owner.unwrap(),
+                    lost_by: old_owner_id.unwrap(),
                 });
             }
         } else {
@@ -1484,6 +1524,21 @@ impl GameEngine {
             target.units = reduced_units;
             sync_region_unit_meta(target, self);
             let surviving_defenders = target.unit_count;
+
+            // All attacking units were destroyed in the failed assault.
+            if let Some(player) = players.get_mut(&item.player_id) {
+                player.total_units_lost =
+                    player.total_units_lost.saturating_add(item.units as u32);
+            }
+            // Defender: units killed = total_before - survivors.
+            if let Some(ref prev_owner) = old_owner_id {
+                let defender_lost =
+                    (defender_total_before - surviving_defenders).max(0) as u32;
+                if let Some(player) = players.get_mut(prev_owner.as_str()) {
+                    player.total_units_lost =
+                        player.total_units_lost.saturating_add(defender_lost);
+                }
+            }
 
             events.push(Event::AttackFailed {
                 source_region_id: item.source_region_id.clone(),
@@ -1883,6 +1938,9 @@ fn normalize_stationed_units(region: &mut Region, engine: &GameEngine) {
         if can_station_unit(region, unit_type, engine) {
             *normalized.entry(unit_type.clone()).or_insert(0) += count;
         }
+        // Units that can't station are dropped. For embarked units (scale > 1),
+        // receive_units_in_region already added their infantry backing, so
+        // the manpower is preserved as infantry — effectively a conversion.
     }
     region.units = normalized;
 }
@@ -1896,7 +1954,8 @@ fn can_station_unit(region: &Region, unit_type: &str, engine: &GameEngine) -> bo
     if config.movement_type == "sea" && !region.is_coastal {
         return false;
     }
-    // Special units require their production building to station
+    // Special units require their production building to station;
+    // without one they are dropped and their infantry backing remains.
     if let Some(ref produced_by) = config.produced_by_slug {
         let building_count = region.buildings.get(produced_by).copied().unwrap_or(0);
         if building_count <= 0 {

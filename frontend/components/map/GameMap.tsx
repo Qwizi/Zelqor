@@ -331,8 +331,8 @@ export default memo(function GameMap({
       zoom: 4,
       maxZoom: 7,
       minZoom: 1.5,
+      renderWorldCopies: false,
     });
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
     mapRef.current = map;
     return () => {
       capitalMarkers.forEach((marker) => marker.remove());

@@ -100,19 +100,11 @@ def finalize_match_results_sync(
         for mp in match.players.select_related("user").all():
             pid = str(mp.user_id)
             player_info = players_data.get(pid, {})
-            owned_regions = sum(
-                1 for r in regions.values() if r.get("owner_id") == pid
-            )
-            total_units = sum(
-                r.get("unit_count", 0)
-                for r in regions.values()
-                if r.get("owner_id") == pid
-            )
-            buildings_count = sum(
-                sum(int(count or 0) for count in (r.get("buildings") or {}).values())
-                for r in regions.values()
-                if r.get("owner_id") == pid
-            )
+
+            owned_regions = int(player_info.get("total_regions_conquered", 0))
+            total_units = int(player_info.get("total_units_produced", 0))
+            cumulative_units_lost = int(player_info.get("total_units_lost", 0))
+            buildings_count = int(player_info.get("total_buildings_built", 0))
 
             player_rows.append({
                 "match_player": mp,
@@ -123,6 +115,7 @@ def finalize_match_results_sync(
                 "eliminated_tick": int(player_info.get("eliminated_tick") or 0),
                 "owned_regions": owned_regions,
                 "total_units": total_units,
+                "units_lost": cumulative_units_lost,
                 "buildings_built": buildings_count,
                 "rating_before": int(mp.user.elo_rating),
             })
@@ -226,6 +219,7 @@ def finalize_match_results_sync(
                 placement=row["placement"],
                 regions_conquered=row["owned_regions"],
                 units_produced=row["total_units"],
+                units_lost=row.get("units_lost", 0),
                 buildings_built=row["buildings_built"],
                 elo_change=int(elo_change),
             )

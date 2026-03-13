@@ -204,6 +204,18 @@ pub struct Player {
     pub ability_cooldowns: HashMap<String, i64>,
     #[serde(default)]
     pub is_bot: bool,
+    /// Cumulative units produced via the unit production queue during the match.
+    #[serde(default)]
+    pub total_units_produced: u32,
+    /// Cumulative units lost in combat (attacking units that died, or defending units wiped out).
+    #[serde(default)]
+    pub total_units_lost: u32,
+    /// Cumulative regions conquered (successful attacks that changed ownership).
+    #[serde(default)]
+    pub total_regions_conquered: u32,
+    /// Cumulative buildings constructed during the match.
+    #[serde(default)]
+    pub total_buildings_built: u32,
 }
 
 fn default_true() -> bool { true }

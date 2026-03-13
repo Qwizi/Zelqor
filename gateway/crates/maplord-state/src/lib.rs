@@ -381,6 +381,102 @@ impl GameStateManager {
         })
     }
 
+    // --- State validation and recovery ---
+
+    pub async fn validate_state(&self) -> redis::RedisResult<bool> {
+        let mut conn = self.redis.clone();
+
+        // Check meta hash exists and has a parseable current_tick
+        let meta: HashMap<String, String> = conn.hgetall(self.key("meta")).await?;
+        if meta.is_empty() {
+            return Ok(false);
+        }
+        let tick_valid = meta
+            .get("current_tick")
+            .and_then(|v| v.parse::<i64>().ok())
+            .is_some();
+        if !tick_valid {
+            return Ok(false);
+        }
+
+        // Check players hash is non-empty
+        let player_count: i64 = conn.hlen(self.key("players")).await?;
+        if player_count == 0 {
+            return Ok(false);
+        }
+
+        // Check regions hash is non-empty
+        let region_count: i64 = conn.hlen(self.key("regions")).await?;
+        if region_count == 0 {
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
+
+    pub async fn restore_full_state(&self, full_state: &FullGameState) -> redis::RedisResult<()> {
+        let mut pipe = redis::pipe();
+        pipe.atomic();
+
+        // Delete all existing keys
+        pipe.del(self.key("meta")).ignore();
+        pipe.del(self.key("players")).ignore();
+        pipe.del(self.key("regions")).ignore();
+        pipe.del(self.key("buildings_queue")).ignore();
+        pipe.del(self.key("unit_queue")).ignore();
+        pipe.del(self.key("transit_queue")).ignore();
+        pipe.del(self.key("active_effects")).ignore();
+        pipe.del(self.key("actions")).ignore();
+
+        // Restore meta fields
+        let meta_key = self.key("meta");
+        for (field, value) in &full_state.meta {
+            pipe.hset(&meta_key, field, value).ignore();
+        }
+
+        // Restore players
+        let players_key = self.key("players");
+        for (player_id, data) in &full_state.players {
+            let packed = rmp_serde::to_vec(data).unwrap();
+            pipe.hset(&players_key, player_id, packed).ignore();
+        }
+
+        // Restore regions
+        let regions_key = self.key("regions");
+        for (region_id, data) in &full_state.regions {
+            let packed = rmp_serde::to_vec(data).unwrap();
+            pipe.hset(&regions_key, region_id, packed).ignore();
+        }
+
+        // Restore queue lists
+        let buildings_key = self.key("buildings_queue");
+        for item in &full_state.buildings_queue {
+            let packed = rmp_serde::to_vec(item).unwrap();
+            pipe.rpush(&buildings_key, packed).ignore();
+        }
+
+        let unit_key = self.key("unit_queue");
+        for item in &full_state.unit_queue {
+            let packed = rmp_serde::to_vec(item).unwrap();
+            pipe.rpush(&unit_key, packed).ignore();
+        }
+
+        let transit_key = self.key("transit_queue");
+        for item in &full_state.transit_queue {
+            let packed = rmp_serde::to_vec(item).unwrap();
+            pipe.rpush(&transit_key, packed).ignore();
+        }
+
+        let effects_key = self.key("active_effects");
+        for item in &full_state.active_effects {
+            let packed = rmp_serde::to_vec(item).unwrap();
+            pipe.rpush(&effects_key, packed).ignore();
+        }
+
+        let mut conn = self.redis.clone();
+        pipe.exec_async(&mut conn).await
+    }
+
     // --- Cleanup ---
 
     pub async fn cleanup(&self) -> redis::RedisResult<()> {

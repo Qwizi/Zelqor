@@ -6,7 +6,7 @@ use axum::response::Response;
 use dashmap::DashMap;
 use maplord_ai::BotBrain;
 use maplord_engine::{Action, Event, GameEngine, GameSettings, Player, Region};
-use maplord_state::GameStateManager;
+use maplord_state::{FullGameState, GameStateManager};
 use serde_json::json;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -334,6 +334,8 @@ async fn handle_select_capital(
         // Set capital
         let mut player = player;
         player.capital_region_id = Some(region_id.clone());
+        player.total_regions_conquered += 1;
+        player.total_units_produced = player.total_units_produced.saturating_add(starting_units as u32);
         state_mgr.set_player(user_id, &player).await?;
 
         let mut region = region;
@@ -446,11 +448,68 @@ async fn game_loop_supervised(
                     "Game loop crashed (attempt {attempt}/{MAX_RETRIES}) for match {match_id}: {e}"
                 );
                 if attempt < MAX_RETRIES {
-                    broadcast_to_match(
-                        match_id,
-                        &json!({"type": "error", "message": "Chwilowy błąd serwera, wznawianie gry..."}),
-                        &state.game_connections,
-                    );
+                    match state_mgr.validate_state().await {
+                        Ok(false) => {
+                            broadcast_to_match(
+                                match_id,
+                                &json!({"type": "error", "message": "Wykryto problem z serwerem, przywracanie stanu gry..."}),
+                                &state.game_connections,
+                            );
+                            match state.django.get_latest_snapshot(match_id).await {
+                                Ok(snapshot) => {
+                                    if let (Some(_tick), Some(state_data)) =
+                                        (snapshot.tick, snapshot.state_data)
+                                    {
+                                        match serde_json::from_value::<FullGameState>(state_data) {
+                                            Ok(full_state) => {
+                                                match state_mgr.restore_full_state(&full_state).await {
+                                                    Ok(()) => {
+                                                        info!(
+                                                            "Restored game state from snapshot for match {match_id}"
+                                                        );
+                                                    }
+                                                    Err(e) => {
+                                                        error!(
+                                                            "Failed to restore game state for match {match_id}: {e}"
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                error!(
+                                                    "Failed to deserialize snapshot for match {match_id}: {e}"
+                                                );
+                                            }
+                                        }
+                                    } else {
+                                        error!(
+                                            "No usable snapshot found for match {match_id}"
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "Failed to fetch latest snapshot for match {match_id}: {e}"
+                                    );
+                                }
+                            }
+                        }
+                        Ok(true) => {
+                            broadcast_to_match(
+                                match_id,
+                                &json!({"type": "error", "message": "Chwilowy błąd serwera, wznawianie gry..."}),
+                                &state.game_connections,
+                            );
+                        }
+                        Err(e) => {
+                            error!("Failed to validate state for match {match_id}: {e}");
+                            broadcast_to_match(
+                                match_id,
+                                &json!({"type": "error", "message": "Chwilowy błąd serwera, wznawianie gry..."}),
+                                &state.game_connections,
+                            );
+                        }
+                    }
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     let _ = state_mgr.try_lock("loop_lock", 3600).await;
                 } else {
@@ -491,6 +550,12 @@ async fn game_loop(
     let engine = GameEngine::new(settings.clone(), neighbor_map.clone());
     let snapshot_interval = 30u64;
     let mut next_tick_at = tokio::time::Instant::now() + tick_interval;
+
+    // Save initial state snapshot (tick 0)
+    if let Ok(full_state) = state_mgr.get_full_state().await {
+        let state_json = serde_json::to_value(&full_state).unwrap_or_default();
+        let _ = state.django.save_snapshot(match_id, 0, state_json).await;
+    }
 
     // Initialize BotBrains for bot players
     let initial_players = state_mgr.get_all_players().await?;
@@ -1004,6 +1069,10 @@ async fn initialize_game(
             currency_accum: 0.0,
             ability_cooldowns: HashMap::new(),
             is_bot: p.is_bot,
+            total_units_produced: 0,
+            total_units_lost: 0,
+            total_regions_conquered: 0,
+            total_buildings_built: 0,
         };
         players.insert(p.user_id.clone(), player);
     }
@@ -1111,6 +1180,8 @@ async fn auto_select_bot_capitals(
 
         if let Some(player) = players.get_mut(bot_id) {
             player.capital_region_id = Some(region_id.clone());
+            player.total_regions_conquered += 1;
+            player.total_units_produced = player.total_units_produced.saturating_add(starting_units as u32);
             state_mgr.set_player(bot_id, player).await?;
         }
 
@@ -1430,6 +1501,8 @@ async fn auto_assign_missing_capitals(
 
         if let Some(player) = players.get_mut(player_id) {
             player.capital_region_id = Some(region_id.clone());
+            player.total_regions_conquered += 1;
+            player.total_units_produced = player.total_units_produced.saturating_add(starting_units as u32);
             let _ = state_mgr.set_player(player_id, player).await;
         }
 
