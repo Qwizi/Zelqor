@@ -108,6 +108,7 @@ export default function GamePage({
   const [nukeBlackout, setNukeBlackout] = useState<Array<{ rid: string; startTime: number }>>([]);
   const [mapReady, setMapReady] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [gameEndCountdown, setGameEndCountdown] = useState(10);
   const myUserId = user?.id || "";
   const status = gameState?.meta?.status || "loading";
 
@@ -526,38 +527,26 @@ export default function GamePage({
 
   const finalRanking = useMemo(() => {
     if (status !== "finished") return [];
-    const statsMap = new Map<string, { regionCount: number; unitCount: number }>();
-    for (const region of Object.values(regions)) {
-      if (!region.owner_id) continue;
-      let stats = statsMap.get(region.owner_id);
-      if (!stats) {
-        stats = { regionCount: 0, unitCount: 0 };
-        statsMap.set(region.owner_id, stats);
-      }
-      stats.regionCount++;
-      stats.unitCount += intOrZero(region.unit_count);
-    }
     return Object.values(players)
-      .map((player) => {
-        const stats = statsMap.get(player.user_id);
-        return {
-          user_id: player.user_id,
-          username: player.username,
-          color: player.color,
-          regionCount: stats?.regionCount ?? 0,
-          unitCount: stats?.unitCount ?? 0,
-          isAlive: player.is_alive,
-          isBot: player.is_bot ?? false,
-          eliminatedTick: player.eliminated_tick ?? null,
-        };
-      })
+      .map((player) => ({
+        user_id: player.user_id,
+        username: player.username,
+        color: player.color,
+        regionsConquered: player.total_regions_conquered ?? 0,
+        unitsProduced: player.total_units_produced ?? 0,
+        unitsLost: player.total_units_lost ?? 0,
+        buildingsBuilt: player.total_buildings_built ?? 0,
+        isAlive: player.is_alive,
+        isBot: player.is_bot ?? false,
+        eliminatedTick: player.eliminated_tick ?? null,
+      }))
       .sort((a, b) =>
         Number(b.isAlive) - Number(a.isAlive) ||
         (b.eliminatedTick ?? 0) - (a.eliminatedTick ?? 0) ||
-        b.regionCount - a.regionCount ||
-        b.unitCount - a.unitCount
+        b.regionsConquered - a.regionsConquered ||
+        b.unitsProduced - a.unitsProduced
       );
-  }, [status, players, regions]);
+  }, [status, players]);
 
   // ── Event-driven animations (visible to ALL clients) ───────
   //
@@ -880,6 +869,24 @@ export default function GamePage({
     }
   }, [status, startMusic, stopMusic]);
 
+  // ── Game end auto-redirect countdown ───────────────────────
+
+  useEffect(() => {
+    if (status !== "finished") return;
+    setGameEndCountdown(10);
+    const interval = setInterval(() => {
+      setGameEndCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          router.push(`/match/${matchId}`);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [status, matchId, router]);
+
   // ── Events ─────────────────────────────────────────────────
 
   useEffect(() => {
@@ -1163,7 +1170,7 @@ export default function GamePage({
         )}
       </div>
 
-      {!connected && (
+      {!connected && status !== "finished" && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="flex items-center gap-3 rounded-[24px] border border-white/10 bg-slate-950/88 px-6 py-4 backdrop-blur-xl">
             <Image
@@ -1246,18 +1253,16 @@ export default function GamePage({
                           {p.username}
                           {p.isBot && <span className="ml-1.5 text-[10px] text-zinc-500">BOT</span>}
                         </span>
+                        <span className="text-xs text-slate-500">
+                          {p.regionsConquered} reg
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {p.unitsProduced} jedn.
+                        </span>
                         {p.isAlive ? (
-                          <>
-                            <span className="text-xs text-slate-500">
-                              {p.regionCount} reg
-                            </span>
-                            <span className="text-xs text-slate-500">
-                              {p.unitCount} jedn.
-                            </span>
-                            <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
-                              WINNER
-                            </span>
-                          </>
+                          <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
+                            WINNER
+                          </span>
                         ) : (
                           <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-300">
                             WYELIMINOWANY
@@ -1273,7 +1278,7 @@ export default function GamePage({
                 onClick={() => router.push(`/match/${matchId}`)}
                 className="rounded-full border border-white/15 bg-white/[0.06] px-6 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.1]"
               >
-                Statystyki meczu
+                Statystyki meczu ({gameEndCountdown}s)
               </button>
               <button
                 onClick={() => router.push("/dashboard")}

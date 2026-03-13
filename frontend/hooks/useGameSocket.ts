@@ -57,6 +57,10 @@ export interface GamePlayer {
   eliminated_tick?: number | null;
   ability_cooldowns?: Record<string, number>;
   is_bot?: boolean;
+  total_regions_conquered?: number;
+  total_units_produced?: number;
+  total_units_lost?: number;
+  total_buildings_built?: number;
 }
 
 export interface ActiveEffect {
@@ -223,6 +227,9 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     }
   }, []);
 
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backoffDelayRef = useRef<number>(1000);
+
   useEffect(() => {
     const token = getAccessToken();
     if (!token || !matchId) return;
@@ -235,38 +242,71 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
 
-    const ws = createSocket(
-      `/game/${matchId}/`,
-      token,
-      handleMessage,
-      () => {
-        if (leaveResolverRef.current) {
-          leaveResolverRef.current(false);
-          leaveResolverRef.current = null;
+    const connect = () => {
+      const ws = createSocket(
+        `/game/${matchId}/`,
+        token,
+        handleMessage,
+        (event: CloseEvent) => {
+          if (leaveResolverRef.current) {
+            leaveResolverRef.current(false);
+            leaveResolverRef.current = null;
+          }
+          if (!disposed) {
+            setConnected(false);
+          }
+
+          // Determine whether this close was intentional — skip reconnect if so.
+          const isIntentionalClose =
+            event.code === 1000 && event.reason === "component_disposed";
+
+          if (disposed || isPageUnload || isIntentionalClose) {
+            return;
+          }
+
+          // Unexpected disconnect — schedule a reconnect with exponential backoff.
+          const delay = backoffDelayRef.current;
+          backoffDelayRef.current = Math.min(delay * 2, 10000);
+
+          retryTimeoutRef.current = setTimeout(() => {
+            if (!disposed && !isPageUnload) {
+              connect();
+            }
+          }, delay);
         }
-        if (!disposed) {
-          setConnected(false);
+      );
+
+      ws.onopen = () => {
+        if (disposed) {
+          ws.close(1000, "component_disposed");
+          return;
         }
-      }
-    );
-    ws.onopen = () => {
-      if (disposed) {
-        ws.close(1000, "component_disposed");
-        return;
-      }
-      setConnected(true);
+        // Reset backoff on successful connection.
+        backoffDelayRef.current = 1000;
+        setConnected(true);
+      };
+
+      wsRef.current = ws;
     };
-    wsRef.current = ws;
+
+    connect();
 
     return () => {
       disposed = true;
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      if (wsRef.current === ws) {
-        wsRef.current = null;
+
+      // Cancel any pending reconnect timer.
+      if (retryTimeoutRef.current !== null) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
       }
+
+      const ws = wsRef.current;
+      wsRef.current = null;
+
       // On page refresh/unload, let the browser drop the connection naturally
-      // so the gateway applies the grace period instead of treating it as intentional leave
-      if (!isPageUnload && ws.readyState === WebSocket.OPEN) {
+      // so the gateway applies the grace period instead of treating it as intentional leave.
+      if (ws && !isPageUnload && ws.readyState === WebSocket.OPEN) {
         ws.close(1000, "component_disposed");
       }
     };

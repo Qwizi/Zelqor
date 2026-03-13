@@ -115,6 +115,12 @@ pub struct CleanupRequest {
     pub match_id: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LatestSnapshotResponse {
+    pub tick: Option<u64>,
+    pub state_data: Option<serde_json::Value>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QueueAddRequest {
     pub user_id: String,
@@ -405,6 +411,16 @@ impl DjangoClient {
             )
             .await?;
         Ok(())
+    }
+
+    pub async fn get_latest_snapshot(
+        &self,
+        match_id: &str,
+    ) -> Result<LatestSnapshotResponse, DjangoError> {
+        self.get(&format!(
+            "/api/v1/internal/game/latest-snapshot/{match_id}/"
+        ))
+        .await
     }
 }
 

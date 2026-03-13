@@ -16,7 +16,7 @@ export function createSocket(
   path: string,
   token: string | null,
   onMessage: WSHandler,
-  onClose?: (code: number) => void
+  onClose?: (event: CloseEvent) => void
 ): WebSocket {
   const url = token ? `${WS_BASE}${path}?token=${token}` : `${WS_BASE}${path}`;
   const ws = new WebSocket(url);
@@ -31,7 +31,7 @@ export function createSocket(
   };
 
   ws.onclose = (event) => {
-    onClose?.(event.code);
+    onClose?.(event);
   };
 
   ws.onerror = () => {

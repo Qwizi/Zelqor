@@ -101,33 +101,10 @@ def finalize_match_results_sync(
             pid = str(mp.user_id)
             player_info = players_data.get(pid, {})
 
-            # Prefer cumulative stats from Rust engine (tracked across entire match).
-            # Fall back to end-of-game snapshot for backward compatibility with
-            # older gateway versions that don't send cumulative fields.
-            cumulative_regions = int(player_info.get("total_regions_conquered", 0))
-            cumulative_units = int(player_info.get("total_units_produced", 0))
+            owned_regions = int(player_info.get("total_regions_conquered", 0))
+            total_units = int(player_info.get("total_units_produced", 0))
             cumulative_units_lost = int(player_info.get("total_units_lost", 0))
-            cumulative_buildings = int(player_info.get("total_buildings_built", 0))
-
-            if cumulative_regions or cumulative_units or cumulative_buildings:
-                owned_regions = cumulative_regions
-                total_units = cumulative_units
-                buildings_count = cumulative_buildings
-            else:
-                # Legacy fallback: compute from end-of-game snapshot
-                owned_regions = sum(
-                    1 for r in regions.values() if r.get("owner_id") == pid
-                )
-                total_units = sum(
-                    r.get("unit_count", 0)
-                    for r in regions.values()
-                    if r.get("owner_id") == pid
-                )
-                buildings_count = sum(
-                    sum(int(count or 0) for count in (r.get("buildings") or {}).values())
-                    for r in regions.values()
-                    if r.get("owner_id") == pid
-                )
+            buildings_count = int(player_info.get("total_buildings_built", 0))
 
             player_rows.append({
                 "match_player": mp,

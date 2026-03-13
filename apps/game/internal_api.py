@@ -49,9 +49,24 @@ class GameInternalController(ControllerBase):
         if not check_internal_secret(request):
             return self.create_response(request, {'error': 'Unauthorized'}, status_code=403)
 
-        from apps.game.tasks import save_game_snapshot
-        save_game_snapshot.delay(body.match_id, body.tick, body.state_data)
+        from apps.game.models import GameStateSnapshot
+        GameStateSnapshot.objects.update_or_create(
+            match_id=body.match_id,
+            tick=body.tick,
+            defaults={"state_data": body.state_data},
+        )
         return {'ok': True}
+
+    @route.get('/game/latest-snapshot/{match_id}/')
+    def get_latest_snapshot(self, request, match_id: str):
+        if not check_internal_secret(request):
+            return self.create_response(request, {'error': 'Unauthorized'}, status_code=403)
+
+        from apps.game.models import GameStateSnapshot
+        snapshot = GameStateSnapshot.objects.filter(match_id=match_id).order_by('-tick').first()
+        if snapshot:
+            return {'tick': snapshot.tick, 'state_data': snapshot.state_data}
+        return {'tick': None, 'state_data': None}
 
     @route.post('/game/finalize/')
     def finalize_match(self, request, body: FinalizeRequest):
