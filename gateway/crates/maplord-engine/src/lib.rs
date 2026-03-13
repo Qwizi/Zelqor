@@ -115,7 +115,7 @@ impl GameEngine {
         events.extend(self.process_active_effects(regions, active_effects));
 
         events.extend(self.generate_currency(players, regions));
-        events.extend(self.generate_units_with_effects(regions, active_effects));
+        events.extend(self.generate_units_with_effects(players, regions, active_effects));
 
         let (remaining_buildings, build_events) =
             self.process_buildings(players, regions, buildings_queue);
@@ -312,7 +312,7 @@ impl GameEngine {
 
     // --- Unit generation with virus reduction ---
 
-    fn generate_units_with_effects(&self, regions: &mut HashMap<String, Region>, active_effects: &[ActiveEffect]) -> Vec<Event> {
+    fn generate_units_with_effects(&self, players: &mut HashMap<String, Player>, regions: &mut HashMap<String, Region>, active_effects: &[ActiveEffect]) -> Vec<Event> {
         // Collect virus-affected regions for production reduction
         let mut virus_regions: HashMap<String, f64> = HashMap::new();
         for effect in active_effects {
@@ -383,8 +383,15 @@ impl GameEngine {
             region.unit_accum = canonical;
             let whole = region.unit_accum as i64;
             if whole > 0 {
+                let owner_id = region.owner_id.clone();
                 add_units(region, &default_unit_type, whole);
                 region.unit_accum -= whole as f64;
+                if let Some(oid) = owner_id {
+                    if let Some(player) = players.get_mut(&oid) {
+                        player.total_units_produced =
+                            player.total_units_produced.saturating_add(whole as u32);
+                    }
+                }
             }
         }
 
