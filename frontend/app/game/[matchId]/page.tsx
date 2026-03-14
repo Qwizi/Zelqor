@@ -30,6 +30,7 @@ import { Loader2 } from "lucide-react";
 import { useGameNotifications, GameNotificationOverlay } from "@/components/game/GameNotification";
 import { useTutorial } from "@/hooks/useTutorial";
 import TutorialOverlay from "@/components/game/TutorialOverlay";
+import { useMatchChat } from "@/contexts/MatchContext";
 
 function getUnitRules(units: UnitType[], unitSlug: string | null | undefined) {
   return (
@@ -86,6 +87,7 @@ export default function GamePage({
     connected,
     gameState,
     events,
+    matchChatMessages,
     selectCapital,
     attack,
     move,
@@ -94,7 +96,26 @@ export default function GamePage({
     useAbility: castAbility,
     leaveMatch,
     send,
+    sendChat,
   } = useGameSocket(matchId);
+
+  const { setMatchId, setMatchChatMessages, setSendMatchChat } = useMatchChat();
+
+  useEffect(() => {
+    setMatchId(matchId);
+    return () => {
+      setMatchId(null);
+      setMatchChatMessages([]);
+    };
+  }, [matchId, setMatchId, setMatchChatMessages]);
+
+  useEffect(() => {
+    setMatchChatMessages(matchChatMessages);
+  }, [matchChatMessages, setMatchChatMessages]);
+
+  useEffect(() => {
+    setSendMatchChat(sendChat);
+  }, [sendChat, setSendMatchChat]);
 
   const { startMusic, stopMusic, playSound, toggleMute, muted, currentTrackIndex, selectTrack } = useAudio();
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);

@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'apps.game_config',
     'apps.matchmaking',
     'apps.game',
+    'apps.chat',
     'apps.shop',
     'apps.inventory',
     'apps.marketplace',

@@ -16,6 +16,7 @@ from apps.marketplace.views import MarketplaceController
 from apps.crafting.views import CraftingController
 from apps.game.internal_api import GameInternalController
 from apps.matchmaking.internal_api import MatchmakingInternalController
+from apps.chat.internal_api import ChatInternalController
 from apps.developers.views import DeveloperController
 from apps.developers.public_views import PublicAPIController
 from apps.developers.oauth_views import OAuthController
@@ -37,6 +38,7 @@ api.register_controllers(
     CraftingController,
     GameInternalController,
     MatchmakingInternalController,
+    ChatInternalController,
     DeveloperController,
     PublicAPIController,
     OAuthController,

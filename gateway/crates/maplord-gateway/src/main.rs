@@ -1,4 +1,5 @@
 mod auth;
+mod chat;
 mod config;
 mod game;
 mod matchmaking_ws;
@@ -15,9 +16,11 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing::{error, info};
 
+use crate::chat::new_chat_connections;
 use crate::config::AppConfig;
 use crate::game::new_game_connections;
 use crate::state::AppState;
+use dashmap::DashMap;
 
 async fn recover_active_matches(state: &AppState) {
     info!("Checking for active matches to recover...");
@@ -129,12 +132,20 @@ async fn main() {
     // Create game connections registry
     let game_connections = new_game_connections();
 
+    // Create chat state
+    let chat_connections = new_chat_connections();
+    let username_cache = Arc::new(DashMap::new());
+    let chat_rate_limits = Arc::new(DashMap::new());
+
     let app_state = AppState {
         config: config.clone(),
         redis: redis_conn,
         django,
         matchmaking,
         game_connections,
+        chat_connections,
+        username_cache,
+        chat_rate_limits,
     };
 
     recover_active_matches(&app_state).await;
@@ -162,6 +173,8 @@ async fn main() {
         )
         // Game WebSocket route
         .route("/ws/game/{match_id}/", get(game::ws_game_handler))
+        // Global chat WebSocket route
+        .route("/ws/chat/", get(chat::ws_chat_handler))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);

@@ -151,6 +151,19 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
         let _ = tx.send(Message::Text(msg.to_string().into()));
     }
 
+    // Send match chat history
+    {
+        let django = state.django.clone();
+        let mid = match_id.clone();
+        let tx_hist = tx.clone();
+        tokio::spawn(async move {
+            if let Ok(messages) = django.get_match_chat_messages(&mid, 50).await {
+                let msg = json!({"type": "chat_history", "messages": messages});
+                let _ = tx_hist.send(Message::Text(msg.to_string().into()));
+            }
+        });
+    }
+
     use futures::SinkExt;
     use futures::StreamExt;
 
@@ -263,8 +276,100 @@ async fn handle_game_message(
                 let _ = state_mgr.push_action(&action).await;
             }
         }
+        "chat" => {
+            handle_match_chat(content, user_id, match_id, state, tx).await;
+        }
         _ => {}
     }
+}
+
+async fn handle_match_chat(
+    content: &serde_json::Value,
+    user_id: &str,
+    match_id: &str,
+    state: &AppState,
+    tx: &mpsc::UnboundedSender<Message>,
+) {
+    let raw_content = content
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    if raw_content.is_empty() || raw_content.len() > 500 {
+        return;
+    }
+
+    // Rate limit: 1 message per second per user
+    let now = std::time::Instant::now();
+    if let Some(last) = state.chat_rate_limits.get(user_id) {
+        if now.duration_since(*last).as_secs_f64() < 1.0 {
+            let _ = tx.send(Message::Text(
+                json!({"type": "error", "message": "Rate limited"})
+                    .to_string()
+                    .into(),
+            ));
+            return;
+        }
+    }
+    state.chat_rate_limits.insert(user_id.to_string(), now);
+
+    // Resolve username from cache or Django
+    let username = {
+        let cache_valid = state
+            .username_cache
+            .get(user_id)
+            .map(|entry| entry.1.elapsed().as_secs() < 300)
+            .unwrap_or(false);
+
+        if cache_valid {
+            state
+                .username_cache
+                .get(user_id)
+                .map(|e| e.0.clone())
+                .unwrap_or_else(|| user_id.to_string())
+        } else {
+            match state.django.get_user(user_id).await {
+                Ok(info) => {
+                    state.username_cache.insert(
+                        user_id.to_string(),
+                        (info.username.clone(), std::time::Instant::now()),
+                    );
+                    info.username
+                }
+                Err(_) => user_id.to_string(),
+            }
+        }
+    };
+
+    // Save to Django (fire-and-forget)
+    {
+        let django = state.django.clone();
+        let mid = match_id.to_string();
+        let uid = user_id.to_string();
+        let msg_content = raw_content.clone();
+        tokio::spawn(async move {
+            if let Err(e) = django.save_match_chat_message(&mid, &uid, &msg_content).await {
+                error!("Failed to save match {mid} chat message for user {uid}: {e}");
+            }
+        });
+    }
+
+    // Broadcast to all players in this match
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let chat_msg = json!({
+        "type": "chat_message",
+        "user_id": user_id,
+        "username": username,
+        "content": raw_content,
+        "timestamp": timestamp,
+    });
+    broadcast_to_match(match_id, &chat_msg, &state.game_connections);
 }
 
 async fn handle_select_capital(

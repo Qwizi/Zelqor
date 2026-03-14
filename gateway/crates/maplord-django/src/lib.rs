@@ -146,6 +146,34 @@ pub struct ActiveMatchesResult {
     pub match_ids: Vec<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChatMessageData {
+    pub user_id: String,
+    pub username: String,
+    pub content: String,
+    pub timestamp: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChatMessagesResponse {
+    pub messages: Vec<ChatMessageData>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateChatMessageRequest {
+    pub user_id: String,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateChatMessageResponse {
+    pub id: String,
+    pub user_id: String,
+    pub username: String,
+    pub content: String,
+    pub timestamp: f64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QueueAddRequest {
     pub user_id: String,
@@ -452,6 +480,59 @@ impl DjangoClient {
         let result: ActiveMatchesResult =
             self.get("/api/v1/internal/game/active-matches/").await?;
         Ok(result.match_ids)
+    }
+
+    // --- Chat endpoints ---
+
+    pub async fn get_chat_messages(&self, limit: u32) -> Result<Vec<ChatMessageData>, DjangoError> {
+        let result: ChatMessagesResponse = self
+            .get(&format!("/api/v1/internal/chat/messages/?limit={limit}"))
+            .await?;
+        Ok(result.messages)
+    }
+
+    pub async fn save_chat_message(
+        &self,
+        user_id: &str,
+        content: &str,
+    ) -> Result<CreateChatMessageResponse, DjangoError> {
+        self.post(
+            "/api/v1/internal/chat/messages/",
+            &CreateChatMessageRequest {
+                user_id: user_id.to_string(),
+                content: content.to_string(),
+            },
+        )
+        .await
+    }
+
+    pub async fn get_match_chat_messages(
+        &self,
+        match_id: &str,
+        limit: u32,
+    ) -> Result<Vec<ChatMessageData>, DjangoError> {
+        let result: ChatMessagesResponse = self
+            .get(&format!(
+                "/api/v1/internal/chat/matches/{match_id}/messages/?limit={limit}"
+            ))
+            .await?;
+        Ok(result.messages)
+    }
+
+    pub async fn save_match_chat_message(
+        &self,
+        match_id: &str,
+        user_id: &str,
+        content: &str,
+    ) -> Result<CreateChatMessageResponse, DjangoError> {
+        self.post(
+            &format!("/api/v1/internal/chat/matches/{match_id}/messages/"),
+            &CreateChatMessageRequest {
+                user_id: user_id.to_string(),
+                content: content.to_string(),
+            },
+        )
+        .await
     }
 }
 

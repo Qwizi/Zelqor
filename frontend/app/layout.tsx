@@ -4,6 +4,9 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
 import { Toaster } from "@/components/ui/sonner";
+import { ChatProvider } from "@/hooks/useChat";
+import { MatchChatProvider } from "@/contexts/MatchContext";
+import ChatWidget from "@/components/chat/ChatWidget";
 
 const uiSans = localFont({
   src: [
@@ -66,8 +69,13 @@ export default function RootLayout({
         className={`${uiSans.variable} ${displayFont.variable} antialiased`}
       >
         <AuthProvider>
-          {children}
-          <Toaster />
+          <ChatProvider>
+            <MatchChatProvider>
+              {children}
+              <ChatWidget />
+              <Toaster />
+            </MatchChatProvider>
+          </ChatProvider>
         </AuthProvider>
       </body>
     </html>
