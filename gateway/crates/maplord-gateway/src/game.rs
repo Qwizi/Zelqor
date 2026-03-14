@@ -79,6 +79,31 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
     // Ensure game is initialized
     if let Err(e) = ensure_game_initialized(&state_mgr, &match_id, &state).await {
         error!("Failed to initialize game {match_id}: {e}");
+
+        // Cancel the match and inform the player
+        let error_msg = format!("Błąd inicjalizacji meczu: {e}");
+        let _ = state.django.update_match_status(&match_id, "cancelled").await;
+        let _ = state.django.cleanup_match(&match_id).await;
+        info!("Match {match_id} cancelled due to init error");
+
+        use futures::SinkExt;
+        let _ = ws_sender
+            .send(Message::Text(
+                serde_json::json!({
+                    "type": "error",
+                    "message": error_msg,
+                    "fatal": true,
+                })
+                .to_string()
+                .into(),
+            ))
+            .await;
+        let _ = ws_sender
+            .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                code: 4002,
+                reason: "Match cancelled due to initialization error".into(),
+            })))
+            .await;
         return;
     }
 
