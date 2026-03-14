@@ -324,6 +324,7 @@ mod tests {
             is_capital,
             building_type: None,
             buildings: HashMap::new(),
+            building_levels: HashMap::new(),
             defense_bonus: 0.0,
             vision_range: 0,
             unit_generation_bonus: 0.0,

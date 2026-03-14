@@ -289,6 +289,9 @@ pub struct Region {
     pub building_type: Option<String>,
     #[serde(default)]
     pub buildings: HashMap<String, i64>,
+    /// Building levels: building_slug → level (1-3). All instances of a type in a region share one level.
+    #[serde(default)]
+    pub building_levels: HashMap<String, i64>,
     #[serde(default)]
     pub defense_bonus: f64,
     #[serde(default)]
@@ -341,6 +344,12 @@ pub struct BuildingQueueItem {
     pub player_id: String,
     pub ticks_remaining: i64,
     pub total_ticks: i64,
+    /// True when this queue entry represents a level upgrade rather than a new construction.
+    #[serde(default)]
+    pub is_upgrade: bool,
+    /// Target level after upgrade completes. Only meaningful when `is_upgrade` is true.
+    #[serde(default)]
+    pub target_level: i64,
 }
 
 /// Unit production queue item.
@@ -518,5 +527,12 @@ pub enum Event {
     BoostExpired {
         player_id: String,
         boost_slug: String,
+    },
+    #[serde(rename = "building_upgraded")]
+    BuildingUpgraded {
+        region_id: String,
+        building_type: String,
+        player_id: String,
+        new_level: i64,
     },
 }

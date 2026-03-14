@@ -1403,6 +1403,8 @@ export default function GamePage({
             onClose={handleCancelAction}
             unlockedBuildings={gameState?.players[myUserId]?.unlocked_buildings}
             unlockedUnits={gameState?.players[myUserId]?.unlocked_units}
+            buildingLevels={gameState?.players[myUserId]?.building_levels}
+            regionBuildingLevels={sourceRegionData?.building_levels}
           />
         </div>
       )}
@@ -1452,6 +1454,8 @@ export default function GamePage({
           onProduceUnit={handleProduceUnit}
           unlockedBuildings={gameState?.players[myUserId]?.unlocked_buildings}
           unlockedUnits={gameState?.players[myUserId]?.unlocked_units}
+          buildingLevels={gameState?.players[myUserId]?.building_levels}
+          regionBuildingLevels={sourceRegionData?.building_levels}
         />
       )}
     </div>

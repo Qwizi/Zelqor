@@ -37,6 +37,7 @@ export interface GameRegion {
   is_capital: boolean;
   building_type: string | null;
   buildings?: Record<string, number>;
+  building_levels?: Record<string, number>;
   defense_bonus: number;
   vision_range?: number;
   unit_generation_bonus?: number;
@@ -65,6 +66,7 @@ export interface GamePlayer {
   total_units_produced?: number;
   total_units_lost?: number;
   total_buildings_built?: number;
+  building_levels?: Record<string, number>;
 }
 
 export interface ActiveEffect {

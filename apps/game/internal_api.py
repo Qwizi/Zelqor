@@ -142,6 +142,8 @@ class GameInternalController(ControllerBase):
                         'unlocked_units': (p.deck_snapshot or {}).get('unlocked_units', []),
                         'ability_scrolls': (p.deck_snapshot or {}).get('ability_scrolls', {}),
                         'active_boosts': (p.deck_snapshot or {}).get('active_boosts', []),
+                        'ability_levels': (p.deck_snapshot or {}).get('ability_levels', {}),
+                        'building_levels': (p.deck_snapshot or {}).get('building_levels', {}),
                     }
                     for p in match.players.all()
                 ],

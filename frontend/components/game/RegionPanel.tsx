@@ -25,6 +25,10 @@ interface RegionPanelProps {
   unlockedBuildings?: string[];
   /** When non-empty, units not in this list (and with produced_by_slug) show a lock icon and are disabled */
   unlockedUnits?: string[];
+  /** Player's max buildable levels from their deck */
+  buildingLevels?: Record<string, number>;
+  /** Current building levels in this region */
+  regionBuildingLevels?: Record<string, number>;
 }
 
 export default memo(function RegionPanel({
@@ -41,6 +45,8 @@ export default memo(function RegionPanel({
   onClose,
   unlockedBuildings,
   unlockedUnits,
+  buildingLevels,
+  regionBuildingLevels,
 }: RegionPanelProps) {
   const hasBuildingLocks = unlockedBuildings != null && unlockedBuildings.length > 0;
   const hasUnitLocks = unlockedUnits != null && unlockedUnits.length > 0;
@@ -269,26 +275,42 @@ export default memo(function RegionPanel({
               Infrastruktura
             </div>
             <div className="grid gap-2">
-              {compactDisplayedBuildings.map((building) => (
-                <div
-                  key={building.slug}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2"
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    {getBuildingAsset(building.asset_key || building.slug) && (
-                      <Image
-                        src={getBuildingAsset(building.asset_key || building.slug)!}
-                        alt={building.name}
-                        width={22}
-                        height={22}
-                        className="h-[22px] w-[22px] object-contain"
-                      />
-                    )}
-                    <span className="truncate text-sm text-zinc-100">{building.name}</span>
+              {compactDisplayedBuildings.map((building) => {
+                const regionLevel = regionBuildingLevels?.[building.slug];
+                const levelColor =
+                  regionLevel === 3
+                    ? "text-yellow-300 bg-yellow-300/10 border-yellow-300/20"
+                    : regionLevel === 2
+                      ? "text-blue-300 bg-blue-300/10 border-blue-300/20"
+                      : "text-zinc-400 bg-white/[0.06] border-white/10";
+                return (
+                  <div
+                    key={building.slug}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      {getBuildingAsset(building.asset_key || building.slug) && (
+                        <Image
+                          src={getBuildingAsset(building.asset_key || building.slug)!}
+                          alt={building.name}
+                          width={22}
+                          height={22}
+                          className="h-[22px] w-[22px] object-contain"
+                        />
+                      )}
+                      <span className="truncate text-sm text-zinc-100">{building.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {regionLevel != null && (
+                        <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${levelColor}`}>
+                          Lvl {regionLevel}
+                        </span>
+                      )}
+                      <Badge variant="secondary">x{buildingCounts[building.slug]}</Badge>
+                    </div>
                   </div>
-                  <Badge variant="secondary">x{buildingCounts[building.slug]}</Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
             {displayedBuildings.length > compactDisplayedBuildings.length && (
               <div className="mt-2 text-[11px] text-zinc-500">
@@ -381,11 +403,26 @@ export default memo(function RegionPanel({
           <div className="mt-3 space-y-2">
             {compactBuildOptions.map((building) => {
               const isBuildingLocked = hasBuildingLocks && !unlockedBuildings!.includes(building.slug);
+              const currentRegionLevel = regionBuildingLevels?.[building.slug];
+              const playerMaxLevel = buildingLevels?.[building.slug];
+              const canUpgrade =
+                currentRegionLevel != null &&
+                playerMaxLevel != null &&
+                currentRegionLevel < playerMaxLevel;
+              const isAtMaxLevel =
+                currentRegionLevel != null &&
+                playerMaxLevel != null &&
+                currentRegionLevel >= playerMaxLevel;
+              const hasBuilt = (buildingCounts[building.slug] ?? 0) > 0;
+              const upgradeLabel = canUpgrade ? `Ulepsz do Lvl ${currentRegionLevel! + 1}` : "Buduj Lvl 1";
+              const displayName = hasBuilt && currentRegionLevel != null
+                ? `${building.name} Lvl ${currentRegionLevel}`
+                : building.name;
               return (
                 <button
                   key={building.id}
                   onClick={() => !isBuildingLocked && onBuild(building.slug)}
-                  disabled={myEnergy < building.energy_cost || isBuildingLocked}
+                  disabled={myEnergy < building.energy_cost || isBuildingLocked || isAtMaxLevel === true}
                   className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[22px] border border-amber-400/10 bg-amber-500/10 px-3 py-3 text-left text-sm transition-colors hover:bg-amber-500/15 disabled:opacity-40"
                 >
                   <span className="flex min-w-0 items-center gap-3">
@@ -401,18 +438,26 @@ export default memo(function RegionPanel({
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5 truncate font-medium text-zinc-50">
                         {isBuildingLocked && <Lock className="h-3 w-3 shrink-0 text-zinc-500" />}
-                        {building.name}
+                        {displayName}
                       </span>
                       <span className="mt-1 block text-[11px] leading-4 text-zinc-400">
                         {isBuildingLocked
                           ? "Wymaga blueprintu z talii"
-                          : `Limit ${(buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0)}/${building.max_per_region}`}
+                          : isAtMaxLevel
+                            ? "Max"
+                            : canUpgrade
+                              ? upgradeLabel
+                              : `Limit ${(buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0)}/${building.max_per_region}`}
                       </span>
                     </span>
                   </span>
                   <div className="text-right text-[11px] text-zinc-400">
                     {isBuildingLocked ? (
                       <Lock className="ml-auto h-4 w-4 text-zinc-600" />
+                    ) : isAtMaxLevel ? (
+                      <span className="rounded border border-yellow-300/20 bg-yellow-300/10 px-1.5 py-0.5 text-[10px] font-medium text-yellow-300">
+                        Max
+                      </span>
                     ) : (
                       <>
                         <span className="flex items-center justify-end gap-1">

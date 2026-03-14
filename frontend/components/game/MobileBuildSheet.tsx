@@ -22,6 +22,10 @@ interface MobileBuildSheetProps {
   unlockedBuildings?: string[];
   /** When non-empty, units not in this list (and with produced_by_slug) show a lock icon and are disabled */
   unlockedUnits?: string[];
+  /** Player's max buildable levels from their deck */
+  buildingLevels?: Record<string, number>;
+  /** Current building levels in this region */
+  regionBuildingLevels?: Record<string, number>;
 }
 
 export default memo(function MobileBuildSheet({
@@ -35,6 +39,8 @@ export default memo(function MobileBuildSheet({
   onProduceUnit,
   unlockedBuildings,
   unlockedUnits,
+  buildingLevels,
+  regionBuildingLevels,
 }: MobileBuildSheetProps) {
   const [mode, setMode] = useState<SheetMode>(null);
   const hasBuildingLocks = unlockedBuildings != null && unlockedBuildings.length > 0;
@@ -153,15 +159,30 @@ export default memo(function MobileBuildSheet({
           {isBuildMode &&
             buildOptions.map((building) => {
               const isBuildingLocked = hasBuildingLocks && !unlockedBuildings!.includes(building.slug);
+              const currentRegionLevel = regionBuildingLevels?.[building.slug];
+              const playerMaxLevel = buildingLevels?.[building.slug];
+              const canUpgrade =
+                currentRegionLevel != null &&
+                playerMaxLevel != null &&
+                currentRegionLevel < playerMaxLevel;
+              const isAtMaxLevel =
+                currentRegionLevel != null &&
+                playerMaxLevel != null &&
+                currentRegionLevel >= playerMaxLevel;
+              const hasBuilt = (buildingCounts[building.slug] ?? 0) > 0;
+              const upgradeLabel = canUpgrade ? `Ulepsz do Lvl ${currentRegionLevel! + 1}` : "Buduj Lvl 1";
+              const displayName = hasBuilt && currentRegionLevel != null
+                ? `${building.name} Lvl ${currentRegionLevel}`
+                : building.name;
               return (
                 <button
                   key={building.id}
                   onClick={() => {
-                    if (isBuildingLocked) return;
+                    if (isBuildingLocked || isAtMaxLevel) return;
                     onBuild(building.slug);
                     setMode(null);
                   }}
-                  disabled={myEnergy < building.energy_cost || isBuildingLocked}
+                  disabled={myEnergy < building.energy_cost || isBuildingLocked || isAtMaxLevel === true}
                   className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-amber-400/10 bg-amber-500/10 px-3 py-2.5 text-left transition-colors active:bg-amber-500/20 disabled:opacity-40"
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
@@ -177,17 +198,25 @@ export default memo(function MobileBuildSheet({
                     <span className="min-w-0">
                       <span className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-50">
                         {isBuildingLocked && <Lock className="h-3 w-3 shrink-0 text-zinc-500" />}
-                        {building.name}
+                        {displayName}
                       </span>
                       <span className="block text-[11px] text-zinc-500">
                         {isBuildingLocked
                           ? "Wymaga blueprintu z talii"
-                          : `${(buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0)}/${building.max_per_region}`}
+                          : isAtMaxLevel
+                            ? "Max"
+                            : canUpgrade
+                              ? upgradeLabel
+                              : `${(buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0)}/${building.max_per_region}`}
                       </span>
                     </span>
                   </span>
                   {isBuildingLocked ? (
                     <Lock className="h-4 w-4 text-zinc-600" />
+                  ) : isAtMaxLevel ? (
+                    <span className="rounded border border-yellow-300/20 bg-yellow-300/10 px-1.5 py-0.5 text-[10px] font-medium text-yellow-300">
+                      Max
+                    </span>
                   ) : (
                     <span className="flex items-center gap-1 text-xs text-zinc-400">
                       <span className="text-[13px] text-cyan-400">⚡</span>

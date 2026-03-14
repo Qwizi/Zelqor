@@ -245,24 +245,44 @@ impl GameEngine {
                 None => continue,
             };
 
-            let count = region
-                .buildings
-                .entry(building.building_type.clone())
-                .or_insert(0);
-            *count += 1;
-            let building_count = *count;
-            self.recompute_region_building_stats(region);
+            if building.is_upgrade {
+                // Upgrade: advance the building level and recompute stats.
+                region.building_levels.insert(
+                    building.building_type.clone(),
+                    building.target_level,
+                );
+                self.recompute_region_building_stats(region);
 
-            if let Some(player) = players.get_mut(&building.player_id) {
-                player.total_buildings_built += 1;
+                events.push(Event::BuildingUpgraded {
+                    region_id: building.region_id.clone(),
+                    building_type: building.building_type.clone(),
+                    player_id: building.player_id.clone(),
+                    new_level: building.target_level,
+                });
+            } else {
+                // New construction: increment count and initialise level to 1 if not set.
+                let count = region
+                    .buildings
+                    .entry(building.building_type.clone())
+                    .or_insert(0);
+                *count += 1;
+                let building_count = *count;
+                region.building_levels
+                    .entry(building.building_type.clone())
+                    .or_insert(1);
+                self.recompute_region_building_stats(region);
+
+                if let Some(player) = players.get_mut(&building.player_id) {
+                    player.total_buildings_built += 1;
+                }
+
+                events.push(Event::BuildingComplete {
+                    region_id: building.region_id.clone(),
+                    building_type: building.building_type.clone(),
+                    player_id: building.player_id.clone(),
+                    building_count,
+                });
             }
-
-            events.push(Event::BuildingComplete {
-                region_id: building.region_id.clone(),
-                building_type: building.building_type.clone(),
-                player_id: building.player_id.clone(),
-                building_count,
-            });
         }
 
         (remaining, events)
@@ -1280,17 +1300,25 @@ impl GameEngine {
         }
 
         let current_count = region.buildings.get(building_type).copied().unwrap_or(0);
-        let queued_count = buildings_queue
+        let current_level = region.building_levels.get(building_type).copied().unwrap_or(1);
+        let max_allowed_level = player.building_levels.get(building_type).copied().unwrap_or(1);
+
+        // A queued upgrade for the same building type already in flight counts as a pending level change.
+        let upgrade_queued = buildings_queue
             .iter()
-            .filter(|q| q.region_id == *region_id && q.building_type == *building_type)
+            .any(|q| q.region_id == *region_id && q.building_type == *building_type && q.is_upgrade);
+
+        // Determine whether this is an upgrade or a new build.
+        let is_upgrade = current_count > 0
+            && current_level < max_allowed_level
+            && !upgrade_queued;
+
+        let queued_new_count = buildings_queue
+            .iter()
+            .filter(|q| q.region_id == *region_id && q.building_type == *building_type && !q.is_upgrade)
             .count() as i64;
-        if current_count + queued_count >= config.max_per_region as i64 {
-            return vec![reject_action(
-                player_id,
-                "Osiagnieto limit tego budynku w regionie",
-                action,
-            )];
-        }
+        let is_new_build = current_count == 0
+            || (current_count + queued_new_count < config.max_per_region as i64);
 
         let total_region_queue = buildings_queue
             .iter()
@@ -1304,33 +1332,80 @@ impl GameEngine {
             )];
         }
 
-        let energy_cost = config.energy_cost;
-        if player.energy < energy_cost {
-            return vec![reject_action(
+        if is_upgrade {
+            let next_level = current_level + 1;
+            if next_level > max_allowed_level {
+                return vec![reject_action(
+                    player_id,
+                    "Osiągnieto maksymalny poziom budynku",
+                    action,
+                )];
+            }
+            let upgrade_cost = config.energy_cost * next_level;
+            if player.energy < upgrade_cost {
+                return vec![reject_action(
+                    player_id,
+                    "Za mało energii na ulepszenie",
+                    action,
+                )];
+            }
+            let upgrade_time = config.build_time_ticks * next_level;
+            player.energy -= upgrade_cost;
+
+            buildings_queue.push(BuildingQueueItem {
+                region_id: region_id.clone(),
+                building_type: building_type.clone(),
+                player_id: player_id.clone(),
+                ticks_remaining: upgrade_time,
+                total_ticks: upgrade_time,
+                is_upgrade: true,
+                target_level: next_level,
+            });
+
+            vec![Event::BuildStarted {
+                region_id: region_id.clone(),
+                building_type: building_type.clone(),
+                player_id: player_id.clone(),
+                ticks_remaining: upgrade_time,
+                energy_cost: upgrade_cost,
+            }]
+        } else if is_new_build {
+            let energy_cost = config.energy_cost;
+            if player.energy < energy_cost {
+                return vec![reject_action(
+                    player_id,
+                    "Za malo waluty na budowe",
+                    action,
+                )];
+            }
+
+            player.energy -= energy_cost;
+            let build_time = config.build_time_ticks;
+
+            buildings_queue.push(BuildingQueueItem {
+                region_id: region_id.clone(),
+                building_type: building_type.clone(),
+                player_id: player_id.clone(),
+                ticks_remaining: build_time,
+                total_ticks: build_time,
+                is_upgrade: false,
+                target_level: 0,
+            });
+
+            vec![Event::BuildStarted {
+                region_id: region_id.clone(),
+                building_type: building_type.clone(),
+                player_id: player_id.clone(),
+                ticks_remaining: build_time,
+                energy_cost,
+            }]
+        } else {
+            vec![reject_action(
                 player_id,
-                "Za malo waluty na budowe",
+                "Osiagnieto limit tego budynku w regionie",
                 action,
-            )];
+            )]
         }
-
-        player.energy -= energy_cost;
-        let build_time = config.build_time_ticks;
-
-        buildings_queue.push(BuildingQueueItem {
-            region_id: region_id.clone(),
-            building_type: building_type.clone(),
-            player_id: player_id.clone(),
-            ticks_remaining: build_time as i64,
-            total_ticks: build_time as i64,
-        });
-
-        vec![Event::BuildStarted {
-            region_id: region_id.clone(),
-            building_type: building_type.clone(),
-            player_id: player_id.clone(),
-            ticks_remaining: build_time as i64,
-            energy_cost,
-        }]
     }
 
     fn process_unit_production(
@@ -1711,6 +1786,7 @@ impl GameEngine {
                     region.unit_type = None;
                     region.is_capital = false;
                     region.buildings.clear();
+                    region.building_levels.clear();
                     region.building_type = None;
                     region.defense_bonus = 0.0;
                     region.vision_range = 0;
@@ -1865,10 +1941,13 @@ impl GameEngine {
                 continue;
             }
             if let Some(config) = self.settings.building_types.get(slug) {
-                defense_bonus += config.defense_bonus * count as f64;
+                // Apply level multiplier to bonus stats; vision_range is not scaled.
+                let level = region.building_levels.get(slug).copied().unwrap_or(1);
+                let mult = building_level_multiplier(level);
+                defense_bonus += config.defense_bonus * mult * count as f64;
                 vision_range += config.vision_range as i64 * count;
-                unit_generation_bonus += config.unit_generation_bonus * count as f64;
-                energy_generation_bonus += config.energy_generation_bonus * count as f64;
+                unit_generation_bonus += config.unit_generation_bonus * mult * count as f64;
+                energy_generation_bonus += config.energy_generation_bonus * mult * count as f64;
                 let order = config.order as i64;
                 if primary_slug.is_none() || order < primary_order {
                     primary_slug = Some(slug.clone());
@@ -2222,6 +2301,16 @@ fn has_active_shield(region_id: &str, active_effects: &[ActiveEffect]) -> bool {
     active_effects.iter().any(|e| {
         e.effect_type == "ab_shield" && e.target_region_id == region_id && e.ticks_remaining > 0
     })
+}
+
+/// Returns the stat multiplier for a building at the given level.
+/// Level 1: 1.0×, Level 2: 1.5×, Level 3: 2.0×.
+fn building_level_multiplier(level: i64) -> f64 {
+    match level {
+        2 => 1.5,
+        3 => 2.0,
+        _ => 1.0,
+    }
 }
 
 fn reject_action(player_id: &str, message: &str, action: &Action) -> Event {
