@@ -23,14 +23,12 @@
 		}
 	}
 
-	# LiveKit WebSocket — voice chat
+	# LiveKit — voice chat (HTTP API + WebSocket upgrade)
 	handle /livekit/* {
 		uri strip_prefix /livekit
 		reverse_proxy livekit:7880 {
 			header_up X-Forwarded-Proto {scheme}
-			transport http {
-				versions 1.1
-			}
+			header_up Host {upstream_hostport}
 		}
 	}
 

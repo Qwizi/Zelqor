@@ -67,7 +67,7 @@ services:
       GATEWAY_PORT: "8080"
       RUST_LOG: info,maplord_gateway=info
       LIVEKIT_URL: ws://livekit:7880
-      LIVEKIT_PUBLIC_URL: wss://${DOMAIN:?DOMAIN is required}/livekit/
+      LIVEKIT_PUBLIC_URL: wss://${DOMAIN:?DOMAIN is required}/livekit
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
     depends_on:
