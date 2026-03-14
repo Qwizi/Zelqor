@@ -1,22 +1,27 @@
 "use client";
 
 import { type ReactNode, useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Backpack,
+  ChevronLeft,
+  ChevronRight,
+  ChevronRightIcon,
   Code,
   Coins,
   Globe,
   Hammer,
+  Home,
   Layers,
   LayoutDashboard,
   LogOut,
   Medal,
   MoreHorizontal,
+  Settings,
   Store,
   Trophy,
+  UserCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -61,6 +66,144 @@ const OTHER_ITEMS: NavItem[] = [
   { href: "/developers", label: "Deweloperzy", icon: <Code size={18} /> },
 ];
 
+// ---------------------------------------------------------------------------
+// Profile popover (click on avatar → submenu with profile/settings/logout)
+// ---------------------------------------------------------------------------
+
+function ProfilePopover({
+  user,
+  wallet,
+  collapsed,
+  onLogout,
+}: {
+  user: { username: string; elo_rating: number; email: string };
+  wallet: WalletOut | null;
+  collapsed: boolean;
+  onLogout: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const initial = user.username.charAt(0).toUpperCase();
+
+  return (
+    <div>
+      {/* Trigger — avatar + name */}
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "flex w-full items-center gap-2.5 rounded-lg transition-colors",
+          collapsed ? "justify-center py-2" : "px-2 py-2",
+          open ? "bg-white/[0.08]" : "hover:bg-white/[0.05]"
+        )}
+      >
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500/40 to-amber-700/25 text-xs font-bold uppercase text-amber-100 ring-2 ring-amber-400/30">
+          {initial}
+        </div>
+        {!collapsed && (
+          <span className="flex-1 truncate text-left text-sm font-medium text-zinc-200">{user.username}</span>
+        )}
+      </button>
+
+      {/* Submenu — opens inline below, pushes content down */}
+      {open && !collapsed && (
+        <div className="mt-1 rounded-lg border border-white/[0.06] bg-white/[0.03] overflow-hidden">
+          <Link
+            href="/profile"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors"
+          >
+            <UserCircle size={15} />
+            Profil
+          </Link>
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors"
+          >
+            <Settings size={15} />
+            Ustawienia
+          </Link>
+          <button
+            onClick={() => { setOpen(false); onLogout(); }}
+            className="flex w-full items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors border-t border-white/[0.04]"
+          >
+            <LogOut size={15} />
+            Wyloguj
+          </button>
+        </div>
+      )}
+
+      {/* Collapsed: tooltip-only, clicking goes to profile */}
+      {open && collapsed && (
+        <div className="mt-1 flex flex-col items-center gap-0.5">
+          <Link href="/profile" onClick={() => setOpen(false)} title="Profil"
+            className="flex h-8 w-10 items-center justify-center rounded text-slate-400 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors">
+            <UserCircle size={16} />
+          </Link>
+          <Link href="/settings" onClick={() => setOpen(false)} title="Ustawienia"
+            className="flex h-8 w-10 items-center justify-center rounded text-slate-400 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors">
+            <Settings size={16} />
+          </Link>
+          <button onClick={() => { setOpen(false); onLogout(); }} title="Wyloguj"
+            className="flex h-8 w-10 items-center justify-center rounded text-red-400 hover:bg-red-500/10 transition-colors">
+            <LogOut size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Breadcrumb labels
+// ---------------------------------------------------------------------------
+
+const BREADCRUMB_LABELS: Record<string, string> = {
+  dashboard: "Panel",
+  leaderboard: "Ranking",
+  inventory: "Ekwipunek",
+  decks: "Talia",
+  marketplace: "Rynek",
+  crafting: "Kuźnia",
+  developers: "Deweloperzy",
+  profile: "Profil",
+  settings: "Ustawienia",
+  match: "Mecz",
+  replay: "Powtórka",
+  docs: "Dokumentacja",
+};
+
+function Breadcrumbs({ pathname }: { pathname: string }) {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return null;
+
+  const crumbs = segments.map((seg, i) => {
+    const href = "/" + segments.slice(0, i + 1).join("/");
+    const label = BREADCRUMB_LABELS[seg] || seg;
+    const isLast = i === segments.length - 1;
+    return { href, label, isLast };
+  });
+
+  return (
+    <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1 text-sm">
+      <Link href="/dashboard" className="text-slate-500 hover:text-slate-300 transition-colors">
+        <Home size={14} />
+      </Link>
+      {crumbs.map((c) => (
+        <span key={c.href} className="flex items-center gap-1">
+          <ChevronRightIcon size={12} className="text-slate-600" />
+          {c.isLast ? (
+            <span className="text-zinc-300 font-medium">{c.label}</span>
+          ) : (
+            <Link href={c.href} className="text-slate-500 hover:text-slate-300 transition-colors">
+              {c.label}
+            </Link>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
 // Bottom bar items shown on mobile (primary 4 + "więcej" trigger)
 const BOTTOM_PRIMARY: NavItem[] = [
   {
@@ -75,21 +218,43 @@ const BOTTOM_PRIMARY: NavItem[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Sidebar nav item
+// Sidebar nav item (desktop — supports collapsed mode)
 // ---------------------------------------------------------------------------
 
 function SidebarItem({
   item,
   pathname,
+  collapsed,
   onClick,
 }: {
   item: NavItem;
   pathname: string;
+  collapsed: boolean;
   onClick?: () => void;
 }) {
   const active = item.matchExact
     ? pathname === item.href
     : pathname.startsWith(item.href);
+
+  if (collapsed) {
+    return (
+      <Link
+        href={item.href}
+        onClick={onClick}
+        aria-current={active ? "page" : undefined}
+        title={item.label}
+        className={cn(
+          "flex items-center justify-center py-2 mx-1 rounded-sm transition-colors",
+          "border-l-2",
+          active
+            ? "border-amber-400 bg-white/[0.04] text-zinc-50"
+            : "border-transparent text-slate-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+        )}
+      >
+        <span className="shrink-0">{item.icon}</span>
+      </Link>
+    );
+  }
 
   return (
     <Link
@@ -110,7 +275,7 @@ function SidebarItem({
 }
 
 // ---------------------------------------------------------------------------
-// Section header
+// Section header (desktop sidebar only)
 // ---------------------------------------------------------------------------
 
 function SectionHeader({ label }: { label: string }) {
@@ -122,10 +287,97 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sidebar content (reused in desktop sidebar + mobile sheet)
+// Collapsed section separator
 // ---------------------------------------------------------------------------
 
-function SidebarContent({
+function CollapsedSeparator() {
+  return <div className="mx-3 my-2 border-t border-white/[0.06]" />;
+}
+
+// ---------------------------------------------------------------------------
+// Desktop sidebar content
+// ---------------------------------------------------------------------------
+
+function DesktopSidebarContent({
+  pathname,
+  collapsed,
+}: {
+  pathname: string;
+  collapsed: boolean;
+}) {
+  if (collapsed) {
+    return (
+      <nav className="flex flex-col py-2">
+        {ACTION_ITEMS.map((item) => (
+          <SidebarItem
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            collapsed={true}
+          />
+        ))}
+        <CollapsedSeparator />
+        {ECONOMY_ITEMS.map((item) => (
+          <SidebarItem
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            collapsed={true}
+          />
+        ))}
+        <CollapsedSeparator />
+        {OTHER_ITEMS.map((item) => (
+          <SidebarItem
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            collapsed={true}
+          />
+        ))}
+      </nav>
+    );
+  }
+
+  return (
+    <nav className="flex flex-col py-2">
+      <SectionHeader label="AKCJA" />
+      {ACTION_ITEMS.map((item) => (
+        <SidebarItem
+          key={item.href}
+          item={item}
+          pathname={pathname}
+          collapsed={false}
+        />
+      ))}
+
+      <SectionHeader label="EKONOMIA" />
+      {ECONOMY_ITEMS.map((item) => (
+        <SidebarItem
+          key={item.href}
+          item={item}
+          pathname={pathname}
+          collapsed={false}
+        />
+      ))}
+
+      <SectionHeader label="INNE" />
+      {OTHER_ITEMS.map((item) => (
+        <SidebarItem
+          key={item.href}
+          item={item}
+          pathname={pathname}
+          collapsed={false}
+        />
+      ))}
+    </nav>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mobile sheet sidebar content (always expanded)
+// ---------------------------------------------------------------------------
+
+function MobileSidebarContent({
   pathname,
   onNavigate,
 }: {
@@ -140,6 +392,7 @@ function SidebarContent({
           key={item.href}
           item={item}
           pathname={pathname}
+          collapsed={false}
           onClick={onNavigate}
         />
       ))}
@@ -150,6 +403,7 @@ function SidebarContent({
           key={item.href}
           item={item}
           pathname={pathname}
+          collapsed={false}
           onClick={onNavigate}
         />
       ))}
@@ -160,9 +414,24 @@ function SidebarContent({
           key={item.href}
           item={item}
           pathname={pathname}
+          collapsed={false}
           onClick={onNavigate}
         />
       ))}
+
+      <SectionHeader label="KONTO" />
+      <SidebarItem
+        item={{ href: "/profile", label: "Profil", icon: <UserCircle size={18} /> }}
+        pathname={pathname}
+        collapsed={false}
+        onClick={onNavigate}
+      />
+      <SidebarItem
+        item={{ href: "/settings", label: "Ustawienia", icon: <Settings size={18} /> }}
+        pathname={pathname}
+        collapsed={false}
+        onClick={onNavigate}
+      />
     </nav>
   );
 }
@@ -202,6 +471,18 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [wallet, setWallet] = useState<WalletOut | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("sidebar-collapsed") === "true";
+  });
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar-collapsed", String(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -211,6 +492,9 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         // Wallet not available — silently ignore
       });
   }, [token]);
+
+  const sidebarWidth = collapsed ? "w-14" : "w-56";
+  const contentPadding = collapsed ? "md:pl-14" : "md:pl-56";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#1a2740_0%,#09111d_48%,#04070d_100%)] text-zinc-100">
@@ -234,43 +518,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
-          {/* Spacer */}
           <div className="flex-1" />
-
-          {/* Right: gold + ELO + username + logout */}
-          {user && (
-            <div className="flex items-center gap-2">
-              {/* Gold */}
-              {wallet !== null && (
-                <div className="flex items-center gap-1.5 rounded border border-amber-400/20 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-medium tabular-nums text-amber-300">
-                  <Coins size={12} className="shrink-0" />
-                  {wallet.gold.toLocaleString("pl-PL")}
-                </div>
-              )}
-
-              {/* ELO */}
-              <div className="hidden items-center gap-1.5 rounded border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-slate-300 sm:flex">
-                <Trophy size={12} className="shrink-0 text-amber-400" />
-                {user.elo_rating}
-              </div>
-
-              {/* Username */}
-              <span className="hidden max-w-[120px] truncate text-sm font-medium text-zinc-200 sm:block">
-                {user.username}
-              </span>
-
-              {/* Logout */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={logout}
-                className="h-8 w-8 shrink-0 rounded border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.08] hover:text-zinc-100"
-                aria-label="Wyloguj"
-              >
-                <LogOut size={15} />
-              </Button>
-            </div>
-          )}
         </div>
       </header>
 
@@ -282,31 +530,84 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         {/* ---------------------------------------------------------------- */}
         {/* Desktop sidebar                                                   */}
         {/* ---------------------------------------------------------------- */}
-        <aside className="fixed left-0 top-12 hidden h-[calc(100vh-3rem)] w-56 flex-col border-r border-white/[0.06] bg-slate-950/60 backdrop-blur-xl md:flex">
-          <div className="flex-1 overflow-y-auto">
-            <SidebarContent pathname={pathname} />
-          </div>
-
-          {/* Bottom of sidebar: compact user strip */}
+        <aside
+          className={cn(
+            "fixed left-0 top-12 hidden h-[calc(100vh-3rem)] flex-col border-r border-white/[0.06] bg-slate-950/60 backdrop-blur-xl md:flex",
+            "transition-all duration-200",
+            sidebarWidth
+          )}
+        >
+          {/* Avatar popover first, then stats below */}
           {user && (
-            <div className="border-t border-white/[0.06] px-3 py-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-700 text-xs font-bold uppercase text-slate-200">
-                  {user.username.charAt(0)}
-                </div>
-                <span className="flex-1 truncate text-xs font-medium text-slate-300">
-                  {user.username}
-                </span>
+            <div className="border-b border-white/[0.06]">
+              {/* Avatar + name — clickable popover */}
+              <div className={cn(collapsed ? "px-1 pt-2 pb-1" : "px-2 pt-3 pb-1")}>
+                <ProfilePopover user={user} wallet={wallet} collapsed={collapsed} onLogout={logout} />
               </div>
+              {/* Stats — always visible BELOW avatar */}
+              {!collapsed && (
+                <div className="px-3 pb-3 pt-1 space-y-1.5">
+                  <div className="flex items-center gap-2 rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-1.5">
+                    <Trophy size={14} className="text-amber-400 shrink-0" />
+                    <span className="text-sm font-bold tabular-nums text-zinc-100">{user.elo_rating}</span>
+                    <span className="text-[10px] text-slate-500 ml-auto">ELO</span>
+                  </div>
+                  {wallet && (
+                    <div className="flex items-center gap-2 rounded-lg bg-amber-500/[0.07] border border-amber-400/15 px-2.5 py-1.5">
+                      <Coins size={14} className="text-amber-400 shrink-0" />
+                      <span className="text-sm font-bold tabular-nums text-amber-200">{wallet.gold.toLocaleString("pl-PL")}</span>
+                      <span className="text-[10px] text-amber-300/40 ml-auto">złota</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {collapsed && (
+                <div className="flex flex-col items-center gap-1 px-1 pb-2">
+                  <div title={`ELO: ${user.elo_rating}`} className="flex h-7 w-full items-center justify-center rounded bg-white/[0.04] text-[10px] font-bold tabular-nums text-zinc-200">
+                    {user.elo_rating}
+                  </div>
+                  {wallet && (
+                    <div title={`${wallet.gold} złota`} className="flex h-7 w-full items-center justify-center rounded bg-amber-500/[0.07] text-[10px] font-bold tabular-nums text-amber-300">
+                      {wallet.gold > 9999 ? `${Math.floor(wallet.gold / 1000)}k` : wallet.gold}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
+
+          {/* Nav items */}
+          <div className="flex-1 overflow-y-auto">
+            <DesktopSidebarContent pathname={pathname} collapsed={collapsed} />
+          </div>
+
+          {/* Collapse toggle */}
+          <div className="border-t border-white/[0.06]">
+            <button
+              onClick={toggleCollapsed}
+              className={cn(
+                "flex w-full items-center py-2.5 text-slate-500 hover:text-zinc-200 hover:bg-white/[0.03] transition-colors",
+                collapsed ? "justify-center" : "gap-2 px-3"
+              )}
+              aria-label={collapsed ? "Rozwiń" : "Zwiń"}
+              title={collapsed ? "Rozwiń" : "Zwiń"}
+            >
+              {collapsed ? <ChevronRight size={16} /> : <><ChevronLeft size={16} /><span className="text-sm">Zwiń</span></>}
+            </button>
+          </div>
         </aside>
 
         {/* ---------------------------------------------------------------- */}
         {/* Main content                                                      */}
         {/* ---------------------------------------------------------------- */}
-        <main className="flex-1 min-w-0 md:pl-56">
+        <main
+          className={cn(
+            "flex-1 min-w-0 transition-all duration-200",
+            contentPadding
+          )}
+        >
           <div className="px-4 py-6 pb-20 sm:px-6 lg:px-8 md:pb-6">
+            <Breadcrumbs pathname={pathname} />
             {children}
           </div>
         </main>
@@ -343,7 +644,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             <div className="mb-2 px-4 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-600">
               NAWIGACJA
             </div>
-            <SidebarContent
+            <MobileSidebarContent
               pathname={pathname}
               onNavigate={() => setSheetOpen(false)}
             />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { Trophy, Medal, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getLeaderboard, type LeaderboardEntry } from "@/lib/api";
@@ -106,7 +107,12 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="truncate font-medium text-zinc-50">{entry.username}</span>
+                    <Link
+                      href={`/profile/${entry.id}`}
+                      className="truncate font-medium text-zinc-50 hover:text-cyan-300 transition-colors"
+                    >
+                      {entry.username}
+                    </Link>
                     {isMe && (
                       <Badge className="border-0 bg-cyan-400/15 text-cyan-200 hover:bg-cyan-400/15">
                         Ty

@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getMyMatches, getConfig, getMyDecks, startTutorial, type Match, type GameModeListItem, type DeckOut } from "@/lib/api";
+import { getMyMatches, getConfig, getMyDecks, getMyWallet, getMyDrops, getMyTradeHistory, startTutorial, type Match, type GameModeListItem, type DeckOut, type WalletOut, type ItemDropOut, type MarketTransactionOut } from "@/lib/api";
 import Link from "next/link";
 import {
   Swords,
@@ -23,6 +23,9 @@ import {
   ChevronRight,
   GraduationCap,
   Layers,
+  Coins,
+  Package,
+  ArrowRightLeft,
 } from "lucide-react";
 
 const MODE_ICONS: Record<string, typeof Users> = {
@@ -50,6 +53,9 @@ export default function DashboardPage() {
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [decks, setDecks] = useState<DeckOut[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<WalletOut | null>(null);
+  const [recentDrops, setRecentDrops] = useState<ItemDropOut[]>([]);
+  const [recentTrades, setRecentTrades] = useState<MarketTransactionOut[]>([]);
   const [queueSeconds, setQueueSeconds] = useState(0);
   const [tutorialLoading, setTutorialLoading] = useState(false);
   const activeMatch = recentMatches.find(
@@ -71,6 +77,15 @@ export default function DashboardPage() {
         refreshUser().catch(() => {});
         getMyMatches(token)
           .then((res) => setRecentMatches(res.items))
+          .catch(() => {});
+        getMyWallet(token)
+          .then(setWallet)
+          .catch(() => {});
+        getMyDrops(token, 3)
+          .then((res) => setRecentDrops(res.items))
+          .catch(() => {});
+        getMyTradeHistory(token, 3)
+          .then((res) => setRecentTrades(res.items))
           .catch(() => {});
       };
 
@@ -159,6 +174,10 @@ export default function DashboardPage() {
 
   const currentMode = gameModes.find((m) => m.slug === selectedMode);
   const wins = recentMatches.filter((m) => m.status === "finished" && m.winner_id === user.id).length;
+  const finishedMatches = recentMatches.filter((m) => m.status === "finished").length;
+  const winRate = finishedMatches > 0 ? Math.round((wins / finishedMatches) * 100) : 0;
+  const defaultDeck = decks.find((d) => d.is_default);
+  const selectedDeck = decks.find((d) => d.id === selectedDeckId);
 
   return (
     <div className="space-y-6">
@@ -166,6 +185,38 @@ export default function DashboardPage() {
       <div className="space-y-1">
         <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Akcja</p>
         <h1 className="font-display text-3xl text-zinc-50">Panel dowodzenia</h1>
+      </div>
+
+      {/* ── Quick stats bar ──────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/55 px-5 py-3 backdrop-blur-xl">
+        <div className="flex items-center gap-2 border-r border-white/[0.06] pr-3">
+          <Trophy className="h-3.5 w-3.5 text-amber-300 shrink-0" />
+          <span className="font-display text-sm text-amber-200">{user.elo_rating}</span>
+          <span className="text-[11px] text-slate-500">ELO</span>
+        </div>
+        <div className="flex items-center gap-2 border-r border-white/[0.06] pr-3">
+          <Crown className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+          <span className="font-display text-sm text-zinc-50">{winRate}%</span>
+          <span className="text-[11px] text-slate-500">Win Rate</span>
+        </div>
+        {wallet !== null && (
+          <div className="flex items-center gap-2 border-r border-white/[0.06] pr-3">
+            <Coins className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className="font-display text-sm text-amber-200">{wallet.gold.toLocaleString("pl-PL")}</span>
+            <span className="text-[11px] text-slate-500">złota</span>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <Layers className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+          <span className="text-sm text-zinc-50">
+            {defaultDeck?.name ?? "Brak talii"}
+          </span>
+          {!defaultDeck && (
+            <Link href="/decks" className="text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors">
+              Stwórz
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* ── Player overview ──────────────────────────────────── */}
@@ -457,15 +508,29 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
-            <Button
-              size="lg"
-              className="h-11 gap-2 rounded-full border border-cyan-300/30 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] px-6 font-display uppercase tracking-[0.2em] text-slate-950 hover:opacity-90"
-              onClick={() => joinQueue(selectedMode ?? undefined)}
-              disabled={!selectedMode}
-            >
-              <Search className="h-4 w-4" />
-              Szukaj gry
-            </Button>
+            <div className="flex flex-col items-start gap-2 sm:items-end">
+              {selectedDeck && (
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <Layers className="h-3 w-3 text-cyan-400" />
+                  <span className="text-zinc-200">{selectedDeck.name}</span>
+                  <Link
+                    href="/decks"
+                    className="text-cyan-400 hover:text-cyan-300 transition-colors"
+                  >
+                    Zmień
+                  </Link>
+                </div>
+              )}
+              <Button
+                size="lg"
+                className="h-12 gap-2 rounded-xl border border-cyan-300/40 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] px-8 font-display text-base uppercase tracking-[0.2em] text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.2)] hover:opacity-90 hover:shadow-[0_0_32px_rgba(34,211,238,0.3)] transition-all"
+                onClick={() => joinQueue(selectedMode ?? undefined)}
+                disabled={!selectedMode}
+              >
+                <Search className="h-5 w-5" />
+                Szukaj gry
+              </Button>
+            </div>
           </div>
         )}
       </section>
@@ -569,6 +634,90 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
+
+      {/* ── Co nowego (activity feed) ────────────────────────── */}
+      {(recentDrops.length > 0 || recentTrades.length > 0) && (
+        <section className="rounded-2xl border border-white/10 bg-slate-950/55 p-6 backdrop-blur-xl">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+              <ArrowRightLeft className="h-5 w-5 text-violet-300" />
+            </div>
+            <div>
+              <h3 className="font-display text-xl text-zinc-50">Co nowego</h3>
+              <p className="text-sm text-slate-400">Ostatnia aktywność</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {recentDrops.map((drop) => (
+              <div
+                key={drop.id}
+                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04]">
+                  <Package className="h-4 w-4 text-emerald-300" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-zinc-50 truncate">
+                    Otrzymano:{" "}
+                    <span className="font-medium">{drop.item.name}</span>{" "}
+                    {drop.quantity > 1 && (
+                      <span className="text-slate-400">×{drop.quantity}</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {drop.source} &middot;{" "}
+                    {new Date(drop.created_at).toLocaleDateString("pl-PL", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </p>
+                </div>
+                <Link
+                  href="/inventory"
+                  className="shrink-0 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors"
+                >
+                  Ekwipunek
+                  <ChevronRight className="inline h-3 w-3" />
+                </Link>
+              </div>
+            ))}
+
+            {recentTrades.map((trade) => (
+              <div
+                key={trade.id}
+                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04]">
+                  <Coins className="h-4 w-4 text-amber-300" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-zinc-50 truncate">
+                    Transakcja:{" "}
+                    <span className="font-medium">{trade.item.name}</span>{" "}
+                    <span className="text-slate-400">
+                      &mdash; {trade.total_price.toLocaleString("pl-PL")} złota
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {new Date(trade.created_at).toLocaleDateString("pl-PL", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </p>
+                </div>
+                <Link
+                  href="/marketplace"
+                  className="shrink-0 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors"
+                >
+                  Rynek
+                  <ChevronRight className="inline h-3 w-3" />
+                </Link>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
