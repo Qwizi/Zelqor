@@ -109,6 +109,30 @@ const MIN_SLOTS = 40;
 
 type Tab = "inventory" | "drops";
 
+// ─── Rarity slot styles (matching deck builder) ─────────────────────────────
+
+const RARITY_LEFT_BORDER: Record<string, string> = {
+  common: "border-l-slate-500/50",
+  uncommon: "border-l-green-500/50",
+  rare: "border-l-blue-500/50",
+  epic: "border-l-purple-500/50",
+  legendary: "border-l-amber-500/50",
+};
+
+const RARITY_SLOT_BG: Record<string, string> = {
+  common: "bg-slate-500/[0.07]",
+  uncommon: "bg-green-500/[0.07]",
+  rare: "bg-blue-500/[0.07]",
+  epic: "bg-purple-500/[0.07]",
+  legendary: "bg-amber-500/[0.07]",
+};
+
+function levelBadgeClass(level: number): string {
+  if (level >= 3) return "text-amber-300";
+  if (level === 2) return "text-cyan-300";
+  return "text-zinc-500";
+}
+
 // ─── Slot component ────────────────────────────────────────────────────────────
 
 interface SlotProps {
@@ -119,54 +143,46 @@ interface SlotProps {
 
 function FilledSlot({ entry, isSelected, onClick }: SlotProps) {
   const rarity = entry.item.rarity;
-  const displayIcon = entry.item.icon || TYPE_LETTER[entry.item.item_type] || "?";
-  const isEmoji = displayIcon.length > 1 || displayIcon.codePointAt(0)! > 127;
 
   return (
     <button
       onClick={onClick}
       className={[
-        "group relative aspect-square rounded-lg border border-l-[3px] transition-all duration-150",
-        "border-white/[0.08] bg-white/[0.03]",
-        RARITY_BORDER[rarity] ?? "border-l-slate-400",
-        RARITY_GLOW[rarity] ?? "",
-        "hover:shadow-lg hover:bg-white/[0.10] hover:border-white/25 hover:scale-[1.02]",
-        isSelected
-          ? "ring-1 ring-white/20 bg-white/[0.07] shadow-lg"
-          : "",
+        "group relative aspect-square rounded-lg border border-l-2 flex flex-col items-center justify-center transition-all duration-150",
+        RARITY_LEFT_BORDER[rarity] ?? "border-l-slate-500/50",
+        RARITY_SLOT_BG[rarity] ?? "bg-slate-500/[0.07]",
+        "border-white/10",
+        "hover:border-white/30 hover:bg-white/[0.08] hover:scale-[1.03]",
+        isSelected ? "ring-1 ring-white/25 bg-white/[0.10] scale-[1.02]" : "",
       ].join(" ")}
       title={entry.item.name}
     >
       {/* Level badge — top left */}
-      {entry.item.level > 1 && (
-        <span className="absolute left-1 top-1 z-10 rounded px-1 py-px text-[9px] font-bold leading-tight bg-amber-500/20 text-amber-300 border border-amber-500/30">
-          {entry.item.level}
-        </span>
-      )}
+      <div className={`absolute left-1 top-1 text-[9px] font-bold leading-none ${levelBadgeClass(entry.item.level)}`}>
+        {entry.item.level}
+      </div>
 
-      {/* Item icon (emoji) or letter fallback */}
-      <span
-        className={[
-          "absolute inset-0 flex items-center justify-center select-none",
-          isEmoji ? "text-2xl" : `font-bold text-lg ${RARITY_TEXT[rarity] ?? "text-slate-300"}`,
-        ].join(" ")}
-      >
-        {displayIcon}
-      </span>
-
-      {/* Quantity badge — bottom right */}
+      {/* Quantity badge — top right */}
       {entry.quantity > 1 && (
-        <span className="absolute bottom-1 right-1 z-10 rounded px-1 py-px text-[10px] font-semibold leading-tight bg-slate-900/90 text-zinc-200 border border-white/10">
+        <span className="absolute right-1 top-1 rounded bg-slate-900/80 px-1 py-px text-[9px] font-semibold leading-none text-zinc-200 border border-white/10">
           x{entry.quantity}
         </span>
       )}
+
+      {/* Icon */}
+      <span className="text-2xl leading-none select-none">{entry.item.icon || "📦"}</span>
+
+      {/* Name */}
+      <p className="mt-1 max-w-full truncate px-1 text-center text-[9px] leading-none text-zinc-400">
+        {entry.item.name.replace(/^(Pakiet|Blueprint|Bonus): ?/, "")}
+      </p>
     </button>
   );
 }
 
 function EmptySlot() {
   return (
-    <div className="aspect-square rounded-lg border border-dashed border-white/[0.05] bg-white/[0.01]" />
+    <div className="aspect-square rounded-lg border border-dashed border-white/[0.08] bg-white/[0.02]" />
   );
 }
 
@@ -186,15 +202,15 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
   const displayIcon = item.icon || TYPE_LETTER[item.item_type] || "?";
 
   return (
-    <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
+    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.05] p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         {/* Left: icon */}
         <div
           className={[
             "flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-l-[3px] text-3xl",
-            "border-white/[0.08]",
+            "border-white/10",
             RARITY_BORDER[rarity] ?? "border-l-slate-400",
-            "bg-white/[0.03]",
+            "bg-white/[0.05]",
           ].join(" ")}
         >
           {displayIcon}
@@ -241,7 +257,7 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
               <span className="flex items-center gap-1 text-amber-300/70">
                 <Coins className="h-3 w-3" />
                 <span className="font-mono tabular-nums">{item.base_value}</span>
-                <span className="text-slate-500">bazowa wartość</span>
+                <span className="text-slate-400">bazowa wartość</span>
               </span>
             )}
           </div>
@@ -258,7 +274,7 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
       </div>
 
       {/* Actions */}
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-white/[0.06] pt-4">
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
         {item.item_type === "crate" && (
           <Button
             size="sm"
@@ -406,13 +422,13 @@ export default function InventoryPage() {
 
       {/* ── Page header ─────────────────────────────────────────────────────── */}
       <div className="space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Ekwipunek</p>
+        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Ekwipunek</p>
         <h1 className="font-display text-3xl text-zinc-50">Twój ekwipunek</h1>
       </div>
 
       {/* ── Wallet bar ──────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 backdrop-blur-xl">
-        <span className="mr-auto text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+        <span className="mr-auto text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
           Portfel
         </span>
 
@@ -421,23 +437,23 @@ export default function InventoryPage() {
             <span className="flex items-center gap-1.5 font-mono tabular-nums text-sm font-medium text-amber-300">
               <Coins className="h-3.5 w-3.5" />
               {wallet.gold.toLocaleString("pl-PL")}
-              <span className="text-slate-500 font-normal">złoto</span>
+              <span className="text-slate-400 font-normal">złoto</span>
             </span>
             <span className="h-3 w-px bg-white/10 hidden sm:block" />
             <span className="flex items-center gap-1 font-mono tabular-nums text-sm text-green-300">
               <TrendingUp className="h-3.5 w-3.5" />
               {wallet.total_earned.toLocaleString("pl-PL")}
-              <span className="text-slate-500 text-xs font-normal">zarobione</span>
+              <span className="text-slate-400 text-xs font-normal">zarobione</span>
             </span>
             <span className="h-3 w-px bg-white/10 hidden sm:block" />
             <span className="flex items-center gap-1 font-mono tabular-nums text-sm text-red-400">
               <TrendingDown className="h-3.5 w-3.5" />
               {wallet.total_spent.toLocaleString("pl-PL")}
-              <span className="text-slate-500 text-xs font-normal">wydane</span>
+              <span className="text-slate-400 text-xs font-normal">wydane</span>
             </span>
           </>
         ) : (
-          <span className="text-xs text-slate-500">Ładowanie...</span>
+          <span className="text-xs text-slate-400">Ładowanie...</span>
         )}
       </div>
 
@@ -502,7 +518,7 @@ export default function InventoryPage() {
                   <span
                     className={[
                       "rounded-full px-1 text-[10px] font-semibold tabular-nums",
-                      filter === f.value ? "text-cyan-300/70" : "text-slate-600",
+                      filter === f.value ? "text-cyan-300/70" : "text-slate-500",
                     ].join(" ")}
                   >
                     {count}
@@ -585,7 +601,7 @@ export default function InventoryPage() {
                       <div
                         className={[
                           "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-l-[2px] text-base",
-                          "border-white/[0.07] bg-white/[0.03]",
+                          "border-white/10 bg-white/[0.05]",
                           RARITY_BORDER[rarity] ?? "border-l-slate-400",
                         ].join(" ")}
                       >
@@ -605,12 +621,12 @@ export default function InventoryPage() {
                       </div>
 
                       {/* Source badge */}
-                      <span className="shrink-0 rounded-full border border-white/[0.07] bg-white/[0.03] px-2 py-px text-[10px] text-slate-400">
+                      <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-px text-[10px] text-slate-300">
                         {SOURCE_LABEL[drop.source] ?? drop.source}
                       </span>
 
                       {/* Time */}
-                      <span className="shrink-0 text-[11px] text-slate-600 tabular-nums">
+                      <span className="shrink-0 text-[11px] text-slate-400 tabular-nums">
                         {timeAgo(drop.created_at)}
                       </span>
                     </div>

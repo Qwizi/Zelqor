@@ -20,7 +20,7 @@ function StatCard({
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center">
       <div className={`font-display text-2xl ${color}`}>{value}</div>
-      <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+      <div className="mt-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
         {label}
       </div>
     </div>
@@ -83,7 +83,7 @@ export default function PublicProfilePage() {
     return (
       <div className="space-y-6">
         <div className="space-y-1">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
             PROFIL
           </p>
           <h1 className="font-display text-3xl text-zinc-50">
@@ -91,7 +91,7 @@ export default function PublicProfilePage() {
           </h1>
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-12 text-center backdrop-blur-xl">
-          <Swords className="mx-auto h-10 w-10 text-slate-600" />
+          <Swords className="mx-auto h-10 w-10 text-slate-500" />
           <p className="mt-4 text-sm text-slate-400">
             Nie znaleziono gracza
           </p>
@@ -113,7 +113,7 @@ export default function PublicProfilePage() {
     <div className="space-y-6">
       {/* Page header */}
       <div className="space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
           PROFIL
         </p>
         <h1 className="font-display text-3xl text-zinc-50">
@@ -124,7 +124,7 @@ export default function PublicProfilePage() {
       {/* Back link */}
       <Link
         href="/leaderboard"
-        className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-300 transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-cyan-300 transition-colors"
       >
         <ChevronLeft className="h-3 w-3" />
         Tabela liderów
@@ -179,8 +179,8 @@ export default function PublicProfilePage() {
         </div>
 
         {/* Extra stats */}
-        <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-400">
+        <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-300">
             <span>
               Śr. placement:{" "}
               <span className="text-zinc-200">

@@ -61,7 +61,7 @@ function AppCard({ app }: { app: DeveloperApp }) {
   return (
     <Link
       href={`/developers/${app.id}`}
-      className="group relative flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl transition-all hover:border-white/25 hover:bg-white/[0.10]"
+      className="group relative flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.05] p-5 backdrop-blur-xl transition-all hover:border-white/25 hover:bg-white/[0.10]"
     >
       {/* Status indicator */}
       <div className="absolute right-4 top-4">
@@ -90,14 +90,14 @@ function AppCard({ app }: { app: DeveloperApp }) {
               {app.description}
             </p>
           ) : (
-            <p className="mt-0.5 text-xs italic text-slate-600">Brak opisu</p>
+            <p className="mt-0.5 text-xs italic text-slate-500">Brak opisu</p>
           )}
         </div>
       </div>
 
       {/* Client ID */}
       <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-        <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
           Client ID
         </div>
         <div className="mt-0.5 font-mono text-xs text-slate-300">
@@ -107,8 +107,8 @@ function AppCard({ app }: { app: DeveloperApp }) {
 
       {/* Footer */}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-500">Utworzono {formatDate(app.created_at)}</span>
-        <ArrowRight className="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" />
+        <span className="text-xs text-slate-400">Utworzono {formatDate(app.created_at)}</span>
+        <ArrowRight className="h-4 w-4 text-slate-500 transition-colors group-hover:text-cyan-300" />
       </div>
     </Link>
   );
@@ -121,7 +121,7 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
         <Code className="h-7 w-7 text-slate-500" />
       </div>
       <h3 className="mt-4 font-display text-lg text-zinc-300">Brak aplikacji</h3>
-      <p className="mt-2 max-w-xs text-sm text-slate-500">
+      <p className="mt-2 max-w-xs text-sm text-slate-400">
         Stworz pierwsza aplikacje, aby uzyskac klucze API i skonfigurowac webhooki.
       </p>
       <Button
@@ -182,7 +182,7 @@ function SecretDialog({
         {createdApp && (
           <div className="space-y-3">
             <div>
-              <div className="mb-1.5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+              <div className="mb-1.5 text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
                 Client ID
               </div>
               <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 font-mono text-xs text-slate-300 break-all">
@@ -191,7 +191,7 @@ function SecretDialog({
             </div>
 
             <div>
-              <div className="mb-1.5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+              <div className="mb-1.5 text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
                 Client Secret
               </div>
               <div className="relative">
@@ -419,7 +419,7 @@ export default function DevelopersPage() {
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Deweloperzy</p>
+          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Deweloperzy</p>
           <h1 className="font-display text-3xl text-zinc-50">Panel deweloperski</h1>
           <p className="mt-2 max-w-lg text-sm text-slate-400">
             Tworzenie aplikacji, kluczy API i webhookow do integracji z MapLord.
@@ -448,22 +448,22 @@ export default function DevelopersPage() {
 
       {/* ── Stats strip ────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 backdrop-blur-xl">
-          <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-xl">
+          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
             Wszystkie
           </div>
           <div className="mt-1 font-display text-2xl text-zinc-50">{apps.length}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 backdrop-blur-xl">
-          <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-xl">
+          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
             Aktywne
           </div>
           <div className="mt-1 font-display text-2xl text-emerald-300">
             {apps.filter((a) => a.is_active).length}
           </div>
         </div>
-        <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 backdrop-blur-xl sm:col-span-1">
-          <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">
+        <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-xl sm:col-span-1">
+          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
             Nieaktywne
           </div>
           <div className="mt-1 font-display text-2xl text-slate-400">

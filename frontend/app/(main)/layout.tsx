@@ -105,11 +105,11 @@ function ProfilePopover({
 
       {/* Submenu — opens inline below, pushes content down */}
       {open && !collapsed && (
-        <div className="mt-1 rounded-lg border border-white/[0.06] bg-white/[0.03] overflow-hidden">
+        <div className="mt-1 rounded-lg border border-white/10 bg-white/[0.05] overflow-hidden">
           <Link
             href="/profile"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors"
+            className="flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-zinc-100 transition-colors"
           >
             <UserCircle size={15} />
             Profil
@@ -117,14 +117,14 @@ function ProfilePopover({
           <Link
             href="/settings"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors"
+            className="flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-zinc-100 transition-colors"
           >
             <Settings size={15} />
             Ustawienia
           </Link>
           <button
             onClick={() => { setOpen(false); onLogout(); }}
-            className="flex w-full items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors border-t border-white/[0.04]"
+            className="flex w-full items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors border-t border-white/[0.08]"
           >
             <LogOut size={15} />
             Wyloguj
@@ -136,11 +136,11 @@ function ProfilePopover({
       {open && collapsed && (
         <div className="mt-1 flex flex-col items-center gap-0.5">
           <Link href="/profile" onClick={() => setOpen(false)} title="Profil"
-            className="flex h-8 w-10 items-center justify-center rounded text-slate-400 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors">
+            className="flex h-8 w-10 items-center justify-center rounded text-slate-400 hover:bg-white/10 hover:text-zinc-100 transition-colors">
             <UserCircle size={16} />
           </Link>
           <Link href="/settings" onClick={() => setOpen(false)} title="Ustawienia"
-            className="flex h-8 w-10 items-center justify-center rounded text-slate-400 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors">
+            className="flex h-8 w-10 items-center justify-center rounded text-slate-400 hover:bg-white/10 hover:text-zinc-100 transition-colors">
             <Settings size={16} />
           </Link>
           <button onClick={() => { setOpen(false); onLogout(); }} title="Wyloguj"
@@ -172,29 +172,39 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   docs: "Dokumentacja",
 };
 
+// For dynamic segments (e.g. item slugs, deck IDs) we show a human-readable
+// fallback derived from the segment itself. The label map is checked first.
+function formatSegmentLabel(seg: string): string {
+  if (BREADCRUMB_LABELS[seg]) return BREADCRUMB_LABELS[seg];
+  // UUID-like IDs → "Edytor"
+  if (/^[0-9a-f-]{8,}$/i.test(seg)) return "Edytor";
+  // Slugs: replace hyphens with spaces and capitalise first letter
+  return seg.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
 function Breadcrumbs({ pathname }: { pathname: string }) {
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length === 0) return null;
 
   const crumbs = segments.map((seg, i) => {
     const href = "/" + segments.slice(0, i + 1).join("/");
-    const label = BREADCRUMB_LABELS[seg] || seg;
+    const label = formatSegmentLabel(seg);
     const isLast = i === segments.length - 1;
     return { href, label, isLast };
   });
 
   return (
     <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1 text-sm">
-      <Link href="/dashboard" className="text-slate-500 hover:text-slate-300 transition-colors">
+      <Link href="/dashboard" className="text-slate-400 hover:text-slate-300 transition-colors">
         <Home size={14} />
       </Link>
       {crumbs.map((c) => (
         <span key={c.href} className="flex items-center gap-1">
-          <ChevronRightIcon size={12} className="text-slate-600" />
+          <ChevronRightIcon size={12} className="text-slate-500" />
           {c.isLast ? (
             <span className="text-zinc-300 font-medium">{c.label}</span>
           ) : (
-            <Link href={c.href} className="text-slate-500 hover:text-slate-300 transition-colors">
+            <Link href={c.href} className="text-slate-400 hover:text-slate-300 transition-colors">
               {c.label}
             </Link>
           )}
@@ -280,7 +290,7 @@ function SidebarItem({
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-3 pb-1 pt-4 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-600 select-none">
+    <div className="px-3 pb-1 pt-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500 select-none">
       {label}
     </div>
   );
@@ -291,7 +301,7 @@ function SectionHeader({ label }: { label: string }) {
 // ---------------------------------------------------------------------------
 
 function CollapsedSeparator() {
-  return <div className="mx-3 my-2 border-t border-white/[0.06]" />;
+  return <div className="mx-3 my-2 border-t border-white/10" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -451,7 +461,7 @@ function BottomBarItem({ item, pathname }: { item: NavItem; pathname: string }) 
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex flex-1 flex-col items-center gap-0.5 px-2 py-2 text-[10px] font-medium transition-colors",
-        active ? "text-amber-300" : "text-slate-500 hover:text-slate-300"
+        active ? "text-amber-300" : "text-slate-400 hover:text-slate-300"
       )}
     >
       <span className={cn("transition-colors", active && "text-amber-400")}>
@@ -502,7 +512,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
       {/* ------------------------------------------------------------------ */}
       {/* Top bar                                                             */}
       {/* ------------------------------------------------------------------ */}
-      <header className="fixed inset-x-0 top-0 z-40 h-12 border-b border-white/[0.08] bg-slate-950/80 backdrop-blur-xl">
+      <header className="fixed inset-x-0 top-0 z-40 h-12 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
         <div className="flex h-full items-center gap-3 px-4">
 
           {/* Logo */}
@@ -532,14 +542,14 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         {/* ---------------------------------------------------------------- */}
         <aside
           className={cn(
-            "fixed left-0 top-12 hidden h-[calc(100vh-3rem)] flex-col border-r border-white/[0.06] bg-slate-950/60 backdrop-blur-xl md:flex",
+            "fixed left-0 top-12 hidden h-[calc(100vh-3rem)] flex-col border-r border-white/10 bg-slate-950/60 backdrop-blur-xl md:flex",
             "transition-all duration-200",
             sidebarWidth
           )}
         >
           {/* Avatar popover first, then stats below */}
           {user && (
-            <div className="border-b border-white/[0.06]">
+            <div className="border-b border-white/10">
               {/* Avatar + name — clickable popover */}
               <div className={cn(collapsed ? "px-1 pt-2 pb-1" : "px-2 pt-3 pb-1")}>
                 <ProfilePopover user={user} wallet={wallet} collapsed={collapsed} onLogout={logout} />
@@ -547,16 +557,16 @@ export default function MainLayout({ children }: { children: ReactNode }) {
               {/* Stats — always visible BELOW avatar */}
               {!collapsed && (
                 <div className="px-3 pb-3 pt-1 space-y-1.5">
-                  <div className="flex items-center gap-2 rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-1.5">
+                  <div className="flex items-center gap-2 rounded-lg bg-white/[0.06] border border-white/10 px-2.5 py-1.5">
                     <Trophy size={14} className="text-amber-400 shrink-0" />
                     <span className="text-sm font-bold tabular-nums text-zinc-100">{user.elo_rating}</span>
-                    <span className="text-[10px] text-slate-500 ml-auto">ELO</span>
+                    <span className="text-[11px] text-slate-400 ml-auto font-medium">ELO</span>
                   </div>
                   {wallet && (
                     <div className="flex items-center gap-2 rounded-lg bg-amber-500/[0.07] border border-amber-400/15 px-2.5 py-1.5">
                       <Coins size={14} className="text-amber-400 shrink-0" />
                       <span className="text-sm font-bold tabular-nums text-amber-200">{wallet.gold.toLocaleString("pl-PL")}</span>
-                      <span className="text-[10px] text-amber-300/40 ml-auto">złota</span>
+                      <span className="text-[11px] text-amber-300/70 ml-auto font-medium">złota</span>
                     </div>
                   )}
                 </div>
@@ -582,11 +592,11 @@ export default function MainLayout({ children }: { children: ReactNode }) {
           </div>
 
           {/* Collapse toggle */}
-          <div className="border-t border-white/[0.06]">
+          <div className="border-t border-white/10">
             <button
               onClick={toggleCollapsed}
               className={cn(
-                "flex w-full items-center py-2.5 text-slate-500 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors",
+                "flex w-full items-center py-2.5 text-slate-400 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors",
                 collapsed ? "justify-center" : "gap-2 px-3"
               )}
               aria-label={collapsed ? "Rozwiń" : "Zwiń"}
@@ -616,7 +626,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
       {/* ------------------------------------------------------------------ */}
       {/* Mobile bottom bar                                                   */}
       {/* ------------------------------------------------------------------ */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-14 items-stretch border-t border-white/[0.08] bg-slate-950/90 backdrop-blur-xl md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-14 items-stretch border-t border-white/10 bg-slate-950/90 backdrop-blur-xl md:hidden">
         {BOTTOM_PRIMARY.map((item) => (
           <BottomBarItem key={item.href} item={item} pathname={pathname} />
         ))}
@@ -628,7 +638,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
               <button
                 className={cn(
                   "flex flex-1 flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium transition-colors",
-                  "text-slate-500 hover:text-slate-300"
+                  "text-slate-400 hover:text-slate-300"
                 )}
                 aria-label="Więcej opcji"
               />
@@ -641,7 +651,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             side="bottom"
             className="rounded-t-2xl border-t border-white/10 bg-slate-950/95 px-0 pb-8 pt-4 backdrop-blur-xl"
           >
-            <div className="mb-2 px-4 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-600">
+            <div className="mb-2 px-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
               NAWIGACJA
             </div>
             <MobileSidebarContent

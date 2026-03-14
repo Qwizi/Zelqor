@@ -42,7 +42,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       {/* Page header */}
       <div className="space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
           USTAWIENIA
         </p>
         <h1 className="font-display text-3xl text-zinc-50">
@@ -56,7 +56,7 @@ export default function SettingsPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
             <User className="h-4 w-4 text-cyan-300" />
           </div>
-          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
             Konto
           </p>
         </div>
@@ -65,7 +65,7 @@ export default function SettingsPage() {
           {/* Username row */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
+              <label className="text-xs uppercase tracking-[0.18em] text-slate-400 font-medium">
                 Nazwa użytkownika
               </label>
               <p className="mt-1 text-sm font-medium text-zinc-50">
@@ -74,7 +74,7 @@ export default function SettingsPage() {
             </div>
             <button
               disabled
-              className="flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-500 cursor-not-allowed"
+              className="flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-400 cursor-not-allowed"
               title="Wkrótce dostępne"
             >
               Zmień
@@ -82,8 +82,8 @@ export default function SettingsPage() {
           </div>
 
           {/* Email row */}
-          <div className="border-t border-white/[0.06] pt-4">
-            <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
+          <div className="border-t border-white/10 pt-4">
+            <label className="text-xs uppercase tracking-[0.18em] text-slate-400 font-medium">
               Adres email
             </label>
             <p className="mt-1 text-sm font-medium text-zinc-50">
@@ -92,8 +92,8 @@ export default function SettingsPage() {
           </div>
 
           {/* Role row */}
-          <div className="border-t border-white/[0.06] pt-4">
-            <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
+          <div className="border-t border-white/10 pt-4">
+            <label className="text-xs uppercase tracking-[0.18em] text-slate-400 font-medium">
               Rola
             </label>
             <p className="mt-1 text-sm font-medium text-zinc-50 capitalize">
@@ -109,7 +109,7 @@ export default function SettingsPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
             <Lock className="h-4 w-4 text-amber-300" />
           </div>
-          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
             Hasło
           </p>
         </div>
@@ -120,7 +120,7 @@ export default function SettingsPage() {
           </p>
           <button
             disabled
-            className="flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-500 cursor-not-allowed"
+            className="flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-400 cursor-not-allowed"
             title="Wkrótce dostępne"
           >
             <Lock className="h-3.5 w-3.5" />
@@ -135,7 +135,7 @@ export default function SettingsPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
             <Gamepad2 className="h-4 w-4 text-emerald-300" />
           </div>
-          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
             Gra
           </p>
         </div>
@@ -144,7 +144,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-zinc-50">Samouczek</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 Status ukończenia wstępnego samouczka
               </p>
             </div>
@@ -157,7 +157,7 @@ export default function SettingsPage() {
               ) : (
                 <>
                   <span className="h-2 w-2 rounded-full bg-slate-600" />
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-slate-400">
                     Nieukończony
                   </span>
                 </>
@@ -183,7 +183,7 @@ export default function SettingsPage() {
             <p className="text-sm text-zinc-50">
               Wyloguj ze wszystkich urządzeń
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-400">
               Unieważnia wszystkie aktywne sesje — zostaniesz wylogowany
               wszędzie
             </p>

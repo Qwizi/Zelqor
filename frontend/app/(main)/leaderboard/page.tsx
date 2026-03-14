@@ -56,7 +56,7 @@ export default function LeaderboardPage() {
     <div className="space-y-6">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Ranking</p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Ranking</p>
             <h1 className="font-display text-3xl text-zinc-50">Tabela liderów</h1>
             <p className="mt-1 text-sm text-slate-400">
               Ranking uwzględnia ELO, wygrane, win rate i średni placement.
@@ -69,7 +69,7 @@ export default function LeaderboardPage() {
 
         {myPlacement > 0 && user && (
           <div className="rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-4 py-3 backdrop-blur-xl">
-            <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+            <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
               Twoja pozycja
             </div>
             <div className="mt-1 flex items-center justify-between gap-3">
@@ -119,7 +119,7 @@ export default function LeaderboardPage() {
                       </Badge>
                     )}
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-400">
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-300">
                     <span>{entry.matches_played} meczów</span>
                     <span>{entry.wins} wygranych</span>
                     <span>{Math.round(entry.win_rate * 100)}% win rate</span>
@@ -131,7 +131,7 @@ export default function LeaderboardPage() {
                     <Trophy className="h-4 w-4" />
                     <span className="font-display text-2xl">{entry.elo_rating}</span>
                   </div>
-                  <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+                  <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
                     ELO
                   </div>
                 </div>
@@ -141,7 +141,7 @@ export default function LeaderboardPage() {
         </div>
 
         <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 backdrop-blur-xl">
-          <div className="text-sm text-slate-400">
+          <div className="text-sm text-slate-300">
             Strona {safePage} z {totalPages}
           </div>
           <div className="flex items-center gap-2">

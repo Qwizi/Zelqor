@@ -130,7 +130,7 @@ export default function CraftingPage() {
     <div className="space-y-6">
       {/* ── Page header ─────────────────────────────────────────────────────── */}
       <div className="space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Kuźnia</p>
+        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Kuźnia</p>
         <h1 className="font-display text-3xl text-zinc-50">Warsztat rzemieślniczy</h1>
       </div>
 
@@ -217,7 +217,7 @@ export default function CraftingPage() {
                       const enough = owned >= ing.quantity;
                       return (
                         <div key={ing.item.slug} className="flex items-center gap-1.5">
-                          {idx > 0 && <span className="text-slate-600">+</span>}
+                          {idx > 0 && <span className="text-slate-500">+</span>}
                           <div
                             className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${
                               enough
@@ -241,7 +241,7 @@ export default function CraftingPage() {
 
                     {recipe.gold_cost > 0 && (
                       <>
-                        <span className="text-slate-600">+</span>
+                        <span className="text-slate-500">+</span>
                         <div
                           className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${
                             wallet && wallet.gold >= recipe.gold_cost
@@ -255,7 +255,7 @@ export default function CraftingPage() {
                       </>
                     )}
 
-                    <ArrowRight className="mx-1 h-4 w-4 text-slate-500" />
+                    <ArrowRight className="mx-1 h-4 w-4 text-slate-400" />
                     <div className={`rounded-lg border px-2.5 py-1.5 text-xs font-bold ${RARITY_COLORS[recipe.result_item.rarity]} ${RARITY_TEXT[recipe.result_item.rarity]}`}>
                       {recipe.result_item.name}
                       {recipe.result_quantity > 1 && ` x${recipe.result_quantity}`}

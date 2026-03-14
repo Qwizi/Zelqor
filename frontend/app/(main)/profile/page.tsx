@@ -48,7 +48,7 @@ function StatCard({
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center">
       <div className={`font-display text-2xl ${color}`}>{value}</div>
-      <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+      <div className="mt-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
         {label}
       </div>
     </div>
@@ -123,7 +123,7 @@ export default function ProfilePage() {
     <div className="space-y-6">
       {/* Page header */}
       <div className="space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
           PROFIL
         </p>
         <h1 className="font-display text-3xl text-zinc-50">Twój profil</h1>
@@ -143,9 +143,9 @@ export default function ProfilePage() {
               {currentUser.username}
             </h2>
             <p className="text-sm text-slate-400">{currentUser.email}</p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-400">
               Dołączył:{" "}
-              <span className="text-slate-400">{joinDateStr}</span>
+              <span className="text-slate-300">{joinDateStr}</span>
             </p>
             {currentUser.tutorial_completed && (
               <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-0.5 text-[11px] text-emerald-300">
@@ -188,7 +188,7 @@ export default function ProfilePage() {
       {/* Recent matches */}
       <section className="rounded-2xl border border-white/10 bg-slate-950/55 p-6 backdrop-blur-xl">
         <div className="mb-5 flex items-center justify-between">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
             Ostatnie mecze
           </p>
           <Link
@@ -201,9 +201,9 @@ export default function ProfilePage() {
         </div>
 
         {matches.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-8 text-center">
-            <Swords className="mx-auto h-8 w-8 text-slate-600" />
-            <p className="mt-3 text-sm text-slate-500">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-8 text-center">
+            <Swords className="mx-auto h-8 w-8 text-slate-500" />
+            <p className="mt-3 text-sm text-slate-400">
               Brak rozegranych meczów
             </p>
           </div>
@@ -212,16 +212,16 @@ export default function ProfilePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <th className="pb-2 text-left text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  <th className="pb-2 text-left text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
                     Data
                   </th>
-                  <th className="pb-2 text-left text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  <th className="pb-2 text-left text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
                     Status
                   </th>
-                  <th className="pb-2 text-left text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  <th className="pb-2 text-left text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
                     Gracze
                   </th>
-                  <th className="pb-2 text-left text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  <th className="pb-2 text-left text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
                     Wynik
                   </th>
                   <th className="pb-2" />
@@ -276,10 +276,10 @@ export default function ProfilePage() {
                               Przegrana
                             </Badge>
                           ) : (
-                            <span className="text-xs text-slate-500">—</span>
+                            <span className="text-xs text-slate-400">—</span>
                           )
                         ) : (
-                          <span className="text-xs text-slate-500">—</span>
+                          <span className="text-xs text-slate-400">—</span>
                         )}
                       </td>
                       <td className="py-2.5 text-right">
@@ -306,7 +306,7 @@ export default function ProfilePage() {
       {/* Inventory preview */}
       <section className="rounded-2xl border border-white/10 bg-slate-950/55 p-6 backdrop-blur-xl">
         <div className="mb-5 flex items-center justify-between">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
             Ekwipunek (podgląd)
           </p>
           <Link
@@ -318,9 +318,9 @@ export default function ProfilePage() {
         </div>
 
         {inventory.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-8 text-center">
-            <Package className="mx-auto h-8 w-8 text-slate-600" />
-            <p className="mt-3 text-sm text-slate-500">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-8 text-center">
+            <Package className="mx-auto h-8 w-8 text-slate-500" />
+            <p className="mt-3 text-sm text-slate-400">
               Brak przedmiotów w ekwipunku
             </p>
           </div>
@@ -348,7 +348,7 @@ export default function ProfilePage() {
                         ? "text-violet-400"
                         : inv.item.rarity === "rare"
                           ? "text-cyan-400"
-                          : "text-slate-500"
+                          : "text-slate-400"
                   }`}
                 >
                   {inv.item.rarity}
@@ -362,7 +362,7 @@ export default function ProfilePage() {
       {/* Active deck */}
       <section className="rounded-2xl border border-white/10 bg-slate-950/55 p-6 backdrop-blur-xl">
         <div className="mb-5 flex items-center justify-between">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
             Aktywna talia
           </p>
           <Link
@@ -374,9 +374,9 @@ export default function ProfilePage() {
         </div>
 
         {!defaultDeck ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-8 text-center">
-            <Layers className="mx-auto h-8 w-8 text-slate-600" />
-            <p className="mt-3 text-sm text-slate-500">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-8 text-center">
+            <Layers className="mx-auto h-8 w-8 text-slate-500" />
+            <p className="mt-3 text-sm text-slate-400">
               Brak domyślnej talii — stwórz talię przed grą
             </p>
           </div>
@@ -397,7 +397,7 @@ export default function ProfilePage() {
             </div>
 
             {defaultDeck.items.length === 0 ? (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 Talia nie zawiera przedmiotów
               </p>
             ) : (
@@ -409,7 +409,7 @@ export default function ProfilePage() {
                   >
                     <span>{di.item.name}</span>
                     {di.quantity > 1 && (
-                      <span className="text-slate-500">×{di.quantity}</span>
+                      <span className="text-slate-400">×{di.quantity}</span>
                     )}
                   </div>
                 ))}

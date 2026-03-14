@@ -1,26 +1,30 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
-from apps.inventory.models import Item, UserInventory, Wallet
+from apps.inventory.models import Deck, DeckItem, Item, UserInventory, Wallet
 
 User = get_user_model()
 
+# All 6 building blueprints Lvl 1 + Tarcza Lvl 1 (free ability)
 STARTER_ITEMS = [
-    'pkg-shield-1',   # Pakiet: Tarcza Lvl 1 (free ability)
-    'bp-barracks-1',  # Blueprint: Koszary Lvl 1
-    'bp-radar-1',     # Blueprint: Elektrownia Lvl 1
+    'pkg-shield-1',    # Pakiet: Tarcza Lvl 1
+    'bp-barracks-1',   # Blueprint: Koszary Lvl 1
+    'bp-factory-1',    # Blueprint: Fabryka Lvl 1
+    'bp-tower-1',      # Blueprint: Wieża Lvl 1
+    'bp-port-1',       # Blueprint: Port Lvl 1
+    'bp-carrier-1',    # Blueprint: Lotnisko Lvl 1
+    'bp-radar-1',      # Blueprint: Elektrownia Lvl 1
 ]
 STARTER_GOLD = 100
+DEFAULT_DECK_NAME = 'Domyślna talia'
 
 
 class Command(BaseCommand):
-    help = "Give all non-bot players default starter items and gold"
+    help = "Give all non-bot players default starter items, gold, and a default deck"
 
     def handle(self, *args, **options):
         users = User.objects.filter(is_bot=False)
         items = {slug: Item.objects.filter(slug=slug).first() for slug in STARTER_ITEMS}
-
-        # Filter out items that don't exist yet (seed might not have run)
         items = {slug: item for slug, item in items.items() if item is not None}
 
         if not items:
@@ -40,10 +44,25 @@ class Command(BaseCommand):
                 wallet.save(update_fields=['gold'])
                 changed = True
 
-            # Starter items
+            # Starter items in inventory
             for slug, item in items.items():
-                inv, created = UserInventory.objects.get_or_create(
+                _, created = UserInventory.objects.get_or_create(
                     user=user, item=item,
+                    defaults={'quantity': 1},
+                )
+                if created:
+                    changed = True
+
+            # Default deck — create if user has none, or update existing default
+            deck = Deck.objects.filter(user=user, is_default=True).first()
+            if not deck:
+                deck = Deck.objects.create(user=user, name=DEFAULT_DECK_NAME, is_default=True)
+                changed = True
+
+            # Ensure all starter items are in the deck
+            for slug, item in items.items():
+                _, created = DeckItem.objects.get_or_create(
+                    deck=deck, item=item,
                     defaults={'quantity': 1},
                 )
                 if created:
@@ -54,5 +73,5 @@ class Command(BaseCommand):
 
         self.stdout.write(
             f"Provisioned {provisioned} player(s) with default items "
-            f"({len(items)} items, {STARTER_GOLD} gold)"
+            f"({len(items)} items, {STARTER_GOLD} gold, default deck)"
         )

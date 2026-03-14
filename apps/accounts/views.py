@@ -42,7 +42,10 @@ class AuthController:
         try:
             from apps.inventory.models import Deck, DeckItem, Item, UserInventory, Wallet
 
-            STARTER_SLUGS = ['pkg-shield-1', 'bp-barracks-1', 'bp-radar-1']
+            STARTER_SLUGS = [
+                'pkg-shield-1', 'bp-barracks-1', 'bp-factory-1',
+                'bp-tower-1', 'bp-port-1', 'bp-carrier-1', 'bp-radar-1',
+            ]
 
             Wallet.objects.get_or_create(user=user, defaults={'gold': 100})
 
@@ -51,7 +54,7 @@ class AuthController:
                 if item:
                     UserInventory.objects.get_or_create(user=user, item=item, defaults={'quantity': 1})
 
-            deck = Deck.objects.create(user=user, name='Domyslna talia', is_default=True)
+            deck = Deck.objects.create(user=user, name='Domyślna talia', is_default=True)
             for slug in STARTER_SLUGS:
                 item = Item.objects.filter(slug=slug).first()
                 if item:
