@@ -1080,22 +1080,17 @@ export default function GamePage({
     );
   }
 
-  const visibleActionTargets = actionTargets.filter((regionId) => {
-    if (!highlightedNeighbors.includes(regionId)) return false;
-    return true;
-  });
-  const targets: TargetEntry[] = visibleActionTargets
-    .map((rid) => {
-      const r = regions[rid];
-      if (!r) return null;
-      return {
-        regionId: rid,
-        region: r,
-        name: r.name,
-        isAttack: r.owner_id !== myUserId,
-      } satisfies TargetEntry;
-    })
-    .filter(Boolean) as TargetEntry[];
+  const targets = useMemo<TargetEntry[]>(() => {
+    const visible = actionTargets.filter((rid) => highlightedNeighbors.includes(rid));
+    return visible
+      .map((rid) => {
+        const r = regions[rid];
+        if (!r) return null;
+        return { regionId: rid, region: r, name: r.name, isAttack: r.owner_id !== myUserId } satisfies TargetEntry;
+      })
+      .filter(Boolean) as TargetEntry[];
+  }, [actionTargets, highlightedNeighbors, regions, myUserId]);
+  const visibleActionTargets = useMemo(() => targets.map((t) => t.regionId), [targets]);
   const capitalSelectionEndsAt = Number(gameState?.meta?.capital_selection_ends_at || 0);
   const capitalSelectionRemaining = status === "selecting" && capitalSelectionEndsAt > 0
     ? Math.max(0, capitalSelectionEndsAt - Math.floor(nowMs / 1000))

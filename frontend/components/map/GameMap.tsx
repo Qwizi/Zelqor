@@ -1457,10 +1457,10 @@ export default memo(function GameMap({
         arrivedAnimsRef.current.clear();
       }
 
-      lineFeats = [];
-      dotFeats = [];
-      iconFeats = [];
-      pulseFeats = [];
+      lineFeats.length = 0;
+      dotFeats.length = 0;
+      iconFeats.length = 0;
+      pulseFeats.length = 0;
 
       for (const a of animsRef.current) {
         const rawLinear = Math.min((now - a.startTime) / a.duration, 1);
