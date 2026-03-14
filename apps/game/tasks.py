@@ -231,6 +231,13 @@ def finalize_match_results_sync(
         total_ticks,
     )
 
+    # Generate post-match item drops
+    try:
+        from apps.inventory.tasks import generate_match_drops
+        generate_match_drops(match_id)
+    except Exception as e:
+        logger.error("Failed to generate match drops for %s: %s", match_id, e)
+
     # Dispatch webhook events
     try:
         from apps.developers.tasks import dispatch_webhook_event

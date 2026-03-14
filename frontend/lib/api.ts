@@ -685,6 +685,203 @@ export async function getAvailableEvents(
   return fetchAPI<AvailableEvents>("/developers/events/", { token });
 }
 
+// --- Inventory ---
+
+export interface ItemOut {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  item_type: string;
+  rarity: string;
+  icon: string;
+  asset_key: string;
+  is_stackable: boolean;
+  is_tradeable: boolean;
+  is_consumable: boolean;
+  base_value: number;
+}
+
+export interface ItemCategoryOut {
+  id: string;
+  name: string;
+  slug: string;
+  items: ItemOut[];
+}
+
+export interface InventoryItemOut {
+  id: string;
+  item: ItemOut;
+  quantity: number;
+}
+
+export interface WalletOut {
+  gold: number;
+  total_earned: number;
+  total_spent: number;
+}
+
+export interface ItemDropOut {
+  id: string;
+  item: ItemOut;
+  quantity: number;
+  source: string;
+  match_id: string | null;
+  created_at: string;
+}
+
+export async function getItemCategories(): Promise<ItemCategoryOut[]> {
+  return fetchAPI<ItemCategoryOut[]>("/inventory/items/");
+}
+
+export async function getMyInventory(token: string): Promise<InventoryItemOut[]> {
+  return fetchAPI<InventoryItemOut[]>("/inventory/my/", { token });
+}
+
+export async function getMyWallet(token: string): Promise<WalletOut> {
+  return fetchAPI<WalletOut>("/inventory/wallet/", { token });
+}
+
+export async function getMyDrops(token: string): Promise<ItemDropOut[]> {
+  return fetchAPI<ItemDropOut[]>("/inventory/drops/", { token });
+}
+
+export async function openCrate(
+  token: string,
+  crateSlug: string,
+  keySlug: string
+): Promise<{ drops: { item_name: string; item_slug: string; rarity: string; quantity: number }[] }> {
+  return fetchAPI("/inventory/open-crate/", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ crate_item_slug: crateSlug, key_item_slug: keySlug }),
+  });
+}
+
+// --- Marketplace ---
+
+export interface MarketListingOut {
+  id: string;
+  seller_username: string;
+  item: ItemOut;
+  listing_type: string;
+  quantity: number;
+  quantity_remaining: number;
+  price_per_unit: number;
+  status: string;
+  is_bot_listing: boolean;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface MarketTransactionOut {
+  id: string;
+  buyer_username: string;
+  seller_username: string;
+  item: ItemOut;
+  quantity: number;
+  price_per_unit: number;
+  total_price: number;
+  fee: number;
+  created_at: string;
+}
+
+export interface MarketConfigOut {
+  transaction_fee_percent: number;
+  listing_duration_hours: number;
+  max_active_listings_per_user: number;
+}
+
+export async function getMarketConfig(): Promise<MarketConfigOut> {
+  return fetchAPI<MarketConfigOut>("/marketplace/config/");
+}
+
+export async function getMarketListings(
+  itemSlug?: string,
+  listingType?: string
+): Promise<MarketListingOut[]> {
+  const params = new URLSearchParams();
+  if (itemSlug) params.set("item_slug", itemSlug);
+  if (listingType) params.set("listing_type", listingType);
+  const qs = params.toString() ? `?${params}` : "";
+  return fetchAPI<MarketListingOut[]>(`/marketplace/listings/${qs}`);
+}
+
+export async function getMyListings(token: string): Promise<MarketListingOut[]> {
+  return fetchAPI<MarketListingOut[]>("/marketplace/my-listings/", { token });
+}
+
+export async function getMyTradeHistory(token: string): Promise<MarketTransactionOut[]> {
+  return fetchAPI<MarketTransactionOut[]>("/marketplace/history/", { token });
+}
+
+export async function createListing(
+  token: string,
+  data: { item_slug: string; listing_type: string; quantity: number; price_per_unit: number }
+): Promise<MarketListingOut> {
+  return fetchAPI<MarketListingOut>("/marketplace/create-listing/", {
+    method: "POST",
+    token,
+    body: JSON.stringify(data),
+  });
+}
+
+export async function buyFromListing(
+  token: string,
+  listingId: string,
+  quantity: number
+): Promise<{ message: string }> {
+  return fetchAPI("/marketplace/buy/", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ listing_id: listingId, quantity }),
+  });
+}
+
+export async function cancelListing(
+  token: string,
+  listingId: string
+): Promise<{ message: string }> {
+  return fetchAPI(`/marketplace/cancel/${listingId}/`, {
+    method: "POST",
+    token,
+  });
+}
+
+// --- Crafting ---
+
+export interface RecipeIngredientOut {
+  item: ItemOut;
+  quantity: number;
+}
+
+export interface RecipeOut {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  result_item: ItemOut;
+  result_quantity: number;
+  gold_cost: number;
+  crafting_time_seconds: number;
+  ingredients: RecipeIngredientOut[];
+}
+
+export async function getRecipes(): Promise<RecipeOut[]> {
+  return fetchAPI<RecipeOut[]>("/crafting/recipes/");
+}
+
+export async function craftItem(
+  token: string,
+  recipeSlug: string
+): Promise<{ message: string; item_name: string; item_slug: string; quantity: number }> {
+  return fetchAPI("/crafting/craft/", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ recipe_slug: recipeSlug }),
+  });
+}
+
 // --- OAuth ---
 
 export interface OAuthAppInfo {

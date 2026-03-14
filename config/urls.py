@@ -11,6 +11,9 @@ from apps.game_config.views import ConfigController
 from apps.matchmaking.views import MatchController, TutorialController
 from apps.game.views import GameController, ShareController
 from apps.shop.views import ShopController
+from apps.inventory.views import InventoryController
+from apps.marketplace.views import MarketplaceController
+from apps.crafting.views import CraftingController
 from apps.game.internal_api import GameInternalController
 from apps.matchmaking.internal_api import MatchmakingInternalController
 from apps.developers.views import DeveloperController
@@ -28,6 +31,9 @@ api.register_controllers(
     GameController,
     ShareController,
     ShopController,
+    InventoryController,
+    MarketplaceController,
+    CraftingController,
     GameInternalController,
     MatchmakingInternalController,
     DeveloperController,

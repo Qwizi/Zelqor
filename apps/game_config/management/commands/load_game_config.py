@@ -90,6 +90,9 @@ class Command(BaseCommand):
             self.stdout.write("\nRunning import_provinces --clear ...")
             call_command("import_provinces", clear=True, stdout=self.stdout, stderr=self.stderr)
 
+        self.stdout.write("\nSeeding economy data (items, recipes)...")
+        call_command("seed_economy_data", stdout=self.stdout, stderr=self.stderr)
+
         self.stdout.write("\nCreating bot users...")
         call_command("create_bots", stdout=self.stdout, stderr=self.stderr)
 

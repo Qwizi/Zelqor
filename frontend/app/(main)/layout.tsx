@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Code, LogOut, Medal, Swords, Trophy } from "lucide-react";
+import { Backpack, Code, Hammer, LogOut, Medal, Store, Swords, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -90,6 +90,24 @@ export default function MainLayout({ children }: { children: ReactNode }) {
               label="Ranking"
               href="/leaderboard"
               icon={<Medal className="h-4 w-4" />}
+            />
+            <NavLink
+              active={pathname === "/inventory"}
+              label="Ekwipunek"
+              href="/inventory"
+              icon={<Backpack className="h-4 w-4" />}
+            />
+            <NavLink
+              active={pathname === "/marketplace"}
+              label="Rynek"
+              href="/marketplace"
+              icon={<Store className="h-4 w-4" />}
+            />
+            <NavLink
+              active={pathname === "/crafting"}
+              label="Crafting"
+              href="/crafting"
+              icon={<Hammer className="h-4 w-4" />}
             />
             <NavLink
               active={pathname.startsWith("/developers")}
