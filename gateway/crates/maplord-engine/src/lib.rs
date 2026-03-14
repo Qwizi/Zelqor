@@ -1035,7 +1035,7 @@ impl GameEngine {
         match action.action_type.as_str() {
             "attack" => self.process_attack(action, players, regions, transit_queue),
             "move" => self.process_move(action, regions, transit_queue),
-            "build" => self.process_build(action, players, regions, buildings_queue),
+            "build" | "upgrade_building" => self.process_build(action, players, regions, buildings_queue),
             "produce_unit" => self.process_unit_production(action, players, regions, unit_queue),
             _ => Vec::new(),
         }
@@ -1303,27 +1303,41 @@ impl GameEngine {
         }
 
         let current_count = region.buildings.get(building_type).copied().unwrap_or(0);
-        let current_level = region.building_levels.get(building_type).copied().unwrap_or(1);
-        let deck_max = player.building_levels.get(building_type).copied().unwrap_or(1);
-        let config_max = config.max_level;
-        let max_allowed_level = deck_max.min(config_max);
 
-        // A queued upgrade for the same building type already in flight counts as a pending level change.
-        let upgrade_queued = buildings_queue
-            .iter()
-            .any(|q| q.region_id == *region_id && q.building_type == *building_type && q.is_upgrade);
-
-        // Determine whether this is an upgrade or a new build.
-        let is_upgrade = current_count > 0
-            && current_level < max_allowed_level
-            && !upgrade_queued;
+        // "build" action = always build a NEW instance (check max_per_region)
+        // "upgrade_building" action = upgrade existing instance (check max_level)
+        let is_upgrade = action.action_type == "upgrade_building";
 
         let queued_new_count = buildings_queue
             .iter()
             .filter(|q| q.region_id == *region_id && q.building_type == *building_type && !q.is_upgrade)
             .count() as i64;
-        let is_new_build = current_count == 0
-            || (current_count + queued_new_count < config.max_per_region as i64);
+
+        if is_upgrade {
+            // Validate upgrade conditions
+            if current_count == 0 {
+                return vec![reject_action(player_id, "Brak budynku do ulepszenia", action)];
+            }
+            let current_level = region.building_levels.get(building_type).copied().unwrap_or(1);
+            let deck_max = player.building_levels.get(building_type).copied().unwrap_or(1);
+            let config_max = config.max_level;
+            let max_allowed_level = deck_max.min(config_max);
+            let upgrade_queued = buildings_queue
+                .iter()
+                .any(|q| q.region_id == *region_id && q.building_type == *building_type && q.is_upgrade);
+            if upgrade_queued {
+                return vec![reject_action(player_id, "Ulepszenie juz w kolejce", action)];
+            }
+            if current_level >= max_allowed_level {
+                return vec![reject_action(player_id, "Osiągnięto maksymalny poziom budynku", action)];
+            }
+        } else {
+            // Validate new build (max_per_region)
+            let is_new_build = current_count + queued_new_count < config.max_per_region as i64;
+            if !is_new_build {
+                return vec![reject_action(player_id, "Limit budynków w regionie", action)];
+            }
+        }
 
         let total_region_queue = buildings_queue
             .iter()
@@ -1338,22 +1352,12 @@ impl GameEngine {
         }
 
         if is_upgrade {
+            let current_level = region.building_levels.get(building_type).copied().unwrap_or(1);
             let next_level = current_level + 1;
-            if next_level > max_allowed_level {
-                return vec![reject_action(
-                    player_id,
-                    "Osiągnieto maksymalny poziom budynku",
-                    action,
-                )];
-            }
             let upgrade_cost = get_level_stat_i64(&config.level_stats, next_level, "energy_cost")
                 .unwrap_or(config.energy_cost * next_level);
             if player.energy < upgrade_cost {
-                return vec![reject_action(
-                    player_id,
-                    "Za mało energii na ulepszenie",
-                    action,
-                )];
+                return vec![reject_action(player_id, "Za mało energii na ulepszenie", action)];
             }
             let upgrade_time = get_level_stat_i64(&config.level_stats, next_level, "build_time_ticks")
                 .unwrap_or(config.build_time_ticks * next_level);
@@ -1376,20 +1380,16 @@ impl GameEngine {
                 ticks_remaining: upgrade_time,
                 energy_cost: upgrade_cost,
             }]
-        } else if is_new_build {
+        } else {
+            // New build (level 1)
             let energy_cost = get_level_stat_i64(&config.level_stats, 1, "energy_cost")
                 .unwrap_or(config.energy_cost);
             if player.energy < energy_cost {
-                return vec![reject_action(
-                    player_id,
-                    "Za malo waluty na budowe",
-                    action,
-                )];
+                return vec![reject_action(player_id, "Za mało energii na budowę", action)];
             }
-
-            player.energy -= energy_cost;
             let build_time = get_level_stat_i64(&config.level_stats, 1, "build_time_ticks")
                 .unwrap_or(config.build_time_ticks);
+            player.energy -= energy_cost;
 
             buildings_queue.push(BuildingQueueItem {
                 region_id: region_id.clone(),
@@ -1408,12 +1408,6 @@ impl GameEngine {
                 ticks_remaining: build_time,
                 energy_cost,
             }]
-        } else {
-            vec![reject_action(
-                player_id,
-                "Osiagnieto limit tego budynku w regionie",
-                action,
-            )]
         }
     }
 

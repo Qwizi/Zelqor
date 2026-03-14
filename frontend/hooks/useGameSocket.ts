@@ -129,6 +129,7 @@ interface UseGameSocketReturn {
   attack: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
   move: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
   build: (regionId: string, buildingType: string) => void;
+  upgradeBuilding: (regionId: string, buildingType: string) => void;
   produceUnit: (regionId: string, unitType: string) => void;
   useAbility: (targetRegionId: string, abilityType: string) => void;
   leaveMatch: () => Promise<boolean>;
@@ -361,6 +362,12 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     [send]
   );
 
+  const upgradeBuilding = useCallback(
+    (regionId: string, buildingType: string) =>
+      send({ action: "upgrade_building", region_id: regionId, building_type: buildingType }),
+    [send]
+  );
+
   const produceUnit = useCallback(
     (regionId: string, unitType: string) =>
       send({ action: "produce_unit", region_id: regionId, unit_type: unitType }),
@@ -400,6 +407,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     attack,
     move,
     build,
+    upgradeBuilding,
     produceUnit,
     useAbility,
     leaveMatch,
