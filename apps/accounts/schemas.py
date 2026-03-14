@@ -1,13 +1,13 @@
 import uuid
 from datetime import datetime
 from ninja import Schema
-from pydantic import EmailStr
+from pydantic import EmailStr, Field
 
 
 class RegisterSchema(Schema):
     email: EmailStr
-    username: str
-    password: str
+    username: str = Field(min_length=3, max_length=30)
+    password: str = Field(min_length=8)
 
 
 class UserOutSchema(Schema):

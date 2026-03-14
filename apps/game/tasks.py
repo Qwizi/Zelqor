@@ -231,6 +231,27 @@ def finalize_match_results_sync(
         total_ticks,
     )
 
+    # Dispatch webhook events
+    try:
+        from apps.developers.tasks import dispatch_webhook_event
+
+        dispatch_webhook_event('match.finished', {
+            'match_id': str(match_id),
+            'winner_id': str(winner_id) if winner_id else None,
+        })
+
+        for player_result in PlayerResult.objects.filter(match_result=result).select_related('user'):
+            if not player_result.user.is_bot and player_result.elo_change != 0:
+                dispatch_webhook_event('player.elo_changed', {
+                    'user_id': str(player_result.user.id),
+                    'username': player_result.user.username,
+                    'elo_change': player_result.elo_change,
+                    'new_elo': player_result.user.elo_rating,
+                    'match_id': str(match_id),
+                })
+    except Exception as e:
+        logger.error(f"Failed to dispatch webhook events: {e}")
+
 
 @shared_task
 def save_game_snapshot(match_id: str, tick: int, state_data: dict):

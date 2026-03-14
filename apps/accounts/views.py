@@ -1,5 +1,7 @@
+from django.db import IntegrityError
 from django.db.models import Avg, Count, Q
 from django.contrib.auth import get_user_model
+from ninja.errors import HttpError
 from ninja_extra import api_controller, route
 from ninja_extra.permissions import IsAuthenticated
 from ninja_jwt.authentication import JWTAuth
@@ -14,11 +16,24 @@ class AuthController:
 
     @route.post('/register', response=UserOutSchema, auth=None)
     def register(self, payload: RegisterSchema):
-        user = User.objects.create_user(
-            email=payload.email,
-            username=payload.username,
-            password=payload.password,
-        )
+        if len(payload.username) < 3:
+            raise HttpError(400, 'Nazwa uzytkownika musi miec co najmniej 3 znaki.')
+        if len(payload.username) > 30:
+            raise HttpError(400, 'Nazwa uzytkownika moze miec maksymalnie 30 znakow.')
+        if len(payload.password) < 8:
+            raise HttpError(400, 'Haslo musi miec co najmniej 8 znakow.')
+        if User.objects.filter(email=payload.email).exists():
+            raise HttpError(400, 'Ten adres email jest juz zajety.')
+        if User.objects.filter(username=payload.username).exists():
+            raise HttpError(400, 'Ta nazwa uzytkownika jest juz zajeta.')
+        try:
+            user = User.objects.create_user(
+                email=payload.email,
+                username=payload.username,
+                password=payload.password,
+            )
+        except IntegrityError:
+            raise HttpError(400, 'Nie mozna utworzyc konta. Sprobuj ponownie.')
         return user
 
     @route.get('/me', response=UserOutSchema, auth=JWTAuth(), permissions=[IsAuthenticated])

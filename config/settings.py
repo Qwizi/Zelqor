@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'apps.matchmaking',
     'apps.game',
     'apps.shop',
+    'apps.developers',
 ]
 
 MIDDLEWARE = [
@@ -35,6 +36,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'apps.developers.middleware.RateLimitHeadersMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -129,6 +131,10 @@ CACHES = {
         'LOCATION': f"redis://{config('REDIS_HOST', default='redis')}:{config('REDIS_PORT', default=6379, cast=int)}/2",
     }
 }
+
+AUTHENTICATION_BACKENDS = [
+    'apps.accounts.backends.UsernameOrEmailBackend',
+]
 
 # Ninja JWT
 NINJA_JWT = {

@@ -13,6 +13,9 @@ from apps.game.views import GameController, ShareController
 from apps.shop.views import ShopController
 from apps.game.internal_api import GameInternalController
 from apps.matchmaking.internal_api import MatchmakingInternalController
+from apps.developers.views import DeveloperController
+from apps.developers.public_views import PublicAPIController
+from apps.developers.oauth_views import OAuthController
 
 api = NinjaExtraAPI(title='MapLord API', version='1.0.0')
 api.register_controllers(
@@ -27,6 +30,9 @@ api.register_controllers(
     ShopController,
     GameInternalController,
     MatchmakingInternalController,
+    DeveloperController,
+    PublicAPIController,
+    OAuthController,
 )
 
 urlpatterns = [

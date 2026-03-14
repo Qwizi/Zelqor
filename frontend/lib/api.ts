@@ -443,3 +443,284 @@ export async function getSharedSnapshot(
 ): Promise<SnapshotDetail> {
   return fetchAPI<SnapshotDetail>(`/share/${shareToken}/snapshots/${tick}/`);
 }
+
+// --- Developer Platform ---
+
+export interface DeveloperApp {
+  id: string;
+  name: string;
+  description: string;
+  client_id: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DeveloperAppCreated extends DeveloperApp {
+  client_secret: string;
+}
+
+export interface APIKeyOut {
+  id: string;
+  prefix: string;
+  scopes: string[];
+  rate_limit: number;
+  is_active: boolean;
+  last_used: string | null;
+  created_at: string;
+}
+
+export interface APIKeyCreated extends APIKeyOut {
+  key: string;
+}
+
+export interface WebhookOut {
+  id: string;
+  url: string;
+  secret: string;
+  events: string[];
+  is_active: boolean;
+  failure_count: number;
+  created_at: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  event: string;
+  payload: Record<string, unknown>;
+  response_status: number | null;
+  success: boolean;
+  created_at: string;
+}
+
+export interface WebhookTestResult {
+  success: boolean;
+  status_code: number | null;
+  message: string;
+}
+
+export interface UsageStats {
+  app_id: string;
+  total_api_calls: number;
+  active_keys: number;
+  total_webhooks: number;
+  active_webhooks: number;
+  total_deliveries: number;
+  successful_deliveries: number;
+  failed_deliveries: number;
+}
+
+export interface AvailableScopes {
+  scopes: string[];
+}
+
+export interface AvailableEvents {
+  events: string[];
+}
+
+// Apps
+
+export async function createDeveloperApp(
+  token: string,
+  data: { name: string; description?: string }
+): Promise<DeveloperAppCreated> {
+  return fetchAPI<DeveloperAppCreated>("/developers/apps/", {
+    method: "POST",
+    body: JSON.stringify(data),
+    token,
+  });
+}
+
+export async function getDeveloperApps(token: string): Promise<DeveloperApp[]> {
+  return fetchAPI<DeveloperApp[]>("/developers/apps/", { token });
+}
+
+export async function getDeveloperApp(
+  token: string,
+  appId: string
+): Promise<DeveloperApp> {
+  return fetchAPI<DeveloperApp>(`/developers/apps/${appId}/`, { token });
+}
+
+export async function updateDeveloperApp(
+  token: string,
+  appId: string,
+  data: { name?: string; description?: string }
+): Promise<DeveloperApp> {
+  return fetchAPI<DeveloperApp>(`/developers/apps/${appId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+    token,
+  });
+}
+
+export async function deleteDeveloperApp(
+  token: string,
+  appId: string
+): Promise<void> {
+  await fetchAPI(`/developers/apps/${appId}/`, { method: "DELETE", token });
+}
+
+// API Keys
+
+export async function createAPIKey(
+  token: string,
+  appId: string,
+  data: { scopes: string[]; rate_limit?: number }
+): Promise<APIKeyCreated> {
+  return fetchAPI<APIKeyCreated>(`/developers/apps/${appId}/keys/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+    token,
+  });
+}
+
+export async function getAPIKeys(
+  token: string,
+  appId: string
+): Promise<APIKeyOut[]> {
+  return fetchAPI<APIKeyOut[]>(`/developers/apps/${appId}/keys/`, { token });
+}
+
+export async function deleteAPIKey(
+  token: string,
+  appId: string,
+  keyId: string
+): Promise<void> {
+  await fetchAPI(`/developers/apps/${appId}/keys/${keyId}/`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+// Webhooks
+
+export async function createWebhook(
+  token: string,
+  appId: string,
+  data: { url: string; events: string[] }
+): Promise<WebhookOut> {
+  return fetchAPI<WebhookOut>(`/developers/apps/${appId}/webhooks/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+    token,
+  });
+}
+
+export async function getWebhooks(
+  token: string,
+  appId: string
+): Promise<WebhookOut[]> {
+  return fetchAPI<WebhookOut[]>(`/developers/apps/${appId}/webhooks/`, {
+    token,
+  });
+}
+
+export async function updateWebhook(
+  token: string,
+  appId: string,
+  webhookId: string,
+  data: { url?: string; events?: string[]; is_active?: boolean }
+): Promise<WebhookOut> {
+  return fetchAPI<WebhookOut>(
+    `/developers/apps/${appId}/webhooks/${webhookId}/`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      token,
+    }
+  );
+}
+
+export async function deleteWebhook(
+  token: string,
+  appId: string,
+  webhookId: string
+): Promise<void> {
+  await fetchAPI(`/developers/apps/${appId}/webhooks/${webhookId}/`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export async function testWebhook(
+  token: string,
+  appId: string,
+  webhookId: string
+): Promise<WebhookTestResult> {
+  return fetchAPI<WebhookTestResult>(
+    `/developers/apps/${appId}/webhooks/${webhookId}/test/`,
+    { method: "POST", token }
+  );
+}
+
+export async function getWebhookDeliveries(
+  token: string,
+  appId: string,
+  webhookId: string
+): Promise<WebhookDelivery[]> {
+  return fetchAPI<WebhookDelivery[]>(
+    `/developers/apps/${appId}/webhooks/${webhookId}/deliveries/`,
+    { token }
+  );
+}
+
+// Usage & Meta
+
+export async function getAppUsage(
+  token: string,
+  appId: string
+): Promise<UsageStats> {
+  return fetchAPI<UsageStats>(`/developers/apps/${appId}/usage/`, { token });
+}
+
+export async function getAvailableScopes(
+  token: string
+): Promise<AvailableScopes> {
+  return fetchAPI<AvailableScopes>("/developers/scopes/", { token });
+}
+
+export async function getAvailableEvents(
+  token: string
+): Promise<AvailableEvents> {
+  return fetchAPI<AvailableEvents>("/developers/events/", { token });
+}
+
+// --- OAuth ---
+
+export interface OAuthAppInfo {
+  name: string;
+  description: string;
+}
+
+export interface OAuthAuthorizeResult {
+  code: string;
+  state: string | null;
+}
+
+export async function getAppByClientId(
+  clientId: string
+): Promise<OAuthAppInfo | null> {
+  try {
+    return await fetchAPI<OAuthAppInfo>(
+      `/oauth/app-info/?client_id=${encodeURIComponent(clientId)}`
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function oauthAuthorize(
+  token: string,
+  data: {
+    client_id: string;
+    redirect_uri: string;
+    scope: string;
+    state?: string;
+  }
+): Promise<OAuthAuthorizeResult> {
+  return fetchAPI<OAuthAuthorizeResult>("/oauth/authorize/", {
+    method: "POST",
+    body: JSON.stringify(data),
+    token,
+  });
+}
