@@ -88,9 +88,12 @@ function ProfileCard({
   onRemove: (username: string) => void;
 }) {
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(profile)}
-      className="group flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-left transition-all hover:border-cyan-300/20 hover:bg-white/[0.06]"
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(profile); } }}
+      className="group flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-left transition-all hover:border-cyan-300/20 hover:bg-white/[0.06]"
     >
       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#38bdf8,#0f766e)] font-display text-lg text-slate-950">
         {profile.username[0].toUpperCase()}
@@ -115,7 +118,7 @@ function ProfileCard({
         <X className="h-4 w-4" />
       </button>
       <ChevronRight className="h-4 w-4 shrink-0 text-slate-500 transition-colors group-hover:text-cyan-300" />
-    </button>
+    </div>
   );
 }
 

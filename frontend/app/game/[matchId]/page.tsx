@@ -32,6 +32,7 @@ import { useTutorial } from "@/hooks/useTutorial";
 import TutorialOverlay from "@/components/game/TutorialOverlay";
 import MatchChatPanel from "@/components/chat/MatchChatPanel";
 import VoicePanel from "@/components/chat/VoicePanel";
+import { useVoiceChat } from "@/hooks/useVoiceChat";
 
 function getUnitRules(units: UnitType[], unitSlug: string | null | undefined) {
   return (
@@ -101,6 +102,24 @@ export default function GamePage({
     send,
     sendChat,
   } = useGameSocket(matchId);
+
+  const voice = useVoiceChat();
+  const effectiveVoiceUrl =
+    (typeof process !== "undefined" && process.env.NEXT_PUBLIC_LIVEKIT_URL) || voiceUrl;
+
+  const handleVoiceJoin = useCallback(async () => {
+    if (!effectiveVoiceUrl || !voiceToken) return;
+    try { await voice.join(effectiveVoiceUrl, voiceToken); } catch (e) { console.error("Voice join failed:", e); }
+  }, [voice, effectiveVoiceUrl, voiceToken]);
+
+  const speakingPlayerIds = useMemo(() => {
+    const ids: string[] = [];
+    if (voice.isSpeaking) ids.push(user?.id ?? "");
+    for (const peer of voice.peers) {
+      if (peer.isSpeaking) ids.push(peer.identity);
+    }
+    return ids;
+  }, [voice.isSpeaking, voice.peers, user?.id]);
 
   const { startMusic, stopMusic, playSound, toggleMute, muted, currentTrackIndex, selectTrack } = useAudio();
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
@@ -892,10 +911,11 @@ export default function GamePage({
   useEffect(() => {
     if (status === "in_progress" || status === "selecting") {
       startMusic();
-    } else if (status === "finished") {
+    } else if (status === "finished" || status === "cancelled") {
       stopMusic();
+      voice.leave();
     }
-  }, [status, startMusic, stopMusic]);
+  }, [status, startMusic, stopMusic, voice.leave]);
 
   // ── Game end auto-redirect countdown ───────────────────────
 
@@ -1076,16 +1096,6 @@ export default function GamePage({
     }
   }, [events, myUserId, neighborMap, gameState?.players, playSound, notify]);
 
-  // ── Render ─────────────────────────────────────────────────
-
-  if (authLoading || !user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950">
-        <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
-      </div>
-    );
-  }
-
   const targets = useMemo<TargetEntry[]>(() => {
     const visible = actionTargets.filter((rid) => highlightedNeighbors.includes(rid));
     return visible
@@ -1098,6 +1108,16 @@ export default function GamePage({
   }, [actionTargets, highlightedNeighbors, regions, myUserId]);
   const visibleActionTargets = useMemo(() => targets.map((t) => t.regionId), [targets]);
   const capitalSelectionEndsAt = Number(gameState?.meta?.capital_selection_ends_at || 0);
+
+  // ── Render ─────────────────────────────────────────────────
+
+  if (authLoading || !user) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-zinc-950">
+        <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
+      </div>
+    );
+  }
   const capitalSelectionRemaining = status === "selecting" && capitalSelectionEndsAt > 0
     ? Math.max(0, capitalSelectionEndsAt - Math.floor(nowMs / 1000))
     : 0;
@@ -1365,6 +1385,7 @@ export default function GamePage({
           activeEffects={gameState?.active_effects}
           nukeBlackout={nukeBlackout}
           tutorialHighlightRegions={tutorialHighlightRegions}
+          speakingPlayerIds={speakingPlayerIds}
           onMapReady={handleMapReady}
         />
 
@@ -1465,7 +1486,18 @@ export default function GamePage({
       {/* Voice + Match chat panel */}
       {status !== "finished" && status !== "cancelled" && connected && (
         <div className="absolute bottom-14 left-2 z-20 flex flex-col items-start gap-2 sm:bottom-4 sm:left-4">
-          <VoicePanel token={voiceToken} url={voiceUrl} players={players} />
+          <VoicePanel
+            token={voiceToken}
+            url={effectiveVoiceUrl}
+            players={players}
+            connected={voice.connected}
+            micEnabled={voice.micEnabled}
+            isSpeaking={voice.isSpeaking}
+            peers={voice.peers}
+            onJoin={handleVoiceJoin}
+            onLeave={voice.leave}
+            onToggleMic={voice.toggleMic}
+          />
           <MatchChatPanel
             messages={matchChatMessages}
             currentUserId={myUserId}

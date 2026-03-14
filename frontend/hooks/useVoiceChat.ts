@@ -5,6 +5,8 @@ import {
   Room,
   RoomEvent,
   RemoteParticipant,
+  RemoteTrackPublication,
+  Track,
   ConnectionState,
 } from "livekit-client";
 
@@ -25,8 +27,44 @@ interface UseVoiceChatReturn {
   toggleMic: () => Promise<void>;
 }
 
+/** Attach a remote audio track to a hidden <audio> element so we can hear it. */
+function attachAudioTrack(
+  publication: RemoteTrackPublication,
+  participant: RemoteParticipant,
+  audioElements: Map<string, HTMLAudioElement>
+) {
+  const track = publication.track;
+  if (!track || publication.kind !== Track.Kind.Audio) return;
+
+  const key = `${participant.identity}:${publication.trackSid}`;
+  if (audioElements.has(key)) return;
+
+  const el = document.createElement("audio");
+  el.autoplay = true;
+  // Keep element in the DOM so the browser doesn't garbage-collect it
+  el.style.display = "none";
+  document.body.appendChild(el);
+  track.attach(el);
+  audioElements.set(key, el);
+}
+
+/** Detach and remove a hidden <audio> element. */
+function detachAudioTrack(
+  publication: RemoteTrackPublication,
+  participant: RemoteParticipant,
+  audioElements: Map<string, HTMLAudioElement>
+) {
+  const key = `${participant.identity}:${publication.trackSid}`;
+  const el = audioElements.get(key);
+  if (!el) return;
+  publication.track?.detach(el);
+  el.remove();
+  audioElements.delete(key);
+}
+
 export function useVoiceChat(): UseVoiceChatReturn {
   const roomRef = useRef<Room | null>(null);
+  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const [connected, setConnected] = useState(false);
   const [micEnabled, setMicEnabled] = useState(false);
   const [peers, setPeers] = useState<VoicePeer[]>([]);
@@ -54,6 +92,12 @@ export function useVoiceChat(): UseVoiceChatReturn {
         roomRef.current.disconnect();
       }
 
+      // Clean up any leftover audio elements
+      for (const el of audioElementsRef.current.values()) {
+        el.remove();
+      }
+      audioElementsRef.current.clear();
+
       const room = new Room({
         adaptiveStream: true,
         dynacast: true,
@@ -77,7 +121,41 @@ export function useVoiceChat(): UseVoiceChatReturn {
         setPeers([]);
         setIsSpeaking(false);
         roomRef.current = null;
+        // Clean up all audio elements
+        for (const el of audioElementsRef.current.values()) {
+          el.remove();
+        }
+        audioElementsRef.current.clear();
       });
+
+      // Attach remote audio tracks so we can hear other participants
+      room.on(
+        RoomEvent.TrackSubscribed,
+        (track, publication, participant) => {
+          if (track.kind === Track.Kind.Audio) {
+            attachAudioTrack(
+              publication as RemoteTrackPublication,
+              participant as RemoteParticipant,
+              audioElementsRef.current
+            );
+          }
+          updatePeers();
+        }
+      );
+
+      room.on(
+        RoomEvent.TrackUnsubscribed,
+        (track, publication, participant) => {
+          if (track.kind === Track.Kind.Audio) {
+            detachAudioTrack(
+              publication as RemoteTrackPublication,
+              participant as RemoteParticipant,
+              audioElementsRef.current
+            );
+          }
+          updatePeers();
+        }
+      );
 
       room.on(RoomEvent.ParticipantConnected, () => updatePeers());
       room.on(RoomEvent.ParticipantDisconnected, () => updatePeers());

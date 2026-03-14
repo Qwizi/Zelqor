@@ -1,7 +1,7 @@
 "use client";
 
 import { Mic, MicOff, PhoneOff, Phone } from "lucide-react";
-import { useVoiceChat } from "@/hooks/useVoiceChat";
+import type { VoicePeer } from "@/hooks/useVoiceChat";
 
 interface PlayerInfo {
   username: string;
@@ -12,32 +12,26 @@ interface VoicePanelProps {
   token: string | null;
   url: string | null;
   players: Record<string, PlayerInfo>;
+  connected: boolean;
+  micEnabled: boolean;
+  isSpeaking: boolean;
+  peers: VoicePeer[];
+  onJoin: () => void;
+  onLeave: () => void;
+  onToggleMic: () => void;
 }
 
-export default function VoicePanel({ token, url, players }: VoicePanelProps) {
-  const { connected, micEnabled, isSpeaking, peers, join, leave, toggleMic } =
-    useVoiceChat();
-
-  // Use NEXT_PUBLIC_LIVEKIT_URL override if set (needed in dev where internal Docker
-  // hostname differs from the browser-accessible address).
-  const effectiveUrl =
-    (typeof process !== "undefined" && process.env.NEXT_PUBLIC_LIVEKIT_URL) ||
-    url;
-
-  if (!token || !effectiveUrl) return null;
-
-  const handleJoin = async () => {
-    try {
-      await join(effectiveUrl, token);
-    } catch (err) {
-      console.error("Voice join failed:", err);
-    }
-  };
+export default function VoicePanel({
+  token, url, players,
+  connected, micEnabled, isSpeaking, peers,
+  onJoin, onLeave, onToggleMic,
+}: VoicePanelProps) {
+  if (!token || !url) return null;
 
   if (!connected) {
     return (
       <button
-        onClick={handleJoin}
+        onClick={onJoin}
         className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/88 px-3 py-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-white/[0.06]"
       >
         <Phone className="h-3 w-3 text-emerald-400" />
@@ -52,7 +46,7 @@ export default function VoicePanel({ token, url, players }: VoicePanelProps) {
     <div className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-slate-950/88 px-3 py-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl">
       {/* Mic toggle */}
       <button
-        onClick={toggleMic}
+        onClick={onToggleMic}
         className={`rounded-full p-1.5 transition-colors ${
           micEnabled
             ? isSpeaking
@@ -110,7 +104,7 @@ export default function VoicePanel({ token, url, players }: VoicePanelProps) {
 
       {/* Leave button */}
       <button
-        onClick={leave}
+        onClick={onLeave}
         className="rounded-full p-1.5 text-red-400 transition-colors hover:bg-red-500/20"
         title="Opusc rozmowe"
       >

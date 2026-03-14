@@ -60,6 +60,7 @@ interface GameMapProps {
   activeEffects?: ActiveEffect[];
   nukeBlackout?: Array<{ rid: string; startTime: number }>;
   tutorialHighlightRegions?: string[];
+  speakingPlayerIds?: string[];
   onMapReady?: () => void;
 }
 
@@ -271,6 +272,7 @@ export default memo(function GameMap({
   activeEffects = [],
   nukeBlackout = [],
   tutorialHighlightRegions = [],
+  speakingPlayerIds = [],
   onMapReady,
 }: GameMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -476,6 +478,34 @@ export default memo(function GameMap({
         paint: {
           "fill-color": "#000000",
           "fill-opacity": ["coalesce", ["feature-state", "nukeOpacity"], 0],
+        },
+      });
+      // Voice speaking — fill glow + thick bright border on regions of speaking players
+      addLayerIfMissing({
+        id: "regions-speaking-fill",
+        type: "fill",
+        source: "regions",
+        "source-layer": "regions",
+        paint: {
+          "fill-color": ["coalesce", ["feature-state", "speakingColor"], "#ffffff"],
+          "fill-opacity": ["case",
+            ["boolean", ["feature-state", "isSpeaking"], false], 0.18,
+            0,
+          ],
+        },
+      });
+      addLayerIfMissing({
+        id: "regions-speaking-border",
+        type: "line",
+        source: "regions",
+        "source-layer": "regions",
+        paint: {
+          "line-color": ["coalesce", ["feature-state", "speakingColor"], "#ffffff"],
+          "line-width": 2.5,
+          "line-opacity": ["case",
+            ["boolean", ["feature-state", "isSpeaking"], false], 0.85,
+            0,
+          ],
         },
       });
       // Ability icons at centroids of affected provinces
@@ -898,6 +928,82 @@ export default memo(function GameMap({
     prevRegionsRef.current = regions;
     prevPlayersRef.current = players;
   }, [regions, players, myUserId, getRegionColor, buildingIcons, centroids, layersReady]);
+
+  // ── Effect: Voice speaking glow on regions + mic icon at capital ──
+  const prevSpeakingRef = useRef<Set<string>>(new Set());
+  const speakingMarkersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !layersReady) return;
+
+    const speakingSet = new Set(speakingPlayerIds);
+    const prevSet = prevSpeakingRef.current;
+
+    // Update feature-state for region fill + border glow
+    for (const [rid, region] of Object.entries(regions)) {
+      if (!region.owner_id) continue;
+      const wasSpeaking = prevSet.has(region.owner_id);
+      const nowSpeaking = speakingSet.has(region.owner_id);
+      if (wasSpeaking === nowSpeaking) continue;
+      try {
+        map.setFeatureState(
+          { source: "regions", sourceLayer: "regions", id: rid },
+          {
+            isSpeaking: nowSpeaking,
+            speakingColor: nowSpeaking ? (players[region.owner_id]?.color ?? "#ffffff") : "#ffffff",
+          }
+        );
+      } catch {
+        // tile not loaded yet
+      }
+    }
+
+    // Mic icon markers at speaking players' capitals
+    const activeSpeakers = new Set<string>();
+    for (const [, player] of Object.entries(players)) {
+      // players is keyed by ID but we need to find which key matches
+    }
+    // Build map of player_id -> capital centroid for speaking players
+    for (const pid of speakingSet) {
+      const capitalRid = Object.entries(regions).find(
+        ([, r]) => r.owner_id === pid && r.is_capital
+      )?.[0];
+      if (!capitalRid) continue;
+      const centroid = centroids[capitalRid];
+      if (!centroid) continue;
+      activeSpeakers.add(pid);
+
+      const existing = speakingMarkersRef.current.get(pid);
+      if (existing) {
+        existing.setLngLat(centroid);
+      } else {
+        const color = players[pid]?.color ?? "#ffffff";
+        const el = document.createElement("div");
+        el.className = "pointer-events-none";
+        el.innerHTML = `<div style="
+          display:flex;align-items:center;justify-content:center;
+          width:22px;height:22px;border-radius:50%;
+          background:${color};
+          box-shadow:0 0 12px ${color}, 0 0 24px ${color}80;
+          animation:voice-pulse 1s ease-in-out infinite alternate;
+        "><svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='#000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z'/><path d='M19 10v2a7 7 0 0 1-14 0v-2'/><line x1='12' x2='12' y1='19' y2='22'/></svg></div>`;
+        const marker = new maplibregl.Marker({ element: el, anchor: "center", offset: [14, -30] })
+          .setLngLat(centroid)
+          .addTo(map);
+        speakingMarkersRef.current.set(pid, marker);
+      }
+    }
+
+    // Remove markers for players who stopped speaking
+    for (const [pid, marker] of speakingMarkersRef.current) {
+      if (!activeSpeakers.has(pid)) {
+        marker.remove();
+        speakingMarkersRef.current.delete(pid);
+      }
+    }
+
+    prevSpeakingRef.current = speakingSet;
+  }, [speakingPlayerIds, regions, players, centroids, layersReady]);
 
   // ── Effect A1b: Labels (separate from regions — depends on animations) ──
   useEffect(() => {
