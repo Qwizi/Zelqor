@@ -174,6 +174,9 @@ export default memo(function MobileBuildSheet({
               const displayName = hasBuilt && currentRegionLevel != null
                 ? `${building.name} Lvl ${currentRegionLevel}`
                 : building.name;
+              const isUpgrade = (currentRegionLevel ?? 0) > 0;
+              const nextLevel = isUpgrade ? (currentRegionLevel ?? 0) + 1 : 1;
+              const nextCost = building.level_stats?.[String(nextLevel)]?.energy_cost ?? building.energy_cost;
               return (
                 <button
                   key={building.id}
@@ -182,7 +185,7 @@ export default memo(function MobileBuildSheet({
                     onBuild(building.slug);
                     setMode(null);
                   }}
-                  disabled={myEnergy < building.energy_cost || isBuildingLocked || isAtMaxLevel === true}
+                  disabled={myEnergy < nextCost || isBuildingLocked || isAtMaxLevel === true}
                   className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-amber-400/10 bg-amber-500/10 px-3 py-2.5 text-left transition-colors active:bg-amber-500/20 disabled:opacity-40"
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
@@ -220,7 +223,7 @@ export default memo(function MobileBuildSheet({
                   ) : (
                     <span className="flex items-center gap-1 text-xs text-zinc-400">
                       <span className="text-[13px] text-cyan-400">⚡</span>
-                      {building.energy_cost}
+                      {nextCost}
                     </span>
                   )}
                 </button>

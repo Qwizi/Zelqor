@@ -147,6 +147,8 @@ export interface BuildingType {
   unit_generation_bonus: number;
   energy_generation_bonus: number;
   order: number;
+  max_level: number;
+  level_stats: Record<string, Record<string, number>>;
 }
 
 export interface UnitType {
@@ -168,6 +170,8 @@ export interface UnitType {
   production_time_ticks: number;
   manpower_cost: number;
   order: number;
+  max_level: number;
+  level_stats: Record<string, Record<string, number>>;
 }
 
 export interface GameSettings {
@@ -235,6 +239,8 @@ export interface AbilityType {
   effect_duration_ticks: number;
   effect_params: Record<string, number>;
   order: number;
+  max_level: number;
+  level_stats: Record<string, Record<string, number>>;
 }
 
 export interface FullConfig {
@@ -248,6 +254,16 @@ export interface FullConfig {
 
 export async function getConfig(): Promise<FullConfig> {
   return fetchAPI<FullConfig>("/config/");
+}
+
+/** Returns the numeric stat for a given level from level_stats, falling back to a base value. */
+export function getLevelStat(
+  levelStats: Record<string, Record<string, number>> | undefined,
+  level: number,
+  key: string,
+  fallback: number
+): number {
+  return levelStats?.[String(level)]?.[key] ?? fallback;
 }
 
 export async function getGameModes(): Promise<GameModeListItem[]> {

@@ -123,7 +123,9 @@ function AbilityButton({
   const cooldownProgress = isOnCooldown && totalCooldown > 0
     ? cooldownRemaining / totalCooldown
     : 0;
-  const canAfford = myEnergy >= ability.energy_cost;
+  const level = abilityLevel ?? 1;
+  const levelEnergyCost = ability.level_stats?.[String(level)]?.energy_cost ?? ability.energy_cost;
+  const canAfford = myEnergy >= levelEnergyCost;
   const isDisabled = isOnCooldown || !canAfford || locked;
 
   const btnSize = size === "lg" ? "h-16 w-16 rounded-xl" : "h-11 w-11 rounded-lg";
@@ -134,7 +136,7 @@ function AbilityButton({
       <button
         onClick={() => onClick(ability.slug)}
         disabled={isDisabled}
-        title={`${ability.name} (${ability.energy_cost}⚡)${isOnCooldown ? ` - ${cooldownRemaining}s` : ""}${remainingUses !== undefined ? ` · Pozostalo: ${remainingUses}` : ""}`}
+        title={`${ability.name} (${levelEnergyCost}⚡)${isOnCooldown ? ` - ${cooldownRemaining}s` : ""}${remainingUses !== undefined ? ` · Pozostalo: ${remainingUses}` : ""}`}
         className={`relative flex items-center justify-center border-2 transition-all ${btnSize} ${
           isSelected
             ? "border-amber-400 bg-amber-500/25 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
@@ -185,7 +187,7 @@ function AbilityButton({
       <div className={`mt-0.5 text-center font-bold tabular-nums ${
         canAfford ? "text-amber-300" : "text-red-400"
       } ${size === "lg" ? "text-[11px]" : "text-[9px]"}`}>
-        {ability.energy_cost}⚡
+        {levelEnergyCost}⚡
       </div>
 
       {/* Level badge — shown when ability level is known */}

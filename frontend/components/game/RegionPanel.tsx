@@ -418,11 +418,15 @@ export default memo(function RegionPanel({
               const displayName = hasBuilt && currentRegionLevel != null
                 ? `${building.name} Lvl ${currentRegionLevel}`
                 : building.name;
+              const isUpgrade = (currentRegionLevel ?? 0) > 0;
+              const nextLevel = isUpgrade ? (currentRegionLevel ?? 0) + 1 : 1;
+              const nextCost = building.level_stats?.[String(nextLevel)]?.energy_cost ?? building.energy_cost;
+              const nextTime = building.level_stats?.[String(nextLevel)]?.build_time_ticks ?? building.build_time_ticks;
               return (
                 <button
                   key={building.id}
                   onClick={() => !isBuildingLocked && onBuild(building.slug)}
-                  disabled={myEnergy < building.energy_cost || isBuildingLocked || isAtMaxLevel === true}
+                  disabled={myEnergy < nextCost || isBuildingLocked || isAtMaxLevel === true}
                   className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[22px] border border-amber-400/10 bg-amber-500/10 px-3 py-3 text-left text-sm transition-colors hover:bg-amber-500/15 disabled:opacity-40"
                 >
                   <span className="flex min-w-0 items-center gap-3">
@@ -462,7 +466,7 @@ export default memo(function RegionPanel({
                       <>
                         <span className="flex items-center justify-end gap-1">
                           <span className="text-[13px] text-cyan-400">⚡</span>
-                          {building.energy_cost}
+                          {nextCost}
                         </span>
                         <span className="mt-1 flex items-center justify-end gap-1">
                           <Image
@@ -472,7 +476,7 @@ export default memo(function RegionPanel({
                             height={14}
                             className="h-3.5 w-3.5 object-contain opacity-70"
                           />
-                          {building.build_time_ticks} tick
+                          {nextTime} tick
                         </span>
                       </>
                     )}

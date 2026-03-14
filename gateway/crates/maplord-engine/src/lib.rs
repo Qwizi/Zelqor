@@ -578,8 +578,21 @@ impl GameEngine {
             }
         }
 
-        // Check energy
-        if player.energy < ability_config.energy_cost {
+        // Read the ability level from the player's deck (immutable borrow ends here).
+        let ability_level = player.ability_levels.get(ability_slug).copied().unwrap_or(1);
+
+        // Read level-specific stats from config, falling back to base config values.
+        let scaled_energy_cost = get_level_stat_i64(&ability_config.level_stats, ability_level, "energy_cost")
+            .unwrap_or(ability_config.energy_cost);
+        let scaled_damage = get_level_stat_i64(&ability_config.level_stats, ability_level, "damage")
+            .unwrap_or(ability_config.damage);
+        let scaled_duration = get_level_stat_i64(&ability_config.level_stats, ability_level, "effect_duration_ticks")
+            .unwrap_or(ability_config.effect_duration_ticks);
+        let scaled_cooldown = get_level_stat_i64(&ability_config.level_stats, ability_level, "cooldown_ticks")
+            .unwrap_or(ability_config.cooldown_ticks);
+
+        // Check energy using the level-scaled cost.
+        if player.energy < scaled_energy_cost {
             return vec![reject_action(player_id, "Za malo waluty na zdolnosc", action)];
         }
 
@@ -610,23 +623,9 @@ impl GameEngine {
             }
         }
 
-        // Read the ability level from the player's deck before mutably borrowing players.
-        let ability_level = {
-            let player = players.get(player_id.as_str()).unwrap();
-            player.ability_levels.get(ability_slug).copied().unwrap_or(1)
-        };
-
-        // Read level-specific stats from config, falling back to base config values.
-        let scaled_damage = get_level_stat_i64(&ability_config.level_stats, ability_level, "damage")
-            .unwrap_or(ability_config.damage);
-        let scaled_duration = get_level_stat_i64(&ability_config.level_stats, ability_level, "effect_duration_ticks")
-            .unwrap_or(ability_config.effect_duration_ticks);
-        let scaled_cooldown = get_level_stat_i64(&ability_config.level_stats, ability_level, "cooldown_ticks")
-            .unwrap_or(ability_config.cooldown_ticks);
-
         // Deduct energy, set cooldown, and consume one scroll use if deck system is active.
         let player = players.get_mut(player_id.as_str()).unwrap();
-        player.energy -= ability_config.energy_cost;
+        player.energy -= scaled_energy_cost;
         player.ability_cooldowns.insert(
             ability_slug.clone(),
             current_tick + scaled_cooldown,
@@ -1347,7 +1346,8 @@ impl GameEngine {
                     action,
                 )];
             }
-            let upgrade_cost = config.energy_cost * next_level;
+            let upgrade_cost = get_level_stat_i64(&config.level_stats, next_level, "energy_cost")
+                .unwrap_or(config.energy_cost * next_level);
             if player.energy < upgrade_cost {
                 return vec![reject_action(
                     player_id,
@@ -1355,7 +1355,8 @@ impl GameEngine {
                     action,
                 )];
             }
-            let upgrade_time = config.build_time_ticks * next_level;
+            let upgrade_time = get_level_stat_i64(&config.level_stats, next_level, "build_time_ticks")
+                .unwrap_or(config.build_time_ticks * next_level);
             player.energy -= upgrade_cost;
 
             buildings_queue.push(BuildingQueueItem {
@@ -1376,7 +1377,8 @@ impl GameEngine {
                 energy_cost: upgrade_cost,
             }]
         } else if is_new_build {
-            let energy_cost = config.energy_cost;
+            let energy_cost = get_level_stat_i64(&config.level_stats, 1, "energy_cost")
+                .unwrap_or(config.energy_cost);
             if player.energy < energy_cost {
                 return vec![reject_action(
                     player_id,
@@ -1386,7 +1388,8 @@ impl GameEngine {
             }
 
             player.energy -= energy_cost;
-            let build_time = config.build_time_ticks;
+            let build_time = get_level_stat_i64(&config.level_stats, 1, "build_time_ticks")
+                .unwrap_or(config.build_time_ticks);
 
             buildings_queue.push(BuildingQueueItem {
                 region_id: region_id.clone(),
@@ -1489,7 +1492,8 @@ impl GameEngine {
             )];
         }
 
-        let production_cost = unit_config.production_cost as i64;
+        let production_cost = get_level_stat_i64(&unit_config.level_stats, 1, "production_cost")
+            .unwrap_or(unit_config.production_cost as i64);
         if player.energy < production_cost {
             return vec![reject_action(
                 player_id,
@@ -1498,7 +1502,9 @@ impl GameEngine {
             )];
         }
 
-        let manpower_cost = unit_config.manpower_cost.max(1) as i64;
+        let manpower_cost = get_level_stat_i64(&unit_config.level_stats, 1, "manpower_cost")
+            .unwrap_or(unit_config.manpower_cost as i64)
+            .max(1);
         let base_unit_type = self.default_unit_type_slug();
         if get_available_units(region, &base_unit_type, self) < manpower_cost {
             return vec![reject_action(
@@ -1522,7 +1528,9 @@ impl GameEngine {
         }
 
         player.energy -= production_cost;
-        let production_time = unit_config.production_time_ticks.max(1) as i64;
+        let production_time = get_level_stat_i64(&unit_config.level_stats, 1, "production_time_ticks")
+            .unwrap_or(unit_config.production_time_ticks as i64)
+            .max(1);
 
         unit_queue.push(UnitQueueItem {
             region_id: region_id.clone(),
