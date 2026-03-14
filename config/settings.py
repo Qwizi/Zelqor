@@ -28,6 +28,9 @@ INSTALLED_APPS = [
     'apps.matchmaking',
     'apps.game',
     'apps.shop',
+    'apps.inventory',
+    'apps.marketplace',
+    'apps.crafting',
     'apps.developers',
 ]
 
@@ -116,6 +119,14 @@ CELERY_BEAT_SCHEDULE = {
     'cleanup-stale-queue': {
         'task': 'apps.game.tasks.cleanup_stale_queue_entries',
         'schedule': 180,  # every 3 minutes
+    },
+    'bot-restock-marketplace': {
+        'task': 'apps.marketplace.tasks.bot_restock_marketplace',
+        'schedule': 3600,  # every 60 minutes
+    },
+    'expire-old-listings': {
+        'task': 'apps.marketplace.tasks.expire_old_listings',
+        'schedule': 900,  # every 15 minutes
     },
 }
 
