@@ -1,6 +1,6 @@
 [project]
 name = "maplord"
-version = "2026.3.14.3"
+version = "2026.3.14.4"
 description = "MapLord 2.0 — Real-time strategy web game on a world map"
 requires-python = ">=3.13"
 dependencies = [
