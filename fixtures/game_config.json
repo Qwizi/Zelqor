@@ -42,9 +42,9 @@
     "energy_generation_bonus": 0.0,
     "max_level": 3,
     "level_stats": {
-      "1": {"vision_range": 0},
-      "2": {"vision_range": 1},
-      "3": {"vision_range": 2}
+      "1": {"energy_cost": 2000, "build_time_ticks": 12, "cost": 500, "defense_bonus": 0.0, "vision_range": 0, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
+      "2": {"energy_cost": 3000, "build_time_ticks": 16, "cost": 700, "defense_bonus": 0.05, "vision_range": 1, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
+      "3": {"energy_cost": 4500, "build_time_ticks": 20, "cost": 900, "defense_bonus": 0.10, "vision_range": 2, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0}
     },
     "is_active": true,
     "order": 4
@@ -70,9 +70,9 @@
     "energy_generation_bonus": 0.0,
     "max_level": 3,
     "level_stats": {
-      "1": {"unit_generation_bonus": 0.9},
-      "2": {"unit_generation_bonus": 1.4},
-      "3": {"unit_generation_bonus": 1.9}
+      "1": {"energy_cost": 300, "build_time_ticks": 8, "cost": 0, "unit_generation_bonus": 0.9, "defense_bonus": 0.0, "vision_range": 0, "energy_generation_bonus": 0.0},
+      "2": {"energy_cost": 500, "build_time_ticks": 12, "cost": 0, "unit_generation_bonus": 1.4, "defense_bonus": 0.0, "vision_range": 0, "energy_generation_bonus": 0.0},
+      "3": {"energy_cost": 800, "build_time_ticks": 16, "cost": 0, "unit_generation_bonus": 1.9, "defense_bonus": 0.05, "vision_range": 1, "energy_generation_bonus": 0.0}
     },
     "is_active": true,
     "order": 1
@@ -98,9 +98,9 @@
     "energy_generation_bonus": 0.0,
     "max_level": 3,
     "level_stats": {
-      "1": {"defense_bonus": 0.02, "vision_range": 1},
-      "2": {"defense_bonus": 0.04, "vision_range": 2},
-      "3": {"defense_bonus": 0.05, "vision_range": 3}
+      "1": {"energy_cost": 1000, "build_time_ticks": 25, "cost": 100, "defense_bonus": 0.02, "vision_range": 1, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
+      "2": {"energy_cost": 1500, "build_time_ticks": 30, "cost": 150, "defense_bonus": 0.04, "vision_range": 2, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
+      "3": {"energy_cost": 2200, "build_time_ticks": 35, "cost": 200, "defense_bonus": 0.05, "vision_range": 3, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0}
     },
     "is_active": true,
     "order": 5
@@ -126,9 +126,9 @@
     "energy_generation_bonus": 0.5,
     "max_level": 3,
     "level_stats": {
-      "1": {"energy_generation_bonus": 0.5, "vision_range": 0},
-      "2": {"energy_generation_bonus": 1.0, "vision_range": 1},
-      "3": {"energy_generation_bonus": 1.5, "vision_range": 1}
+      "1": {"energy_cost": 250, "build_time_ticks": 6, "cost": 35, "energy_generation_bonus": 0.5, "vision_range": 0, "defense_bonus": 0.0, "unit_generation_bonus": 0.0},
+      "2": {"energy_cost": 400, "build_time_ticks": 9, "cost": 50, "energy_generation_bonus": 1.0, "vision_range": 1, "defense_bonus": 0.0, "unit_generation_bonus": 0.0},
+      "3": {"energy_cost": 600, "build_time_ticks": 12, "cost": 70, "energy_generation_bonus": 1.5, "vision_range": 1, "defense_bonus": 0.0, "unit_generation_bonus": 0.0}
     },
     "is_active": true,
     "order": 6
@@ -154,9 +154,9 @@
     "energy_generation_bonus": 0.0,
     "max_level": 3,
     "level_stats": {
-      "1": {"defense_bonus": 0.11, "vision_range": 1},
-      "2": {"defense_bonus": 0.16, "vision_range": 2},
-      "3": {"defense_bonus": 0.22, "vision_range": 3}
+      "1": {"energy_cost": 800, "build_time_ticks": 10, "cost": 40, "defense_bonus": 0.11, "vision_range": 1, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
+      "2": {"energy_cost": 1200, "build_time_ticks": 14, "cost": 60, "defense_bonus": 0.16, "vision_range": 2, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
+      "3": {"energy_cost": 1800, "build_time_ticks": 18, "cost": 80, "defense_bonus": 0.22, "vision_range": 3, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0}
     },
     "is_active": true,
     "order": 3
@@ -182,9 +182,9 @@
     "energy_generation_bonus": 0.0,
     "max_level": 3,
     "level_stats": {
-      "1": {"production_speed_bonus": 0.0},
-      "2": {"production_speed_bonus": 0.25},
-      "3": {"production_speed_bonus": 0.5}
+      "1": {"energy_cost": 600, "build_time_ticks": 15, "cost": 60, "defense_bonus": 0.0, "vision_range": 0, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
+      "2": {"energy_cost": 1000, "build_time_ticks": 20, "cost": 80, "defense_bonus": 0.0, "vision_range": 0, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
+      "3": {"energy_cost": 1500, "build_time_ticks": 25, "cost": 100, "defense_bonus": 0.05, "vision_range": 1, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0}
     },
     "is_active": true,
     "order": 2
@@ -210,6 +210,12 @@
     "production_time_ticks": 10,
     "manpower_cost": 500,
     "movement_type": "sea",
+    "max_level": 3,
+    "level_stats": {
+      "1": {"attack": 2.0, "defense": 2.0, "production_cost": 500, "production_time_ticks": 10, "manpower_cost": 500},
+      "2": {"attack": 3.0, "defense": 3.0, "production_cost": 700, "production_time_ticks": 12, "manpower_cost": 600},
+      "3": {"attack": 4.0, "defense": 4.0, "production_cost": 1000, "production_time_ticks": 14, "manpower_cost": 700}
+    },
     "is_active": true,
     "order": 3
   }
@@ -234,6 +240,12 @@
     "production_time_ticks": 12,
     "manpower_cost": 100,
     "movement_type": "air",
+    "max_level": 3,
+    "level_stats": {
+      "1": {"attack": 2.5, "defense": 1.0, "production_cost": 100, "production_time_ticks": 12, "manpower_cost": 100},
+      "2": {"attack": 3.5, "defense": 1.5, "production_cost": 150, "production_time_ticks": 14, "manpower_cost": 120},
+      "3": {"attack": 5.0, "defense": 2.0, "production_cost": 200, "production_time_ticks": 16, "manpower_cost": 140}
+    },
     "is_active": true,
     "order": 4
   }
@@ -258,6 +270,8 @@
     "production_time_ticks": 0,
     "manpower_cost": 1,
     "movement_type": "land",
+    "max_level": 1,
+    "level_stats": {},
     "is_active": true,
     "order": 1
   }
@@ -282,6 +296,12 @@
     "production_time_ticks": 8,
     "manpower_cost": 50,
     "movement_type": "land",
+    "max_level": 3,
+    "level_stats": {
+      "1": {"attack": 3.0, "defense": 2.5, "production_cost": 50, "production_time_ticks": 8, "manpower_cost": 50},
+      "2": {"attack": 4.0, "defense": 3.5, "production_cost": 80, "production_time_ticks": 10, "manpower_cost": 60},
+      "3": {"attack": 5.5, "defense": 4.5, "production_cost": 120, "production_time_ticks": 12, "manpower_cost": 70}
+    },
     "is_active": true,
     "order": 2
   }
@@ -305,9 +325,9 @@
     "effect_params": {},
     "max_level": 3,
     "level_stats": {
-      "1": {"damage": 50, "cooldown_ticks": 600},
-      "2": {"damage": 75, "cooldown_ticks": 500},
-      "3": {"damage": 99, "cooldown_ticks": 400}
+      "1": {"energy_cost": 8000, "cooldown_ticks": 600, "damage": 50, "range": 0},
+      "2": {"energy_cost": 7000, "cooldown_ticks": 500, "damage": 75, "range": 0},
+      "3": {"energy_cost": 6000, "cooldown_ticks": 400, "damage": 99, "range": 0}
     },
     "is_active": true,
     "order": 0
@@ -332,9 +352,9 @@
     "effect_params": {"production_reduction": 0.5, "unit_kill_percent": 0.05, "spread_range": 1},
     "max_level": 3,
     "level_stats": {
-      "1": {"effect_duration_ticks": 10, "cooldown_ticks": 120},
-      "2": {"effect_duration_ticks": 12, "cooldown_ticks": 100},
-      "3": {"effect_duration_ticks": 15, "cooldown_ticks": 80}
+      "1": {"energy_cost": 250, "cooldown_ticks": 120, "effect_duration_ticks": 10, "range": 2, "effect_params": {"production_reduction": 0.5, "unit_kill_percent": 0.05, "spread_range": 1}},
+      "2": {"energy_cost": 220, "cooldown_ticks": 100, "effect_duration_ticks": 13, "range": 2, "effect_params": {"production_reduction": 0.6, "unit_kill_percent": 0.07, "spread_range": 1}},
+      "3": {"energy_cost": 180, "cooldown_ticks": 80, "effect_duration_ticks": 16, "range": 3, "effect_params": {"production_reduction": 0.7, "unit_kill_percent": 0.10, "spread_range": 2}}
     },
     "is_active": true,
     "order": 1
@@ -359,9 +379,9 @@
     "effect_params": {},
     "max_level": 3,
     "level_stats": {
-      "1": {"effect_duration_ticks": 7, "cooldown_ticks": 45},
-      "2": {"effect_duration_ticks": 10, "cooldown_ticks": 35},
-      "3": {"effect_duration_ticks": 13, "cooldown_ticks": 25}
+      "1": {"energy_cost": 100, "cooldown_ticks": 45, "effect_duration_ticks": 7, "range": 3},
+      "2": {"energy_cost": 80, "cooldown_ticks": 35, "effect_duration_ticks": 10, "range": 4},
+      "3": {"energy_cost": 60, "cooldown_ticks": 25, "effect_duration_ticks": 13, "range": 5}
     },
     "is_active": true,
     "order": 2
@@ -386,9 +406,9 @@
     "effect_params": {},
     "max_level": 3,
     "level_stats": {
-      "1": {"effect_duration_ticks": 14, "cooldown_ticks": 120},
-      "2": {"effect_duration_ticks": 17, "cooldown_ticks": 100},
-      "3": {"effect_duration_ticks": 20, "cooldown_ticks": 80}
+      "1": {"energy_cost": 100, "cooldown_ticks": 120, "effect_duration_ticks": 14},
+      "2": {"energy_cost": 80, "cooldown_ticks": 100, "effect_duration_ticks": 18},
+      "3": {"energy_cost": 60, "cooldown_ticks": 80, "effect_duration_ticks": 22}
     },
     "is_active": true,
     "order": 3
@@ -413,9 +433,9 @@
     "effect_params": {"collect_percent": 0.2},
     "max_level": 3,
     "level_stats": {
-      "1": {"effect_params": {"collect_percent": 0.2}, "cooldown_ticks": 45},
-      "2": {"effect_params": {"collect_percent": 0.25}, "cooldown_ticks": 35},
-      "3": {"effect_params": {"collect_percent": 0.3}, "cooldown_ticks": 25}
+      "1": {"energy_cost": 50, "cooldown_ticks": 45, "effect_params": {"collect_percent": 0.2}},
+      "2": {"energy_cost": 40, "cooldown_ticks": 35, "effect_params": {"collect_percent": 0.25}},
+      "3": {"energy_cost": 30, "cooldown_ticks": 25, "effect_params": {"collect_percent": 0.3}}
     },
     "is_active": true,
     "order": 4

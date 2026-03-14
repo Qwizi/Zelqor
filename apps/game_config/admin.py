@@ -97,7 +97,7 @@ class BuildingTypeAdmin(admin.ModelAdmin):
 
 @admin.register(UnitType)
 class UnitTypeAdmin(admin.ModelAdmin):
-    list_display = ('icon', 'name', 'slug', 'attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type', 'produced_by', 'production_cost', 'is_active', 'order')
+    list_display = ('icon', 'name', 'slug', 'attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type', 'produced_by', 'production_cost', 'max_level', 'is_active', 'order')
     list_filter = ('is_active', 'movement_type', 'produced_by')
     search_fields = ('name', 'slug')
     prepopulated_fields = {'slug': ('name',)}

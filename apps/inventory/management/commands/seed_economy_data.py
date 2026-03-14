@@ -51,11 +51,19 @@ ITEMS = [
     {'name': 'Blueprint: Elektrownia Lvl 2', 'slug': 'bp-radar-2', 'category_slug': 'blueprints-building', 'item_type': 'blueprint_building', 'rarity': 'uncommon', 'icon': 'bp_radar', 'base_value': 50, 'is_consumable': False, 'blueprint_ref': 'radar', 'level': 2},
     {'name': 'Blueprint: Elektrownia Lvl 3', 'slug': 'bp-radar-3', 'category_slug': 'blueprints-building', 'item_type': 'blueprint_building', 'rarity': 'rare', 'icon': 'bp_radar', 'base_value': 100, 'is_consumable': False, 'blueprint_ref': 'radar', 'level': 3},
 
-    # --- Blueprinty jednostek ---
-    {'name': 'Blueprint: Komandosi', 'slug': 'bp-commandos', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'rare', 'icon': 'bp_commandos', 'base_value': 90, 'is_consumable': True, 'blueprint_ref': 'commandos'},
-    {'name': 'Blueprint: Czołg ciężki', 'slug': 'bp-heavy-tank', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'epic', 'icon': 'bp_heavy_tank', 'base_value': 150, 'is_consumable': True, 'blueprint_ref': 'heavy-tank'},
-    {'name': 'Blueprint: Bombowiec', 'slug': 'bp-bomber', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'epic', 'icon': 'bp_bomber', 'base_value': 150, 'is_consumable': True, 'blueprint_ref': 'bomber'},
-    {'name': 'Blueprint: Okręt podwodny', 'slug': 'bp-submarine', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'legendary', 'icon': 'bp_submarine', 'base_value': 400, 'is_consumable': True, 'blueprint_ref': 'submarine'},
+    # --- Blueprinty jednostek (3 actual units × 3 levels) ---
+    # Czołg
+    {'name': 'Blueprint: Czołg Lvl 1', 'slug': 'bp-tank-1', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'uncommon', 'icon': 'bp_tank', 'base_value': 40, 'is_consumable': False, 'blueprint_ref': 'tank', 'level': 1},
+    {'name': 'Blueprint: Czołg Lvl 2', 'slug': 'bp-tank-2', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'rare', 'icon': 'bp_tank', 'base_value': 90, 'is_consumable': False, 'blueprint_ref': 'tank', 'level': 2},
+    {'name': 'Blueprint: Czołg Lvl 3', 'slug': 'bp-tank-3', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'epic', 'icon': 'bp_tank', 'base_value': 180, 'is_consumable': False, 'blueprint_ref': 'tank', 'level': 3},
+    # Okręt
+    {'name': 'Blueprint: Okręt Lvl 1', 'slug': 'bp-ship-1', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'rare', 'icon': 'bp_ship', 'base_value': 80, 'is_consumable': False, 'blueprint_ref': 'ship', 'level': 1},
+    {'name': 'Blueprint: Okręt Lvl 2', 'slug': 'bp-ship-2', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'epic', 'icon': 'bp_ship', 'base_value': 160, 'is_consumable': False, 'blueprint_ref': 'ship', 'level': 2},
+    {'name': 'Blueprint: Okręt Lvl 3', 'slug': 'bp-ship-3', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'legendary', 'icon': 'bp_ship', 'base_value': 350, 'is_consumable': False, 'blueprint_ref': 'ship', 'level': 3},
+    # Myśliwiec
+    {'name': 'Blueprint: Myśliwiec Lvl 1', 'slug': 'bp-fighter-1', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'rare', 'icon': 'bp_fighter', 'base_value': 70, 'is_consumable': False, 'blueprint_ref': 'fighter', 'level': 1},
+    {'name': 'Blueprint: Myśliwiec Lvl 2', 'slug': 'bp-fighter-2', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'epic', 'icon': 'bp_fighter', 'base_value': 150, 'is_consumable': False, 'blueprint_ref': 'fighter', 'level': 2},
+    {'name': 'Blueprint: Myśliwiec Lvl 3', 'slug': 'bp-fighter-3', 'category_slug': 'blueprints-unit', 'item_type': 'blueprint_unit', 'rarity': 'legendary', 'icon': 'bp_fighter', 'base_value': 300, 'is_consumable': False, 'blueprint_ref': 'fighter', 'level': 3},
 
     # --- Pakiety taktyczne (5 zdolności × 3 poziomy) ---
     # Tarcza (Shield) — Lvl 1 darmowy, domyślnie w decku
@@ -139,9 +147,9 @@ ITEMS = [
          {'item_slug': 'plasma-core', 'weight': 15, 'min_qty': 1, 'max_qty': 1},
          {'item_slug': 'bp-barracks-2', 'weight': 7, 'min_qty': 1, 'max_qty': 1},
          {'item_slug': 'bp-factory-2', 'weight': 7, 'min_qty': 1, 'max_qty': 1},
-         {'item_slug': 'bp-commandos', 'weight': 6, 'min_qty': 1, 'max_qty': 1},
-         {'item_slug': 'bp-heavy-tank', 'weight': 4, 'min_qty': 1, 'max_qty': 1},
-         {'item_slug': 'bp-bomber', 'weight': 4, 'min_qty': 1, 'max_qty': 1},
+         {'item_slug': 'bp-tank-1', 'weight': 5, 'min_qty': 1, 'max_qty': 1},
+         {'item_slug': 'bp-ship-1', 'weight': 3, 'min_qty': 1, 'max_qty': 1},
+         {'item_slug': 'bp-fighter-1', 'weight': 3, 'min_qty': 1, 'max_qty': 1},
          {'item_slug': 'pkg-nuke-1', 'weight': 3, 'min_qty': 1, 'max_qty': 1},
          {'item_slug': 'boost-war-economy-2', 'weight': 3, 'min_qty': 1, 'max_qty': 1},
          {'item_slug': 'artifact-fragment', 'weight': 1, 'min_qty': 1, 'max_qty': 1},
@@ -216,16 +224,30 @@ RECIPES = [
      'ingredients': [('bp-radar-2', 1), ('command-protocol', 2), ('plasma-core', 1)]},
 
     # -------------------------------------------------------------------------
-    # Blueprinty jednostek
+    # Blueprinty jednostek — Czołg
     # -------------------------------------------------------------------------
-    {'name': 'Stwórz Blueprint Komandosi', 'slug': 'craft-bp-commandos', 'result_slug': 'bp-commandos', 'gold_cost': 60,
-     'ingredients': [('gunpowder', 5), ('command-protocol', 3), ('fuel-cell', 3)]},
-    {'name': 'Stwórz Blueprint Czołg ciężki', 'slug': 'craft-bp-heavy-tank', 'result_slug': 'bp-heavy-tank', 'gold_cost': 100,
-     'ingredients': [('steel-scrap', 15), ('fuel-cell', 5), ('plasma-core', 2)]},
-    {'name': 'Stwórz Blueprint Bombowiec', 'slug': 'craft-bp-bomber', 'result_slug': 'bp-bomber', 'gold_cost': 100,
-     'ingredients': [('circuit-board', 10), ('fuel-cell', 5), ('plasma-core', 2)]},
-    {'name': 'Stwórz Blueprint Okręt podwodny', 'slug': 'craft-bp-submarine', 'result_slug': 'bp-submarine', 'gold_cost': 200,
-     'ingredients': [('steel-scrap', 20), ('optic-fiber', 5), ('plasma-core', 3), ('artifact-fragment', 1)]},
+    {'name': 'Stwórz Blueprint Czołg Lvl 1', 'slug': 'craft-bp-tank-1', 'result_slug': 'bp-tank-1', 'gold_cost': 20,
+     'ingredients': [('steel-scrap', 8), ('fuel-cell', 2)]},
+    {'name': 'Ulepsz Blueprint Czołg na Lvl 2', 'slug': 'craft-bp-tank-2', 'result_slug': 'bp-tank-2', 'gold_cost': 50,
+     'ingredients': [('bp-tank-1', 1), ('steel-scrap', 12), ('fuel-cell', 4), ('gunpowder', 3)]},
+    {'name': 'Ulepsz Blueprint Czołg na Lvl 3', 'slug': 'craft-bp-tank-3', 'result_slug': 'bp-tank-3', 'gold_cost': 100,
+     'ingredients': [('bp-tank-2', 1), ('steel-scrap', 18), ('plasma-core', 2), ('command-protocol', 2)]},
+
+    # Blueprinty jednostek — Okręt
+    {'name': 'Stwórz Blueprint Okręt Lvl 1', 'slug': 'craft-bp-ship-1', 'result_slug': 'bp-ship-1', 'gold_cost': 40,
+     'ingredients': [('steel-scrap', 10), ('optic-fiber', 3), ('fuel-cell', 3)]},
+    {'name': 'Ulepsz Blueprint Okręt na Lvl 2', 'slug': 'craft-bp-ship-2', 'result_slug': 'bp-ship-2', 'gold_cost': 90,
+     'ingredients': [('bp-ship-1', 1), ('steel-scrap', 15), ('optic-fiber', 5), ('plasma-core', 1)]},
+    {'name': 'Ulepsz Blueprint Okręt na Lvl 3', 'slug': 'craft-bp-ship-3', 'result_slug': 'bp-ship-3', 'gold_cost': 180,
+     'ingredients': [('bp-ship-2', 1), ('command-protocol', 4), ('plasma-core', 2), ('artifact-fragment', 1)]},
+
+    # Blueprinty jednostek — Myśliwiec
+    {'name': 'Stwórz Blueprint Myśliwiec Lvl 1', 'slug': 'craft-bp-fighter-1', 'result_slug': 'bp-fighter-1', 'gold_cost': 35,
+     'ingredients': [('circuit-board', 8), ('fuel-cell', 3), ('optic-fiber', 2)]},
+    {'name': 'Ulepsz Blueprint Myśliwiec na Lvl 2', 'slug': 'craft-bp-fighter-2', 'result_slug': 'bp-fighter-2', 'gold_cost': 80,
+     'ingredients': [('bp-fighter-1', 1), ('circuit-board', 12), ('optic-fiber', 4), ('plasma-core', 1)]},
+    {'name': 'Ulepsz Blueprint Myśliwiec na Lvl 3', 'slug': 'craft-bp-fighter-3', 'result_slug': 'bp-fighter-3', 'gold_cost': 160,
+     'ingredients': [('bp-fighter-2', 1), ('command-protocol', 4), ('plasma-core', 2), ('artifact-fragment', 1)]},
 
     # -------------------------------------------------------------------------
     # Pakiety taktyczne — Tarcza

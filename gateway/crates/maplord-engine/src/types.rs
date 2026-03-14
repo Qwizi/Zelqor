@@ -126,6 +126,10 @@ pub struct UnitConfig {
     pub name: String,
     #[serde(default)]
     pub asset_key: String,
+    #[serde(default = "default_max_level")]
+    pub max_level: i64,
+    #[serde(default)]
+    pub level_stats: HashMap<String, serde_json::Value>,
 }
 
 /// Ability config — mirrors Django AbilityType snapshot.

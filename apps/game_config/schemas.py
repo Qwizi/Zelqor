@@ -67,6 +67,8 @@ class UnitTypeOutSchema(Schema):
     production_time_ticks: int
     manpower_cost: int
     movement_type: str
+    max_level: int
+    level_stats: dict
     order: int
 
     class Config:

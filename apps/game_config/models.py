@@ -139,7 +139,16 @@ class UnitType(models.Model):
     
     # Type
     movement_type = models.CharField(max_length=10, choices=MovementType.choices, default=MovementType.LAND)
-    
+
+    # Level system
+    max_level = models.PositiveIntegerField(default=1, help_text='Maximum upgrade level')
+    level_stats = models.JSONField(
+        default=dict, blank=True,
+        help_text='Per-level stat overrides. Keys are level numbers as strings. '
+                  'Example: {"1": {"attack": 3.0, "defense": 2.5}, "2": {"attack": 4.0}}. '
+                  'Supported keys: attack, defense, speed, production_cost, production_time_ticks, manpower_cost'
+    )
+
     is_active = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)
 

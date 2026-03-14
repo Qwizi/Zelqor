@@ -360,6 +360,8 @@ class MatchmakingInternalController(ControllerBase):
                 'production_cost': int(ut.production_cost),
                 'production_time_ticks': int(ut.production_time_ticks),
                 'manpower_cost': int(ut.manpower_cost),
+                'max_level': ut.max_level,
+                'level_stats': ut.level_stats or {},
             }
             for ut in UnitType.objects.select_related('produced_by').filter(is_active=True)
         }
