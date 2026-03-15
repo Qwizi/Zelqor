@@ -29,10 +29,6 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import { getMyWallet, type WalletOut } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import dynamic from "next/dynamic";
-
-const TargetCursor = dynamic(() => import("@/components/TargetCursor"), { ssr: false });
-
 // ---------------------------------------------------------------------------
 // Nav item definitions
 // ---------------------------------------------------------------------------
@@ -95,7 +91,7 @@ function ProfilePopover({
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "cursor-target flex w-full items-center gap-3 rounded-lg transition-colors",
+          "flex w-full items-center gap-3 rounded-lg transition-colors",
           collapsed ? "justify-center py-2.5" : "px-2.5 py-2.5",
           open ? "bg-muted" : "hover:bg-muted"
         )}
@@ -114,7 +110,7 @@ function ProfilePopover({
           <Link
             href="/profile"
             onClick={() => setOpen(false)}
-            className="cursor-target flex items-center gap-3 px-4 py-2.5 text-base text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="flex items-center gap-3 px-4 py-2.5 text-base text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <UserCircle size={22} />
             Profil
@@ -122,14 +118,14 @@ function ProfilePopover({
           <Link
             href="/settings"
             onClick={() => setOpen(false)}
-            className="cursor-target flex items-center gap-3 px-4 py-2.5 text-base text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="flex items-center gap-3 px-4 py-2.5 text-base text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <Settings size={22} />
             Ustawienia
           </Link>
           <button
             onClick={() => { setOpen(false); onLogout(); }}
-            className="cursor-target flex w-full items-center gap-3 px-4 py-2.5 text-base text-destructive hover:bg-destructive/10 transition-colors border-t border-border"
+            className="flex w-full items-center gap-3 px-4 py-2.5 text-base text-destructive hover:bg-destructive/10 transition-colors border-t border-border"
           >
             <LogOut size={22} />
             Wyloguj
@@ -260,7 +256,7 @@ function SidebarItem({
         aria-current={active ? "page" : undefined}
         title={item.label}
         className={cn(
-          "cursor-target flex items-center justify-center py-3 mx-1 rounded-lg transition-colors",
+          "flex items-center justify-center py-3 mx-1 rounded-lg transition-colors",
           "border-l-2",
           active
             ? "border-accent bg-accent/10 text-foreground"
@@ -278,7 +274,7 @@ function SidebarItem({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "cursor-target flex items-center gap-3.5 px-4 py-3.5 text-lg font-medium transition-colors rounded-lg",
+        "flex items-center gap-3.5 px-4 py-3.5 text-lg font-medium transition-colors rounded-lg",
         active
           ? "border-l-2 border-accent bg-accent/10 text-foreground pl-[10px]"
           : "border-l-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-muted pl-[10px]"
@@ -466,7 +462,7 @@ function BottomBarItem({ item, pathname }: { item: NavItem; pathname: string }) 
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "cursor-target flex flex-1 flex-col items-center gap-0.5 px-2 py-2 text-xs font-medium transition-colors",
+        "flex flex-1 flex-col items-center gap-0.5 px-2 py-2 text-xs font-medium transition-colors",
         active ? "text-accent" : "text-muted-foreground hover:text-foreground"
       )}
     >
@@ -514,8 +510,6 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <TargetCursor />
-
       {/* ------------------------------------------------------------------ */}
       {/* Top bar                                                             */}
       {/* ------------------------------------------------------------------ */}
@@ -604,7 +598,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             <button
               onClick={toggleCollapsed}
               className={cn(
-                "cursor-target flex w-full items-center py-3 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
+                "flex w-full items-center py-3 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
                 collapsed ? "justify-center" : "gap-2.5 px-3"
               )}
               aria-label={collapsed ? "Rozwiń" : "Zwiń"}

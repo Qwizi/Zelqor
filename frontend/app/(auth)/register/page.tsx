@@ -217,7 +217,7 @@ export default function RegisterPage() {
           </div>
           <Button
             type="submit"
-            className="cursor-target h-16 w-full rounded-2xl bg-primary font-display text-xl uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
+            className="h-16 w-full rounded-2xl bg-primary font-display text-xl uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
             disabled={isSubmitting}
           >
             {isSubmitting ? "Rejestracja..." : "Utwórz konto"}

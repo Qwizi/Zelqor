@@ -111,7 +111,7 @@ export default function DecksPage() {
         {!creating && (
           <Button
             onClick={() => setCreating(true)}
-            className="cursor-target h-14 rounded-2xl bg-primary px-8 font-display text-lg uppercase tracking-wider text-primary-foreground hover:bg-primary/90 gap-2"
+            className="h-14 rounded-2xl bg-primary px-8 font-display text-lg uppercase tracking-wider text-primary-foreground hover:bg-primary/90 gap-2"
           >
             <Plus className="h-5 w-5" />
             Nowa talia
@@ -144,14 +144,14 @@ export default function DecksPage() {
               <Button
                 onClick={handleCreate}
                 disabled={saving || !newDeckName.trim()}
-                className="cursor-target h-14 rounded-2xl bg-primary px-8 font-display text-lg uppercase tracking-wider text-primary-foreground hover:bg-primary/90 gap-2"
+                className="h-14 rounded-2xl bg-primary px-8 font-display text-lg uppercase tracking-wider text-primary-foreground hover:bg-primary/90 gap-2"
               >
                 <Check className="h-5 w-5" />
                 Utwórz
               </Button>
               <button
                 onClick={() => { setCreating(false); setNewDeckName(""); }}
-                className="cursor-target flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -216,7 +216,7 @@ export default function DecksPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       <Link
                         href={`/decks/${deck.id}`}
-                        className="cursor-target flex h-11 items-center gap-2 rounded-xl border border-border bg-secondary px-4 text-base font-medium text-foreground transition-colors hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+                        className="flex h-11 items-center gap-2 rounded-xl border border-border bg-secondary px-4 text-base font-medium text-foreground transition-colors hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
                       >
                         <Pencil className="h-4 w-4" />
                         Edytuj
@@ -225,7 +225,7 @@ export default function DecksPage() {
                         <button
                           onClick={() => handleSetDefault(deck.id)}
                           title="Ustaw jako domyślną"
-                          className="cursor-target flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground transition-colors hover:border-accent/30 hover:bg-accent/10 hover:text-accent"
+                          className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground transition-colors hover:border-accent/30 hover:bg-accent/10 hover:text-accent"
                         >
                           <StarOff className="h-5 w-5" />
                         </button>
@@ -238,7 +238,7 @@ export default function DecksPage() {
                       <button
                         onClick={() => handleDelete(deck.id)}
                         title="Usuń"
-                        className="cursor-target flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground transition-colors hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground transition-colors hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="h-5 w-5" />
                       </button>

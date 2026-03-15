@@ -341,14 +341,14 @@ export default function SharePage() {
           <p className="px-3 pb-2 text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">Konto</p>
           <Link
             href="/login"
-            className="cursor-target flex items-center gap-3.5 rounded-lg px-4 py-3.5 text-lg font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="flex items-center gap-3.5 rounded-lg px-4 py-3.5 text-lg font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <LogIn size={22} />
             Zaloguj się
           </Link>
           <Link
             href="/register"
-            className="cursor-target flex items-center gap-3.5 rounded-lg px-4 py-3.5 text-lg font-medium text-primary transition-colors hover:bg-primary/10"
+            className="flex items-center gap-3.5 rounded-lg px-4 py-3.5 text-lg font-medium text-primary transition-colors hover:bg-primary/10"
           >
             <UserPlus size={22} />
             Zarejestruj się

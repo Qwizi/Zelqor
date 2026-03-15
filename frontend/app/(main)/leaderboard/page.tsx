@@ -85,7 +85,7 @@ export default function LeaderboardPage() {
             </div>
             <Button
               variant="outline"
-              className="cursor-target h-11 rounded-xl border-primary/30 bg-primary/10 text-base text-primary hover:bg-primary/20"
+              className="h-11 rounded-xl border-primary/30 bg-primary/10 text-base text-primary hover:bg-primary/20"
               onClick={() => setPageOverride(Math.ceil(myPlacement / PAGE_SIZE))}
             >
               Pokaż mnie
@@ -138,7 +138,7 @@ export default function LeaderboardPage() {
                 <TableRow
                   key={entry.id}
                   onClick={() => router.push(`/profile/${entry.id}`)}
-                  className={`cursor-target cursor-pointer ${
+                  className={`cursor-pointer ${
                     isMe
                       ? "bg-primary/5 hover:bg-primary/10"
                       : "hover:bg-muted/50"
@@ -224,7 +224,7 @@ export default function LeaderboardPage() {
           <div className="flex items-center gap-3">
             <Button
               variant="outline"
-              className="cursor-target h-11 gap-2 rounded-xl text-base"
+              className="h-11 gap-2 rounded-xl text-base"
               disabled={safePage <= 1}
               onClick={() => setPageOverride(Math.max(1, safePage - 1))}
             >
@@ -233,7 +233,7 @@ export default function LeaderboardPage() {
             </Button>
             <Button
               variant="outline"
-              className="cursor-target h-11 gap-2 rounded-xl text-base"
+              className="h-11 gap-2 rounded-xl text-base"
               disabled={safePage >= totalPages}
               onClick={() => setPageOverride(Math.min(totalPages, safePage + 1))}
             >

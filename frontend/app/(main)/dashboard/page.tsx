@@ -266,7 +266,7 @@ export default function DashboardPage() {
                     key={mode.id}
                     onClick={() => setSelectedMode(mode.slug)}
                     disabled={inQueue}
-                    className={`cursor-target flex items-center gap-3 rounded-2xl border-2 px-6 py-4 text-lg font-semibold transition-all ${
+                    className={`flex items-center gap-3 rounded-2xl border-2 px-6 py-4 text-lg font-semibold transition-all ${
                       sel
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border text-muted-foreground hover:border-primary/30 hover:bg-muted hover:text-foreground"
@@ -302,7 +302,7 @@ export default function DashboardPage() {
                       key={deck.id}
                       onClick={() => setSelectedDeckId(deck.id)}
                       disabled={inQueue}
-                      className={`cursor-target flex items-center gap-3 rounded-2xl border-2 px-6 py-4 text-base font-semibold transition-all ${
+                      className={`flex items-center gap-3 rounded-2xl border-2 px-6 py-4 text-base font-semibold transition-all ${
                         selectedDeckId === deck.id
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border text-muted-foreground hover:border-primary/30 hover:bg-muted hover:text-foreground"
@@ -381,7 +381,7 @@ export default function DashboardPage() {
                         setFillBots(value >= 1);
                         setInstantBot(value === 2);
                       }}
-                      className={`cursor-target flex flex-col items-center gap-2 rounded-2xl border-2 p-5 text-center transition-all ${
+                      className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-5 text-center transition-all ${
                         active
                           ? value === 2
                             ? "border-accent bg-accent/10 text-accent"
@@ -420,7 +420,7 @@ export default function DashboardPage() {
               {inQueue ? (
                 <Button
                   size="lg"
-                  className="cursor-target h-16 w-full gap-4 rounded-2xl bg-destructive font-display text-xl uppercase tracking-wider text-white hover:bg-destructive/90"
+                  className="h-16 w-full gap-4 rounded-2xl bg-destructive font-display text-xl uppercase tracking-wider text-white hover:bg-destructive/90"
                   onClick={leaveQueue}
                 >
                   <Loader2 className="h-7 w-7 animate-spin" />
@@ -430,7 +430,7 @@ export default function DashboardPage() {
               ) : (
                 <Button
                   size="lg"
-                  className="cursor-target h-16 w-full gap-3 rounded-2xl bg-primary font-display text-xl uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
+                  className="h-16 w-full gap-3 rounded-2xl bg-primary font-display text-xl uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
                   onClick={() => joinQueue(selectedMode ?? undefined)}
                   disabled={!selectedMode}
                 >
@@ -474,7 +474,7 @@ export default function DashboardPage() {
             key={item.href}
             href={item.href}
             data-animate="shortcut"
-            className="cursor-target group rounded-2xl border border-border bg-card p-6 transition-all hover:border-border/50 hover:bg-muted"
+            className="group rounded-2xl border border-border bg-card p-6 transition-all hover:border-border/50 hover:bg-muted"
           >
             <item.icon className={`h-8 w-8 ${item.color}`} />
             <p className="mt-4 text-lg font-bold text-card-foreground group-hover:text-foreground transition-colors">{item.label}</p>
@@ -514,7 +514,7 @@ export default function DashboardPage() {
                 <TableRow
                   key={match.id}
                   data-animate="table-row"
-                  className="cursor-target cursor-pointer hover:bg-muted/50"
+                  className="cursor-pointer hover:bg-muted/50"
                   onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}
                 >
                   <TableCell className="pl-6 py-5">

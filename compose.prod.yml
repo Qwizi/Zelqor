@@ -53,6 +53,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/admin/login/\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 
   gateway:
     image: ghcr.io/qwizi/maplord-gateway:${TAG:-latest}
@@ -88,9 +94,7 @@ services:
       DEBUG: "False"
     mem_limit: 192m
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
+      backend:
         condition: service_healthy
     command: uv run celery -A config worker -l warning --concurrency 2
 
@@ -107,9 +111,7 @@ services:
     volumes:
       - celerybeat_data:/app/celerybeat
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
+      backend:
         condition: service_healthy
     command: uv run celery -A config beat -l info --schedule /app/celerybeat/celerybeat-schedule
 

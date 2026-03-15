@@ -181,7 +181,7 @@ function FilledSlot({ entry, isSelected, onClick }: SlotProps) {
     <div
       onClick={onClick}
       className={[
-        "cursor-target group relative aspect-square rounded-lg border border-l-2 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer",
+        "group relative aspect-square rounded-lg border border-l-2 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer",
         RARITY_LEFT_BORDER[rarity] ?? "border-l-slate-500/50",
         RARITY_SLOT_BG[rarity] ?? "bg-slate-500/[0.07]",
         "border-border",
@@ -607,14 +607,14 @@ export default function InventoryPage() {
       {/* ── Tabs ────────────────────────────────────────────────────────────── */}
       <Tabs defaultValue="inventory">
         <TabsList variant="line" className="h-auto p-0 gap-1">
-          <TabsTrigger value="inventory" className="cursor-target flex items-center gap-2 px-4 py-2 text-base">
+          <TabsTrigger value="inventory" className="flex items-center gap-2 px-4 py-2 text-base">
             <Backpack className="h-4 w-4" />
             Ekwipunek
             <span className="ml-0.5 text-xs text-muted-foreground">
               {inventory.length}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="drops" className="cursor-target flex items-center gap-2 px-4 py-2 text-base">
+          <TabsTrigger value="drops" className="flex items-center gap-2 px-4 py-2 text-base">
             <Gift className="h-4 w-4" />
             Ostatnie dropy
           </TabsTrigger>
@@ -639,7 +639,7 @@ export default function InventoryPage() {
                       key={f.value}
                       onClick={() => setFilter(f.value)}
                       className={[
-                        "cursor-target flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-medium transition-colors",
+                        "flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-medium transition-colors",
                         isActive
                           ? "bg-primary/15 border border-primary/25 text-primary"
                           : "border border-border/50 text-muted-foreground hover:bg-muted/40 hover:border-border hover:text-foreground",
@@ -729,7 +729,7 @@ export default function InventoryPage() {
                       <HoverCard key={drop.id}>
                         <HoverCardTrigger
                           render={
-                            <div className="cursor-target flex items-center gap-3 rounded-lg px-3 py-4 hover:bg-muted/30 hover:border-border/30 transition-colors border border-transparent cursor-pointer">
+                            <div className="flex items-center gap-3 rounded-lg px-3 py-4 hover:bg-muted/30 hover:border-border/30 transition-colors border border-transparent cursor-pointer">
                               {/* Icon */}
                               <div
                                 className={[

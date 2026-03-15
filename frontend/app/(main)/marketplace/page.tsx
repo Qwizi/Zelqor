@@ -180,7 +180,7 @@ function BrowseList({
             <button
               key={pill.value}
               onClick={() => onFilterCategory(pill.value)}
-              className={`cursor-target shrink-0 rounded-full px-4 py-2 text-base font-medium transition-colors ${
+              className={`shrink-0 rounded-full px-4 py-2 text-base font-medium transition-colors ${
                 filterCategory === pill.value
                   ? "border border-primary/25 bg-primary/10 text-primary"
                   : "border border-border text-muted-foreground hover:bg-muted hover:border-border/50 hover:text-foreground"
@@ -211,7 +211,7 @@ function BrowseList({
                 <HoverCardTrigger render={<div />}>
                 <Link
                   href={`/marketplace/${agg.item.slug}`}
-                  className="cursor-target group flex items-center gap-4 rounded-xl border border-border px-4 py-3.5 transition-all hover:border-border/60 hover:bg-muted"
+                  className="group flex items-center gap-4 rounded-xl border border-border px-4 py-3.5 transition-all hover:border-border/60 hover:bg-muted"
                 >
                   {/* Item icon */}
                   <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-l-2 border-border/60 text-2xl ${RARITY_LEFT_BORDER_SLOT[rarity]} ${RARITY_SLOT_BG[rarity]}`}>
@@ -280,7 +280,7 @@ function BrowseList({
             <button
               key={pill.value}
               onClick={() => onFilterCategory(pill.value)}
-              className={`cursor-target flex w-full items-center rounded-lg px-3 py-3 text-base transition-all text-left ${
+              className={`flex w-full items-center rounded-lg px-3 py-3 text-base transition-all text-left ${
                 filterCategory === pill.value
                   ? "bg-primary/10 text-primary border border-primary/25"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
@@ -360,7 +360,7 @@ function MyListingsTab({
           {listings.map((listing) => (
             <TableRow
               key={listing.id}
-              className="cursor-target transition-colors hover:bg-muted/30"
+              className="transition-colors hover:bg-muted/30"
             >
               <TableCell className="pl-6 py-5">
                 <div className="flex items-center gap-3">
@@ -412,7 +412,7 @@ function MyListingsTab({
                     variant="ghost"
                     onClick={() => handleCancel(listing.id)}
                     disabled={cancelling === listing.id}
-                    className="cursor-target h-11 rounded-md bg-destructive/10 px-4 text-base text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
+                    className="h-11 rounded-md bg-destructive/10 px-4 text-base text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
                   >
                     {cancelling === listing.id ? "..." : "Anuluj"}
                   </Button>
@@ -474,7 +474,7 @@ function HistoryTab({ history, currentUsername }: HistoryTabProps) {
             return (
               <TableRow
                 key={tx.id}
-                className="cursor-target transition-colors hover:bg-muted/30"
+                className="transition-colors hover:bg-muted/30"
               >
                 <TableCell className="pl-6 py-5 text-base text-muted-foreground">
                   {new Date(tx.created_at).toLocaleDateString("pl-PL")}
@@ -637,7 +637,7 @@ function MarketplaceContent() {
           <Link
             key={t.key}
             href={t.href}
-            className={`cursor-target rounded-lg px-5 py-2.5 text-lg font-medium transition-colors ${
+            className={`rounded-lg px-5 py-2.5 text-lg font-medium transition-colors ${
               tab === t.key
                 ? "border border-primary/40 bg-primary/15 text-primary"
                 : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted"

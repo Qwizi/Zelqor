@@ -77,7 +77,7 @@ function EquippedSlot({
         render={
           <div
             onClick={() => !loading && onUnequip(equipped.slot)}
-            className="cursor-target group relative flex flex-col items-center gap-3 rounded-2xl border border-border bg-muted/40 p-5 transition-all hover:border-destructive/40 hover:bg-destructive/5 cursor-pointer"
+            className="group relative flex flex-col items-center gap-3 rounded-2xl border border-border bg-muted/40 p-5 transition-all hover:border-destructive/40 hover:bg-destructive/5 cursor-pointer"
           >
             <Badge variant="outline" className="text-sm uppercase tracking-[0.18em] text-muted-foreground border-border/50 hover:bg-transparent">
               {equipped.slot}
@@ -131,7 +131,7 @@ function CosmeticCard({
           <div
             onClick={() => !isEquipped && !loading && onEquip(item.slug)}
             className={[
-              "cursor-target group relative aspect-square rounded-xl border border-l-2 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer",
+              "group relative aspect-square rounded-xl border border-l-2 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer",
               RARITY_LEFT_BORDER[rarity] ?? "border-l-slate-500/50",
               RARITY_SLOT_BG[rarity] ?? "bg-slate-500/[0.07]",
               "border-border",

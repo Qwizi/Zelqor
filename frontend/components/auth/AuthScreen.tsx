@@ -4,10 +4,6 @@ import Link from "next/link";
 import { Globe } from "lucide-react";
 import type { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import dynamic from "next/dynamic";
-
-const TargetCursor = dynamic(() => import("@/components/TargetCursor"), { ssr: false });
-
 interface AuthScreenProps {
   eyebrow: string;
   title: string;
@@ -29,7 +25,6 @@ export default function AuthScreen({
 }: AuthScreenProps) {
   return (
     <div className="flex min-h-screen bg-background">
-      <TargetCursor />
       {/* Left half — branding */}
       <div className="hidden lg:flex lg:w-1/2 items-center justify-center border-r border-border">
         <div className="space-y-8 text-center">
@@ -86,7 +81,7 @@ export default function AuthScreen({
               {altPrompt}{" "}
               <Link
                 href={altHref}
-                className="cursor-target font-bold text-primary hover:text-primary/80 transition-colors"
+                className="font-bold text-primary hover:text-primary/80 transition-colors"
               >
                 {altLabel}
               </Link>

@@ -375,7 +375,7 @@ export default function DeckEditorPage() {
             size="sm"
             onClick={handleSave}
             disabled={saving}
-            className="cursor-target h-11 gap-1.5 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20 px-5 text-base"
+            className="h-11 gap-1.5 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20 px-5 text-base"
           >
             <Check className="h-4 w-4" />
             Zapisz
@@ -384,7 +384,7 @@ export default function DeckEditorPage() {
             <Button
               size="sm"
               variant="ghost"
-              className="cursor-target h-11 rounded-xl text-muted-foreground hover:text-foreground px-4 text-base"
+              className="h-11 rounded-xl text-muted-foreground hover:text-foreground px-4 text-base"
             >
               <X className="mr-1 h-4 w-4" />
               Anuluj
@@ -427,7 +427,7 @@ export default function DeckEditorPage() {
                       {slots.map((slot, i) => (
                         <div
                           key={`${slot.item_slug}-${i}`}
-                          className="cursor-target flex items-center gap-3 rounded-xl border border-border bg-secondary/50 px-4 py-3 transition-all hover:border-destructive/30 hover:bg-destructive/5 cursor-pointer group"
+                          className="flex items-center gap-3 rounded-xl border border-border bg-secondary/50 px-4 py-3 transition-all hover:border-destructive/30 hover:bg-destructive/5 cursor-pointer group"
                           onClick={() => removeSlotItem(section.type, i)}
                           title="Kliknij aby usunąć"
                         >
@@ -462,7 +462,7 @@ export default function DeckEditorPage() {
                 <button
                   key={s.type}
                   onClick={() => setAvailableTab(s.type)}
-                  className={`cursor-target flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                     availableTab === s.type
                       ? "border-primary/40 bg-primary/15 text-primary"
                       : "border-border text-muted-foreground hover:border-border/50 hover:bg-muted hover:text-foreground"
@@ -503,7 +503,7 @@ export default function DeckEditorPage() {
                       key={inv.id}
                       onClick={() => !disabled && addItemToSection(inv)}
                       disabled={disabled}
-                      className={`cursor-target w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                      className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
                         disabled
                           ? "border-border/20 opacity-30 cursor-not-allowed"
                           : "border-border hover:border-primary/30 hover:bg-primary/5 cursor-pointer"

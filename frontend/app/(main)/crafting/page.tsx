@@ -114,7 +114,7 @@ function RecipeRow({ recipe, craftable, active, rarity, owned, onSelect }: {
   return (
     <button
       onClick={onSelect}
-      className={`cursor-target group w-full rounded-xl border p-4 text-left transition-colors ${
+      className={`group w-full rounded-xl border p-4 text-left transition-colors ${
         active ? "bg-secondary/50 border-primary/30" : "border-border/30 hover:bg-muted/30"
       } ${!craftable ? "opacity-50" : ""}`}
     >
@@ -384,7 +384,7 @@ export default function CraftingPage() {
               <button
                 key={c.value}
                 onClick={() => { setCategory(c.value); setSelected(null); }}
-                className={`cursor-target flex w-full items-center gap-2.5 rounded-xl px-3 py-3 text-left transition-all ${
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-3 text-left transition-all ${
                   active
                     ? "bg-secondary text-foreground font-semibold border border-border"
                     : "text-foreground/70 hover:bg-muted hover:text-foreground border border-transparent"
@@ -435,7 +435,7 @@ export default function CraftingPage() {
             <Button
               variant={showOnlyCraftable ? "secondary" : "outline"}
               onClick={() => setShowOnlyCraftable((v) => !v)}
-              className={`cursor-target shrink-0 rounded-xl gap-1.5 px-4 h-11 text-base font-medium ${
+              className={`shrink-0 rounded-xl gap-1.5 px-4 h-11 text-base font-medium ${
                 showOnlyCraftable
                   ? "border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/15"
                   : ""
@@ -739,7 +739,7 @@ function RecipeDetail({
 
         {/* Craft button */}
         <Button
-          className={`cursor-target w-full gap-2 rounded-xl h-14 text-lg font-bold transition-all ${
+          className={`w-full gap-2 rounded-xl h-14 text-lg font-bold transition-all ${
             craftable
               ? "bg-primary text-primary-foreground hover:bg-primary/90"
               : "bg-muted text-muted-foreground border border-border"

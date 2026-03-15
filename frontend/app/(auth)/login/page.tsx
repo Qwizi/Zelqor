@@ -98,7 +98,7 @@ function ProfileCard({
           onSelect(profile);
         }
       }}
-      className="cursor-target group flex w-full cursor-pointer items-center gap-4 rounded-2xl border border-border bg-secondary p-5 text-left transition-all hover:border-border/60 hover:bg-muted"
+      className="group flex w-full cursor-pointer items-center gap-4 rounded-2xl border border-border bg-secondary p-5 text-left transition-all hover:border-border/60 hover:bg-muted"
     >
       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/20 font-display text-2xl text-primary">
         {profile.username[0].toUpperCase()}
@@ -357,7 +357,7 @@ function LoginForm() {
           <Button
             variant="outline"
             onClick={() => setView({ kind: "form", selectedProfile: null })}
-            className="cursor-target h-16 w-full gap-3 rounded-2xl border-dashed text-xl"
+            className="h-16 w-full gap-3 rounded-2xl border-dashed text-xl"
           >
             <Plus className="h-6 w-6" />
             Zaloguj na inne konto
@@ -384,7 +384,7 @@ function LoginForm() {
         {savedProfiles.length > 0 && (
           <button
             onClick={backToProfiles}
-            className="cursor-target flex items-center gap-2 text-lg text-muted-foreground transition-colors hover:text-foreground"
+            className="flex items-center gap-2 text-lg text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-5 w-5" />
             Powrót do wyboru profilu
@@ -460,7 +460,7 @@ function LoginForm() {
 
           <Button
             type="submit"
-            className="cursor-target h-16 w-full rounded-2xl bg-primary font-display text-xl uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
+            className="h-16 w-full rounded-2xl bg-primary font-display text-xl uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
             disabled={isSubmitting}
           >
             {isSubmitting ? "Logowanie..." : "Wejdź do gry"}

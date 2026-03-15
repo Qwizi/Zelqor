@@ -16,9 +16,7 @@ RUN uv sync --frozen --no-dev
 
 COPY . .
 
-RUN SECRET_KEY=build-placeholder uv run python manage.py collectstatic --noinput
-
-
 EXPOSE 8000
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uv", "run", "gunicorn", "config.wsgi:application", "-b", "0.0.0.0:8000"]

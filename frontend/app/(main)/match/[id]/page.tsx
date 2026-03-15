@@ -114,7 +114,7 @@ export default function MatchDetailPage() {
         <div className="space-y-2">
           <Link
             href="/dashboard"
-            className="cursor-target inline-flex items-center gap-2 text-base text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex items-center gap-2 text-base text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-5 w-5" />
             Panel
@@ -126,7 +126,7 @@ export default function MatchDetailPage() {
             <>
               <Link
                 href={`/replay/${match.id}`}
-                className="cursor-target inline-flex items-center gap-2 rounded-2xl border border-accent/25 bg-accent/10 px-6 py-3 font-display text-base uppercase tracking-[0.15em] text-accent transition-colors hover:bg-accent/20"
+                className="inline-flex items-center gap-2 rounded-2xl border border-accent/25 bg-accent/10 px-6 py-3 font-display text-base uppercase tracking-[0.15em] text-accent transition-colors hover:bg-accent/20"
               >
                 <PlayCircle className="h-5 w-5" />
                 Replay
@@ -134,7 +134,7 @@ export default function MatchDetailPage() {
               <button
                 onClick={handleShare}
                 disabled={shareLoading}
-                className="cursor-target inline-flex items-center gap-2 rounded-2xl border border-border px-6 py-3 font-display text-base uppercase tracking-[0.15em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-2xl border border-border px-6 py-3 font-display text-base uppercase tracking-[0.15em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
               >
                 {shareCopied ? <Check className="h-5 w-5 text-green-400" /> : <Share2 className="h-5 w-5" />}
                 {shareCopied ? "Skopiowano!" : "Udostępnij"}
@@ -143,7 +143,7 @@ export default function MatchDetailPage() {
           )}
           {isActive && (
             <Button
-              className="cursor-target h-14 gap-3 rounded-2xl bg-primary px-8 font-display text-lg uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
+              className="h-14 gap-3 rounded-2xl bg-primary px-8 font-display text-lg uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
               onClick={() => router.push(`/game/${match.id}`)}
             >
               <Shield className="h-6 w-6" />
@@ -238,7 +238,7 @@ export default function MatchDetailPage() {
               return (
                 <TableRow
                   key={player.id}
-                  className={`cursor-target cursor-pointer ${
+                  className={`cursor-pointer ${
                     isWinner ? "bg-accent/5 hover:bg-accent/10" : isMe ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/50"
                   }`}
                   onClick={() => router.push(`/profile/${player.user_id}`)}

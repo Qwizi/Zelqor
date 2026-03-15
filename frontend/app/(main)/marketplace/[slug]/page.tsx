@@ -208,7 +208,7 @@ export default function MarketplaceItemPage() {
       {/* Back link */}
       <Link
         href="/marketplace"
-        className="cursor-target inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base text-muted-foreground transition-all hover:text-foreground hover:bg-muted"
+        className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base text-muted-foreground transition-all hover:text-foreground hover:bg-muted"
       >
         <ArrowLeft className="h-4 w-4" />
         Powrót do rynku
@@ -336,7 +336,7 @@ export default function MarketplaceItemPage() {
                             size="sm"
                             onClick={() => handleBuyDirect(listing, 1)}
                             disabled={buying}
-                            className="cursor-target h-9 rounded-md bg-primary text-primary-foreground px-4 text-sm hover:bg-primary/90 disabled:opacity-50"
+                            className="h-9 rounded-md bg-primary text-primary-foreground px-4 text-sm hover:bg-primary/90 disabled:opacity-50"
                           >
                             Kup
                           </Button>
@@ -435,7 +435,7 @@ export default function MarketplaceItemPage() {
                 <Button
                   onClick={handleBuyCheapest}
                   disabled={buying}
-                  className="cursor-target h-12 w-full rounded-lg bg-primary text-primary-foreground text-base hover:bg-primary/90 sm:flex-1"
+                  className="h-12 w-full rounded-lg bg-primary text-primary-foreground text-base hover:bg-primary/90 sm:flex-1"
                 >
                   <Coins className="mr-2 h-4 w-4" />
                   Kup za{" "}
@@ -503,7 +503,7 @@ export default function MarketplaceItemPage() {
                 <Button
                   onClick={handleSell}
                   disabled={selling || ownedQty < 1}
-                  className="cursor-target h-12 w-full rounded-lg bg-accent text-accent-foreground text-base hover:bg-accent/90 disabled:opacity-50"
+                  className="h-12 w-full rounded-lg bg-accent text-accent-foreground text-base hover:bg-accent/90 disabled:opacity-50"
                 >
                   Wystaw na sprzedaż
                 </Button>

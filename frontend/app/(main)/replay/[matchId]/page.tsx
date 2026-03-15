@@ -265,7 +265,7 @@ export default function ReplayPage() {
         <div className="space-y-2">
           <Link
             href={`/match/${matchId}`}
-            className="cursor-target inline-flex items-center gap-2 text-base text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center gap-2 text-base text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
             Szczegóły meczu
@@ -283,18 +283,18 @@ export default function ReplayPage() {
       <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
-            <Button variant="ghost" onClick={stepBackward} disabled={currentIndex === 0} className="cursor-target h-10 w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30">
+            <Button variant="ghost" onClick={stepBackward} disabled={currentIndex === 0} className="h-10 w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30">
               <SkipBack className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" onClick={() => setPlaying(!playing)} className="cursor-target h-12 w-12 rounded-full p-0 text-primary hover:bg-primary/10">
+            <Button variant="ghost" onClick={() => setPlaying(!playing)} className="h-12 w-12 rounded-full p-0 text-primary hover:bg-primary/10">
               {playing ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
             </Button>
-            <Button variant="ghost" onClick={stepForward} disabled={currentIndex >= snapshots.length - 1} className="cursor-target h-10 w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30">
+            <Button variant="ghost" onClick={stepForward} disabled={currentIndex >= snapshots.length - 1} className="h-10 w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30">
               <SkipForward className="h-5 w-5" />
             </Button>
           </div>
           <input type="range" min={0} max={snapshots.length - 1} value={currentIndex} onChange={handleSliderChange} className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-primary [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(34,211,238,0.4)]" />
-          <button onClick={cycleSpeed} className="cursor-target rounded-full border border-border px-4 py-1.5 text-base font-semibold text-foreground hover:bg-muted">{speed}x</button>
+          <button onClick={cycleSpeed} className="rounded-full border border-border px-4 py-1.5 text-base font-semibold text-foreground hover:bg-muted">{speed}x</button>
           <div className="hidden text-right sm:block">
             <span className="font-display text-xl text-foreground">{currentTick}</span>
             <span className="text-base text-muted-foreground"> / {totalTicks}</span>
