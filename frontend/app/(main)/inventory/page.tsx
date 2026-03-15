@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Backpack,
+  Calendar,
   Coins,
   Gift,
   KeyRound,
@@ -12,9 +13,14 @@ import {
   ShoppingCart,
   TrendingDown,
   TrendingUp,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import {
   getMyInventory,
@@ -22,9 +28,36 @@ import {
   getMyDrops,
   openCrate,
   type InventoryItemOut,
+  type ItemInstanceOut,
   type WalletOut,
   type ItemDropOut,
 } from "@/lib/api";
+
+// ─── Wear condition config ────────────────────────────────────────────────────
+
+const WEAR_LABELS: Record<string, string> = {
+  factory_new: "FN",
+  minimal_wear: "MW",
+  field_tested: "FT",
+  well_worn: "WW",
+  battle_scarred: "BS",
+};
+
+const WEAR_COLORS: Record<string, string> = {
+  factory_new: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30",
+  minimal_wear: "text-lime-400 bg-lime-500/15 border-lime-500/30",
+  field_tested: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30",
+  well_worn: "text-orange-400 bg-orange-500/15 border-orange-500/30",
+  battle_scarred: "text-red-400 bg-red-500/15 border-red-500/30",
+};
+
+const WEAR_FULL_LABELS: Record<string, string> = {
+  factory_new: "Factory New",
+  minimal_wear: "Minimal Wear",
+  field_tested: "Field-Tested",
+  well_worn: "Well-Worn",
+  battle_scarred: "Battle-Scarred",
+};
 
 // ─── Rarity config ────────────────────────────────────────────────────────────
 
@@ -107,8 +140,6 @@ const FILTERS = [
 
 const MIN_SLOTS = 40;
 
-type Tab = "inventory" | "drops";
-
 // ─── Rarity slot styles (matching deck builder) ─────────────────────────────
 
 const RARITY_LEFT_BORDER: Record<string, string> = {
@@ -129,8 +160,8 @@ const RARITY_SLOT_BG: Record<string, string> = {
 
 function levelBadgeClass(level: number): string {
   if (level >= 3) return "text-amber-300";
-  if (level === 2) return "text-cyan-300";
-  return "text-zinc-500";
+  if (level === 2) return "text-primary";
+  return "text-muted-foreground";
 }
 
 // ─── Slot component ────────────────────────────────────────────────────────────
@@ -143,6 +174,7 @@ interface SlotProps {
 
 function FilledSlot({ entry, isSelected, onClick }: SlotProps) {
   const rarity = entry.item.rarity;
+  const inst = entry.instance;
 
   return (
     <button
@@ -151,30 +183,55 @@ function FilledSlot({ entry, isSelected, onClick }: SlotProps) {
         "group relative aspect-square rounded-lg border border-l-2 flex flex-col items-center justify-center transition-all duration-150",
         RARITY_LEFT_BORDER[rarity] ?? "border-l-slate-500/50",
         RARITY_SLOT_BG[rarity] ?? "bg-slate-500/[0.07]",
-        "border-white/10",
-        "hover:border-white/30 hover:bg-white/[0.08] hover:scale-[1.03]",
-        isSelected ? "ring-1 ring-white/25 bg-white/[0.10] scale-[1.02]" : "",
+        "border-border",
+        "hover:border-border/50 hover:bg-muted/40 hover:scale-[1.03]",
+        isSelected ? "ring-1 ring-foreground/25 bg-muted/50 scale-[1.02]" : "",
       ].join(" ")}
-      title={entry.item.name}
+      title={inst?.nametag ? `"${inst.nametag}" — ${entry.item.name}` : entry.item.name}
     >
       {/* Level badge — top left */}
       <div className={`absolute left-1 top-1 text-[9px] font-bold leading-none ${levelBadgeClass(entry.item.level)}`}>
         {entry.item.level}
       </div>
 
-      {/* Quantity badge — top right */}
-      {entry.quantity > 1 && (
-        <span className="absolute right-1 top-1 rounded bg-slate-900/80 px-1 py-px text-[9px] font-semibold leading-none text-zinc-200 border border-white/10">
+      {/* Quantity badge (stackable) OR wear badge (instance) — top right */}
+      {entry.is_instance && inst ? (
+        <span
+          className={[
+            "absolute right-1 top-1 rounded border px-[3px] py-px text-[8px] font-bold leading-none",
+            WEAR_COLORS[inst.wear_condition] ?? "text-muted-foreground bg-muted border-border",
+          ].join(" ")}
+        >
+          {WEAR_LABELS[inst.wear_condition] ?? inst.wear_condition.toUpperCase()}
+        </span>
+      ) : entry.quantity > 1 ? (
+        <span className="absolute right-1 top-1 rounded bg-card px-1 py-px text-[9px] font-semibold leading-none text-foreground border border-border">
           x{entry.quantity}
+        </span>
+      ) : null}
+
+      {/* StatTrak chip — bottom left */}
+      {inst?.stattrak && (
+        <span className="absolute bottom-1 left-1 rounded border border-orange-500/40 bg-orange-500/15 px-[3px] py-px text-[7px] font-bold leading-none text-orange-300">
+          ST
+        </span>
+      )}
+
+      {/* Rare pattern star — bottom right */}
+      {inst?.is_rare_pattern && (
+        <span className="absolute bottom-1 right-1 text-[9px] leading-none">
+          ⭐
         </span>
       )}
 
       {/* Icon */}
       <span className="text-2xl leading-none select-none">{entry.item.icon || "📦"}</span>
 
-      {/* Name */}
-      <p className="mt-1 max-w-full truncate px-1 text-center text-[9px] leading-none text-zinc-400">
-        {entry.item.name.replace(/^(Pakiet|Blueprint|Bonus): ?/, "")}
+      {/* Name / nametag */}
+      <p className="mt-1 max-w-full truncate px-1 text-center text-[9px] leading-none text-muted-foreground">
+        {inst?.nametag
+          ? `"${inst.nametag}"`
+          : entry.item.name.replace(/^(Pakiet|Blueprint|Bonus): ?/, "")}
       </p>
     </button>
   );
@@ -182,7 +239,7 @@ function FilledSlot({ entry, isSelected, onClick }: SlotProps) {
 
 function EmptySlot() {
   return (
-    <div className="aspect-square rounded-lg border border-dashed border-white/[0.08] bg-white/[0.02]" />
+    <div className="aspect-square rounded-lg border border-dashed border-border/30 bg-muted/10" />
   );
 }
 
@@ -195,22 +252,106 @@ interface DetailPanelProps {
   onClose: () => void;
 }
 
+function InstanceDetail({ inst }: { inst: ItemInstanceOut }) {
+  const wearPct = Math.round(inst.wear * 1000) / 10; // 0.0001 → 0.01%
+  return (
+    <div className="mt-3 space-y-3">
+      {/* Nametag */}
+      {inst.nametag && (
+        <p className="text-sm text-accent italic">
+          &ldquo;{inst.nametag}&rdquo;
+        </p>
+      )}
+
+      {/* Wear row */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge
+          className={[
+            "rounded border px-2 py-px text-[11px] font-bold h-auto",
+            WEAR_COLORS[inst.wear_condition] ?? "text-muted-foreground bg-muted border-border",
+          ].join(" ")}
+          variant="outline"
+        >
+          {WEAR_FULL_LABELS[inst.wear_condition] ?? inst.wear_condition}
+        </Badge>
+        <span className="font-mono text-xs text-muted-foreground tabular-nums">
+          {inst.wear.toFixed(6)}
+        </span>
+        <span className="text-xs text-muted-foreground/70">({wearPct.toFixed(1)}%)</span>
+        {inst.stattrak && (
+          <Badge className="rounded border border-orange-500/40 bg-orange-500/15 px-2 py-px text-[11px] font-bold text-orange-300 h-auto" variant="outline">
+            StatTrak
+          </Badge>
+        )}
+        {inst.is_rare_pattern && (
+          <span className="text-[11px] text-accent">⭐ Rzadki wzór</span>
+        )}
+      </div>
+
+      {/* StatTrak stats */}
+      {inst.stattrak && (
+        <div className="grid grid-cols-3 gap-2 rounded-lg border border-orange-500/20 bg-orange-500/[0.06] p-2.5 text-xs">
+          <div className="text-center">
+            <div className="font-mono font-bold text-orange-300">{inst.stattrak_matches}</div>
+            <div className="text-muted-foreground">meczy</div>
+          </div>
+          <div className="text-center">
+            <div className="font-mono font-bold text-orange-300">{inst.stattrak_kills}</div>
+            <div className="text-muted-foreground">eliminacji</div>
+          </div>
+          <div className="text-center">
+            <div className="font-mono font-bold text-orange-300">{inst.stattrak_units_produced}</div>
+            <div className="text-muted-foreground">jednostek</div>
+          </div>
+        </div>
+      )}
+
+      {/* Pattern seed */}
+      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <span>
+          Wzór:{" "}
+          <span className="font-mono text-foreground">{inst.pattern_seed}</span>
+        </span>
+        {inst.first_owner_username && (
+          <span className="flex items-center gap-1">
+            <User className="h-3 w-3" />
+            Pierwszy właściciel:{" "}
+            <span className="text-foreground">{inst.first_owner_username}</span>
+          </span>
+        )}
+        {inst.crafted_by_username && (
+          <span className="flex items-center gap-1">
+            <User className="h-3 w-3" />
+            Craftowane przez:{" "}
+            <span className="text-foreground">{inst.crafted_by_username}</span>
+          </span>
+        )}
+        <span className="flex items-center gap-1">
+          <Calendar className="h-3 w-3" />
+          <span>{new Date(inst.created_at).toLocaleDateString("pl-PL")}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPanelProps) {
   const { item } = entry;
   const rarity = item.rarity;
+  const inst = entry.instance;
 
   const displayIcon = item.icon || TYPE_LETTER[item.item_type] || "?";
 
   return (
-    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.05] p-4 sm:p-5">
+    <div className="mt-4 rounded-xl border border-border bg-muted/20 p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         {/* Left: icon */}
         <div
           className={[
             "flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-l-[3px] text-3xl",
-            "border-white/10",
+            "border-border",
             RARITY_BORDER[rarity] ?? "border-l-slate-400",
-            "bg-white/[0.05]",
+            "bg-muted/30",
           ].join(" ")}
         >
           {displayIcon}
@@ -219,54 +360,71 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
         {/* Center: info */}
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1">
-            <h3 className="font-display text-base font-semibold text-zinc-50 leading-tight truncate">
-              {item.name}
+            <h3 className="font-display text-base font-semibold text-foreground leading-tight truncate">
+              {inst?.nametag ? (
+                <span>
+                  <span className="italic text-accent">&ldquo;{inst.nametag}&rdquo;</span>
+                  <span className="ml-1.5 text-muted-foreground text-sm font-normal">({item.name})</span>
+                </span>
+              ) : item.name}
             </h3>
-            <span
+            <Badge
               className={[
-                "shrink-0 rounded-full border px-2 py-px text-[10px] font-medium uppercase tracking-wide",
+                "shrink-0 rounded-full border px-2 py-px text-[10px] font-medium uppercase tracking-wide h-auto",
                 RARITY_BG_BADGE[rarity] ?? "",
               ].join(" ")}
+              variant="outline"
             >
               {RARITY_LABELS[rarity] ?? rarity}
-            </span>
-            <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-px text-[10px] text-slate-400 uppercase tracking-wide">
+            </Badge>
+            <Badge
+              variant="outline"
+              className="shrink-0 rounded-full px-2 py-px text-[10px] uppercase tracking-wide h-auto"
+            >
               {TYPE_LABELS[item.item_type] ?? item.item_type}
-            </span>
+            </Badge>
             {item.level > 1 && (
-              <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-px text-[10px] text-amber-300">
+              <Badge
+                className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-px text-[10px] text-amber-300 h-auto"
+                variant="outline"
+              >
                 Lvl {item.level}
-              </span>
+              </Badge>
             )}
           </div>
 
           {item.description && (
-            <p className="text-xs text-slate-400 leading-relaxed mb-3">
+            <p className="text-xs text-muted-foreground leading-relaxed mb-2">
               {item.description}
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-4 text-xs">
-            <span className="text-slate-400">
-              Posiadasz:{" "}
-              <span className="font-mono font-semibold text-zinc-200">
-                {entry.quantity}
+          {/* Stack quantity or instance details */}
+          {entry.is_instance && inst ? (
+            <InstanceDetail inst={inst} />
+          ) : (
+            <div className="flex flex-wrap items-center gap-4 text-xs">
+              <span className="text-muted-foreground">
+                Posiadasz:{" "}
+                <span className="font-mono font-semibold text-foreground">
+                  {entry.quantity}
+                </span>
               </span>
-            </span>
-            {item.base_value > 0 && (
-              <span className="flex items-center gap-1 text-amber-300/70">
-                <Coins className="h-3 w-3" />
-                <span className="font-mono tabular-nums">{item.base_value}</span>
-                <span className="text-slate-400">bazowa wartość</span>
-              </span>
-            )}
-          </div>
+              {item.base_value > 0 && (
+                <span className="flex items-center gap-1 text-accent/70">
+                  <Coins className="h-3 w-3" />
+                  <span className="font-mono tabular-nums">{item.base_value}</span>
+                  <span className="text-muted-foreground">bazowa wartość</span>
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Close */}
         <button
           onClick={onClose}
-          className="shrink-0 text-slate-500 hover:text-slate-300 text-lg leading-none"
+          className="shrink-0 text-muted-foreground hover:text-foreground text-lg leading-none"
           aria-label="Zamknij"
         >
           ×
@@ -274,7 +432,8 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
       </div>
 
       {/* Actions */}
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+      <Separator className="mt-4 mb-4" />
+      <div className="flex flex-wrap gap-2">
         {item.item_type === "crate" && (
           <Button
             size="sm"
@@ -299,7 +458,7 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
           <Button
             size="sm"
             variant="outline"
-            className="h-8 gap-1.5 rounded-full text-xs border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+            className="h-8 gap-1.5 rounded-full text-xs border-primary/30 text-primary hover:bg-primary/10"
           >
             <ShoppingCart className="h-3 w-3" />
             Sprzedaj na rynku
@@ -339,7 +498,6 @@ export default function InventoryPage() {
   const [wallet, setWallet] = useState<WalletOut | null>(null);
   const [drops, setDrops] = useState<ItemDropOut[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>("inventory");
   const [filter, setFilter] = useState<string>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -422,221 +580,212 @@ export default function InventoryPage() {
 
       {/* ── Page header ─────────────────────────────────────────────────────── */}
       <div className="space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Ekwipunek</p>
-        <h1 className="font-display text-3xl text-zinc-50">Twój ekwipunek</h1>
+        <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Ekwipunek</p>
+        <h1 className="font-display text-3xl text-foreground">Twój ekwipunek</h1>
       </div>
 
       {/* ── Wallet bar ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 backdrop-blur-xl">
-        <span className="mr-auto text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-          Portfel
-        </span>
-
-        {wallet ? (
-          <>
-            <span className="flex items-center gap-1.5 font-mono tabular-nums text-sm font-medium text-amber-300">
-              <Coins className="h-3.5 w-3.5" />
-              {wallet.gold.toLocaleString("pl-PL")}
-              <span className="text-slate-400 font-normal">złoto</span>
-            </span>
-            <span className="h-3 w-px bg-white/10 hidden sm:block" />
-            <span className="flex items-center gap-1 font-mono tabular-nums text-sm text-green-300">
-              <TrendingUp className="h-3.5 w-3.5" />
-              {wallet.total_earned.toLocaleString("pl-PL")}
-              <span className="text-slate-400 text-xs font-normal">zarobione</span>
-            </span>
-            <span className="h-3 w-px bg-white/10 hidden sm:block" />
-            <span className="flex items-center gap-1 font-mono tabular-nums text-sm text-red-400">
-              <TrendingDown className="h-3.5 w-3.5" />
-              {wallet.total_spent.toLocaleString("pl-PL")}
-              <span className="text-slate-400 text-xs font-normal">wydane</span>
-            </span>
-          </>
-        ) : (
-          <span className="text-xs text-slate-400">Ładowanie...</span>
-        )}
-      </div>
-
-      {/* ── Tab nav ─────────────────────────────────────────────────────────── */}
-      <div className="flex gap-1">
-        <button
-          onClick={() => setTab("inventory")}
-          className={[
-            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
-            tab === "inventory"
-              ? "bg-white/10 text-zinc-100"
-              : "text-slate-400 hover:text-zinc-100 hover:bg-white/[0.08]",
-          ].join(" ")}
-        >
-          <Backpack className="h-3.5 w-3.5" />
-          Ekwipunek
-          <span className="ml-0.5 text-[10px] text-slate-500">
-            {inventory.length}
+      <Card className="rounded-2xl backdrop-blur-xl">
+        <CardContent className="flex flex-wrap items-center gap-3 py-3">
+          <span className="mr-auto text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            Portfel
           </span>
-        </button>
-        <button
-          onClick={() => setTab("drops")}
-          className={[
-            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
-            tab === "drops"
-              ? "bg-white/10 text-zinc-100"
-              : "text-slate-400 hover:text-zinc-100 hover:bg-white/[0.08]",
-          ].join(" ")}
-        >
-          <Gift className="h-3.5 w-3.5" />
-          Ostatnie dropy
-        </button>
-      </div>
 
-      {/* ── Inventory tab ───────────────────────────────────────────────────── */}
-      {tab === "inventory" && (
-        <div className="rounded-2xl border border-white/10 bg-slate-950/55 backdrop-blur-xl">
+          {wallet ? (
+            <>
+              <span className="flex items-center gap-1.5 font-mono tabular-nums text-sm font-medium text-amber-300">
+                <Coins className="h-3.5 w-3.5" />
+                {wallet.gold.toLocaleString("pl-PL")}
+                <span className="text-muted-foreground font-normal">złoto</span>
+              </span>
+              <Separator orientation="vertical" className="hidden sm:block h-3 w-px" />
+              <span className="flex items-center gap-1 font-mono tabular-nums text-sm text-green-300">
+                <TrendingUp className="h-3.5 w-3.5" />
+                {wallet.total_earned.toLocaleString("pl-PL")}
+                <span className="text-muted-foreground text-xs font-normal">zarobione</span>
+              </span>
+              <Separator orientation="vertical" className="hidden sm:block h-3 w-px" />
+              <span className="flex items-center gap-1 font-mono tabular-nums text-sm text-red-400">
+                <TrendingDown className="h-3.5 w-3.5" />
+                {wallet.total_spent.toLocaleString("pl-PL")}
+                <span className="text-muted-foreground text-xs font-normal">wydane</span>
+              </span>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">Ładowanie...</span>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Filter pills */}
-          <div className="flex gap-1.5 overflow-x-auto border-b border-white/10 px-4 py-3 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
-            {FILTERS.map((f) => {
-              const count =
-                f.value === "all"
-                  ? inventory.length
-                  : inventory.filter((i) => i.item.item_type === f.value).length;
-              if (f.value !== "all" && count === 0) return null;
-              return (
-                <button
-                  key={f.value}
-                  onClick={() => {
-                    setFilter(f.value);
-                    setSelectedId(null);
-                  }}
-                  className={[
-                    "flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                    filter === f.value
-                      ? "bg-cyan-500/15 border border-cyan-400/25 text-cyan-100"
-                      : "border border-white/[0.08] text-slate-400 hover:bg-white/[0.10] hover:border-white/20 hover:text-slate-100",
-                  ].join(" ")}
-                >
-                  {f.label}
-                  <span
-                    className={[
-                      "rounded-full px-1 text-[10px] font-semibold tabular-nums",
-                      filter === f.value ? "text-cyan-300/70" : "text-slate-500",
-                    ].join(" ")}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+      {/* ── Tabs ────────────────────────────────────────────────────────────── */}
+      <Tabs defaultValue="inventory">
+        <TabsList variant="line" className="h-auto p-0 gap-1">
+          <TabsTrigger value="inventory" className="flex items-center gap-1.5 px-3 py-1.5 text-sm">
+            <Backpack className="h-3.5 w-3.5" />
+            Ekwipunek
+            <span className="ml-0.5 text-[10px] text-muted-foreground">
+              {inventory.length}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="drops" className="flex items-center gap-1.5 px-3 py-1.5 text-sm">
+            <Gift className="h-3.5 w-3.5" />
+            Ostatnie dropy
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Slot grid */}
-          <div className="p-4">
-            {loading ? (
-              <div className="flex h-40 items-center justify-center text-sm text-slate-500">
-                Ładowanie ekwipunku...
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11">
-                  {filteredInventory.map((entry) => (
-                    <FilledSlot
-                      key={entry.id}
-                      entry={entry}
-                      isSelected={selectedId === entry.id}
-                      onClick={() =>
-                        setSelectedId(
-                          selectedId === entry.id ? null : entry.id
-                        )
-                      }
-                    />
-                  ))}
-                  {Array.from({ length: emptyCount }).map((_, i) => (
-                    <EmptySlot key={`empty-${i}`} />
-                  ))}
-                </div>
+        {/* ── Inventory tab ─────────────────────────────────────────────────── */}
+        <TabsContent value="inventory">
+          <Card className="rounded-2xl backdrop-blur-xl">
 
-                {/* Detail panel */}
-                {selectedEntry && (
-                  <DetailPanel
-                    entry={selectedEntry}
-                    hasMatchingKey={hasMatchingKey(selectedEntry.item.slug)}
-                    onOpenCrate={handleOpenCrate}
-                    onClose={() => setSelectedId(null)}
-                  />
-                )}
-
-                {filteredInventory.length === 0 && (
-                  <p className="mt-6 text-center text-sm text-slate-500">
-                    Brak przedmiotów w tej kategorii.
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Drops tab ───────────────────────────────────────────────────────── */}
-      {tab === "drops" && (
-        <div className="rounded-2xl border border-white/10 bg-slate-950/55 backdrop-blur-xl">
-          <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-            <Package className="h-4 w-4 text-green-400" />
-            <span className="text-sm font-medium text-zinc-200">Ostatnie dropy</span>
-          </div>
-
-          <div className="p-4">
-            {drops.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-500">
-                Brak dropów — graj mecze!
-              </p>
-            ) : (
-              <div className="space-y-1">
-                {drops.map((drop) => {
-                  const rarity = drop.item.rarity;
+            {/* Filter pills */}
+            <CardHeader className="border-b border-border pb-3">
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+                {FILTERS.map((f) => {
+                  const count =
+                    f.value === "all"
+                      ? inventory.length
+                      : inventory.filter((i) => i.item.item_type === f.value).length;
+                  if (f.value !== "all" && count === 0) return null;
+                  const isActive = filter === f.value;
                   return (
-                    <div
-                      key={drop.id}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/[0.08] hover:border-white/10 transition-colors border border-transparent"
+                    <button
+                      key={f.value}
+                      onClick={() => {
+                        setFilter(f.value);
+                        setSelectedId(null);
+                      }}
+                      className={[
+                        "flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                        isActive
+                          ? "bg-primary/15 border border-primary/25 text-primary"
+                          : "border border-border/50 text-muted-foreground hover:bg-muted/40 hover:border-border hover:text-foreground",
+                      ].join(" ")}
                     >
-                      {/* Icon */}
-                      <div
+                      {f.label}
+                      <span
                         className={[
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-l-[2px] text-base",
-                          "border-white/10 bg-white/[0.05]",
-                          RARITY_BORDER[rarity] ?? "border-l-slate-400",
+                          "rounded-full px-1 text-[10px] font-semibold tabular-nums",
+                          isActive ? "text-primary/70" : "text-muted-foreground/60",
                         ].join(" ")}
                       >
-                        {drop.item.icon || TYPE_LETTER[drop.item.item_type] || "?"}
-                      </div>
-
-                      {/* Name + qty */}
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm text-zinc-200 truncate">
-                          {drop.item.name}
-                        </span>
-                        {drop.quantity > 1 && (
-                          <span className="ml-1.5 font-mono text-xs text-slate-400">
-                            x{drop.quantity}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Source badge */}
-                      <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-px text-[10px] text-slate-300">
-                        {SOURCE_LABEL[drop.source] ?? drop.source}
+                        {count}
                       </span>
-
-                      {/* Time */}
-                      <span className="shrink-0 text-[11px] text-slate-400 tabular-nums">
-                        {timeAgo(drop.created_at)}
-                      </span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
-            )}
-          </div>
-        </div>
-      )}
+            </CardHeader>
+
+            {/* Slot grid */}
+            <CardContent className="pt-4">
+              {loading ? (
+                <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                  Ładowanie ekwipunku...
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11">
+                    {filteredInventory.map((entry) => (
+                      <FilledSlot
+                        key={entry.id}
+                        entry={entry}
+                        isSelected={selectedId === entry.id}
+                        onClick={() =>
+                          setSelectedId(
+                            selectedId === entry.id ? null : entry.id
+                          )
+                        }
+                      />
+                    ))}
+                    {Array.from({ length: emptyCount }).map((_, i) => (
+                      <EmptySlot key={`empty-${i}`} />
+                    ))}
+                  </div>
+
+                  {/* Detail panel */}
+                  {selectedEntry && (
+                    <DetailPanel
+                      entry={selectedEntry}
+                      hasMatchingKey={hasMatchingKey(selectedEntry.item.slug)}
+                      onOpenCrate={handleOpenCrate}
+                      onClose={() => setSelectedId(null)}
+                    />
+                  )}
+
+                  {filteredInventory.length === 0 && (
+                    <p className="mt-6 text-center text-sm text-muted-foreground">
+                      Brak przedmiotów w tej kategorii.
+                    </p>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Drops tab ─────────────────────────────────────────────────────── */}
+        <TabsContent value="drops">
+          <Card className="rounded-2xl backdrop-blur-xl">
+            <CardHeader className="flex-row items-center gap-2 border-b border-border pb-3">
+              <Package className="h-4 w-4 text-green-400" />
+              <span className="text-sm font-medium text-foreground">Ostatnie dropy</span>
+            </CardHeader>
+
+            <CardContent className="pt-4">
+              {drops.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Brak dropów — graj mecze!
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {drops.map((drop) => {
+                    const rarity = drop.item.rarity;
+                    return (
+                      <div
+                        key={drop.id}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-muted/30 hover:border-border/30 transition-colors border border-transparent"
+                      >
+                        {/* Icon */}
+                        <div
+                          className={[
+                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-l-[2px] text-base",
+                            "border-border bg-muted/20",
+                            RARITY_BORDER[rarity] ?? "border-l-slate-400",
+                          ].join(" ")}
+                        >
+                          {drop.item.icon || TYPE_LETTER[drop.item.item_type] || "?"}
+                        </div>
+
+                        {/* Name + qty */}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-foreground truncate">
+                            {drop.item.name}
+                          </span>
+                          {drop.quantity > 1 && (
+                            <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                              x{drop.quantity}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Source badge */}
+                        <Badge variant="outline" className="shrink-0 rounded-full px-2 py-px text-[10px] h-auto">
+                          {SOURCE_LABEL[drop.source] ?? drop.source}
+                        </Badge>
+
+                        {/* Time */}
+                        <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                          {timeAgo(drop.created_at)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

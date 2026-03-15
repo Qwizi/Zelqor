@@ -46,7 +46,7 @@ services:
       DEBUG: "False"
       ALLOWED_HOSTS: ${DOMAIN:-localhost},backend
     volumes:
-      - static_data:/app/static
+      - static_data:/app/staticfiles
       - media_data:/app/media
     depends_on:
       db:

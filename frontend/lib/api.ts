@@ -751,6 +751,23 @@ export interface ItemOut {
   blueprint_ref: string;
 }
 
+export interface ItemInstanceOut {
+  id: string;
+  item: ItemOut;
+  pattern_seed: number;
+  wear: number;
+  wear_condition: string;
+  stattrak: boolean;
+  stattrak_matches: number;
+  stattrak_kills: number;
+  stattrak_units_produced: number;
+  nametag: string;
+  is_rare_pattern: boolean;
+  first_owner_username: string | null;
+  crafted_by_username: string | null;
+  created_at: string;
+}
+
 export interface ItemCategoryOut {
   id: string;
   name: string;
@@ -762,6 +779,8 @@ export interface InventoryItemOut {
   id: string;
   item: ItemOut;
   quantity: number;
+  is_instance: boolean;
+  instance: ItemInstanceOut | null;
 }
 
 export interface WalletOut {
@@ -966,11 +985,19 @@ export async function getRecipes(): Promise<RecipeOut[]> {
   return fetchAPI<RecipeOut[]>("/crafting/recipes/");
 }
 
+export interface CraftResult {
+  message: string;
+  item_name: string;
+  item_slug: string;
+  quantity: number;
+  instance: ItemInstanceOut | null;
+}
+
 export async function craftItem(
   token: string,
   recipeSlug: string
-): Promise<{ message: string; item_name: string; item_slug: string; quantity: number }> {
-  return fetchAPI("/crafting/craft/", {
+): Promise<CraftResult> {
+  return fetchAPI<CraftResult>("/crafting/craft/", {
     method: "POST",
     token,
     body: JSON.stringify({ recipe_slug: recipeSlug }),
@@ -982,6 +1009,7 @@ export async function craftItem(
 export interface DeckItemOut {
   item: ItemOut;
   quantity: number;
+  instance: ItemInstanceOut | null;
 }
 
 export interface DeckOut {

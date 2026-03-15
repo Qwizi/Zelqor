@@ -29,6 +29,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import { getMyWallet, type WalletOut } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
+
+const TargetCursor = dynamic(() => import("@/components/TargetCursor"), { ssr: false });
 
 // ---------------------------------------------------------------------------
 // Nav item definitions
@@ -257,7 +260,7 @@ function SidebarItem({
         aria-current={active ? "page" : undefined}
         title={item.label}
         className={cn(
-          "flex items-center justify-center py-2 mx-1 rounded-sm transition-colors",
+          "cursor-target flex items-center justify-center py-2 mx-1 rounded-sm transition-colors",
           "border-l-2",
           active
             ? "border-amber-400 bg-white/[0.04] text-zinc-50"
@@ -275,7 +278,7 @@ function SidebarItem({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 text-sm font-medium transition-colors rounded-sm",
+        "cursor-target flex items-center gap-3 px-3 py-2 text-sm font-medium transition-colors rounded-sm",
         active
           ? "border-l-2 border-amber-400 bg-white/[0.04] text-zinc-50 pl-[10px]"
           : "border-l-2 border-transparent text-slate-400 hover:text-zinc-100 hover:bg-white/[0.08] pl-[10px]"
@@ -510,12 +513,13 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   const contentPadding = collapsed ? "md:pl-14" : "md:pl-56";
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#1a2740_0%,#09111d_48%,#04070d_100%)] text-zinc-100">
+    <div className="min-h-screen bg-background text-foreground">
+      <TargetCursor />
 
       {/* ------------------------------------------------------------------ */}
       {/* Top bar                                                             */}
       {/* ------------------------------------------------------------------ */}
-      <header className="fixed inset-x-0 top-0 z-40 h-12 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
+      <header className="fixed inset-x-0 top-0 z-40 h-12 border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="flex h-full items-center gap-3 px-4">
 
           {/* Logo */}
@@ -545,7 +549,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         {/* ---------------------------------------------------------------- */}
         <aside
           className={cn(
-            "fixed left-0 top-12 hidden h-[calc(100vh-3rem)] flex-col border-r border-white/10 bg-slate-950/60 backdrop-blur-xl md:flex",
+            "fixed left-0 top-12 hidden h-[calc(100vh-3rem)] flex-col border-r border-border bg-card md:flex",
+            // sidebar uses bg-card which is slate-900 (#0f172a)
             "transition-all duration-200",
             sidebarWidth
           )}
@@ -629,7 +634,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
       {/* ------------------------------------------------------------------ */}
       {/* Mobile bottom bar                                                   */}
       {/* ------------------------------------------------------------------ */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-14 items-stretch border-t border-white/10 bg-slate-950/90 backdrop-blur-xl md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-14 items-stretch border-t border-border bg-card/90 backdrop-blur-xl md:hidden">
         {BOTTOM_PRIMARY.map((item) => (
           <BottomBarItem key={item.href} item={item} pathname={pathname} />
         ))}
@@ -652,7 +657,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
           </SheetTrigger>
           <SheetContent
             side="bottom"
-            className="rounded-t-2xl border-t border-white/10 bg-slate-950/95 px-0 pb-8 pt-4 backdrop-blur-xl"
+            className="rounded-t-2xl border-t border-border bg-card px-0 pb-8 pt-4"
           >
             <div className="mb-2 px-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
               NAWIGACJA

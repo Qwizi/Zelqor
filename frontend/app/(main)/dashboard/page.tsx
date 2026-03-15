@@ -3,11 +3,15 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchmaking } from "@/hooks/useMatchmaking";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   getMyMatches,
   getConfig,
@@ -31,7 +35,6 @@ import {
   Layers,
   Loader2,
   Bot,
-  X,
   Backpack,
   Store,
   Hammer,
@@ -121,287 +124,343 @@ export default function DashboardPage() {
     } catch { setTutorialLoading(false); }
   };
 
+  // ── GSAP entrance animations (must be before conditional returns) ──
+  const containerRef = useRef<HTMLDivElement>(null);
+  const currentMode = gameModes.find((m) => m.slug === selectedMode);
+  const selectedDeck = decks.find((d) => d.id === selectedDeckId);
+  const wins = recentMatches.filter((m) => m.status === "finished" && m.winner_id === user?.id).length;
+  const finished = recentMatches.filter((m) => m.status === "finished").length;
+  const winRate = finished > 0 ? Math.round((wins / finished) * 100) : 0;
+
+  // mountId changes only on component mount (page navigation), not on polling
+  const [mountId] = useState(() => Math.random());
+
+  useGSAP(() => {
+    if (!containerRef.current || !user) return;
+
+    // Staggered entrance for stat cards
+    gsap.fromTo("[data-animate='stat']",
+      { y: 24, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.5, stagger: 0.1, ease: "power2.out" }
+    );
+
+    // Counter animation for stat numbers
+    containerRef.current.querySelectorAll("[data-counter]").forEach((el) => {
+      const target = parseInt(el.getAttribute("data-counter") || "0", 10);
+      const obj = { val: 0 };
+      gsap.to(obj, {
+        val: target,
+        duration: 1.2,
+        ease: "power2.out",
+        onUpdate: () => {
+          el.textContent = Math.round(obj.val).toString() + (el.getAttribute("data-suffix") || "");
+        },
+      });
+    });
+
+    // Shortcut cards entrance
+    gsap.fromTo("[data-animate='shortcut']",
+      { y: 16, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.4, stagger: 0.08, delay: 0.3, ease: "power2.out" }
+    );
+
+    // Main cards slide up
+    gsap.fromTo("[data-animate='main-card']",
+      { y: 30, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.6, delay: 0.2, ease: "power2.out" }
+    );
+
+    // Table rows stagger
+    gsap.fromTo("[data-animate='table-row']",
+      { x: -16, opacity: 0 },
+      { x: 0, opacity: 1, duration: 0.3, stagger: 0.06, delay: 0.5, ease: "power2.out" }
+    );
+  }, { scope: containerRef, dependencies: [mountId, !!user] });
+
   if (authLoading || !user) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  const currentMode = gameModes.find((m) => m.slug === selectedMode);
-  const selectedDeck = decks.find((d) => d.id === selectedDeckId);
-  const wins = recentMatches.filter((m) => m.status === "finished" && m.winner_id === user.id).length;
-  const finished = recentMatches.filter((m) => m.status === "finished").length;
-  const winRate = finished > 0 ? Math.round((wins / finished) * 100) : 0;
-
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Strona główna</p>
-        <h1 className="font-display text-3xl text-zinc-50">Graj</h1>
+    <div ref={containerRef} className="space-y-8">
+      <div className="space-y-2">
+        <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">Strona główna</p>
+        <h1 className="font-display text-4xl sm:text-5xl text-foreground">Graj</h1>
       </div>
 
-      {/* ═══ STATYSTYKI — kompaktowy pasek ═══ */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 backdrop-blur-xl">
-          <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-amber-400" />
-            <span className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">ELO</span>
-          </div>
-          <div className="mt-1 font-display text-2xl tabular-nums text-amber-200">{user.elo_rating}</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 backdrop-blur-xl">
-          <div className="flex items-center gap-2">
-            <Crown className="h-4 w-4 text-emerald-400" />
-            <span className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">Win Rate</span>
-          </div>
-          <div className="mt-1 font-display text-2xl tabular-nums text-zinc-50">{winRate}%</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 backdrop-blur-xl">
-          <div className="flex items-center gap-2">
-            <Swords className="h-4 w-4 text-cyan-400" />
-            <span className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">Mecze</span>
-          </div>
-          <div className="mt-1 font-display text-2xl tabular-nums text-zinc-50">{finished}</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 backdrop-blur-xl">
-          <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-cyan-300" />
-            <span className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">Wygrane</span>
-          </div>
-          <div className="mt-1 font-display text-2xl tabular-nums text-emerald-300">{wins}</div>
-        </div>
+      {/* ═══ STATYSTYKI ═══ */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Card data-animate="stat" className="rounded-2xl">
+          <CardContent className="flex flex-col gap-2 p-5">
+            <div className="flex items-center gap-2.5">
+              <Trophy className="h-5 w-5 text-accent" />
+              <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-medium">ELO</span>
+            </div>
+            <div data-counter={user.elo_rating} className="font-display text-4xl tabular-nums text-accent">0</div>
+          </CardContent>
+        </Card>
+        <Card data-animate="stat" className="rounded-2xl">
+          <CardContent className="flex flex-col gap-2 p-5">
+            <div className="flex items-center gap-2.5">
+              <Crown className="h-5 w-5 text-primary" />
+              <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-medium">Win Rate</span>
+            </div>
+            <div data-counter={winRate} data-suffix="%" className="font-display text-4xl tabular-nums text-foreground">0%</div>
+          </CardContent>
+        </Card>
+        <Card data-animate="stat" className="rounded-2xl">
+          <CardContent className="flex flex-col gap-2 p-5">
+            <div className="flex items-center gap-2.5">
+              <Swords className="h-5 w-5 text-primary" />
+              <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-medium">Mecze</span>
+            </div>
+            <div data-counter={finished} className="font-display text-4xl tabular-nums text-foreground">0</div>
+          </CardContent>
+        </Card>
+        <Card data-animate="stat" className="rounded-2xl">
+          <CardContent className="flex flex-col gap-2 p-5">
+            <div className="flex items-center gap-2.5">
+              <Shield className="h-5 w-5 text-primary" />
+              <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-medium">Wygrane</span>
+            </div>
+            <div data-counter={wins} className="font-display text-4xl tabular-nums text-foreground">0</div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* ═══ SZUKAJ GRY ═══ */}
-      <section className="rounded-2xl border border-white/10 bg-slate-950/55 p-6 backdrop-blur-xl">
-        {activeMatch ? (
-          /* Aktywny mecz — osobny stan */
-          <div className="flex flex-col items-center gap-4 py-4 text-center">
-            <div className="h-3 w-3 animate-pulse rounded-full bg-emerald-400" />
-            <h2 className="font-display text-2xl text-zinc-50">Mecz w toku</h2>
+      {/* ═══ SZYBKIE SKRÓTY ═══ */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {[
+          { href: "/inventory", icon: Backpack, label: "Ekwipunek", desc: "Twoje przedmioty", color: "text-primary" },
+          { href: "/decks", icon: Layers, label: "Talia", desc: "Zarządzaj talią", color: "text-primary" },
+          { href: "/marketplace", icon: Store, label: "Rynek", desc: "Kupuj i sprzedawaj", color: "text-primary" },
+          { href: "/crafting", icon: Hammer, label: "Kuźnia", desc: "Twórz przedmioty", color: "text-accent" },
+          
+        ].map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            data-animate="shortcut"
+            className="cursor-target group rounded-2xl border border-border bg-card p-6 transition-all hover:border-border/50 hover:bg-muted"
+          >
+            <item.icon className={`h-8 w-8 ${item.color}`} />
+            <p className="mt-4 text-lg font-bold text-card-foreground group-hover:text-foreground transition-colors">{item.label}</p>
+            <p className="mt-1 text-base text-muted-foreground">{item.desc}</p>
+          </Link>
+        ))}
+      </div>
+
+      {/* ═══ AKTYWNY MECZ ═══ */}
+      {activeMatch && (
+        <Card className="rounded-2xl border-primary/30">
+          <CardContent className="flex flex-col items-center gap-6 p-8 text-center">
+            <div className="h-4 w-4 animate-pulse rounded-full bg-primary" />
+            <h2 className="font-display text-3xl text-foreground">Mecz w toku</h2>
             <Button
               size="lg"
-              className="h-12 gap-2 rounded-xl border border-cyan-300/40 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] px-8 font-display text-base uppercase tracking-wider text-slate-950 hover:opacity-90 transition-all"
+              className="h-14 gap-3 rounded-2xl bg-primary px-10 font-display text-lg uppercase tracking-wider text-primary-foreground hover:bg-primary/90 transition-all"
               onClick={() => router.push(`/game/${activeMatch.id}`)}
             >
-              <Shield className="h-5 w-5" />
+              <Shield className="h-6 w-6" />
               Wróć do gry
             </Button>
-          </div>
-        ) : (
-          /* Konfigurator + szukanie — jeden widok, disabled gdy w kolejce */
-          <div className="space-y-5">
-            {/* Tryb gry */}
-            <div className={inQueue ? "pointer-events-none opacity-40" : ""}>
-              <p className="mb-2 text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">Tryb gry</p>
-              <div className="flex flex-wrap gap-2">
-                {gameModes.map((mode) => {
-                  const sel = selectedMode === mode.slug;
-                  const Icon = MODE_ICONS[mode.slug] ?? Swords;
-                  return (
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ═══ TRYB GRY ═══ */}
+      {!activeMatch && (
+        <Card data-animate="main-card" className={`rounded-2xl ${inQueue ? "opacity-50 pointer-events-none" : ""}`}>
+          <CardContent className="p-6">
+            <p className="mb-4 text-sm uppercase tracking-[0.2em] text-muted-foreground font-medium">Tryb gry</p>
+            <div className="flex flex-wrap gap-3">
+              {gameModes.map((mode) => {
+                const sel = selectedMode === mode.slug;
+                const Icon = MODE_ICONS[mode.slug] ?? Swords;
+                return (
+                  <button
+                    key={mode.id}
+                    onClick={() => setSelectedMode(mode.slug)}
+                    disabled={inQueue}
+                    className={`cursor-target flex items-center gap-3 rounded-2xl border-2 px-6 py-4 text-lg font-semibold transition-all ${
+                      sel
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/30 hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="h-6 w-6" />
+                    {mode.name}
+                    <Badge variant="outline" className="text-xs">{mode.min_players === mode.max_players ? `${mode.max_players}P` : `${mode.min_players}-${mode.max_players}P`}</Badge>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ═══ TALIA + PODGLĄD + BOTY + SZUKAJ ═══ */}
+      {!activeMatch && (
+        <Card data-animate="main-card" className="rounded-2xl">
+          <CardContent className="p-6 space-y-6">
+            {/* Wybór talii */}
+            <div className={inQueue ? "opacity-40 pointer-events-none" : ""}>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground font-medium">Talia</p>
+                <Link href="/decks" className="text-sm text-primary hover:text-primary/80 transition-colors">
+                  Zarządzaj <ChevronRight className="inline h-4 w-4" />
+                </Link>
+              </div>
+              {decks.length > 0 ? (
+                <div className="flex flex-wrap gap-3">
+                  {decks.map((deck) => (
                     <button
-                      key={mode.id}
-                      onClick={() => setSelectedMode(mode.slug)}
+                      key={deck.id}
+                      onClick={() => setSelectedDeckId(deck.id)}
                       disabled={inQueue}
-                      className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all ${
-                        sel
-                          ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,0.1)]"
-                          : "border-white/10 text-slate-400 hover:border-white/25 hover:bg-white/[0.08] hover:text-zinc-100"
+                      className={`cursor-target flex items-center gap-3 rounded-2xl border-2 px-6 py-4 text-base font-semibold transition-all ${
+                        selectedDeckId === deck.id
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-muted-foreground hover:border-primary/30 hover:bg-muted hover:text-foreground"
                       }`}
                     >
-                      <Icon className="h-4 w-4" />
-                      {mode.name}
-                      <span className="text-[11px] text-slate-400">
-                        {mode.min_players === mode.max_players ? `${mode.max_players}P` : `${mode.min_players}-${mode.max_players}P`}
-                      </span>
+                      <Layers className="h-5 w-5" />
+                      {deck.name}
+                      {deck.is_default && (
+                        <Badge className="bg-accent/20 text-accent border-accent/30 text-xs">Domyślna</Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <Link href="/decks" className="inline-flex items-center gap-2 rounded-2xl border-2 border-dashed border-border px-6 py-4 text-base text-muted-foreground hover:border-primary/30 hover:text-foreground transition-all">
+                  <Layers className="h-5 w-5" />
+                  Stwórz talię
+                </Link>
+              )}
+            </div>
+
+            {/* Podgląd wybranej talii */}
+            {selectedDeck && selectedDeck.items.length > 0 && (
+              <>
+                <Separator />
+                <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+                  {selectedDeck.items.map((di, i) => {
+                    const rarity = di.item.rarity ?? "common";
+                    const rarityBorder: Record<string, string> = {
+                      common: "border-slate-500/30",
+                      uncommon: "border-green-500/30",
+                      rare: "border-blue-500/30",
+                      epic: "border-purple-500/30",
+                      legendary: "border-amber-500/30",
+                    };
+                    const lvlColor = (di.item.level ?? 1) >= 3 ? "text-accent" : (di.item.level ?? 1) === 2 ? "text-primary" : "text-muted-foreground";
+                    return (
+                      <div
+                        key={`${di.item.slug}-${i}`}
+                        className={`relative flex shrink-0 flex-col items-center rounded-xl border ${rarityBorder[rarity] ?? "border-border"} bg-secondary/50 px-3 py-3 w-20`}
+                      >
+                        <div className={`absolute -top-1.5 -right-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold ${lvlColor}`}>
+                          {di.item.level}
+                        </div>
+                        <div className="flex h-10 w-10 items-center justify-center text-2xl">
+                          {di.item.icon || "📦"}
+                        </div>
+                        <p className="mt-1.5 w-full truncate text-center text-[10px] font-medium leading-tight text-card-foreground">
+                          {di.item.name.replace(/^(Pakiet|Blueprint|Bonus): ?/, "")}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            <Separator />
+
+            {/* Przeciwnicy */}
+            <div className={inQueue ? "opacity-40 pointer-events-none" : ""}>
+              <p className="mb-4 text-sm uppercase tracking-[0.2em] text-muted-foreground font-medium">Przeciwnicy</p>
+              <div className="grid grid-cols-3 gap-3">
+                {([
+                  { value: 0, label: "Bez botów", desc: "Czekaj na graczy", icon: Users },
+                  { value: 1, label: "Dołącz boty", desc: "Boty po 30s", icon: Bot },
+                  { value: 2, label: "Instant bot", desc: "Graj od razu", icon: Bot },
+                ] as const).map(({ value, label, desc, icon: BotIcon }) => {
+                  const botMode = instantBot ? 2 : fillBots ? 1 : 0;
+                  const active = botMode === value;
+                  return (
+                    <button
+                      key={value}
+                      disabled={inQueue}
+                      onClick={() => {
+                        setFillBots(value >= 1);
+                        setInstantBot(value === 2);
+                      }}
+                      className={`cursor-target flex flex-col items-center gap-2 rounded-2xl border-2 p-5 text-center transition-all ${
+                        active
+                          ? value === 2
+                            ? "border-accent bg-accent/10 text-accent"
+                            : value === 1
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-foreground/40 bg-secondary text-foreground"
+                          : "border-border/60 bg-secondary/30 text-muted-foreground hover:border-foreground/20 hover:bg-secondary hover:text-foreground"
+                      } ${inQueue ? "cursor-not-allowed" : "cursor-pointer"}`}
+                    >
+                      <BotIcon className="h-7 w-7" />
+                      <p className="text-base font-semibold">{label}</p>
+                      <p className={`text-xs ${active ? "opacity-70" : "text-muted-foreground"}`}>{desc}</p>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Talia + opcje */}
-            <div className={`flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between ${inQueue ? "pointer-events-none opacity-40" : ""}`}>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <p className="mb-1.5 text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">Talia</p>
-                  {decks.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {decks.map((deck) => (
-                        <button
-                          key={deck.id}
-                          onClick={() => setSelectedDeckId(deck.id)}
-                          disabled={inQueue}
-                          className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
-                            selectedDeckId === deck.id
-                              ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-200"
-                              : "border-white/10 text-slate-400 hover:border-white/25 hover:bg-white/[0.08] hover:text-zinc-100"
-                          }`}
-                        >
-                          <Layers className="h-3 w-3" />
-                          {deck.name}
-                          {deck.is_default && <span className="rounded bg-amber-500/20 px-1 text-[10px] text-amber-300">dom.</span>}
-                        </button>
-                      ))}
-                      <Link href="/decks" className="flex items-center gap-1 rounded-lg border border-dashed border-white/10 px-3 py-1.5 text-xs text-slate-500 hover:border-white/25 hover:text-slate-300 transition-all">
-                        Edytuj
-                      </Link>
-                    </div>
-                  ) : (
-                    <Link href="/decks" className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-white/15 px-3 py-1.5 text-xs text-slate-400 hover:border-white/30 hover:text-slate-200 transition-all">
-                      <Layers className="h-3 w-3" />
-                      Stwórz talię
-                    </Link>
+            <Separator />
+
+            {/* Szukaj / Anuluj */}
+            <div className="space-y-3">
+              {inQueue && (
+                <div className="flex items-center justify-center gap-4 text-lg text-foreground py-2">
+                  <span className="font-bold text-xl">{playersInQueue} w kolejce</span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="font-medium">{currentMode?.name ?? "Tryb domyślny"}</span>
+                  {fillBots && queueSeconds < 30 && (
+                    <span className="text-accent font-bold text-xl">Boty za {30 - queueSeconds}s</span>
+                  )}
+                  {fillBots && queueSeconds >= 30 && (
+                    <span className="text-primary font-bold text-xl animate-pulse">Boty dołączają...</span>
                   )}
                 </div>
-                {/* Bot mode 3-way slider: 0=no bots, 1=fill after timeout, 2=instant */}
-                <div className="flex items-center gap-2.5">
-                  <Bot className="h-3.5 w-3.5 text-slate-500" />
-                  <div className="flex gap-0.5">
-                    {([
-                      { value: 0, label: "Bez botów", color: "border-slate-500/30 bg-slate-500/10 text-slate-400" },
-                      { value: 1, label: "Dołącz boty", color: "border-cyan-400/30 bg-cyan-500/10 text-cyan-300" },
-                      { value: 2, label: "Instant bot", color: "border-amber-400/30 bg-amber-500/10 text-amber-300" },
-                    ] as const).map(({ value, label, color }) => {
-                      const botMode = instantBot ? 2 : fillBots ? 1 : 0;
-                      const active = botMode === value;
-                      return (
-                        <button
-                          key={value}
-                          disabled={inQueue}
-                          onClick={() => {
-                            setFillBots(value >= 1);
-                            setInstantBot(value === 2);
-                          }}
-                          className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all ${
-                            active
-                              ? color
-                              : "border-white/[0.06] bg-white/[0.02] text-slate-500 hover:border-white/15 hover:text-slate-300"
-                          } ${inQueue ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Przycisk szukaj / anuluj ── */}
-              <div className="pointer-events-auto opacity-100 flex flex-col items-start sm:items-end gap-2">
-                {inQueue && (
-                  <div className="flex items-center gap-3 text-sm text-slate-300">
-                    <span>{playersInQueue} w kolejce</span>
-                    <span className="text-slate-500">·</span>
-                    <span className="text-slate-300">{currentMode?.name ?? "Tryb domyślny"}</span>
-                    {fillBots && queueSeconds < 30 && (
-                      <>
-                        <span className="text-slate-500">·</span>
-                        <span className="text-amber-300 text-xs">Boty za {30 - queueSeconds}s</span>
-                      </>
-                    )}
-                    {fillBots && queueSeconds >= 30 && (
-                      <>
-                        <span className="text-slate-500">·</span>
-                        <span className="text-emerald-300 text-xs">Boty dołączają...</span>
-                      </>
-                    )}
-                  </div>
-                )}
-                {inQueue ? (
-                  <Button
-                    size="lg"
-                    className="h-12 gap-3 rounded-xl border border-red-400 bg-red-500 px-8 font-display text-base uppercase tracking-wider text-white shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:bg-red-600 hover:shadow-[0_0_28px_rgba(239,68,68,0.4)] transition-all"
-                    onClick={leaveQueue}
-                  >
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <span className="tabular-nums">{Math.floor(queueSeconds / 60)}:{String(queueSeconds % 60).padStart(2, "0")}</span>
-                    <span>· Anuluj</span>
-                  </Button>
-                ) : (
-                  <Button
-                    size="lg"
-                    className="h-12 gap-2 rounded-xl border border-cyan-300/40 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] px-10 font-display text-base uppercase tracking-wider text-slate-950 shadow-[0_0_20px_rgba(34,211,238,0.15)] hover:opacity-90 hover:shadow-[0_0_28px_rgba(34,211,238,0.25)] transition-all"
-                    onClick={() => joinQueue(selectedMode ?? undefined)}
-                    disabled={!selectedMode}
-                  >
-                    <Search className="h-5 w-5" />
-                    Szukaj gry
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* ═══ PODGLĄD TALII — karty ═══ */}
-      {selectedDeck && selectedDeck.items.length > 0 && !inQueue && !activeMatch && (
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Layers className="h-4 w-4 text-cyan-400" />
-              <span className="text-sm font-medium text-zinc-200">{selectedDeck.name}</span>
-              {selectedDeck.is_default && <Badge className="border-0 bg-amber-500/20 text-[10px] text-amber-300 hover:bg-amber-500/20">Domyślna</Badge>}
-            </div>
-            <Link href="/decks" className="text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors">
-              Edytuj talię <ChevronRight className="inline h-3 w-3" />
-            </Link>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-            {selectedDeck.items.map((di, i) => {
-              const rarity = di.item.rarity ?? "common";
-              const rarityBorder: Record<string, string> = {
-                common: "border-slate-500/30",
-                uncommon: "border-green-500/30",
-                rare: "border-blue-500/40",
-                epic: "border-purple-500/40",
-                legendary: "border-amber-500/50",
-              };
-              const rarityGlow: Record<string, string> = {
-                common: "",
-                uncommon: "",
-                rare: "shadow-blue-500/10",
-                epic: "shadow-purple-500/15",
-                legendary: "shadow-amber-500/20",
-              };
-              const rarityBg: Record<string, string> = {
-                common: "from-slate-500/5 to-slate-800/10",
-                uncommon: "from-green-500/5 to-green-900/10",
-                rare: "from-blue-500/8 to-blue-900/15",
-                epic: "from-purple-500/8 to-purple-900/15",
-                legendary: "from-amber-500/10 to-amber-900/20",
-              };
-              const lvlColor = di.item.level >= 3 ? "text-amber-300 bg-amber-500/20" : di.item.level === 2 ? "text-cyan-300 bg-cyan-500/20" : "text-slate-400 bg-white/[0.06]";
-
-              return (
-                <div
-                  key={i}
-                  className={`group relative flex w-24 shrink-0 flex-col items-center rounded-xl border bg-gradient-to-b p-3 transition-all hover:-translate-y-1 hover:shadow-lg ${rarityBorder[rarity] ?? rarityBorder.common} ${rarityBg[rarity] ?? rarityBg.common} ${rarityGlow[rarity] ?? ""}`}
+              )}
+              {inQueue ? (
+                <Button
+                  size="lg"
+                  className="cursor-target h-16 w-full gap-4 rounded-2xl bg-destructive font-display text-xl uppercase tracking-wider text-white hover:bg-destructive/90"
+                  onClick={leaveQueue}
                 >
-                  {/* Lvl badge */}
-                  <div className={`absolute -top-1.5 -right-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold ${lvlColor}`}>
-                    {di.item.level}
-                  </div>
-                  {/* Icon */}
-                  <div className="flex h-12 w-12 items-center justify-center text-3xl">
-                    {di.item.icon || "📦"}
-                  </div>
-                  {/* Name */}
-                  <p className="mt-2 w-full truncate text-center text-[10px] font-medium leading-tight text-zinc-300">
-                    {di.item.name.replace(/^(Pakiet|Blueprint|Bonus): ?/, "")}
-                  </p>
-                  {/* Quantity */}
-                  {di.quantity > 1 && (
-                    <span className="mt-1 text-[10px] text-slate-400">×{di.quantity}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
+                  <Loader2 className="h-7 w-7 animate-spin" />
+                  <span className="tabular-nums text-2xl">{Math.floor(queueSeconds / 60)}:{String(queueSeconds % 60).padStart(2, "0")}</span>
+                  · Anuluj
+                </Button>
+              ) : (
+                <Button
+                  size="lg"
+                  className="cursor-target h-16 w-full gap-3 rounded-2xl bg-primary font-display text-xl uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
+                  onClick={() => joinQueue(selectedMode ?? undefined)}
+                  disabled={!selectedMode}
+                >
+                  <Search className="h-7 w-7" />
+                  Szukaj gry
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ═══ SAMOUCZEK ═══ */}
@@ -409,85 +468,98 @@ export default function DashboardPage() {
         <button
           onClick={handleStartTutorial}
           disabled={tutorialLoading}
-          className="flex w-full items-center gap-4 rounded-2xl border border-amber-300/20 bg-amber-500/[0.05] p-4 text-left transition-all hover:border-amber-300/35 hover:bg-amber-500/[0.10]"
+          className="flex w-full items-center gap-5 rounded-2xl border border-accent/20 bg-accent/5 p-5 text-left transition-all hover:border-accent/35 hover:bg-accent/10"
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/15">
-            <GraduationCap className="h-5 w-5 text-amber-200" />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent/15">
+            <GraduationCap className="h-6 w-6 text-accent" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-medium text-zinc-100">Samouczek</p>
-            <p className="text-xs text-slate-400">Naucz się podstaw w krótkiej rozgrywce treningowej</p>
+            <p className="text-base font-medium text-foreground">Samouczek</p>
+            <p className="text-sm text-muted-foreground">Naucz się podstaw w krótkiej rozgrywce treningowej</p>
           </div>
-          <ChevronRight className="h-4 w-4 text-slate-400" />
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
         </button>
       )}
 
-      {/* ═══ SZYBKIE SKRÓTY ═══ */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { href: "/inventory", icon: Backpack, label: "Ekwipunek", desc: "Twoje przedmioty", color: "text-cyan-400" },
-          { href: "/marketplace", icon: Store, label: "Rynek", desc: "Kupuj i sprzedawaj", color: "text-emerald-400" },
-          { href: "/crafting", icon: Hammer, label: "Kuźnia", desc: "Twórz przedmioty", color: "text-amber-400" },
-          { href: "/decks", icon: Layers, label: "Talia", desc: "Zarządzaj talią", color: "text-violet-400" },
-        ].map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="group rounded-2xl border border-white/10 bg-slate-950/55 p-4 backdrop-blur-xl transition-all hover:border-white/25 hover:bg-white/[0.08]"
-          >
-            <item.icon className={`h-5 w-5 ${item.color}`} />
-            <p className="mt-2 text-sm font-medium text-zinc-200 group-hover:text-zinc-50 transition-colors">{item.label}</p>
-            <p className="text-[11px] text-slate-400">{item.desc}</p>
-          </Link>
-        ))}
-      </div>
-
       {/* ═══ OSTATNIE MECZE ═══ */}
       {recentMatches.length > 0 && (
-        <section>
-          <p className="mb-3 text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">Ostatnie mecze</p>
-          <div className="space-y-1.5">
-            {recentMatches.slice(0, 5).map((match) => {
+        <Card className="rounded-2xl overflow-hidden">
+          <div className="px-6 pt-5 pb-2">
+            <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground font-medium">Ostatnie mecze</p>
+          </div>
+          <Table className="text-base">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="h-14 pl-6 text-base font-semibold">Status</TableHead>
+                  <TableHead className="h-14 text-base font-semibold">Gracze</TableHead>
+                  <TableHead className="h-14 text-base font-semibold">Tryb</TableHead>
+                  <TableHead className="h-14 text-base font-semibold">Czas</TableHead>
+                  <TableHead className="h-14 text-base font-semibold text-right pr-6">Data</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+            {recentMatches.slice(0, 8).map((match) => {
               const isActive = match.status === "in_progress" || match.status === "selecting";
               const isWinner = match.winner_id === user.id;
               const myPlayer = match.players.find((p) => p.user_id === user.id);
               const isLoss = match.status === "finished" && !isWinner && myPlayer && !myPlayer.is_alive;
               const date = new Date(match.finished_at ?? match.started_at ?? match.created_at);
+              const startDate = match.started_at ? new Date(match.started_at) : null;
+              const endDate = match.finished_at ? new Date(match.finished_at) : null;
+              const durationMin = startDate && endDate ? Math.round((endDate.getTime() - startDate.getTime()) / 60000) : null;
 
               return (
-                <Link
+                <TableRow
                   key={match.id}
-                  href={isActive ? `/game/${match.id}` : `/match/${match.id}`}
-                  className={`group flex items-center gap-3 rounded-xl border px-4 py-2.5 transition-all ${
-                    isActive
-                      ? "border-cyan-400/20 bg-cyan-400/5 hover:border-cyan-400/40 hover:bg-cyan-400/10"
-                      : "border-white/10 hover:border-white/20 hover:bg-white/[0.06]"
-                  }`}
+                  data-animate="table-row"
+                  className="cursor-target cursor-pointer hover:bg-muted/50"
+                  onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}
                 >
-                  <div className="w-20 shrink-0">
+                  <TableCell className="pl-6 py-5">
                     {isActive ? (
-                      <Badge className="border-0 bg-emerald-500/20 text-[10px] text-emerald-300 hover:bg-emerald-500/20">Live</Badge>
+                      <Badge className="border-0 bg-primary/20 text-base px-3 py-1 text-primary hover:bg-primary/20">
+                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse mr-2" />Live
+                      </Badge>
                     ) : isWinner ? (
-                      <Badge className="border-0 bg-amber-400/15 text-[10px] text-amber-200 hover:bg-amber-400/15"><Crown className="mr-0.5 h-2.5 w-2.5" />Wygrana</Badge>
+                      <Badge className="border-0 bg-accent/15 text-base px-3 py-1 text-accent hover:bg-accent/15">
+                        <Crown className="mr-1.5 h-4 w-4" />Wygrana
+                      </Badge>
                     ) : isLoss ? (
-                      <Badge className="border-0 bg-red-400/15 text-[10px] text-red-300 hover:bg-red-400/15">Przegrana</Badge>
+                      <Badge variant="destructive" className="border-0 bg-destructive/15 text-base px-3 py-1 text-destructive hover:bg-destructive/15">Przegrana</Badge>
                     ) : (
-                      <span className="text-[10px] text-slate-400">{match.status === "cancelled" ? "Anulowany" : match.status}</span>
+                      <Badge variant="outline" className="text-base px-3 py-1 text-muted-foreground">
+                        {match.status === "cancelled" ? "Anulowany" : match.status === "finished" ? "Zakończony" : match.status}
+                      </Badge>
                     )}
-                  </div>
-                  <div className="flex gap-0.5">
-                    {match.players.map((p) => (
-                      <div key={p.id} className="h-4 w-4 rounded-sm" style={{ backgroundColor: p.color, opacity: !p.is_alive && match.status === "finished" ? 0.3 : 1 }} title={p.username} />
-                    ))}
-                  </div>
-                  <span className="flex-1 text-xs text-slate-400">{match.players.length}P</span>
-                  <span className="text-[11px] tabular-nums text-slate-400">{date.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</span>
-                  <ChevronRight className="h-3.5 w-3.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
-                </Link>
+                  </TableCell>
+                  <TableCell className="py-5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        {match.players.map((p) => (
+                          <div key={p.id} className="h-6 w-6 rounded" style={{ backgroundColor: p.color, opacity: !p.is_alive && match.status === "finished" ? 0.3 : 1 }} title={p.username} />
+                        ))}
+                      </div>
+                      <span className="text-muted-foreground">{match.players.length} graczy</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-5 text-muted-foreground">
+                    {match.max_players <= 2 ? "1v1" : `${match.max_players}P`}
+                  </TableCell>
+                  <TableCell className="py-5 tabular-nums text-muted-foreground">
+                    {durationMin != null ? `${durationMin} min` : isActive ? "W toku" : "—"}
+                  </TableCell>
+                  <TableCell className="py-5 pr-6 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <span className="tabular-nums text-foreground">{date.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </div>
-        </section>
+              </TableBody>
+            </Table>
+        </Card>
       )}
     </div>
   );

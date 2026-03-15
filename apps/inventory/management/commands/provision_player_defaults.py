@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
-from apps.inventory.models import Deck, DeckItem, Item, UserInventory, Wallet
+from apps.inventory.models import Deck, DeckItem, Item, ItemInstance, UserInventory, Wallet
 
 User = get_user_model()
 
@@ -20,7 +20,7 @@ DEFAULT_DECK_NAME = 'Domyślna talia'
 
 
 class Command(BaseCommand):
-    help = "Give all non-bot players default starter items, gold, and a default deck"
+    help = "Reset and provision all non-bot players with default starter items, gold, and deck"
 
     def handle(self, *args, **options):
         users = User.objects.filter(is_bot=False)
@@ -33,45 +33,48 @@ class Command(BaseCommand):
 
         provisioned = 0
         for user in users:
-            changed = False
+            # ── Clean slate: remove old inventory/instances/decks for starter items ──
+            starter_item_ids = [item.id for item in items.values()]
+            UserInventory.objects.filter(user=user, item_id__in=starter_item_ids).delete()
+            ItemInstance.objects.filter(owner=user, item_id__in=starter_item_ids).delete()
 
-            # Wallet
-            wallet, created = Wallet.objects.get_or_create(user=user, defaults={'gold': STARTER_GOLD})
-            if created:
-                changed = True
-            elif wallet.gold < STARTER_GOLD:
+            # Remove old default deck and its items
+            old_decks = Deck.objects.filter(user=user, is_default=True)
+            for old_deck in old_decks:
+                DeckItem.objects.filter(deck=old_deck).delete()
+                old_deck.delete()
+
+            # ── Wallet ──
+            wallet, _ = Wallet.objects.get_or_create(user=user, defaults={'gold': STARTER_GOLD})
+            if wallet.gold < STARTER_GOLD:
                 wallet.gold = STARTER_GOLD
                 wallet.save(update_fields=['gold'])
-                changed = True
 
-            # Starter items in inventory
+            # ── Create starter items ──
+            instance_map = {}  # slug → ItemInstance (for non-stackable)
             for slug, item in items.items():
-                _, created = UserInventory.objects.get_or_create(
-                    user=user, item=item,
-                    defaults={'quantity': 1},
-                )
-                if created:
-                    changed = True
+                if item.is_stackable:
+                    UserInventory.objects.create(user=user, item=item, quantity=1)
+                else:
+                    inst = ItemInstance.objects.create(
+                        item=item, owner=user,
+                        pattern_seed=0, wear=0.0, stattrak=False,
+                        first_owner=user,
+                    )
+                    instance_map[slug] = inst
 
-            # Default deck — create if user has none, or update existing default
-            deck = Deck.objects.filter(user=user, is_default=True).first()
-            if not deck:
-                deck = Deck.objects.create(user=user, name=DEFAULT_DECK_NAME, is_default=True)
-                changed = True
-
-            # Ensure all starter items are in the deck
+            # ── Create default deck with all starter items ──
+            deck = Deck.objects.create(user=user, name=DEFAULT_DECK_NAME, is_default=True)
             for slug, item in items.items():
-                _, created = DeckItem.objects.get_or_create(
-                    deck=deck, item=item,
-                    defaults={'quantity': 1},
+                instance = instance_map.get(slug)
+                DeckItem.objects.create(
+                    deck=deck, item=item, quantity=1,
+                    instance=instance,
                 )
-                if created:
-                    changed = True
 
-            if changed:
-                provisioned += 1
+            provisioned += 1
 
-        self.stdout.write(
+        self.stdout.write(self.style.SUCCESS(
             f"Provisioned {provisioned} player(s) with default items "
             f"({len(items)} items, {STARTER_GOLD} gold, default deck)"
-        )
+        ))

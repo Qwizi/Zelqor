@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'apps.marketplace',
     'apps.crafting',
     'apps.developers',
+    'apps.assets',
 ]
 
 MIDDLEWARE = [
@@ -419,6 +420,17 @@ UNFOLD = {
                         "title": "Webhooks",
                         "icon": "webhook",
                         "link": "/admin/developers/webhook/",
+                    },
+                ],
+            },
+            {
+                "title": "Assets",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Game Assets",
+                        "icon": "image",
+                        "link": "/admin/assets/gameasset/",
                     },
                 ],
             },

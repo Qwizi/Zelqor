@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import {
   getDeck,
@@ -29,27 +33,21 @@ const SECTION_CONFIG = [
     type: "tactical_package",
     label: "Pakiety Taktyczne",
     icon: "⚡",
-    color: "text-cyan-300",
-    accentBg: "bg-cyan-500/10",
-    accentBorder: "border-cyan-500/20",
+    colorClass: "text-primary",
     slots: 5,
   },
   {
     type: "blueprint_building",
     label: "Budynki",
     icon: "🏗️",
-    color: "text-amber-300",
-    accentBg: "bg-amber-500/10",
-    accentBorder: "border-amber-500/20",
+    colorClass: "text-accent",
     slots: 6,
   },
   {
     type: "boost",
     label: "Bonusy",
     icon: "🚀",
-    color: "text-emerald-300",
-    accentBg: "bg-emerald-500/10",
-    accentBorder: "border-emerald-500/20",
+    colorClass: "text-emerald-300",
     slots: 4,
   },
 ] as const;
@@ -88,9 +86,9 @@ interface SlotItem {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function levelBadgeClass(level: number): string {
-  if (level >= 3) return "text-amber-300";
-  if (level === 2) return "text-cyan-300";
-  return "text-zinc-500";
+  if (level >= 3) return "text-accent";
+  if (level === 2) return "text-primary";
+  return "text-muted-foreground";
 }
 
 function sectionForType(type: string) {
@@ -110,14 +108,14 @@ function FilledSlot({ item, onRemove }: FilledSlotProps) {
 
   return (
     <div
-      className={`group relative aspect-square rounded-lg border border-l-2 ${RARITY_LEFT_BORDER[rarity]} ${RARITY_BG[rarity]} border-white/10 bg-white/[0.04] flex flex-col items-center justify-center cursor-pointer transition-all duration-150 hover:border-white/30 hover:bg-white/[0.08] hover:scale-[1.03]`}
+      className={`group relative aspect-square rounded-lg border border-l-2 ${RARITY_LEFT_BORDER[rarity]} ${RARITY_BG[rarity]} border-border bg-muted/40 flex flex-col items-center justify-center cursor-pointer transition-all duration-150 hover:border-border/60 hover:bg-muted hover:scale-[1.03]`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onRemove}
       title={`${item.item_name} — kliknij aby usunąć`}
     >
       {hovered && (
-        <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500/80 text-white z-10">
+        <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive/80 text-destructive-foreground z-10">
           <X className="h-2.5 w-2.5" />
         </div>
       )}
@@ -129,7 +127,7 @@ function FilledSlot({ item, onRemove }: FilledSlotProps) {
       <span className="text-2xl leading-none select-none">
         {item.icon || "📦"}
       </span>
-      <p className="mt-1 max-w-full truncate px-1 text-center text-[10px] leading-none text-zinc-300">
+      <p className="mt-1 max-w-full truncate px-1 text-center text-[10px] leading-none text-foreground">
         {item.item_name}
       </p>
     </div>
@@ -138,7 +136,7 @@ function FilledSlot({ item, onRemove }: FilledSlotProps) {
 
 function EmptySlot() {
   return (
-    <div className="aspect-square rounded-lg border border-dashed border-white/[0.08] bg-white/[0.02] transition-colors hover:border-white/[0.15]" />
+    <div className="aspect-square rounded-lg border border-dashed border-border/40 bg-muted/10 transition-colors hover:border-border/60" />
   );
 }
 
@@ -330,9 +328,9 @@ export default function DeckEditorPage() {
   if (loading) {
     return (
       <div className="space-y-5">
-        <div className="h-8 w-24 animate-pulse rounded-lg bg-white/[0.04]" />
-        <div className="h-16 animate-pulse rounded-2xl border border-white/10 bg-white/[0.05]" />
-        <div className="h-64 animate-pulse rounded-2xl border border-white/10 bg-white/[0.05]" />
+        <div className="h-8 w-24 animate-pulse rounded-lg bg-muted/40" />
+        <div className="h-16 animate-pulse rounded-2xl border border-border bg-muted/20" />
+        <div className="h-64 animate-pulse rounded-2xl border border-border bg-muted/20" />
       </div>
     );
   }
@@ -342,194 +340,202 @@ export default function DeckEditorPage() {
       {/* Back */}
       <Link
         href="/decks"
-        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-400 transition-all hover:text-zinc-100 hover:bg-white/[0.08]"
+        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-muted-foreground transition-all hover:text-foreground hover:bg-muted"
       >
         <ArrowLeft className="h-4 w-4" />
         Powrót do talii
       </Link>
 
       {/* Editor top bar */}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 backdrop-blur-xl sm:gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-          Talia:
-        </span>
-        <input
-          type="text"
-          value={editName}
-          onChange={(e) => setEditName(e.target.value)}
-          className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm font-medium text-zinc-100 placeholder:text-slate-500 focus:border-cyan-400/40 focus:outline-none"
-        />
+      <Card className="rounded-2xl backdrop-blur-xl">
+        <CardContent className="flex flex-wrap items-center gap-2 px-4 py-3 sm:gap-3">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            Talia:
+          </span>
+          <Input
+            type="text"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            className="min-w-0 flex-1"
+          />
 
-        <button
-          onClick={() => setIsDefault((v) => !v)}
-          className={`flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
-            isDefault
-              ? "border-amber-400/25 bg-amber-400/10 text-amber-300"
-              : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-amber-400/20 hover:text-amber-300"
-          }`}
-        >
-          {isDefault ? (
-            <Star className="h-3.5 w-3.5" />
-          ) : (
-            <StarOff className="h-3.5 w-3.5" />
-          )}
-          {isDefault ? "Domyślna" : "Ustaw domyślną"}
-        </button>
+          <button
+            onClick={() => setIsDefault((v) => !v)}
+            className={`flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
+              isDefault
+                ? "border-accent/25 bg-accent/10 text-accent"
+                : "border-border bg-muted/40 text-muted-foreground hover:border-accent/20 hover:text-accent"
+            }`}
+          >
+            {isDefault ? (
+              <Star className="h-3.5 w-3.5" />
+            ) : (
+              <StarOff className="h-3.5 w-3.5" />
+            )}
+            {isDefault ? "Domyślna" : "Ustaw domyślną"}
+          </button>
 
-        <Button
-          size="sm"
-          onClick={handleSave}
-          disabled={saving}
-          className="gap-1.5 rounded-xl bg-cyan-500/20 text-cyan-200 hover:bg-cyan-500/30 border border-cyan-400/20"
-        >
-          <Check className="h-4 w-4" />
-          Zapisz
-        </Button>
-        <Link href="/decks">
           <Button
             size="sm"
-            variant="ghost"
-            className="rounded-xl text-slate-400 hover:text-zinc-200"
+            onClick={handleSave}
+            disabled={saving}
+            className="gap-1.5 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20"
           >
-            <X className="mr-1 h-4 w-4" />
-            Anuluj
+            <Check className="h-4 w-4" />
+            Zapisz
           </Button>
-        </Link>
+          <Link href="/decks">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-xl text-muted-foreground hover:text-foreground"
+            >
+              <X className="mr-1 h-4 w-4" />
+              Anuluj
+            </Button>
+          </Link>
 
-        <span className="ml-auto text-xs text-slate-400">
-          {totalDraftItems} przedmiot
-          {totalDraftItems === 1 ? "" : totalDraftItems < 5 ? "y" : "ów"}
-        </span>
-      </div>
+          <span className="ml-auto text-xs text-muted-foreground">
+            {totalDraftItems} przedmiot
+            {totalDraftItems === 1 ? "" : totalDraftItems < 5 ? "y" : "ów"}
+          </span>
+        </CardContent>
+      </Card>
 
       {/* Slot sections */}
-      <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-6 backdrop-blur-xl space-y-6">
-        {SECTION_CONFIG.map((section) => {
-          const slots = draftSlots[section.type];
-          const filled = slots.length;
-          const empty = section.slots - filled;
+      <Card className="rounded-2xl backdrop-blur-xl">
+        <CardContent className="p-6 space-y-6">
+          {SECTION_CONFIG.map((section) => {
+            const slots = draftSlots[section.type];
+            const filled = slots.length;
+            const empty = section.slots - filled;
 
-          return (
-            <div key={section.type}>
-              <div className="mb-3 flex items-center gap-2">
-                <span className="text-base leading-none">{section.icon}</span>
-                <span
-                  className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${section.color}`}
-                >
-                  {section.label}
-                </span>
-                <span className="text-[11px] text-slate-400">
-                  ({filled}/{section.slots})
-                </span>
-                <div className="h-px flex-1 bg-white/[0.04]" />
-              </div>
+            return (
+              <div key={section.type}>
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="text-base leading-none">{section.icon}</span>
+                  <span
+                    className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${section.colorClass}`}
+                  >
+                    {section.label}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    ({filled}/{section.slots})
+                  </span>
+                  <div className="h-px flex-1 bg-border/40" />
+                </div>
 
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9">
-                {slots.map((slot, i) => (
-                  <FilledSlot
-                    key={`${slot.item_slug}-${i}`}
-                    item={slot}
-                    onRemove={() => removeSlotItem(section.type, i)}
-                  />
-                ))}
-                {Array.from({ length: empty }).map((_, i) => (
-                  <EmptySlot key={`empty-${i}`} />
-                ))}
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9">
+                  {slots.map((slot, i) => (
+                    <FilledSlot
+                      key={`${slot.item_slug}-${i}`}
+                      item={slot}
+                      onRemove={() => removeSlotItem(section.type, i)}
+                    />
+                  ))}
+                  {Array.from({ length: empty }).map((_, i) => (
+                    <EmptySlot key={`empty-${i}`} />
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </CardContent>
+      </Card>
 
       {/* Available items */}
-      <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-6 backdrop-blur-xl">
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-          Dostępne przedmioty
-        </p>
-
-        {/* Tab pills */}
-        <div className="mb-4 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
-          {SECTION_CONFIG.map((s) => (
-            <button
-              key={s.type}
-              onClick={() => setAvailableTab(s.type)}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                availableTab === s.type
-                  ? `${s.accentBg} ${s.accentBorder} ${s.color}`
-                  : "border-white/10 text-slate-400 hover:border-white/25 hover:bg-white/[0.08] hover:text-slate-200"
-              }`}
-            >
-              <span className="text-sm leading-none">{s.icon}</span>
-              {s.label}
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${availableTab === s.type ? "bg-white/20" : "bg-white/[0.06]"}`}
-              >
-                {inventory.filter((i) => i.item.item_type === s.type).length}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Items grid */}
-        {availableItems.length === 0 ? (
-          <p className="py-4 text-center text-sm text-slate-400">
-            Brak przedmiotów tego typu w ekwipunku
+      <Card className="rounded-2xl backdrop-blur-xl">
+        <CardContent className="p-6">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            Dostępne przedmioty
           </p>
-        ) : (
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
-            {availableItems.map((inv) => {
-              const currentSection = sectionForType(availableTab);
-              const inDraftCount = countInDraft(inv.item.slug, availableTab);
-              const owned = ownedQty(inv.item.slug);
-              const sectionFull =
-                draftSlots[availableTab].length >= (currentSection?.slots ?? 0);
-              // Non-consumable: max 1 per deck; consumable: limited by owned qty
-              const alreadyInDeck = !inv.item.is_consumable && inDraftCount >= 1;
-              // Only one level per blueprint_ref (e.g. can't have barracks lvl 1 AND lvl 2)
-              const refTaken = !!(inv.item.blueprint_ref && draftSlots[availableTab].some(
-                (s) => s.blueprint_ref === inv.item.blueprint_ref
-              ));
-              const exhausted = inv.item.is_consumable && inDraftCount >= owned;
-              const disabled = sectionFull || alreadyInDeck || refTaken || exhausted;
 
-              return (
-                <button
-                  key={inv.id}
-                  onClick={() => !disabled && addItemToSection(inv)}
-                  disabled={disabled}
-                  title={
-                    disabled
-                      ? sectionFull
-                        ? "Sekcja pełna"
-                        : "Brak sztuk"
-                      : `Dodaj ${inv.item.name}`
-                  }
-                  className={`group relative flex flex-col items-center gap-1 rounded-lg border p-2 transition-all ${
-                    disabled
-                      ? "border-white/[0.04] bg-white/[0.01] opacity-35 cursor-not-allowed"
-                      : `border-white/10 bg-white/[0.04] cursor-pointer hover:border-white/30 hover:bg-white/[0.10] hover:scale-[1.02] ${RARITY_BG[inv.item.rarity]}`
-                  }`}
+          {/* Tab pills */}
+          <div className="mb-4 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+            {SECTION_CONFIG.map((s) => (
+              <button
+                key={s.type}
+                onClick={() => setAvailableTab(s.type)}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  availableTab === s.type
+                    ? "border-primary/40 bg-primary/15 text-primary"
+                    : "border-border text-muted-foreground hover:border-border/50 hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <span className="text-sm leading-none">{s.icon}</span>
+                {s.label}
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${availableTab === s.type ? "bg-primary/20" : "bg-muted"}`}
                 >
-                  <span className="text-xl leading-none select-none">
-                    {inv.item.icon || "📦"}
-                  </span>
-                  <p className="line-clamp-2 text-center text-[10px] leading-tight text-zinc-300 group-hover:text-zinc-200">
-                    {inv.item.name}
-                  </p>
-                  <span
-                    className={`text-[10px] font-bold ${levelBadgeClass(inv.item.level ?? 1)}`}
-                  >
-                    Lvl {inv.item.level ?? 1}
-                  </span>
-                  <span className="text-[10px] text-slate-400">
-                    Posiadasz: {owned - inDraftCount}
-                  </span>
-                </button>
-              );
-            })}
+                  {inventory.filter((i) => i.item.item_type === s.type).length}
+                </span>
+              </button>
+            ))}
           </div>
-        )}
-      </div>
+
+          <Separator className="mb-4" />
+
+          {/* Items grid */}
+          {availableItems.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Brak przedmiotów tego typu w ekwipunku
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+              {availableItems.map((inv) => {
+                const currentSection = sectionForType(availableTab);
+                const inDraftCount = countInDraft(inv.item.slug, availableTab);
+                const owned = ownedQty(inv.item.slug);
+                const sectionFull =
+                  draftSlots[availableTab].length >= (currentSection?.slots ?? 0);
+                // Non-consumable: max 1 per deck; consumable: limited by owned qty
+                const alreadyInDeck = !inv.item.is_consumable && inDraftCount >= 1;
+                // Only one level per blueprint_ref (e.g. can't have barracks lvl 1 AND lvl 2)
+                const refTaken = !!(inv.item.blueprint_ref && draftSlots[availableTab].some(
+                  (s) => s.blueprint_ref === inv.item.blueprint_ref
+                ));
+                const exhausted = inv.item.is_consumable && inDraftCount >= owned;
+                const disabled = sectionFull || alreadyInDeck || refTaken || exhausted;
+
+                return (
+                  <button
+                    key={inv.id}
+                    onClick={() => !disabled && addItemToSection(inv)}
+                    disabled={disabled}
+                    title={
+                      disabled
+                        ? sectionFull
+                          ? "Sekcja pełna"
+                          : "Brak sztuk"
+                        : `Dodaj ${inv.item.name}`
+                    }
+                    className={`group relative flex flex-col items-center gap-1 rounded-lg border p-2 transition-all ${
+                      disabled
+                        ? "border-border/20 bg-muted/10 opacity-35 cursor-not-allowed"
+                        : `border-border bg-muted/40 cursor-pointer hover:border-border/60 hover:bg-muted hover:scale-[1.02] ${RARITY_BG[inv.item.rarity]}`
+                    }`}
+                  >
+                    <span className="text-xl leading-none select-none">
+                      {inv.item.icon || "📦"}
+                    </span>
+                    <p className="line-clamp-2 text-center text-[10px] leading-tight text-foreground group-hover:text-foreground/90">
+                      {inv.item.name}
+                    </p>
+                    <span
+                      className={`text-[10px] font-bold ${levelBadgeClass(inv.item.level ?? 1)}`}
+                    >
+                      Lvl {inv.item.level ?? 1}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      Posiadasz: {owned - inDraftCount}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

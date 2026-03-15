@@ -162,7 +162,7 @@ services:
       - "80:80"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./static:/srv/static:ro
+      - ./staticfiles:/srv/static:ro
       - ./media:/srv/media:ro
     depends_on:
       - backend

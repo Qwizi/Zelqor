@@ -3,6 +3,23 @@ from typing import Optional, List
 from ninja import Schema
 
 
+def _resolve_game_asset_url(asset_key: str) -> Optional[str]:
+    """Look up a GameAsset by key and return its file URL, or None."""
+    if not asset_key:
+        return None
+    from apps.assets.models import GameAsset
+    try:
+        asset = GameAsset.objects.get(key=asset_key, is_active=True)
+        return asset.file.url if asset.file else None
+    except GameAsset.DoesNotExist:
+        return None
+
+
+def _resolve_asset(obj) -> Optional[str]:
+    """Resolve asset URL via GameAsset lookup by asset_key."""
+    return _resolve_game_asset_url(obj.asset_key)
+
+
 class GameSettingsOutSchema(Schema):
     max_players: int
     min_players: int
@@ -43,6 +60,11 @@ class BuildingTypeOutSchema(Schema):
     max_level: int
     level_stats: dict
     order: int
+    asset_url: Optional[str] = None
+
+    @staticmethod
+    def resolve_asset_url(obj):
+        return _resolve_asset(obj)
 
     class Config:
         from_attributes = True
@@ -70,6 +92,11 @@ class UnitTypeOutSchema(Schema):
     max_level: int
     level_stats: dict
     order: int
+    asset_url: Optional[str] = None
+
+    @staticmethod
+    def resolve_asset_url(obj):
+        return _resolve_asset(obj)
 
     class Config:
         from_attributes = True
@@ -149,6 +176,16 @@ class AbilityTypeOutSchema(Schema):
     max_level: int
     level_stats: dict
     order: int
+    asset_url: Optional[str] = None
+    sound_url: Optional[str] = None
+
+    @staticmethod
+    def resolve_asset_url(obj):
+        return _resolve_asset(obj)
+
+    @staticmethod
+    def resolve_sound_url(obj):
+        return _resolve_game_asset_url(obj.sound_key)
 
     class Config:
         from_attributes = True

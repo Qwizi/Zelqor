@@ -88,6 +88,12 @@ class UnitTypeAdmin(ModelAdmin):
     search_fields = ('name', 'slug')
     prepopulated_fields = {'slug': ('name',)}
     warn_unsaved_form = True
+    fieldsets = (
+        (None, {'fields': ('name', 'slug', 'asset_key', 'description', 'icon', 'is_active', 'order')}),
+        ('Stats', {'fields': ('attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type')}),
+        ('Production', {'fields': ('produced_by', 'production_cost', 'production_time_ticks', 'manpower_cost')}),
+        ('Poziomy (Level System)', {'fields': ('max_level', 'level_stats'), 'classes': ('collapse',)}),
+    )
 
     @display(description="Active", label=True)
     def display_active(self, obj):

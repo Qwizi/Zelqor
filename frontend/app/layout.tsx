@@ -10,17 +10,22 @@ import ChatWidget from "@/components/chat/ChatWidget";
 const uiSans = localFont({
   src: [
     {
-      path: "../public/assets/fonts/SF-Pro-Display-Regular.otf",
+      path: "../public/assets/fonts/Barlow-Regular.ttf",
       weight: "400",
       style: "normal",
     },
     {
-      path: "../public/assets/fonts/SF-Pro-Display-Semibold.otf",
+      path: "../public/assets/fonts/Barlow-Medium.ttf",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../public/assets/fonts/Barlow-SemiBold.ttf",
       weight: "600",
       style: "normal",
     },
     {
-      path: "../public/assets/fonts/SF-Pro-Display-Bold.otf",
+      path: "../public/assets/fonts/Barlow-Bold.ttf",
       weight: "700",
       style: "normal",
     },
@@ -32,17 +37,22 @@ const uiSans = localFont({
 const displayFont = localFont({
   src: [
     {
-      path: "../public/assets/fonts/ChakraPetch-Regular.ttf",
+      path: "../public/assets/fonts/Rajdhani-Regular.ttf",
       weight: "400",
       style: "normal",
     },
     {
-      path: "../public/assets/fonts/ChakraPetch-SemiBold.ttf",
+      path: "../public/assets/fonts/Rajdhani-Medium.ttf",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../public/assets/fonts/Rajdhani-SemiBold.ttf",
       weight: "600",
       style: "normal",
     },
     {
-      path: "../public/assets/fonts/ChakraPetch-Bold.ttf",
+      path: "../public/assets/fonts/Rajdhani-Bold.ttf",
       weight: "700",
       style: "normal",
     },
