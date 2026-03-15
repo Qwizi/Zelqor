@@ -128,7 +128,7 @@ async fn main() {
     );
 
     // Create matchmaking manager
-    let matchmaking = Arc::new(MatchmakingManager::new(django.clone()));
+    let matchmaking = Arc::new(MatchmakingManager::new(django.clone(), redis_conn.clone()));
 
     // Create game connections registry
     let game_connections = new_game_connections();
@@ -148,6 +148,9 @@ async fn main() {
         username_cache,
         chat_rate_limits,
     };
+
+    // Start lobby pub/sub listener (Django/Celery → Gateway events)
+    app_state.matchmaking.spawn_pubsub_listener(&config.redis_url());
 
     recover_active_matches(&app_state).await;
 

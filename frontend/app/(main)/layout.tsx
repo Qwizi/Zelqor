@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -24,6 +24,7 @@ import {
   Store,
   Trophy,
   UserCircle,
+  Users,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { MatchmakingProvider, useMatchmaking } from "@/hooks/useMatchmaking";
 import { getMyWallet, type WalletOut } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 // ---------------------------------------------------------------------------
 // Nav item definitions
 // ---------------------------------------------------------------------------
@@ -168,6 +170,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   developers: "Deweloperzy",
   profile: "Profil",
   settings: "Ustawienia",
+  lobby: "Lobby",
   match: "Mecz",
   replay: "Powtórka",
   docs: "Dokumentacja",
@@ -456,32 +459,186 @@ function QueueGuard({ children, pathname }: { children: ReactNode; pathname: str
 // ---------------------------------------------------------------------------
 
 function QueueBannerInline() {
-  const { inQueue, playersInQueue, queueSeconds, leaveQueue, matchId } = useMatchmaking();
+  const { inQueue, lobbyId, lobbyPlayers, lobbyFull, allReady, queueSeconds, leaveQueue, matchId, setReady, readyCountdown } = useMatchmaking();
+  const { user } = useAuth();
   const router = useRouter();
+  const myReady = lobbyPlayers.some(p => p.user_id === user?.id && p.is_ready);
+  const lobbyToastRef = useRef<string | number | null>(null);
 
   useEffect(() => {
     if (matchId) router.push(`/game/${matchId}`);
   }, [matchId, router]);
 
+  // Toast when lobby full
+  useEffect(() => {
+    if (lobbyFull && !lobbyToastRef.current && !myReady) {
+      try { const a = new Audio("/assets/audio/gui/int_message_alert.ogg"); a.volume = 0.7; a.play().catch(() => {}); } catch {}
+      lobbyToastRef.current = toast.success("Mecz znaleziony!", {
+        description: "Kliknij Gotowy aby potwierdzić",
+        duration: Infinity,
+        action: {
+          label: "Gotowy!",
+          onClick: () => setReady(),
+        },
+        classNames: {
+          actionButton: "!bg-green-500 !text-white !font-bold !rounded-lg !px-4 !py-2 !text-sm hover:!bg-green-400 !border-0",
+        },
+      });
+    }
+    if (!lobbyFull && lobbyToastRef.current) {
+      toast.dismiss(lobbyToastRef.current);
+      lobbyToastRef.current = null;
+    }
+  }, [lobbyFull, myReady, setReady]);
+
+  // Dismiss toast when user is ready or leaves
+  useEffect(() => {
+    if (lobbyToastRef.current && (myReady || !inQueue)) {
+      toast.dismiss(lobbyToastRef.current);
+      lobbyToastRef.current = null;
+    }
+  }, [myReady, inQueue]);
+
   if (!inQueue) return null;
 
   const mins = Math.floor(queueSeconds / 60);
   const secs = String(queueSeconds % 60).padStart(2, "0");
+  const countdownStr = readyCountdown !== null
+    ? `${Math.floor(readyCountdown / 60)}:${String(readyCountdown % 60).padStart(2, "0")}`
+    : null;
 
   return (
-    <div className="flex items-center gap-2 md:gap-2.5 ml-auto">
-      <div className="flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 pl-2.5 pr-1 py-1 md:pl-3 md:pr-1.5 md:py-1">
-        <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-        <span className="text-xs md:text-sm font-semibold text-primary tabular-nums">{mins}:{secs}</span>
-        <span className="hidden md:inline text-xs text-primary/70">· {playersInQueue} w kolejce</span>
+    <>
+      {/* ── Desktop: inline in header ── */}
+      <div className="hidden md:flex items-center gap-2.5 ml-auto">
+        {lobbyPlayers.length > 0 && (
+          <Link
+            href={lobbyId ? `/lobby/${lobbyId}` : "#"}
+            className="flex -space-x-2 transition-opacity hover:opacity-80"
+          >
+            {lobbyPlayers.map((player) => (
+              <div
+                key={player.user_id}
+                title={player.username}
+                className={cn(
+                  "flex h-7 w-7 items-center justify-center rounded-full border-2 text-[10px] font-bold uppercase",
+                  player.is_ready
+                    ? "border-green-500 bg-green-500/20 text-green-400"
+                    : "border-border bg-secondary text-muted-foreground",
+                  player.is_bot && "opacity-70"
+                )}
+              >
+                {player.username.charAt(0)}
+              </div>
+            ))}
+          </Link>
+        )}
+
+        <div className="flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 pl-3 pr-1.5 py-1">
+          <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+          <span className="text-sm font-semibold text-primary tabular-nums">{mins}:{secs}</span>
+          <span className="text-xs text-primary/70">· {lobbyPlayers.length} graczy</span>
+
+          {lobbyFull && !allReady && !myReady && (
+            <Button
+              size="xs"
+              onClick={setReady}
+              className="ml-1 rounded-full bg-green-500 text-white hover:bg-green-400 active:scale-[0.95] font-bold"
+            >
+              Gotowy! {countdownStr && <span className="tabular-nums">({countdownStr})</span>}
+            </Button>
+          )}
+          {lobbyFull && !allReady && myReady && (
+            <span className="ml-1 text-[10px] text-green-400 font-semibold tabular-nums">
+              {countdownStr ?? "Oczekiwanie..."}
+            </span>
+          )}
+
+          {lobbyId && (
+            <Link
+              href={`/lobby/${lobbyId}`}
+              className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/20 text-primary hover:bg-primary/30 transition-colors ml-0.5 active:scale-[0.9]"
+              title="Lobby"
+            >
+              <Users className="h-3 w-3" />
+            </Link>
+          )}
+
+          <button
+            onClick={leaveQueue}
+            className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/20 text-primary hover:bg-destructive/20 hover:text-destructive transition-colors ml-0.5 active:scale-[0.9]"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* ── Mobile: subheader bar below main header ── */}
+      <div className="fixed inset-x-0 top-12 z-39 flex items-center gap-2 px-3 py-1.5 border-b border-border bg-card/90 backdrop-blur-xl md:hidden">
+        {/* Avatars */}
+        {lobbyPlayers.length > 0 && (
+          <Link
+            href={lobbyId ? `/lobby/${lobbyId}` : "#"}
+            className="flex -space-x-1.5 shrink-0"
+          >
+            {lobbyPlayers.map((player) => (
+              <div
+                key={player.user_id}
+                className={cn(
+                  "flex h-6 w-6 items-center justify-center rounded-full border-[1.5px] text-[9px] font-bold uppercase",
+                  player.is_ready
+                    ? "border-green-500 bg-green-500/20 text-green-400"
+                    : "border-border bg-secondary text-muted-foreground",
+                  player.is_bot && "opacity-70"
+                )}
+              >
+                {player.username.charAt(0)}
+              </div>
+            ))}
+          </Link>
+        )}
+
+        {/* Timer */}
+        <div className="flex items-center gap-1">
+          <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+          <span className="text-xs font-semibold text-primary tabular-nums">{mins}:{secs}</span>
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Ready / countdown */}
+        {lobbyFull && !allReady && !myReady && (
+          <Button
+            size="xs"
+            onClick={setReady}
+            className="rounded-full bg-green-500 text-white hover:bg-green-400 active:scale-[0.95] font-bold text-[11px] h-6 px-2.5"
+          >
+            Gotowy! {countdownStr && <span className="tabular-nums">({countdownStr})</span>}
+          </Button>
+        )}
+        {lobbyFull && !allReady && myReady && countdownStr && (
+          <span className="text-[10px] text-green-400 font-semibold tabular-nums">{countdownStr}</span>
+        )}
+
+        {/* Lobby link */}
+        {lobbyId && (
+          <Link
+            href={`/lobby/${lobbyId}`}
+            className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/20 text-primary active:scale-[0.9]"
+          >
+            <Users className="h-2.5 w-2.5" />
+          </Link>
+        )}
+
+        {/* Cancel */}
         <button
           onClick={leaveQueue}
-          className="flex items-center justify-center h-5 w-5 md:h-6 md:w-6 rounded-full bg-primary/20 text-primary hover:bg-destructive/20 hover:text-destructive transition-colors ml-0.5 active:scale-[0.9]"
+          className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/20 text-primary hover:bg-destructive/20 hover:text-destructive transition-colors active:scale-[0.9]"
         >
-          <X className="h-3 w-3" />
+          <X className="h-2.5 w-2.5" />
         </button>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -499,6 +656,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
 function MainLayoutInner({ children }: { children: ReactNode }) {
   const { user, logout, token } = useAuth();
+  const { inQueue: showQueueSubheader } = useMatchmaking();
   const pathname = usePathname();
   const [wallet, setWallet] = useState<WalletOut | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -558,7 +716,7 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
       {/* ------------------------------------------------------------------ */}
       {/* Body (below top bar)                                                */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex pt-12">
+      <div className={cn("flex pt-12", showQueueSubheader && "max-md:pt-[calc(3rem+2.25rem)]")}>
 
         {/* ---------------------------------------------------------------- */}
         {/* Desktop sidebar                                                   */}

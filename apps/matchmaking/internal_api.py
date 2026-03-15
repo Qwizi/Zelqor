@@ -510,3 +510,620 @@ class MatchmakingInternalController(ControllerBase):
             'user_ids': users,
             'bot_ids': bot_ids,
         }
+
+
+def _create_match_from_users(users, game_mode):
+    """Shared helper: create a Match and MatchPlayer entries for the given list of
+    User objects and an optional GameMode.  Mirrors the logic in _do_try_match but
+    accepts a pre-resolved user list instead of pulling from MatchQueue.
+
+    Returns the same dict shape as _do_try_match:
+        {'match_id': str, 'user_ids': [...], 'bot_ids': [...]}
+    """
+    from django.utils import timezone
+    from apps.game_config.models import AbilityType, BuildingType, GameSettings, MapConfig, UnitType
+    from apps.matchmaking.models import Match, MatchPlayer
+
+    if not game_mode:
+        settings_obj = GameSettings.get()
+        max_players = settings_obj.max_players
+    else:
+        max_players = game_mode.max_players
+
+    # Map config
+    if game_mode and game_mode.map_config:
+        map_config = game_mode.map_config
+    else:
+        map_config = MapConfig.objects.filter(is_active=True).first()
+
+    # Snapshot building types
+    building_types = {
+        bt.slug: {
+            'cost': bt.cost,
+            'energy_cost': bt.energy_cost,
+            'build_time_ticks': bt.build_time_ticks,
+            'max_per_region': bt.max_per_region,
+            'defense_bonus': bt.defense_bonus,
+            'vision_range': bt.vision_range,
+            'unit_generation_bonus': bt.unit_generation_bonus,
+            'energy_generation_bonus': bt.energy_generation_bonus,
+            'requires_coastal': bt.requires_coastal,
+            'icon': bt.icon,
+            'name': bt.name,
+            'asset_key': bt.asset_key,
+            'order': bt.order,
+            'max_level': bt.max_level,
+            'level_stats': bt.level_stats or {},
+            'produced_unit_slug': (
+                bt.unit_types.filter(is_active=True)
+                .order_by('order')
+                .values_list('slug', flat=True)
+                .first()
+            ),
+        }
+        for bt in BuildingType.objects.filter(is_active=True)
+    }
+
+    unit_types = {
+        ut.slug: {
+            'name': ut.name,
+            'asset_key': ut.asset_key,
+            'attack': float(ut.attack),
+            'defense': float(ut.defense),
+            'speed': int(ut.speed),
+            'attack_range': int(ut.attack_range),
+            'sea_range': int(ut.sea_range),
+            'sea_hop_distance_km': int(ut.sea_hop_distance_km),
+            'movement_type': ut.movement_type,
+            'produced_by_slug': ut.produced_by.slug if ut.produced_by_id else None,
+            'production_cost': int(ut.production_cost),
+            'production_time_ticks': int(ut.production_time_ticks),
+            'manpower_cost': int(ut.manpower_cost),
+            'max_level': ut.max_level,
+            'level_stats': ut.level_stats or {},
+        }
+        for ut in UnitType.objects.select_related('produced_by').filter(is_active=True)
+    }
+
+    ability_types = {
+        at.slug: {
+            'name': at.name,
+            'asset_key': at.asset_key,
+            'sound_key': at.sound_key,
+            'target_type': at.target_type,
+            'range': int(at.range),
+            'energy_cost': int(at.energy_cost),
+            'cooldown_ticks': int(at.cooldown_ticks),
+            'damage': int(at.damage),
+            'effect_duration_ticks': int(at.effect_duration_ticks),
+            'effect_params': at.effect_params or {},
+            'max_level': at.max_level,
+            'level_stats': at.level_stats or {},
+        }
+        for at in AbilityType.objects.filter(is_active=True)
+    }
+
+    default_unit_type_slug = (
+        UnitType.objects.filter(is_active=True, produced_by__isnull=True)
+        .order_by('order')
+        .values_list('slug', flat=True)
+        .first()
+        or 'infantry'
+    )
+
+    src = game_mode if game_mode else GameSettings.get()
+
+    match = Match.objects.create(
+        status=Match.Status.SELECTING,
+        game_mode=game_mode,
+        map_config=map_config,
+        max_players=max_players,
+        started_at=timezone.now(),
+        settings_snapshot={
+            'tick_interval_ms': src.tick_interval_ms,
+            'capital_selection_time_seconds': src.capital_selection_time_seconds,
+            'base_unit_generation_rate': src.base_unit_generation_rate,
+            'capital_generation_bonus': src.capital_generation_bonus,
+            'starting_energy': src.starting_energy,
+            'base_energy_per_tick': src.base_energy_per_tick,
+            'region_energy_per_tick': src.region_energy_per_tick,
+            'attacker_advantage': src.attacker_advantage,
+            'defender_advantage': src.defender_advantage,
+            'combat_randomness': src.combat_randomness,
+            'starting_units': src.starting_units,
+            'neutral_region_units': src.neutral_region_units,
+            'building_types': building_types,
+            'unit_types': unit_types,
+            'ability_types': ability_types,
+            'default_unit_type_slug': default_unit_type_slug,
+            'min_capital_distance': map_config.min_capital_distance if map_config else 3,
+            'elo_k_factor': src.elo_k_factor,
+            'match_duration_limit_minutes': src.match_duration_limit_minutes,
+        },
+    )
+
+    colors = ['#FF4444', '#4444FF', '#44FF44', '#FFFF44', '#FF44FF', '#44FFFF', '#FF8844', '#8844FF']
+
+    user_ids = []
+    bot_ids = []
+    for i, user in enumerate(users):
+        deck_snapshot = {}
+        cosmetic_snapshot = {}
+        if not user.is_bot:
+            deck_snapshot = _consume_default_deck(user)
+            cosmetic_snapshot = _build_cosmetic_snapshot(user)
+
+        MatchPlayer.objects.create(
+            match=match,
+            user=user,
+            color=colors[i % len(colors)],
+            deck_snapshot=deck_snapshot,
+            cosmetic_snapshot=cosmetic_snapshot,
+        )
+        user_ids.append(str(user.id))
+        if user.is_bot:
+            bot_ids.append(str(user.id))
+
+    return {
+        'match_id': str(match.id),
+        'user_ids': user_ids,
+        'bot_ids': bot_ids,
+    }
+
+
+# --- Lobby Schemas ---
+
+
+class CreateLobbyRequest(Schema):
+    user_id: str
+    game_mode: str | None = None
+
+
+class JoinLobbyRequest(Schema):
+    lobby_id: str
+    user_id: str
+    is_bot: bool = False
+
+
+class LeaveLobbyRequest(Schema):
+    lobby_id: str
+    user_id: str
+
+
+class SetReadyRequest(Schema):
+    lobby_id: str
+    user_id: str
+    is_ready: bool = True
+
+
+class FillLobbyBotsRequest(Schema):
+    lobby_id: str
+
+
+class StartMatchFromLobbyRequest(Schema):
+    lobby_id: str
+
+
+# --- Lobby Controller ---
+
+
+def _lobby_player_dict(p) -> dict:
+    return {
+        'user_id': str(p.user_id),
+        'username': p.user.username,
+        'is_bot': p.is_bot,
+        'is_ready': p.is_ready,
+    }
+
+
+@api_controller('/internal/lobby', tags=['internal'])
+class LobbyInternalController(ControllerBase):
+    """Internal API for the Rust gateway — lobby endpoints."""
+
+    @route.post('/create/')
+    def create_lobby(self, request, body: CreateLobbyRequest):
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from apps.accounts.models import User
+        from apps.game_config.models import GameMode, GameSettings
+        from apps.matchmaking.models import Lobby, LobbyPlayer
+
+        try:
+            user = User.objects.get(id=body.user_id)
+        except User.DoesNotExist:
+            return self.create_response({'error': 'User not found'}, status_code=404)
+
+        game_mode = None
+        if body.game_mode:
+            game_mode = GameMode.objects.filter(slug=body.game_mode, is_active=True).first()
+        else:
+            game_mode = GameMode.objects.filter(is_default=True, is_active=True).first()
+
+        if game_mode:
+            max_players = game_mode.max_players
+        else:
+            max_players = GameSettings.get().max_players
+
+        lobby = Lobby.objects.create(
+            host_user=user,
+            game_mode=game_mode,
+            max_players=max_players,
+        )
+        LobbyPlayer.objects.create(lobby=lobby, user=user, is_bot=user.is_bot)
+
+        players = list(
+            lobby.players.select_related('user').all()
+        )
+
+        return {
+            'lobby_id': str(lobby.id),
+            'max_players': lobby.max_players,
+            'players': [_lobby_player_dict(p) for p in players],
+        }
+
+    @route.post('/join/')
+    def join_lobby(self, request, body: JoinLobbyRequest):
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from apps.accounts.models import User
+        from apps.matchmaking.models import Lobby, LobbyPlayer
+
+        try:
+            lobby = Lobby.objects.get(id=body.lobby_id)
+        except Lobby.DoesNotExist:
+            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+
+        if lobby.status not in (Lobby.Status.WAITING,):
+            return self.create_response({'error': 'Lobby is not open'}, status_code=400)
+
+        try:
+            user = User.objects.get(id=body.user_id)
+        except User.DoesNotExist:
+            return self.create_response({'error': 'User not found'}, status_code=404)
+
+        LobbyPlayer.objects.get_or_create(
+            lobby=lobby,
+            user=user,
+            defaults={'is_bot': body.is_bot},
+        )
+
+        from django.utils import timezone as tz
+        player_count = lobby.players.count()
+        if player_count >= lobby.max_players:
+            lobby.status = Lobby.Status.FULL
+            lobby.full_at = tz.now()
+            lobby.save(update_fields=['status', 'full_at'])
+
+        players = list(lobby.players.select_related('user').all())
+
+        return {
+            'players': [_lobby_player_dict(p) for p in players],
+            'status': lobby.status,
+        }
+
+    @route.post('/leave/')
+    def leave_lobby(self, request, body: LeaveLobbyRequest):
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from apps.matchmaking.models import Lobby, LobbyPlayer
+
+        try:
+            lobby = Lobby.objects.select_related('host_user').get(id=body.lobby_id)
+        except Lobby.DoesNotExist:
+            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+
+        LobbyPlayer.objects.filter(lobby=lobby, user_id=body.user_id).delete()
+
+        remaining = lobby.players.count()
+
+        if str(lobby.host_user_id) == body.user_id:
+            # Host left — cancel the lobby
+            lobby.status = Lobby.Status.CANCELLED
+            lobby.save(update_fields=['status'])
+        elif remaining == 0:
+            lobby.status = Lobby.Status.CANCELLED
+            lobby.save(update_fields=['status'])
+        else:
+            # Non-host left — revert to waiting so new players can join
+            # Reset human ready states (bots stay ready)
+            lobby.status = Lobby.Status.WAITING
+            lobby.full_at = None
+            lobby.save(update_fields=['status', 'full_at'])
+            lobby.players.filter(is_bot=False).update(is_ready=False)
+
+        return {
+            'status': lobby.status,
+            'cancelled': lobby.status == Lobby.Status.CANCELLED,
+        }
+
+    @route.post('/set-ready/')
+    def set_ready(self, request, body: SetReadyRequest):
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from apps.matchmaking.models import Lobby, LobbyPlayer
+
+        try:
+            lobby = Lobby.objects.get(id=body.lobby_id)
+        except Lobby.DoesNotExist:
+            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+
+        updated = LobbyPlayer.objects.filter(
+            lobby=lobby, user_id=body.user_id
+        ).update(is_ready=body.is_ready)
+
+        if updated == 0:
+            return self.create_response({'error': 'Player not in lobby'}, status_code=404)
+
+        # When a human readies up, auto-ready all bots in the lobby
+        if body.is_ready:
+            lobby.players.filter(is_bot=True).update(is_ready=True)
+
+        players = list(lobby.players.select_related('user').all())
+
+        if lobby.status == Lobby.Status.FULL and all(p.is_ready for p in players):
+            lobby.status = Lobby.Status.READY
+            lobby.save(update_fields=['status'])
+
+        return {
+            'all_ready': lobby.status == Lobby.Status.READY,
+            'players': [_lobby_player_dict(p) for p in players],
+        }
+
+    @route.post('/fill-bots/')
+    def fill_lobby_bots(self, request, body: FillLobbyBotsRequest):
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        import random
+        from apps.accounts.models import User
+        from apps.matchmaking.models import Lobby, LobbyPlayer
+
+        try:
+            lobby = Lobby.objects.get(id=body.lobby_id)
+        except Lobby.DoesNotExist:
+            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+
+        current_count = lobby.players.count()
+        needed = lobby.max_players - current_count
+        if needed <= 0:
+            players = list(lobby.players.select_related('user').all())
+            return {'bot_ids': [], 'players': [_lobby_player_dict(p) for p in players]}
+
+        existing_user_ids = list(
+            lobby.players.values_list('user_id', flat=True)
+        )
+        available_bots = list(
+            User.objects.filter(is_bot=True)
+            .exclude(id__in=existing_user_ids)
+            .values_list('id', flat=True)
+        )
+        random.shuffle(available_bots)
+        chosen_bot_ids = available_bots[:needed]
+
+        for bot_id in chosen_bot_ids:
+            LobbyPlayer.objects.get_or_create(
+                lobby=lobby,
+                user_id=bot_id,
+                defaults={'is_bot': True, 'is_ready': True},
+            )
+
+        players = list(lobby.players.select_related('user').all())
+        player_count = len(players)
+
+        if player_count >= lobby.max_players:
+            from django.utils import timezone as tz
+            if all(p.is_ready for p in players):
+                lobby.status = Lobby.Status.READY
+            else:
+                lobby.status = Lobby.Status.FULL
+            if not lobby.full_at:
+                lobby.full_at = tz.now()
+            lobby.save(update_fields=['status', 'full_at'])
+
+        return {
+            'bot_ids': [str(bid) for bid in chosen_bot_ids],
+            'players': [_lobby_player_dict(p) for p in players],
+        }
+
+    @route.post('/start-match/')
+    def start_match(self, request, body: StartMatchFromLobbyRequest):
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from apps.matchmaking.models import Lobby, MatchQueue
+
+        try:
+            lobby = Lobby.objects.select_related('game_mode').get(id=body.lobby_id)
+        except Lobby.DoesNotExist:
+            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+
+        if lobby.status != Lobby.Status.READY:
+            return self.create_response({'error': 'Lobby is not ready'}, status_code=400)
+
+        lobby.status = Lobby.Status.STARTING
+        lobby.save(update_fields=['status'])
+
+        lobby_players = list(lobby.players.select_related('user').all())
+        users = [lp.user for lp in lobby_players]
+
+        result = _create_match_from_users(users, lobby.game_mode)
+
+        # Link match back to the lobby
+        from apps.matchmaking.models import Match
+        match = Match.objects.get(id=result['match_id'])
+        lobby.match = match
+        lobby.save(update_fields=['match'])
+
+        # Clean up any MatchQueue entries for these users
+        user_ids = [u.id for u in users]
+        MatchQueue.objects.filter(user_id__in=user_ids).delete()
+
+        return result
+
+    @route.get('/get/{lobby_id}/')
+    def get_lobby(self, request, lobby_id: str):
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from apps.matchmaking.models import Lobby
+
+        try:
+            lobby = Lobby.objects.select_related('game_mode', 'host_user').get(id=lobby_id)
+        except Lobby.DoesNotExist:
+            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+
+        players = list(lobby.players.select_related('user').all())
+
+        return {
+            'lobby_id': str(lobby.id),
+            'status': lobby.status,
+            'max_players': lobby.max_players,
+            'game_mode': lobby.game_mode.slug if lobby.game_mode else None,
+            'host_user_id': str(lobby.host_user_id),
+            'players': [_lobby_player_dict(p) for p in players],
+            'full_at': lobby.full_at.timestamp() if lobby.full_at else None,
+            'created_at': lobby.created_at.timestamp(),
+        }
+
+    @route.get('/active/{user_id}/')
+    def get_active_lobby(self, request, user_id: str):
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from apps.matchmaking.models import Lobby, LobbyPlayer
+
+        lp = (
+            LobbyPlayer.objects.filter(
+                user_id=user_id,
+                lobby__status__in=(
+                    Lobby.Status.WAITING,
+                    Lobby.Status.FULL,
+                    Lobby.Status.READY,
+                ),
+            )
+            .select_related('lobby')
+            .first()
+        )
+
+        return {'lobby_id': str(lp.lobby_id) if lp else None}
+
+    @route.get('/find-waiting/')
+    def find_waiting_lobby(self, request, game_mode: str | None = None):
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from django.db.models import Count, F
+        from apps.game_config.models import GameMode
+        from apps.matchmaking.models import Lobby
+
+        gm = None
+        if game_mode:
+            gm = GameMode.objects.filter(slug=game_mode, is_active=True).first()
+        else:
+            gm = GameMode.objects.filter(is_default=True, is_active=True).first()
+
+        lobby = (
+            Lobby.objects
+            .filter(status=Lobby.Status.WAITING, game_mode=gm)
+            .annotate(player_count=Count('players'))
+            .filter(player_count__lt=F('max_players'))
+            .order_by('created_at')
+            .first()
+        )
+
+        return {'lobby_id': str(lobby.id) if lobby else None}
+
+    @route.post('/find-or-create/')
+    def find_or_create_lobby(self, request, body: CreateLobbyRequest):
+        """Atomically find a waiting lobby and join it, or create a new one."""
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from django.db import transaction
+        from django.db.models import Count, F, Subquery
+        from apps.accounts.models import User
+        from apps.game_config.models import GameMode, GameSettings
+        from apps.matchmaking.models import Lobby, LobbyPlayer
+
+        try:
+            user = User.objects.get(id=body.user_id)
+        except User.DoesNotExist:
+            return self.create_response({'error': 'User not found'}, status_code=404)
+
+        gm = None
+        if body.game_mode:
+            gm = GameMode.objects.filter(slug=body.game_mode, is_active=True).first()
+        else:
+            gm = GameMode.objects.filter(is_default=True, is_active=True).first()
+
+        with transaction.atomic():
+            # Find candidate IDs first (with GROUP BY), then lock the row
+            candidate_ids = (
+                Lobby.objects
+                .filter(status=Lobby.Status.WAITING, game_mode=gm)
+                .annotate(player_count=Count('players'))
+                .filter(player_count__lt=F('max_players'))
+                .order_by('created_at')
+                .values_list('id', flat=True)[:1]
+            )
+
+            # Lock the specific row (no GROUP BY here)
+            lobby = (
+                Lobby.objects
+                .select_for_update(skip_locked=True)
+                .filter(id__in=Subquery(candidate_ids))
+                .first()
+            )
+
+            if lobby:
+                # Verify it still has space (another concurrent request might have filled it)
+                if lobby.players.count() >= lobby.max_players:
+                    lobby = None
+
+            if lobby:
+                LobbyPlayer.objects.get_or_create(
+                    lobby=lobby, user=user,
+                    defaults={'is_bot': user.is_bot},
+                )
+                player_count = lobby.players.count()
+                if player_count >= lobby.max_players:
+                    from django.utils import timezone as tz
+                    lobby.status = Lobby.Status.FULL
+                    lobby.full_at = tz.now()
+                    lobby.save(update_fields=['status', 'full_at'])
+
+                players = list(lobby.players.select_related('user').all())
+                return {
+                    'lobby_id': str(lobby.id),
+                    'max_players': lobby.max_players,
+                    'status': lobby.status,
+                    'created': False,
+                    'players': [_lobby_player_dict(p) for p in players],
+                    'full_at': lobby.full_at.timestamp() if lobby.full_at else None,
+                }
+            else:
+                if gm:
+                    max_players = gm.max_players
+                else:
+                    max_players = GameSettings.get().max_players
+
+                lobby = Lobby.objects.create(
+                    host_user=user,
+                    game_mode=gm,
+                    max_players=max_players,
+                )
+                LobbyPlayer.objects.create(lobby=lobby, user=user, is_bot=user.is_bot)
+
+                players = list(lobby.players.select_related('user').all())
+                return {
+                    'lobby_id': str(lobby.id),
+                    'max_players': lobby.max_players,
+                    'status': lobby.status,
+                    'created': True,
+                    'players': [_lobby_player_dict(p) for p in players],
+                    'full_at': None,
+                }

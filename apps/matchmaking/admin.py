@@ -3,7 +3,7 @@ from django.db.models import Count
 from django.http import HttpRequest
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
-from apps.matchmaking.models import Match, MatchPlayer, MatchQueue
+from apps.matchmaking.models import Lobby, LobbyPlayer, Match, MatchPlayer, MatchQueue
 
 
 class MatchPlayerInline(TabularInline):
@@ -73,3 +73,37 @@ class MatchQueueAdmin(ModelAdmin):
     list_display = ('user', 'joined_at')
     list_fullwidth = True
     readonly_fields = ('id',)
+
+
+class LobbyPlayerInline(TabularInline):
+    model = LobbyPlayer
+    extra = 0
+    readonly_fields = ('user', 'is_ready', 'is_bot', 'joined_at')
+
+
+@admin.register(Lobby)
+class LobbyAdmin(ModelAdmin):
+    list_display = ('id', 'display_status', 'max_players', 'host_user', 'created_at')
+    list_filter = ('status',)
+    list_filter_submit = True
+    list_fullwidth = True
+    search_fields = ('id',)
+    readonly_fields = ('id', 'created_at')
+    inlines = [LobbyPlayerInline]
+
+    @display(description="Status", label={
+        "waiting": "info",
+        "full": "warning",
+        "ready": "primary",
+        "starting": "success",
+        "cancelled": "danger",
+    })
+    def display_status(self, obj):
+        return obj.status
+
+
+@admin.register(LobbyPlayer)
+class LobbyPlayerAdmin(ModelAdmin):
+    list_display = ('user', 'lobby', 'is_ready', 'is_bot', 'joined_at')
+    list_filter = ('is_ready', 'is_bot')
+    list_fullwidth = True

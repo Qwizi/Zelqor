@@ -52,13 +52,16 @@ async fn handle_matchmaking_socket(
     use futures::{SinkExt, StreamExt};
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
+    // Resolve username for chat display (cached via chat::resolve_username).
+    let username = crate::chat::resolve_username(&state, &user_id).await;
+
     let game_mode_ref = game_mode.as_deref();
-    let mut rx = match state
+    let (mut rx, conn_id) = match state
         .matchmaking
-        .connect(&user_id, game_mode_ref)
+        .connect(&user_id, &username, game_mode_ref)
         .await
     {
-        Ok(rx) => rx,
+        Ok(result) => result,
         Err(e) => {
             let _ = ws_sender
                 .send(Message::Text(
@@ -71,7 +74,32 @@ async fn handle_matchmaking_socket(
         }
     };
 
-    // Forward outgoing messages to WebSocket
+    // Send LiveKit voice token for lobby voice chat (fire-and-forget).
+    if let Some(lobby_id) = state.matchmaking.get_user_lobby_id(&user_id).await {
+        let config = state.config.clone();
+        let uid = user_id.clone();
+        let uname = username.clone();
+        let mm = state.matchmaking.clone();
+        let lid = lobby_id.clone();
+        tokio::spawn(async move {
+            match crate::voice::generate_voice_token(
+                &config.livekit_api_key,
+                &config.livekit_api_secret,
+                &format!("lobby_{}", lid),
+                &uid,
+                &uname,
+            ) {
+                Ok(token) => {
+                    mm.send_voice_token(&uid, &lid, &token, &config.livekit_public_url);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to generate lobby voice token for {uid}: {e}");
+                }
+            }
+        });
+    }
+
+    // Forward outgoing messages to WebSocket.
     let send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             match msg {
@@ -92,7 +120,7 @@ async fn handle_matchmaking_socket(
         }
     });
 
-    // Process incoming messages
+    // Process incoming messages.
     let matchmaking = state.matchmaking.clone();
     let user_id_clone = user_id.clone();
     let game_mode_clone = game_mode.clone();
@@ -124,24 +152,46 @@ async fn handle_matchmaking_socket(
                                     )
                                     .await;
                             }
+                            "ready" => {
+                                matchmaking
+                                    .handle_ready(
+                                        &user_id_clone,
+                                        game_mode_clone.as_deref(),
+                                    )
+                                    .await;
+                            }
                             "fill_bots" => {
                                 matchmaking
-                                    .request_bot_fill(
-                                        game_mode_clone.as_deref(),
+                                    .request_bot_fill_for_lobby(
+                                        &user_id_clone,
                                     )
                                     .await;
                             }
                             "instant_bot" => {
                                 matchmaking
-                                    .request_bot_fill(
-                                        game_mode_clone.as_deref(),
+                                    .request_bot_fill_for_lobby(
+                                        &user_id_clone,
                                     )
                                     .await;
                                 matchmaking
-                                    .instant_bot_fill(
-                                        game_mode_clone.as_deref(),
+                                    .instant_bot_fill_for_lobby(
+                                        &user_id_clone,
                                     )
                                     .await;
+                            }
+                            "chat_message" => {
+                                if let Some(msg_content) = content
+                                    .get("content")
+                                    .and_then(|v| v.as_str())
+                                {
+                                    let trimmed = msg_content.trim();
+                                    if !trimmed.is_empty() && trimmed.len() <= 500 {
+                                        matchmaking.handle_chat_message(
+                                            &user_id_clone,
+                                            trimmed,
+                                        ).await;
+                                    }
+                                }
                             }
                             _ => {}
                         }
@@ -158,9 +208,10 @@ async fn handle_matchmaking_socket(
         _ = recv_task => {},
     }
 
-    // Cleanup on disconnect
+    // Cleanup on disconnect — only removes this specific connection,
+    // not a newer reconnection from the same user.
     state
         .matchmaking
-        .disconnect(&user_id, game_mode.as_deref())
+        .disconnect(&user_id, game_mode.as_deref(), conn_id)
         .await;
 }

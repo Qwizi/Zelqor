@@ -15,7 +15,7 @@ from apps.inventory.views import DeckController, InventoryController
 from apps.marketplace.views import MarketplaceController
 from apps.crafting.views import CraftingController
 from apps.game.internal_api import GameInternalController
-from apps.matchmaking.internal_api import MatchmakingInternalController
+from apps.matchmaking.internal_api import LobbyInternalController, MatchmakingInternalController
 from apps.chat.internal_api import ChatInternalController
 from apps.developers.views import DeveloperController
 from apps.developers.public_views import PublicAPIController
@@ -39,6 +39,7 @@ api.register_controllers(
     CraftingController,
     GameInternalController,
     MatchmakingInternalController,
+    LobbyInternalController,
     ChatInternalController,
     DeveloperController,
     PublicAPIController,
@@ -46,7 +47,17 @@ api.register_controllers(
     AssetController,
 )
 
+def health_check(request):
+    from django.http import JsonResponse
+    from django.db import connection
+    try:
+        connection.ensure_connection()
+    except Exception:
+        return JsonResponse({'status': 'error', 'db': False}, status=503)
+    return JsonResponse({'status': 'ok', 'db': True})
+
 urlpatterns = [
+    path('health/', health_check),
     path('admin/', admin.site.urls),
     path('api/v1/', api.urls),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

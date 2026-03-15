@@ -133,6 +133,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.marketplace.tasks.expire_old_listings',
         'schedule': 900,  # every 15 minutes
     },
+    'cleanup-stale-lobbies': {
+        'task': 'apps.matchmaking.tasks.cleanup_stale_lobbies',
+        'schedule': 30,  # every 30 seconds
+    },
 }
 
 # Redis direct connection (game state store)

@@ -53,6 +53,7 @@ export default function DashboardPage() {
   const {
     inQueue, playersInQueue, matchId, activeMatchId, queueSeconds,
     fillBots, setFillBots, instantBot, setInstantBot, joinQueue, leaveQueue,
+    lobbyId,
   } = useMatchmaking();
   const router = useRouter();
 
@@ -404,11 +405,22 @@ export default function DashboardPage() {
                     </div>
                   )}
                   {inQueue ? (
-                    <Button size="lg" className="h-14 w-full gap-3 rounded-2xl bg-destructive font-display text-lg uppercase tracking-wider text-white hover:bg-destructive/90" onClick={leaveQueue}>
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                      <span className="tabular-nums text-xl">{Math.floor(queueSeconds / 60)}:{String(queueSeconds % 60).padStart(2, "0")}</span>
-                      · Anuluj
-                    </Button>
+                    <div className="space-y-3">
+                      <Button size="lg" className="h-14 w-full gap-3 rounded-2xl bg-destructive font-display text-lg uppercase tracking-wider text-white hover:bg-destructive/90" onClick={leaveQueue}>
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                        <span className="tabular-nums text-xl">{Math.floor(queueSeconds / 60)}:{String(queueSeconds % 60).padStart(2, "0")}</span>
+                        · Anuluj
+                      </Button>
+                      {lobbyId && (
+                        <Link
+                          href={`/lobby/${lobbyId}`}
+                          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 font-display text-base uppercase tracking-wider text-primary transition-all hover:bg-primary/20 active:scale-[0.98]"
+                        >
+                          <Users className="h-5 w-5" />
+                          Przejdź do lobby
+                        </Link>
+                      )}
+                    </div>
                   ) : (
                     <Button size="lg" className="h-14 w-full gap-3 rounded-2xl bg-primary font-display text-lg uppercase tracking-wider text-primary-foreground hover:bg-primary/90" onClick={() => joinQueue(selectedMode ?? undefined)} disabled={!selectedMode}>
                       <Search className="h-6 w-6" />
@@ -525,11 +537,22 @@ export default function DashboardPage() {
             </div>
           )}
           {inQueue ? (
-            <Button size="lg" className="h-14 w-full gap-3 rounded-full bg-destructive font-display text-base uppercase tracking-wider text-white hover:bg-destructive/90 active:scale-[0.98] transition-all" onClick={leaveQueue}>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="tabular-nums text-lg">{Math.floor(queueSeconds / 60)}:{String(queueSeconds % 60).padStart(2, "0")}</span>
-              · Anuluj
-            </Button>
+            <div className="space-y-2">
+              <Button size="lg" className="h-14 w-full gap-3 rounded-full bg-destructive font-display text-base uppercase tracking-wider text-white hover:bg-destructive/90 active:scale-[0.98] transition-all" onClick={leaveQueue}>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="tabular-nums text-lg">{Math.floor(queueSeconds / 60)}:{String(queueSeconds % 60).padStart(2, "0")}</span>
+                · Anuluj
+              </Button>
+              {lobbyId && (
+                <Link
+                  href={`/lobby/${lobbyId}`}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-primary/25 bg-primary/10 font-display text-sm uppercase tracking-wider text-primary transition-all hover:bg-primary/20 active:scale-[0.98]"
+                >
+                  <Users className="h-4 w-4" />
+                  Przejdź do lobby
+                </Link>
+              )}
+            </div>
           ) : (
             <Button size="lg" className="h-14 w-full gap-2.5 rounded-full bg-primary font-display text-base uppercase tracking-wider text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all" onClick={() => joinQueue(selectedMode ?? undefined)} disabled={!selectedMode}>
               <Search className="h-5 w-5" />

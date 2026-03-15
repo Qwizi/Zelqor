@@ -193,6 +193,113 @@ pub struct TryMatchRequest {
     pub game_mode: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LobbyPlayerInfo {
+    pub user_id: String,
+    pub username: String,
+    pub is_bot: bool,
+    pub is_ready: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateLobbyRequest {
+    pub user_id: String,
+    pub game_mode: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateLobbyResult {
+    pub lobby_id: String,
+    pub max_players: u32,
+    pub players: Vec<LobbyPlayerInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct JoinLobbyRequest {
+    pub lobby_id: String,
+    pub user_id: String,
+    #[serde(default)]
+    pub is_bot: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct JoinLobbyResult {
+    pub players: Vec<LobbyPlayerInfo>,
+    pub status: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LeaveLobbyRequest {
+    pub lobby_id: String,
+    pub user_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LeaveLobbyResult {
+    pub status: String,
+    pub cancelled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SetReadyRequest {
+    pub lobby_id: String,
+    pub user_id: String,
+    #[serde(default = "default_true")]
+    pub is_ready: bool,
+}
+
+fn default_true() -> bool { true }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SetReadyResult {
+    pub all_ready: bool,
+    pub players: Vec<LobbyPlayerInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FillLobbyBotsRequest {
+    pub lobby_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FillLobbyBotsResult {
+    pub bot_ids: Vec<String>,
+    pub players: Vec<LobbyPlayerInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StartMatchFromLobbyRequest {
+    pub lobby_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LobbyStateResult {
+    pub lobby_id: String,
+    pub status: String,
+    pub max_players: u32,
+    pub game_mode: Option<String>,
+    pub host_user_id: String,
+    pub players: Vec<LobbyPlayerInfo>,
+    pub full_at: Option<f64>,
+    #[serde(default)]
+    pub created_at: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ActiveLobbyResult {
+    pub lobby_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FindOrCreateLobbyResult {
+    pub lobby_id: String,
+    pub max_players: u32,
+    pub status: String,
+    pub created: bool,
+    pub players: Vec<LobbyPlayerInfo>,
+    pub full_at: Option<f64>,
+}
+
 impl DjangoClient {
     pub fn new(base_url: String, internal_secret: String) -> Self {
         let client = Client::builder()
@@ -536,6 +643,137 @@ impl DjangoClient {
             },
         )
         .await
+    }
+
+    // --- Lobby endpoints ---
+
+    pub async fn create_lobby(
+        &self,
+        user_id: &str,
+        game_mode: Option<&str>,
+    ) -> Result<CreateLobbyResult, DjangoError> {
+        self.post(
+            "/api/v1/internal/lobby/create/",
+            &CreateLobbyRequest {
+                user_id: user_id.to_string(),
+                game_mode: game_mode.map(|s| s.to_string()),
+            },
+        )
+        .await
+    }
+
+    pub async fn join_lobby(
+        &self,
+        lobby_id: &str,
+        user_id: &str,
+        is_bot: bool,
+    ) -> Result<JoinLobbyResult, DjangoError> {
+        self.post(
+            "/api/v1/internal/lobby/join/",
+            &JoinLobbyRequest {
+                lobby_id: lobby_id.to_string(),
+                user_id: user_id.to_string(),
+                is_bot,
+            },
+        )
+        .await
+    }
+
+    pub async fn leave_lobby(
+        &self,
+        lobby_id: &str,
+        user_id: &str,
+    ) -> Result<LeaveLobbyResult, DjangoError> {
+        self.post(
+            "/api/v1/internal/lobby/leave/",
+            &LeaveLobbyRequest {
+                lobby_id: lobby_id.to_string(),
+                user_id: user_id.to_string(),
+            },
+        )
+        .await
+    }
+
+    pub async fn set_ready(
+        &self,
+        lobby_id: &str,
+        user_id: &str,
+        is_ready: bool,
+    ) -> Result<SetReadyResult, DjangoError> {
+        self.post(
+            "/api/v1/internal/lobby/set-ready/",
+            &SetReadyRequest {
+                lobby_id: lobby_id.to_string(),
+                user_id: user_id.to_string(),
+                is_ready,
+            },
+        )
+        .await
+    }
+
+    pub async fn fill_lobby_bots(
+        &self,
+        lobby_id: &str,
+    ) -> Result<FillLobbyBotsResult, DjangoError> {
+        self.post(
+            "/api/v1/internal/lobby/fill-bots/",
+            &FillLobbyBotsRequest {
+                lobby_id: lobby_id.to_string(),
+            },
+        )
+        .await
+    }
+
+    pub async fn start_match_from_lobby(
+        &self,
+        lobby_id: &str,
+    ) -> Result<TryMatchResult, DjangoError> {
+        self.post(
+            "/api/v1/internal/lobby/start-match/",
+            &StartMatchFromLobbyRequest {
+                lobby_id: lobby_id.to_string(),
+            },
+        )
+        .await
+    }
+
+    pub async fn get_lobby(&self, lobby_id: &str) -> Result<LobbyStateResult, DjangoError> {
+        self.get(&format!("/api/v1/internal/lobby/get/{lobby_id}/"))
+            .await
+    }
+
+    pub async fn get_active_lobby(&self, user_id: &str) -> Result<Option<String>, DjangoError> {
+        let result: ActiveLobbyResult = self
+            .get(&format!("/api/v1/internal/lobby/active/{user_id}/"))
+            .await?;
+        Ok(result.lobby_id)
+    }
+
+    pub async fn find_or_create_lobby(
+        &self,
+        user_id: &str,
+        game_mode: Option<&str>,
+    ) -> Result<FindOrCreateLobbyResult, DjangoError> {
+        self.post(
+            "/api/v1/internal/lobby/find-or-create/",
+            &CreateLobbyRequest {
+                user_id: user_id.to_string(),
+                game_mode: game_mode.map(|s| s.to_string()),
+            },
+        )
+        .await
+    }
+
+    pub async fn find_waiting_lobby(
+        &self,
+        game_mode: Option<&str>,
+    ) -> Result<Option<String>, DjangoError> {
+        let path = match game_mode {
+            Some(gm) => format!("/api/v1/internal/lobby/find-waiting/?game_mode={gm}"),
+            None => "/api/v1/internal/lobby/find-waiting/".to_string(),
+        };
+        let result: ActiveLobbyResult = self.get(&path).await?;
+        Ok(result.lobby_id)
     }
 }
 

@@ -83,3 +83,53 @@ class MatchQueue(models.Model):
 
     def __str__(self):
         return f"{self.user.username} (queued at {self.joined_at})"
+
+
+class Lobby(models.Model):
+    class Status(models.TextChoices):
+        WAITING = 'waiting', 'Waiting for players'
+        FULL = 'full', 'Full'
+        READY = 'ready', 'All ready'
+        STARTING = 'starting', 'Starting match'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    game_mode = models.ForeignKey(
+        'game_config.GameMode', on_delete=models.SET_NULL,
+        related_name='lobbies', null=True, blank=True,
+    )
+    host_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='hosted_lobbies',
+    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.WAITING, db_index=True)
+    max_players = models.PositiveIntegerField(default=2)
+    match = models.OneToOneField(
+        'matchmaking.Match', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='lobby',
+    )
+    full_at = models.DateTimeField(null=True, blank=True, help_text='When lobby became full (for ready timeout)')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name_plural = 'lobbies'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Lobby {self.id} ({self.get_status_display()})"
+
+
+class LobbyPlayer(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lobby = models.ForeignKey(Lobby, on_delete=models.CASCADE, related_name='players')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='lobby_players')
+    is_ready = models.BooleanField(default=False)
+    is_bot = models.BooleanField(default=False)
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('lobby', 'user')
+        ordering = ['joined_at']
+
+    def __str__(self):
+        return f"{self.user.username} in Lobby {self.lobby_id}"
