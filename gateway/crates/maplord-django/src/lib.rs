@@ -17,6 +17,8 @@ pub struct UserInfo {
     pub id: String,
     pub username: String,
     pub elo_rating: i32,
+    #[serde(default = "default_true")]
+    pub is_active: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -106,6 +108,8 @@ pub struct ActiveMatchResult {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VerifyPlayerResult {
     pub is_member: bool,
+    #[serde(default = "default_true")]
+    pub is_active: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -388,13 +392,11 @@ impl DjangoClient {
         &self,
         match_id: &str,
         user_id: &str,
-    ) -> Result<bool, DjangoError> {
-        let result: VerifyPlayerResult = self
-            .get(&format!(
-                "/api/v1/internal/matches/{match_id}/verify-player/{user_id}/"
-            ))
-            .await?;
-        Ok(result.is_member)
+    ) -> Result<VerifyPlayerResult, DjangoError> {
+        self.get(&format!(
+            "/api/v1/internal/matches/{match_id}/verify-player/{user_id}/"
+        ))
+        .await
     }
 
     pub async fn get_match_data(&self, match_id: &str) -> Result<MatchData, DjangoError> {
@@ -762,6 +764,80 @@ impl DjangoClient {
             },
         )
         .await
+    }
+
+    // --- Anticheat endpoints ---
+
+    pub async fn report_anticheat_violation(
+        &self,
+        match_id: &str,
+        player_id: &str,
+        violation_kind: &str,
+        severity: &str,
+        detail: &str,
+        tick: i64,
+    ) -> Result<(), DjangoError> {
+        #[derive(Serialize)]
+        struct ReportViolationRequest<'a> {
+            match_id: &'a str,
+            player_id: &'a str,
+            violation_kind: &'a str,
+            severity: &'a str,
+            detail: &'a str,
+            tick: i64,
+        }
+        let _: serde_json::Value = self
+            .post(
+                "/api/v1/internal/anticheat/report-violation/",
+                &ReportViolationRequest {
+                    match_id,
+                    player_id,
+                    violation_kind,
+                    severity,
+                    detail,
+                    tick,
+                },
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn ban_player(
+        &self,
+        player_id: &str,
+        reason: &str,
+    ) -> Result<(), DjangoError> {
+        #[derive(Serialize)]
+        struct BanPlayerRequest<'a> {
+            player_id: &'a str,
+            reason: &'a str,
+        }
+        let _: serde_json::Value = self
+            .post(
+                "/api/v1/internal/anticheat/ban-player/",
+                &BanPlayerRequest { player_id, reason },
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn compensate_players(
+        &self,
+        match_id: &str,
+        player_ids: &[String],
+    ) -> Result<(), DjangoError> {
+        #[derive(Serialize)]
+        struct CompensateRequest<'a> {
+            match_id: &'a str,
+            player_ids: &'a [String],
+        }
+        let _: serde_json::Value = self
+            .post(
+                "/api/v1/internal/anticheat/compensate/",
+                &CompensateRequest { match_id, player_ids },
+            )
+            .await?;
+        Ok(())
     }
 
     pub async fn find_waiting_lobby(

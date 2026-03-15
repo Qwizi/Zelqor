@@ -10,14 +10,21 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 pub struct TokenQuery {
     pub token: Option<String>,
+    pub ticket: Option<String>,
+    pub nonce: Option<String>,
 }
 
 pub async fn ws_matchmaking_handler(
     ws: WebSocketUpgrade,
     game_mode: Option<Path<String>>,
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     axum_extra::extract::Query(query): axum_extra::extract::Query<TokenQuery>,
 ) -> Response {
+    if let Err(resp) = crate::auth::check_origin(&headers, &state.config.allowed_ws_origins) {
+        return resp;
+    }
+
     let token = match query.token {
         Some(t) => t,
         None => {
@@ -38,6 +45,24 @@ pub async fn ws_matchmaking_handler(
         }
     };
 
+    if let Some(ticket) = query.ticket {
+        match crate::auth::validate_ticket(&ticket, query.nonce.as_deref(), &mut state.redis.clone()).await {
+            Ok(ticket_user_id) if ticket_user_id != user_id => {
+                return Response::builder()
+                    .status(401)
+                    .body("Ticket user mismatch".into())
+                    .unwrap();
+            }
+            Err(_) => {
+                return Response::builder()
+                    .status(401)
+                    .body("Invalid or expired ticket".into())
+                    .unwrap();
+            }
+            Ok(_) => {}
+        }
+    }
+
     let game_mode_slug = game_mode.map(|p| p.0);
 
     ws.on_upgrade(move |socket| handle_matchmaking_socket(socket, user_id, game_mode_slug, state))
@@ -51,6 +76,30 @@ async fn handle_matchmaking_socket(
 ) {
     use futures::{SinkExt, StreamExt};
     let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    // Check that the account is active (not banned)
+    match state.django.get_user(&user_id).await {
+        Ok(user_info) if !user_info.is_active => {
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4003,
+                    reason: "Account banned".into(),
+                })))
+                .await;
+            return;
+        }
+        Err(e) => {
+            tracing::error!("Matchmaking: failed to verify user {user_id}: {e}");
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4003,
+                    reason: "Failed to verify account".into(),
+                })))
+                .await;
+            return;
+        }
+        Ok(_) => {}
+    }
 
     // Resolve username for chat display (cached via chat::resolve_username).
     let username = crate::chat::resolve_username(&state, &user_id).await;

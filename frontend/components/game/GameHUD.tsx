@@ -85,64 +85,46 @@ export default memo(function GameHUD({
   const formattedClock = useMemo(() => formatClock(tick, tickIntervalMs), [tick, tickIntervalMs]);
 
   return (
-    <div data-tutorial="hud" className="absolute left-2 top-2 z-10 flex max-w-[calc(100vw-5rem)] flex-col gap-2 sm:left-4 sm:top-4 sm:max-w-[280px]">
-      <div className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 bg-slate-950/86 px-3 py-2 text-[11px] text-zinc-200 shadow-[0_12px_32px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-3.5">
-        <span className="font-display text-sm text-cyan-200 sm:text-base">{formattedClock}</span>
+    <div data-tutorial="hud" className="absolute left-2 top-2 z-10 flex max-w-[calc(100vw-5rem)] flex-col gap-2 sm:left-3 sm:top-3 sm:max-w-[240px]">
+      <div className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-border bg-card sm:bg-card/85 px-2.5 py-1.5 text-[10px] text-foreground shadow-lg sm:backdrop-blur-xl">
+        <span className="font-display text-xs text-primary sm:text-sm">{formattedClock}</span>
         <span className="h-1 w-1 rounded-full bg-white/20" />
-        <Badge className="h-auto border-0 bg-cyan-400/15 px-2 py-0.5 text-[10px] text-cyan-200 hover:bg-cyan-400/15">
+        <Badge className="h-auto border-0 bg-primary/15 px-2 py-0.5 text-[10px] text-primary hover:bg-primary/15">
           {statusLabel(status)}
         </Badge>
-        <span className="hidden text-[10px] text-slate-400 sm:inline">{aliveCount} aktywnych</span>
+        <span className="hidden text-[10px] text-muted-foreground sm:inline">{aliveCount} aktywnych</span>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <CompactStat
-          icon={<Zap className="h-3.5 w-3.5 text-cyan-400" />}
-          label="Energia"
-          value={myEnergy}
-        />
-        <CompactStat
-          icon="/assets/icons/storage_icon.webp"
-          label="Regiony"
-          value={myRegionCount}
-        />
-        <CompactStat
-          icon="/assets/units/ground_unit.webp"
-          label="Siła"
-          value={myUnitCount}
-        />
+        <CompactStat icon={<Zap className="h-3.5 w-3.5 text-primary" />} label="Energia" value={myEnergy} />
+        <CompactStat icon="/assets/icons/storage_icon.webp" label="Regiony" value={myRegionCount} />
+        <CompactStat icon="/assets/units/ground_unit.webp" label="Siła" value={myUnitCount} />
       </div>
 
-      {/* Active boosts — deck boosts (permanent) + match boosts (timed) */}
       <ActiveBoostsPanel players={players} myUserId={myUserId} tickIntervalMs={tickIntervalMs} />
 
-      <div className="hidden rounded-[22px] border border-white/10 bg-slate-950/82 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:block">
-        <div className="px-1 pb-2 text-[10px] uppercase tracking-[0.16em] text-slate-500">
+      <div className="hidden rounded-xl border border-border bg-card/80 p-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:block">
+        <div className="px-1 pb-1.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
           Ranking
         </div>
-        <div className="space-y-1.5">
-          {rankedPlayers.slice(0, 6).map((player, index) => (
+        <div className="space-y-0.5">
+          {rankedPlayers.slice(0, 4).map((player, index) => (
             <div
               key={player.user_id}
-              className={`grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl px-2 py-1.5 text-xs ${
-                player.user_id === myUserId ? "bg-white/[0.05]" : "bg-transparent"
+              className={`grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1 text-xs ${
+                player.user_id === myUserId ? "bg-muted/30" : "bg-transparent"
               }`}
             >
-              <div className="font-display text-zinc-500">{index + 1}</div>
+              <div className="font-display text-muted-foreground">{index + 1}</div>
               <div className="min-w-0">
-                <div className={`truncate ${player.isAlive ? "text-zinc-100" : "text-zinc-500 line-through"}`}>
-                  <span
-                    className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle"
-                    style={{ backgroundColor: player.color }}
-                  />
+                <div className={`truncate ${player.isAlive ? "text-foreground" : "text-muted-foreground line-through"}`}>
+                  <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle" style={{ backgroundColor: player.color }} />
                   {player.username}
                   {player.user_id === myUserId ? " (Ty)" : ""}
-                  {player.isBot && (
-                    <span className="ml-1 text-[9px] text-zinc-500" title="Bot AI">BOT</span>
-                  )}
+                  {player.isBot && <span className="ml-1 text-[9px] text-muted-foreground" title="Bot AI">BOT</span>}
                 </div>
               </div>
-              <div className="text-right text-[11px] text-zinc-500">
+              <div className="text-right text-[11px] text-muted-foreground">
                 {player.regionCount}r · {player.unitCount}u
               </div>
             </div>
@@ -154,14 +136,8 @@ export default memo(function GameHUD({
 });
 
 const ActiveBoostsPanel = memo(function ActiveBoostsPanel({
-  players,
-  myUserId,
-  tickIntervalMs,
-}: {
-  players: Record<string, GamePlayer>;
-  myUserId: string;
-  tickIntervalMs: number;
-}) {
+  players, myUserId, tickIntervalMs,
+}: { players: Record<string, GamePlayer>; myUserId: string; tickIntervalMs: number }) {
   const myPlayer = players[myUserId];
   const deckBoosts = myPlayer?.active_boosts ?? [];
   const matchBoosts = myPlayer?.active_match_boosts ?? [];
@@ -170,32 +146,24 @@ const ActiveBoostsPanel = memo(function ActiveBoostsPanel({
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {/* Deck boosts — always active for the whole match */}
       {deckBoosts.map((b) => {
         const effectType = (b.params?.effect_type as string) ?? "";
         const value = (b.params?.value as number) ?? 0;
-        const colors = BOOST_COLORS[effectType] ?? "text-slate-300 border-white/10 bg-white/5";
+        const colors = BOOST_COLORS[effectType] ?? "text-muted-foreground border-border bg-muted/30";
         return (
-          <div
-            key={b.slug}
-            className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-medium backdrop-blur-xl ${colors}`}
-            title={`${BOOST_LABELS[effectType] ?? effectType}: +${Math.round(value * 100)}% (cały mecz)`}
-          >
+          <div key={b.slug} className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-medium ${colors}`}
+            title={`${BOOST_LABELS[effectType] ?? effectType}: +${Math.round(value * 100)}% (cały mecz)`}>
             {BOOST_ICONS[effectType] ?? <Zap className="h-3 w-3" />}
             <span>+{Math.round(value * 100)}%</span>
           </div>
         );
       })}
-      {/* Match boosts — timed, show remaining duration */}
       {matchBoosts.map((b, i) => {
-        const colors = BOOST_COLORS[b.effect_type] ?? "text-slate-300 border-white/10 bg-white/5";
+        const colors = BOOST_COLORS[b.effect_type] ?? "text-muted-foreground border-border bg-muted/30";
         const remainingSec = Math.ceil((b.ticks_remaining * tickIntervalMs) / 1000);
         return (
-          <div
-            key={`${b.slug}-${i}`}
-            className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-medium backdrop-blur-xl ${colors}`}
-            title={`${BOOST_LABELS[b.effect_type] ?? b.effect_type}: +${Math.round(b.value * 100)}% (${remainingSec}s)`}
-          >
+          <div key={`${b.slug}-${i}`} className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-medium ${colors}`}
+            title={`${BOOST_LABELS[b.effect_type] ?? b.effect_type}: +${Math.round(b.value * 100)}% (${remainingSec}s)`}>
             {BOOST_ICONS[b.effect_type] ?? <Zap className="h-3 w-3" />}
             <span>+{Math.round(b.value * 100)}%</span>
             <span className="text-[9px] opacity-70">{remainingSec}s</span>
@@ -207,33 +175,17 @@ const ActiveBoostsPanel = memo(function ActiveBoostsPanel({
 });
 
 const CompactStat = memo(function CompactStat({
-  icon,
-  label,
-  value,
-}: {
-  icon: string | ReactNode;
-  label: string;
-  value: number;
-}) {
+  icon, label, value,
+}: { icon: string | ReactNode; label: string; value: number }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/82 px-2.5 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:px-3">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+    <div className="min-w-0 rounded-2xl border border-border bg-card sm:bg-card/80 px-2 py-1.5 shadow-lg sm:backdrop-blur-xl">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
         {typeof icon === "string" ? (
-          <Image
-            src={icon}
-            alt=""
-            width={14}
-            height={14}
-            className="h-3.5 w-3.5 object-contain"
-          />
-        ) : (
-          icon
-        )}
+          <Image src={icon} alt="" width={14} height={14} className="h-3.5 w-3.5 object-contain" />
+        ) : icon}
         <span className="truncate">{label}</span>
       </div>
-      <div className="mt-1 truncate font-display text-lg leading-none text-zinc-50 sm:text-xl">
-        {value}
-      </div>
+      <div className="mt-1 truncate font-display text-base leading-none text-foreground sm:text-lg">{value}</div>
     </div>
   );
 });

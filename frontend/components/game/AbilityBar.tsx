@@ -74,7 +74,7 @@ export default memo(function AbilityBar({
       {/* Desktop: vertical bar on left side */}
       <div
         data-tutorial="ability-bar"
-        className="pointer-events-auto absolute left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col gap-3 rounded-2xl border border-white/15 bg-slate-950/90 px-2.5 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:flex"
+        className="pointer-events-auto absolute left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col gap-2 rounded-xl border border-border bg-card/90 px-2 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:flex"
       >
         {sortedAbilities.map((ability) => (
           <AbilityButton
@@ -119,7 +119,7 @@ export default memo(function AbilityBar({
       </div>
 
       {/* Mobile: vertical bar on left side, compact */}
-      <div className="pointer-events-auto absolute left-2 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl border border-white/15 bg-slate-950/90 px-1.5 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:hidden">
+      <div className="pointer-events-auto absolute left-2 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1 rounded-lg border border-border bg-card px-1 py-1.5 shadow-lg sm:hidden">
         {sortedAbilities.map((ability) => (
           <AbilityButton
             key={ability.slug}
@@ -208,19 +208,19 @@ function AbilityButton({
   const canAfford = myEnergy >= levelEnergyCost;
   const isDisabled = isOnCooldown || !canAfford || locked;
 
-  const btnSize = size === "lg" ? "h-16 w-16 rounded-xl" : "h-11 w-11 rounded-lg";
-  const imgSize = size === "lg" ? "h-10 w-10" : "h-7 w-7";
+  const btnSize = size === "lg" ? "h-12 w-12 rounded-lg" : "h-9 w-9 rounded-md";
+  const imgSize = size === "lg" ? "h-7 w-7" : "h-5 w-5";
 
   // Boost: amber/gold colour scheme; Ability: cyan/white scheme
   const idleStyle = isBoost
-    ? "border-amber-500/30 bg-amber-950/30 hover:bg-amber-900/40 hover:border-amber-400/50 hover:shadow-[0_0_8px_rgba(251,191,36,0.15)]"
-    : "border-white/15 bg-white/[0.07] hover:bg-white/[0.15] hover:border-white/25 hover:shadow-[0_0_8px_rgba(255,255,255,0.1)]";
+    ? "border-accent/30 bg-accent/10 hover:bg-accent/15 hover:border-accent/50 hover:shadow-[0_0_8px_rgba(251,191,36,0.15)]"
+    : "border-border bg-muted/40 hover:bg-muted/60 hover:border-border hover:shadow-[0_0_8px_rgba(255,255,255,0.1)]";
 
   const selectedStyle = isBoost
-    ? "border-amber-400 bg-amber-500/25 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
-    : "border-cyan-400 bg-cyan-500/20 shadow-[0_0_12px_rgba(34,211,238,0.25)]";
+    ? "border-accent bg-accent/20 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
+    : "border-primary bg-primary/20 shadow-[0_0_12px_rgba(34,211,238,0.25)]";
 
-  const badgeColor = isBoost ? "text-amber-300" : "text-cyan-300";
+  const badgeColor = isBoost ? "text-accent" : "text-primary";
 
   return (
     <div className="relative">
@@ -228,11 +228,11 @@ function AbilityButton({
         onClick={() => onClick(ability.slug)}
         disabled={isDisabled}
         title={`${ability.name}${isBoost ? " (Boost — aktywuje globalnie)" : ""} (${levelEnergyCost}⚡)${isOnCooldown ? ` - ${cooldownRemaining}s` : ""}${remainingUses !== undefined ? ` · Pozostalo: ${remainingUses}` : ""}`}
-        className={`relative flex items-center justify-center border-2 transition-all ${btnSize} ${
+        className={`relative flex items-center justify-center border-2 transition-colors ${btnSize} ${
           isSelected
             ? selectedStyle
             : isDisabled
-              ? "border-white/5 bg-white/[0.03] opacity-45 grayscale-[40%]"
+              ? "border-border/50 bg-muted/20 opacity-45 grayscale-[40%]"
               : idleStyle
         }`}
       >
@@ -263,7 +263,7 @@ function AbilityButton({
         {/* Radial cooldown sweep overlay */}
         {isOnCooldown && (
           <div
-            className={`absolute inset-0 flex items-center justify-center ${size === "lg" ? "rounded-xl" : "rounded-lg"}`}
+            className={`absolute inset-0 flex items-center justify-center ${size === "lg" ? "rounded-lg" : "rounded-md"}`}
           >
             <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="48" fill="rgba(0,0,0,0.6)" stroke="none" />
@@ -275,7 +275,7 @@ function AbilityButton({
               )}
             </svg>
             <span
-              className={`relative z-10 font-extrabold tabular-nums text-amber-300 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)] ${
+              className={`relative z-10 font-extrabold tabular-nums text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)] ${
                 size === "lg" ? "text-base" : "text-xs"
               }`}
             >
@@ -287,7 +287,7 @@ function AbilityButton({
         {/* Remaining uses badge — top-right corner (hidden when unlimited / ≥100) */}
         {remainingUses !== undefined && remainingUses < 100 && (
           <span
-            className={`absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-slate-800 font-bold tabular-nums leading-none ${badgeColor} ${
+            className={`absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-secondary font-bold tabular-nums leading-none ${badgeColor} ${
               size === "lg" ? "text-[10px]" : "text-[8px]"
             }`}
           >
@@ -298,7 +298,7 @@ function AbilityButton({
         {/* Boost indicator chip — bottom-left corner */}
         {isBoost && !isOnCooldown && (
           <span
-            className={`absolute -bottom-1 -left-1 rounded-sm border border-amber-400/40 bg-amber-950/90 font-bold uppercase leading-none tracking-tight text-amber-300 ${
+            className={`absolute -bottom-1 -left-1 rounded-sm border border-accent/40 bg-card/90 font-bold uppercase leading-none tracking-tight text-accent ${
               size === "lg" ? "px-1 py-px text-[8px]" : "px-0.5 py-px text-[7px]"
             }`}
           >
@@ -310,8 +310,8 @@ function AbilityButton({
       {/* Cost badge — below button, always visible */}
       <div
         className={`mt-0.5 text-center font-bold tabular-nums ${
-          canAfford ? "text-amber-300" : "text-red-400"
-        } ${size === "lg" ? "text-[11px]" : "text-[9px]"}`}
+          canAfford ? "text-accent" : "text-destructive"
+        } ${size === "lg" ? "text-[10px]" : "text-[8px]"}`}
       >
         {levelEnergyCost}⚡
       </div>
@@ -321,11 +321,11 @@ function AbilityButton({
         <div
           className={`text-center font-bold tabular-nums leading-none ${
             abilityLevel >= 3
-              ? "text-amber-300"
+              ? "text-accent"
               : abilityLevel === 2
-                ? "text-cyan-300"
-                : "text-zinc-400"
-          } ${size === "lg" ? "text-[10px]" : "text-[8px]"}`}
+                ? "text-primary"
+                : "text-muted-foreground"
+          } ${size === "lg" ? "text-[9px]" : "text-[7px]"}`}
         >
           Lvl {abilityLevel}
         </div>

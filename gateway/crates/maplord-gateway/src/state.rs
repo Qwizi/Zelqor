@@ -21,4 +21,6 @@ pub struct AppState {
     pub username_cache: Arc<DashMap<String, (String, Instant)>>,
     /// Last message timestamp per user for chat rate limiting
     pub chat_rate_limits: Arc<DashMap<String, Instant>>,
+    /// Action count + window start per user for game action rate limiting
+    pub action_rate_limits: Arc<DashMap<String, (u32, Instant)>>,
 }

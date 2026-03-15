@@ -1,7 +1,7 @@
 import logging
 import random
 from ninja_extra import api_controller, route
-from ninja_jwt.authentication import JWTAuth
+from apps.accounts.auth import ActiveUserJWTAuth
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from apps.pagination import paginate_qs
@@ -131,7 +131,7 @@ class InventoryController:
             .prefetch_related('items')
         )
 
-    @route.get('/my/', response=dict, auth=JWTAuth())
+    @route.get('/my/', response=dict, auth=ActiveUserJWTAuth())
     def my_inventory(self, request, limit: int = 50, offset: int = 0, item_type: str = None):
         """List user's inventory: stackable stacks + unique instances."""
         from apps.inventory.models import ItemInstance
@@ -187,7 +187,7 @@ class InventoryController:
             'count': total,
         }
 
-    @route.get('/instances/{instance_id}/', response={200: ItemInstanceOutSchema, 404: dict}, auth=JWTAuth())
+    @route.get('/instances/{instance_id}/', response={200: ItemInstanceOutSchema, 404: dict}, auth=ActiveUserJWTAuth())
     def get_instance(self, request, instance_id: str):
         """Get details of a specific item instance."""
         from apps.inventory.models import ItemInstance
@@ -199,7 +199,7 @@ class InventoryController:
             return 404, {'detail': 'Instance not found.'}
         return 200, instance
 
-    @route.post('/instances/{instance_id}/rename/', response={200: ItemInstanceOutSchema, 400: dict, 404: dict}, auth=JWTAuth())
+    @route.post('/instances/{instance_id}/rename/', response={200: ItemInstanceOutSchema, 400: dict, 404: dict}, auth=ActiveUserJWTAuth())
     def rename_instance(self, request, instance_id: str, payload: RenameInstanceInSchema):
         """Set or clear a nametag on an owned instance."""
         from apps.inventory.models import ItemInstance
@@ -215,12 +215,12 @@ class InventoryController:
         instance.save(update_fields=['nametag'])
         return 200, instance
 
-    @route.get('/wallet/', response=WalletOutSchema, auth=JWTAuth())
+    @route.get('/wallet/', response=WalletOutSchema, auth=ActiveUserJWTAuth())
     def my_wallet(self, request):
         """Get current user's gold wallet."""
         return get_or_create_wallet(request.user)
 
-    @route.get('/drops/', response=dict, auth=JWTAuth())
+    @route.get('/drops/', response=dict, auth=ActiveUserJWTAuth())
     def my_drops(self, request, limit: int = 50, offset: int = 0):
         """Get recent item drops for current user."""
         qs = (
@@ -229,7 +229,7 @@ class InventoryController:
         )
         return paginate_qs(qs, limit, offset, schema=ItemDropOutSchema)
 
-    @route.post('/open-crate/', auth=JWTAuth())
+    @route.post('/open-crate/', auth=ActiveUserJWTAuth())
     def open_crate(self, request, payload: OpenCrateInSchema):
         """Open a crate using a key. Returns dropped items."""
         crate = get_object_or_404(Item, slug=payload.crate_item_slug, item_type=Item.ItemType.CRATE)
@@ -272,12 +272,12 @@ class InventoryController:
 
         return {'drops': result_drops}
 
-    @route.get('/cosmetics/equipped/', response=list[EquippedCosmeticOutSchema], auth=JWTAuth())
+    @route.get('/cosmetics/equipped/', response=list[EquippedCosmeticOutSchema], auth=ActiveUserJWTAuth())
     def equipped_cosmetics(self, request):
         """List currently equipped cosmetics."""
         return EquippedCosmetic.objects.filter(user=request.user).select_related('item', 'item__cosmetic_asset')
 
-    @route.post('/cosmetics/equip/', response={200: EquippedCosmeticOutSchema, 400: dict, 404: dict}, auth=JWTAuth())
+    @route.post('/cosmetics/equip/', response={200: EquippedCosmeticOutSchema, 400: dict, 404: dict}, auth=ActiveUserJWTAuth())
     def equip_cosmetic(self, request, payload: EquipCosmeticInSchema):
         """Equip a cosmetic item."""
         inv = UserInventory.objects.filter(user=request.user, item__slug=payload.item_slug).select_related('item', 'item__cosmetic_asset').first()
@@ -298,7 +298,7 @@ class InventoryController:
         )
         return 200, equipped
 
-    @route.post('/cosmetics/unequip/', response={200: dict, 404: dict}, auth=JWTAuth())
+    @route.post('/cosmetics/unequip/', response={200: dict, 404: dict}, auth=ActiveUserJWTAuth())
     def unequip_cosmetic(self, request, payload: UnequipCosmeticInSchema):
         """Unequip a cosmetic from a slot."""
         deleted, _ = EquippedCosmetic.objects.filter(user=request.user, slot=payload.slot).delete()
@@ -362,7 +362,7 @@ def _cleanup_stale_deck_items(user, deck):
 @api_controller('/inventory/decks', tags=['Decks'])
 class DeckController:
 
-    @route.get('/', response=dict, auth=JWTAuth())
+    @route.get('/', response=dict, auth=ActiveUserJWTAuth())
     def list_decks(self, request, limit: int = 50, offset: int = 0):
         """List current user's decks with their items."""
         # Auto-cleanup consumed items from all decks
@@ -374,13 +374,13 @@ class DeckController:
         )
         return paginate_qs(qs, limit, offset, schema=DeckOutSchema)
 
-    @route.post('/', response=DeckOutSchema, auth=JWTAuth())
+    @route.post('/', response=DeckOutSchema, auth=ActiveUserJWTAuth())
     def create_deck(self, request, payload: DeckCreateSchema):
         """Create a new deck for the current user."""
         deck = Deck.objects.create(user=request.user, name=payload.name)
         return deck
 
-    @route.get('/{deck_id}/', response=DeckOutSchema, auth=JWTAuth())
+    @route.get('/{deck_id}/', response=DeckOutSchema, auth=ActiveUserJWTAuth())
     def get_deck(self, request, deck_id: str):
         """Retrieve a single deck with its items."""
         deck = get_object_or_404(
@@ -390,7 +390,7 @@ class DeckController:
         _cleanup_stale_deck_items(request.user, deck)
         return deck
 
-    @route.put('/{deck_id}/', response=DeckOutSchema, auth=JWTAuth())
+    @route.put('/{deck_id}/', response=DeckOutSchema, auth=ActiveUserJWTAuth())
     def update_deck(self, request, deck_id: str, payload: DeckUpdateSchema):
         """Update a deck's name and/or item list.
 
@@ -504,14 +504,14 @@ class DeckController:
             .get(id=deck.id)
         )
 
-    @route.delete('/{deck_id}/', auth=JWTAuth())
+    @route.delete('/{deck_id}/', auth=ActiveUserJWTAuth())
     def delete_deck(self, request, deck_id: str):
         """Delete a deck."""
         deck = get_object_or_404(Deck, id=deck_id, user=request.user)
         deck.delete()
         return {'ok': True}
 
-    @route.post('/{deck_id}/set-default/', response=DeckOutSchema, auth=JWTAuth())
+    @route.post('/{deck_id}/set-default/', response=DeckOutSchema, auth=ActiveUserJWTAuth())
     def set_default_deck(self, request, deck_id: str):
         """Set this deck as the user's default deck."""
         deck = get_object_or_404(

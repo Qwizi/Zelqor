@@ -137,6 +137,7 @@ async fn main() {
     let chat_connections = new_chat_connections();
     let username_cache = Arc::new(DashMap::new());
     let chat_rate_limits = Arc::new(DashMap::new());
+    let action_rate_limits = Arc::new(DashMap::new());
 
     let app_state = AppState {
         config: config.clone(),
@@ -147,6 +148,7 @@ async fn main() {
         chat_connections,
         username_cache,
         chat_rate_limits,
+        action_rate_limits,
     };
 
     // Start lobby pub/sub listener (Django/Celery → Gateway events)
@@ -160,17 +162,18 @@ async fn main() {
         // Matchmaking WebSocket routes
         .route(
             "/ws/matchmaking/",
-            get(|ws, state, query| {
-                matchmaking_ws::ws_matchmaking_handler(ws, None, state, query)
+            get(|ws, state, headers, query| {
+                matchmaking_ws::ws_matchmaking_handler(ws, None, state, headers, query)
             }),
         )
         .route(
             "/ws/matchmaking/{game_mode}/",
-            get(|ws, path: axum::extract::Path<String>, state, query| {
+            get(|ws, path: axum::extract::Path<String>, state, headers, query| {
                 matchmaking_ws::ws_matchmaking_handler(
                     ws,
                     Some(axum::extract::Path(path.0)),
                     state,
+                    headers,
                     query,
                 )
             }),

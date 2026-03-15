@@ -13,7 +13,8 @@ use std::sync::Arc;
 use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use maplord_anticheat::{AnticheatEngine, AnticheatVerdict};
+use tracing::{error, info, warn};
 
 /// Per-match connection registry: match_id -> (player_id -> Vec<sender>)
 pub type GameConnections =
@@ -26,14 +27,21 @@ pub fn new_game_connections() -> GameConnections {
 #[derive(Deserialize)]
 pub struct TokenQuery {
     pub token: Option<String>,
+    pub ticket: Option<String>,
+    pub nonce: Option<String>,
 }
 
 pub async fn ws_game_handler(
     ws: WebSocketUpgrade,
     Path(match_id): Path<String>,
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     axum_extra::extract::Query(query): axum_extra::extract::Query<TokenQuery>,
 ) -> Response {
+    if let Err(resp) = auth::check_origin(&headers, &state.config.allowed_ws_origins) {
+        return resp;
+    }
+
     let token = match query.token {
         Some(t) => t,
         None => {
@@ -54,15 +62,42 @@ pub async fn ws_game_handler(
         }
     };
 
+    if let Some(ticket) = query.ticket {
+        match auth::validate_ticket(&ticket, query.nonce.as_deref(), &mut state.redis.clone()).await {
+            Ok(ticket_user_id) if ticket_user_id != user_id => {
+                return Response::builder()
+                    .status(401)
+                    .body("Ticket user mismatch".into())
+                    .unwrap();
+            }
+            Err(_) => {
+                return Response::builder()
+                    .status(401)
+                    .body("Invalid or expired ticket".into())
+                    .unwrap();
+            }
+            Ok(_) => {}
+        }
+    }
+
     ws.on_upgrade(move |socket| handle_game_socket(socket, match_id, user_id, state))
 }
 
 async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String, state: AppState) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
-    // Verify player membership
+    // Verify player membership and account status
     match state.django.verify_player(&match_id, &user_id).await {
-        Ok(true) => {}
+        Ok(result) if result.is_member && result.is_active => {}
+        Ok(result) if !result.is_active => {
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4003,
+                    reason: "Account banned".into(),
+                })))
+                .await;
+            return;
+        }
         _ => {
             let _ = ws_sender
                 .send(Message::Close(Some(axum::extract::ws::CloseFrame {
@@ -253,6 +288,29 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
     }
 }
 
+/// Returns true if the action should be rate-limited (i.e., rejected).
+fn check_action_rate_limit(state: &AppState, user_id: &str) -> bool {
+    const MAX_ACTIONS_PER_SECOND: u32 = 30;
+    let now = std::time::Instant::now();
+
+    let mut entry = state
+        .action_rate_limits
+        .entry(user_id.to_string())
+        .or_insert((0, now));
+    let (ref mut count, ref mut window_start) = *entry;
+
+    if now.duration_since(*window_start).as_secs_f64() >= 1.0 {
+        *count = 1;
+        *window_start = now;
+        false
+    } else if *count >= MAX_ACTIONS_PER_SECOND {
+        true
+    } else {
+        *count += 1;
+        false
+    }
+}
+
 async fn handle_game_message(
     content: &serde_json::Value,
     state_mgr: &GameStateManager,
@@ -262,6 +320,21 @@ async fn handle_game_message(
     tx: &mpsc::UnboundedSender<Message>,
 ) {
     let action = content.get("action").and_then(|v| v.as_str()).unwrap_or("");
+
+    // Rate limit game actions (not chat/leave_match/set_tick_multiplier)
+    if matches!(
+        action,
+        "attack" | "move" | "build" | "produce_unit" | "use_ability" | "select_capital"
+    ) {
+        if check_action_rate_limit(state, user_id) {
+            let _ = tx.send(Message::Text(
+                json!({"type": "error", "message": "Too many actions, slow down"})
+                    .to_string()
+                    .into(),
+            ));
+            return;
+        }
+    }
 
     match action {
         "select_capital" => {
@@ -727,6 +800,7 @@ async fn game_loop(
         .map_err(|e| format!("Failed to get neighbor map: {e}"))?;
 
     let engine = GameEngine::new(settings.clone(), neighbor_map.clone());
+    let mut anticheat = AnticheatEngine::new(match_id.to_string(), state_mgr.redis());
     let snapshot_interval = 30u64;
     let mut next_tick_at = tokio::time::Instant::now() + tick_interval;
 
@@ -806,6 +880,49 @@ async fn game_loop(
         let mut tick_data = state_mgr.get_tick_data().await?;
         let tick = tick_data.tick;
 
+        // Check if match should end (no human players alive)
+        let has_alive_human = tick_data.players.values().any(|p| p.is_alive && !p.is_bot);
+        if !has_alive_human {
+            info!("Match {match_id} has no alive human players, ending match");
+            let alive: Vec<(&String, &Player)> = tick_data.players.iter()
+                .filter(|(_, p)| p.is_alive)
+                .collect();
+            // Find the last eliminated human as "winner"
+            let winner_id = if alive.len() == 1 {
+                Some(alive[0].0.clone())
+            } else {
+                tick_data.players.iter()
+                    .filter(|(_, p)| !p.is_bot)
+                    .max_by_key(|(_, p)| p.eliminated_tick.unwrap_or(0))
+                    .map(|(id, _)| id.clone())
+            };
+            // Eliminate remaining bots
+            for (_, player) in tick_data.players.iter_mut() {
+                if player.is_alive && player.is_bot {
+                    player.is_alive = false;
+                    player.eliminated_reason = Some("match_ended".to_string());
+                    player.eliminated_tick = Some(tick);
+                }
+            }
+            let _ = state_mgr.set_players_bulk(&tick_data.players).await;
+            let _ = state_mgr.set_meta_field("status", "finished").await;
+            let _ = state.django.update_match_status(match_id, "finished").await;
+            let game_over_msg = json!({
+                "type": "game_tick",
+                "tick": tick,
+                "events": [{"type": "game_over", "winner_id": winner_id}],
+                "regions": {},
+                "players": tick_data.players,
+                "buildings_queue": tick_data.buildings_queue,
+                "unit_queue": tick_data.unit_queue,
+                "transit_queue": tick_data.transit_queue,
+            });
+            broadcast_to_match(match_id, &game_over_msg, &state.game_connections);
+            dispatch_finalization(state_mgr, match_id, winner_id.as_deref(), tick, state).await;
+            anticheat.cleanup().await;
+            return Ok(());
+        }
+
         // Generate bot actions
         for (bot_id, brain) in &bot_brains {
             if tick_data
@@ -823,6 +940,133 @@ async fn game_loop(
                 );
                 tick_data.actions.extend(bot_actions);
             }
+        }
+
+        // Anti-cheat analysis (pre-tick)
+        let ac_verdict = anticheat
+            .analyze_tick(
+                &tick_data.actions,
+                tick,
+                &tick_data.regions,
+                &tick_data.players,
+                &neighbor_map,
+            )
+            .await;
+
+        match &ac_verdict {
+            AnticheatVerdict::CancelMatch { reason } => {
+                warn!("ANTICHEAT: Cancelling match {match_id} — {reason}");
+
+                // Report violation + ban the cheater via Django (fire-and-forget)
+                let violations = anticheat.get_violations().await;
+                let django = state.django.clone();
+                let mid = match_id.to_string();
+                let all_player_ids: Vec<String> = tick_data.players.keys().cloned().collect();
+                tokio::spawn(async move {
+                    for v in &violations {
+                        let _ = django.report_anticheat_violation(
+                            &mid, &v.player_id, &v.kind.to_string(), "ban", &v.detail, v.tick,
+                        ).await;
+                    }
+                    // Ban the worst offender(s)
+                    let mut banned = std::collections::HashSet::new();
+                    for v in &violations {
+                        if banned.insert(v.player_id.clone()) {
+                            let _ = django.ban_player(&v.player_id, "Anticheat: match cancelled").await;
+                        }
+                    }
+                    // Compensate innocent players
+                    let innocent: Vec<String> = all_player_ids
+                        .into_iter()
+                        .filter(|pid| !banned.contains(pid))
+                        .collect();
+                    if !innocent.is_empty() {
+                        let _ = django.compensate_players(&mid, &innocent).await;
+                    }
+                });
+
+                let cancel_msg = json!({
+                    "type": "error",
+                    "message": "Mecz anulowany z powodu wykrycia oszustwa.",
+                    "fatal": true,
+                });
+                broadcast_to_match(match_id, &cancel_msg, &state.game_connections);
+                let _ = state_mgr.set_meta_field("status", "cancelled").await;
+                let _ = state.django.update_match_status(match_id, "cancelled").await;
+                let _ = state.django.cleanup_match(match_id).await;
+                anticheat.cleanup().await;
+                return Ok(());
+            }
+            AnticheatVerdict::FlagPlayer { player_id, reason } => {
+                warn!("ANTICHEAT: Flagging player {player_id} in match {match_id} — {reason}");
+
+                // Report violation + ban via Django (fire-and-forget)
+                {
+                    let django = state.django.clone();
+                    let mid = match_id.to_string();
+                    let pid = player_id.clone();
+                    let r = reason.clone();
+                    tokio::spawn(async move {
+                        let _ = django.report_anticheat_violation(
+                            &mid, &pid, "flagged", "flag", &r, tick,
+                        ).await;
+                        let _ = django.ban_player(&pid, &format!("Anticheat: {r}")).await;
+                    });
+                }
+
+                // Eliminate the cheater
+                if let Some(player) = tick_data.players.get_mut(player_id) {
+                    player.is_alive = false;
+                    player.eliminated_reason = Some("cheating_detected".to_string());
+                    player.eliminated_tick = Some(tick);
+                }
+                let _ = state_mgr.set_players_bulk(&tick_data.players).await;
+                let _ = state.django.set_player_alive(match_id, player_id, false).await;
+
+                // Notify all players
+                let flag_msg = json!({
+                    "type": "game_tick",
+                    "tick": tick,
+                    "events": [{
+                        "type": "player_eliminated",
+                        "player_id": player_id,
+                        "reason": "cheating_detected",
+                    }],
+                    "regions": {},
+                    "players": tick_data.players,
+                    "buildings_queue": tick_data.buildings_queue,
+                    "unit_queue": tick_data.unit_queue,
+                    "transit_queue": tick_data.transit_queue,
+                    "active_effects": tick_data.active_effects,
+                });
+                broadcast_to_match(match_id, &flag_msg, &state.game_connections);
+
+                // Remove cheater's actions from this tick
+                let cheater_id = player_id.clone();
+                tick_data.actions.retain(|a| {
+                    a.player_id.as_deref() != Some(&cheater_id)
+                });
+            }
+            AnticheatVerdict::Warn { player_id, reason } => {
+                info!("ANTICHEAT: Warning player {player_id} in match {match_id} — {reason}");
+                // Send private warning to the player
+                if let Some(match_conns) = state.game_connections.get(match_id) {
+                    if let Some(player_senders) = match_conns.get(player_id) {
+                        let warn_msg = Message::Text(
+                            json!({
+                                "type": "anticheat_warning",
+                                "message": "Wykryto podejrzaną aktywność. Dalsze naruszenia mogą skutkować usunięciem z meczu.",
+                            })
+                            .to_string()
+                            .into(),
+                        );
+                        for sender in player_senders.iter() {
+                            let _ = sender.send(warn_msg.clone());
+                        }
+                    }
+                }
+            }
+            AnticheatVerdict::Allow => {}
         }
 
         // Resolve disconnect timeouts
@@ -1104,6 +1348,7 @@ async fn game_loop(
                 let _ = state_clone.django.cleanup_match(&match_id_clone).await;
             });
 
+            anticheat.cleanup().await;
             return Ok(());
         }
 
@@ -1249,13 +1494,30 @@ async fn eliminate_player(
         .map(|(id, _)| id)
         .collect();
 
+    let alive_humans: Vec<&String> = players
+        .iter()
+        .filter(|(_, p)| p.is_alive && !p.is_bot)
+        .map(|(id, _)| id)
+        .collect();
+
+    // Game ends when: exactly 1 player alive (winner), 0 alive (tie),
+    // or no human players remain (bots can't play alone).
     let winner_id = if alive.len() == 1 {
         Some(alive[0].clone())
+    } else if alive_humans.is_empty() && !alive.is_empty() {
+        // No humans left, last alive bot "wins" (or the human who was eliminated last)
+        // Find the player eliminated most recently as the winner
+        let last_eliminated = players
+            .iter()
+            .filter(|(_, p)| !p.is_bot)
+            .max_by_key(|(_, p)| p.eliminated_tick.unwrap_or(0))
+            .map(|(id, _)| id.clone());
+        last_eliminated
     } else {
         None
     };
 
-    if winner_id.is_some() || alive.is_empty() {
+    if winner_id.is_some() || alive.is_empty() || alive_humans.is_empty() {
         let _ = state_mgr.set_meta_field("status", "finished").await;
         let _ = state.django.update_match_status(match_id, "finished").await;
         events.push(Event::GameOver {
@@ -1696,6 +1958,11 @@ async fn mark_player_connected(
         Some(p) => p,
         None => return Err("Player not found".into()),
     };
+
+    // Player explicitly left the match — do not allow reconnect
+    if !player.is_alive && player.left_match_at.is_some() {
+        return Err("Player has left the match".into());
+    }
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)

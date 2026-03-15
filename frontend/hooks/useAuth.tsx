@@ -13,6 +13,8 @@ import {
   login as apiLogin,
   register as apiRegister,
   refreshToken as apiRefresh,
+  APIError,
+  BannedError,
   type User,
 } from "@/lib/api";
 import {
@@ -25,6 +27,7 @@ import {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isBanned: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (
     username: string,
@@ -42,13 +45,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isBanned, setIsBanned] = useState(false);
+
+  const handleBanned = useCallback(() => {
+    clearTokens();
+    setUser(null);
+    setToken(null);
+    setIsBanned(true);
+  }, []);
+
+  const applyUser = useCallback((me: User, accessToken: string) => {
+    if (me.is_banned) {
+      handleBanned();
+      return;
+    }
+    setUser(me);
+    setToken(accessToken);
+    setIsBanned(false);
+  }, [handleBanned]);
 
   const loadUser = useCallback(async (accessToken: string) => {
     try {
       const me = await getMe(accessToken);
-      setUser(me);
-      setToken(accessToken);
-    } catch {
+      applyUser(me, accessToken);
+    } catch (err) {
+      // Banned users receive 401/403 from the API
+      if (err instanceof APIError && (err.status === 401 || err.status === 403)) {
+        handleBanned();
+        return;
+      }
       // Token might be expired, try refresh
       const refresh = getRefreshToken();
       if (refresh) {
@@ -56,9 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const newTokens = await apiRefresh(refresh);
           setTokens(newTokens.access, newTokens.refresh);
           const me = await getMe(newTokens.access);
-          setUser(me);
-          setToken(newTokens.access);
-        } catch {
+          applyUser(me, newTokens.access);
+        } catch (refreshErr) {
+          if (refreshErr instanceof APIError && (refreshErr.status === 401 || refreshErr.status === 403)) {
+            handleBanned();
+            return;
+          }
           clearTokens();
           setUser(null);
           setToken(null);
@@ -69,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(null);
       }
     }
-  }, []);
+  }, [applyUser, handleBanned]);
 
   useEffect(() => {
     const accessToken = getAccessToken();
@@ -85,7 +113,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const tokens = await apiLogin(email, password);
     setTokens(tokens.access, tokens.refresh);
-    await loadUser(tokens.access);
+    const me = await getMe(tokens.access);
+    if (me.is_banned) {
+      clearTokens();
+      throw new BannedError();
+    }
+    setUser(me);
+    setToken(tokens.access);
+    setIsBanned(false);
   };
 
   const register = async (
@@ -101,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearTokens();
     setUser(null);
     setToken(null);
+    setIsBanned(false);
   };
 
   const refreshUser = useCallback(async () => {
@@ -110,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadUser]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, token }}>
+    <AuthContext.Provider value={{ user, loading, isBanned, login, register, logout, refreshUser, token }}>
       {children}
     </AuthContext.Provider>
   );

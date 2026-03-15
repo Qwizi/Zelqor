@@ -1,13 +1,12 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import Image from "next/image";
 import type { GameRegion, GamePlayer, BuildingQueueItem } from "@/hooks/useGameSocket";
 import type { BuildingType, UnitType } from "@/lib/api";
 import { getActionAsset, getPlayerBuildingAsset, getPlayerUnitAsset } from "@/lib/gameAssets";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Lock } from "lucide-react";
+import { Lock, X, Hammer, Swords as SwordsIcon, Info } from "lucide-react";
 
 interface RegionPanelProps {
   regionId: string;
@@ -21,13 +20,12 @@ interface RegionPanelProps {
   onBuild: (buildingType: string) => void;
   onProduceUnit: (unitType: string) => void;
   onClose: () => void;
-  /** When non-empty, buildings not in this list show a lock icon and are disabled */
   unlockedBuildings?: string[];
-  /** When non-empty, units not in this list (and with produced_by_slug) show a lock icon and are disabled */
   unlockedUnits?: string[];
-  /** Player's max buildable levels from their deck */
   buildingLevels?: Record<string, number>;
 }
+
+type TabId = "info" | "build" | "produce";
 
 export default memo(function RegionPanel({
   regionId,
@@ -51,8 +49,8 @@ export default memo(function RegionPanel({
   const owner = region.owner_id ? players[region.owner_id] : null;
   const ownerCosmetics = owner?.cosmetics;
   const myCosmetics = players[myUserId]?.cosmetics;
+
   const buildingCounts = useMemo(() => {
-    // Prefer building_instances (new engine format); fall back to legacy buildings HashMap
     if (region.building_instances && region.building_instances.length > 0) {
       const counts: Record<string, number> = {};
       for (const inst of region.building_instances) {
@@ -69,7 +67,6 @@ export default memo(function RegionPanel({
   );
   const getUnitConfig = (slug: string) => unitConfigMap.get(slug) ?? null;
 
-  // Pre-group building instances by type (avoids filter/sort in render loops)
   const instancesByType = useMemo(() => {
     const map: Record<string, Array<{ building_type: string; level: number }>> = {};
     for (const inst of region.building_instances ?? []) {
@@ -90,7 +87,7 @@ export default memo(function RegionPanel({
     [buildingQueue, regionId]
   );
 
-  const { buildOptions, compactBuildOptions, producedUnits, compactProducedUnits, displayedBuildings, compactDisplayedBuildings } = useMemo(() => {
+  const { buildOptions, producedUnits, displayedBuildings } = useMemo(() => {
     const buildOpts = [...buildings]
       .filter((building) => !building.requires_coastal || region.is_coastal)
       .filter(
@@ -106,17 +103,10 @@ export default memo(function RegionPanel({
     const displayed = [...buildings]
       .filter((building) => (buildingCounts[building.slug] ?? 0) > 0)
       .sort((a, b) => a.order - b.order);
-    return {
-      buildOptions: buildOpts,
-      compactBuildOptions: buildOpts.slice(0, 6),
-      producedUnits: produced,
-      compactProducedUnits: produced.slice(0, 4),
-      displayedBuildings: displayed,
-      compactDisplayedBuildings: displayed.slice(0, 5),
-    };
+    return { buildOptions: buildOpts, producedUnits: produced, displayedBuildings: displayed };
   }, [buildings, units, region.is_coastal, buildingCounts, queuedBuildingCounts]);
 
-  const { unitBreakdown, compactUnitBreakdown, reservedInfantry } = useMemo(() => {
+  const { unitBreakdown, reservedInfantry } = useMemo(() => {
     const breakdown = Object.entries(region.units ?? {})
       .filter(([, count]) => count > 0)
       .sort((a, b) => b[1] - a[1]);
@@ -125,346 +115,226 @@ export default memo(function RegionPanel({
       const manpowerCost = Math.max(1, unitConfigMap.get(type)?.manpower_cost ?? 1);
       return total + count * manpowerCost;
     }, 0);
-    return {
-      unitBreakdown: breakdown,
-      compactUnitBreakdown: breakdown.slice(0, 4),
-      reservedInfantry: reserved,
-    };
+    return { unitBreakdown: breakdown, reservedInfantry: reserved };
   }, [region.units, unitConfigMap]);
 
-  const unitType = region.unit_type ?? "infantry";
-  const movementHint =
-    unitType === "fighter"
-      ? "Lotnictwo korzysta z lotniska i uderza dalej niz piechota."
-      : unitType === "ship"
-        ? "Flota dziala tylko na regionach przybrzeznych."
-        : "Jednostki ladowe walcza i poruszaja sie po standardowym grafie regionow.";
+  const hasBuild = isOwned && buildOptions.length > 0;
+  const hasProduce = isOwned && producedUnits.length > 0;
+
+  const defaultTab: TabId = hasBuild ? "build" : hasProduce ? "produce" : "info";
+  const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
+
+  const tabs: { id: TabId; label: string; icon: typeof Info; show: boolean }[] = [
+    { id: "info", label: "Info", icon: Info, show: true },
+    { id: "build", label: "Budowa", icon: Hammer, show: hasBuild },
+    { id: "produce", label: "Jednostki", icon: SwordsIcon, show: hasProduce },
+  ];
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-20 h-[min(68vh,720px)] overflow-y-auto rounded-t-[28px] border-t border-white/10 bg-slate-950/92 p-4 shadow-[0_-20px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:inset-y-0 sm:left-auto sm:right-0 sm:h-full sm:w-[360px] sm:rounded-t-none sm:border-l sm:border-t-0 sm:shadow-[-20px_0_60px_rgba(0,0,0,0.3)]">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
-            Region
-          </p>
-          <h3 className="font-display text-2xl text-zinc-50">{region.name}</h3>
+    <div className="absolute inset-x-0 bottom-0 z-20 flex h-[min(55vh,520px)] flex-col overflow-hidden rounded-t-[20px] border-t border-border bg-card shadow-lg sm:bg-card/95 sm:inset-y-0 sm:left-auto sm:right-0 sm:h-full sm:w-[300px] sm:rounded-t-none sm:border-l sm:border-t-0 sm:shadow-[-16px_0_48px_rgba(0,0,0,0.3)] sm:backdrop-blur-xl">
+
+      {/* ── Drag handle (mobile) ── */}
+      <div className="flex justify-center py-2 sm:hidden">
+        <div className="h-1 w-8 rounded-full bg-muted-foreground/30" />
+      </div>
+
+      {/* ── Sticky header ── */}
+      <div className="flex items-center gap-2 px-3 pb-2 sm:pt-3">
+        {/* Owner color dot */}
+        {owner && (
+          <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-border" style={{ backgroundColor: owner.color }} />
+        )}
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-display text-base font-bold text-foreground sm:text-lg">{region.name}</h3>
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            {owner ? (
+              <span className="truncate">{owner.username}{owner.is_bot ? " (BOT)" : ""}</span>
+            ) : (
+              <span>Neutralny</span>
+            )}
+            {region.is_capital && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-yellow-300">Stolica</span>
+              </>
+            )}
+            {region.is_coastal && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-primary">Przybrzezny</span>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Quick stats */}
+        <div className="flex items-center gap-2 text-xs tabular-nums">
+          <div className="flex items-center gap-1 rounded-lg bg-muted/30 px-2 py-1">
+            <Image
+              src={getPlayerUnitAsset(region.unit_type ?? "default", ownerCosmetics, getUnitConfig(region.unit_type ?? "")?.asset_url)}
+              alt="" width={14} height={14} className="h-3.5 w-3.5 object-contain"
+            />
+            <span className="font-display font-bold text-foreground">{isOwned ? region.unit_count : "?"}</span>
+          </div>
+          <div className="flex items-center gap-1 rounded-lg bg-muted/30 px-2 py-1">
+            <span className="text-[11px] text-primary">⚡</span>
+            <span className="font-display font-bold text-foreground">{isOwned ? myEnergy : "?"}</span>
+          </div>
+        </div>
+
         <button
           onClick={onClose}
           aria-label="Zamknij"
-          className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
         >
-          <Image
-            src={getActionAsset("close")}
-            alt=""
-            width={14}
-            height={14}
-            className="h-3.5 w-3.5 object-contain"
-          />
+          <X className="h-4 w-4" />
         </button>
       </div>
 
-      <p className="text-sm text-zinc-400">{region.country_code} · ID {regionId}</p>
-
-      <div className="mt-4 space-y-3 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-          <span className="min-w-0 text-zinc-400">Właściciel</span>
-          {owner ? (
-            <span className="flex max-w-[62%] items-center gap-1.5">
-              <Badge style={{ backgroundColor: owner.color }} className="truncate border-0 text-white">
-                {owner.username}
-              </Badge>
-              {owner.is_bot && (
-                <span className="shrink-0 rounded bg-zinc-700 px-1 py-0.5 text-[9px] uppercase tracking-wider text-zinc-400">
-                  bot
-                </span>
-              )}
-            </span>
-          ) : (
-            <span className="text-zinc-500">Brak</span>
-          )}
+      {/* ── Tabs ── */}
+      {(hasBuild || hasProduce) && (
+        <div className="flex gap-1 border-b border-border px-3 pb-0">
+          {tabs.filter(t => t.show).map((tab) => {
+            const active = activeTab === tab.id;
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors ${
+                  active
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
+      )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-            <span className="block text-xs uppercase tracking-[0.16em] text-zinc-500">Jednostki</span>
-            <div className="mt-2 flex min-w-0 items-center gap-2">
-              <Image
-                src={getPlayerUnitAsset(region.unit_type ?? "default", ownerCosmetics, getUnitConfig(region.unit_type ?? "")?.asset_url)}
-                alt=""
-                width={24}
-                height={24}
-                className="h-6 w-6 object-contain"
-              />
-              <span className="truncate font-display text-2xl text-zinc-50">
-                {isOwned ? region.unit_count : "?"}
-              </span>
-            </div>
-          </div>
-          <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-            <span className="block text-xs uppercase tracking-[0.16em] text-zinc-500">Energia</span>
-            <div className="mt-2 flex min-w-0 items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center text-cyan-400">⚡</span>
-              <span className="truncate font-display text-2xl text-zinc-50">
-                {isOwned ? myEnergy : "?"}
-              </span>
-            </div>
-          </div>
-        </div>
+      {/* ── Scrollable content ── */}
+      <div className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin scrollbar-thumb-border">
 
-        {compactUnitBreakdown.length > 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
-            <div className="mb-3 text-xs uppercase tracking-[0.18em] text-zinc-500">
-              Typy jednostek
-            </div>
-            <div className="grid gap-2">
-              {compactUnitBreakdown.map(([type, count]) => (
-                (() => {
+        {/* ═══ INFO TAB ═══ */}
+        {activeTab === "info" && (
+          <div className="space-y-2">
+            {/* Unit breakdown */}
+            {unitBreakdown.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Jednostki</p>
+                {unitBreakdown.map(([type, count]) => {
                   const unitConfig = getUnitConfig(type);
                   const manpowerCost = Math.max(1, unitConfig?.manpower_cost ?? 1);
                   const effectivePower = count * manpowerCost;
                   const isBaseInfantry = type === "infantry";
                   const freeInfantry = Math.max(0, count - reservedInfantry);
-
                   return (
-                    <div
-                      key={type}
-                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <Image
-                            src={getPlayerUnitAsset(type, ownerCosmetics, unitConfig?.asset_url)}
-                            alt={type}
-                            width={18}
-                            height={18}
-                            className="h-[18px] w-[18px] object-contain"
-                          />
-                          <span className="truncate text-sm text-zinc-100">{getUnitConfig(type)?.name ?? type}</span>
-                        </div>
-                        {isBaseInfantry && reservedInfantry > 0 && (
-                          <div className="mt-1 text-[11px] text-zinc-500">
-                            wolna sila {freeInfantry} · zaladowana w nosnikach {reservedInfantry}
-                          </div>
-                        )}
-                        {!isBaseInfantry && manpowerCost > 1 && (
-                          <div className="mt-1 text-[11px] text-zinc-500">
-                            {count} nosnik{count === 1 ? "" : "i"} · sila {effectivePower} · zaloga {manpowerCost}/szt.
-                          </div>
-                        )}
-                      </div>
-                      <Badge variant="secondary">
+                    <div key={type} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
+                      <Image
+                        src={getPlayerUnitAsset(type, ownerCosmetics, unitConfig?.asset_url)}
+                        alt={type} width={16} height={16} className="h-4 w-4 object-contain"
+                      />
+                      <span className="flex-1 truncate text-xs text-foreground">{unitConfig?.name ?? type}</span>
+                      <span className="text-xs font-bold tabular-nums text-foreground">
                         {isOwned ? (isBaseInfantry ? freeInfantry : effectivePower) : "?"}
-                      </Badge>
+                      </span>
+                      {!isBaseInfantry && manpowerCost > 1 && isOwned && (
+                        <span className="text-[10px] text-muted-foreground">({count}x)</span>
+                      )}
                     </div>
                   );
-                })()
-              ))}
-            </div>
-            {unitBreakdown.length > compactUnitBreakdown.length && (
-              <div className="mt-2 text-[11px] text-zinc-500">
-                +{unitBreakdown.length - compactUnitBreakdown.length} dodatkowych typow
+                })}
               </div>
             )}
-          </div>
-        )}
 
-        {region.is_capital && (
-          <div className="flex items-center gap-2 rounded-2xl border border-yellow-300/15 bg-yellow-300/5 px-3 py-2 text-yellow-300">
-            <Image
-              src="/assets/units/capital_star.png"
-              alt=""
-              width={24}
-              height={24}
-              className="h-6 w-6 object-contain"
-            />
-            <span className="text-sm font-medium">Stolica</span>
-          </div>
-        )}
+            {/* Infrastructure */}
+            {displayedBuildings.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Infrastruktura</p>
+                {displayedBuildings.map((building) => {
+                  const instances = instancesByType[building.slug] ?? [];
+                  const legacyCount = !region.building_instances ? (buildingCounts[building.slug] ?? 0) : 0;
+                  const asset = getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url);
 
-        {region.is_coastal && (
-          <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/5 px-3 py-2 text-sm text-cyan-200">
-            Region przybrzezny
-          </div>
-        )}
-
-        {compactDisplayedBuildings.length > 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
-            <div className="mb-3 text-xs uppercase tracking-[0.18em] text-zinc-500">
-              Infrastruktura
-            </div>
-            <div className="grid gap-2">
-              {compactDisplayedBuildings.map((building) => {
-                // Collect all instances for this building type, sorted by level ascending
-                const instances = instancesByType[building.slug] ?? [];
-                // Fall back to legacy count with no level info
-                const legacyCount = !region.building_instances ? (buildingCounts[building.slug] ?? 0) : 0;
-
-                if (instances.length > 0) {
-                  return instances.map((inst, idx) => {
-                    const levelColor =
-                      inst.level >= 3
-                        ? "text-yellow-300 bg-yellow-300/10 border-yellow-300/20"
-                        : inst.level === 2
-                          ? "text-blue-300 bg-blue-300/10 border-blue-300/20"
-                          : "text-zinc-400 bg-white/[0.06] border-white/10";
-                    return (
-                      <div
-                        key={`${building.slug}-${idx}`}
-                        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2"
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          {getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url) && (
-                            <Image
-                              src={getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url)!}
-                              alt={building.name}
-                              width={22}
-                              height={22}
-                              className="h-[22px] w-[22px] object-contain"
-                            />
-                          )}
-                          <span className="truncate text-sm text-zinc-100">{building.name}</span>
+                  if (instances.length > 0) {
+                    return instances.map((inst, idx) => {
+                      const lvl = inst.level;
+                      const lvlColor = lvl >= 3 ? "text-yellow-300" : lvl === 2 ? "text-blue-300" : "text-muted-foreground";
+                      return (
+                        <div key={`${building.slug}-${idx}`} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
+                          {asset && <Image src={asset} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
+                          <span className="flex-1 truncate text-xs text-foreground">{building.name}</span>
+                          <span className={`text-[10px] font-bold ${lvlColor}`}>Lvl {lvl}</span>
                         </div>
-                        <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${levelColor}`}>
-                          Lvl {inst.level}
-                        </span>
-                      </div>
-                    );
-                  });
-                }
-
-                // Legacy fallback: show count badge without level
-                return (
-                  <div
-                    key={building.slug}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      {getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url) && (
-                        <Image
-                          src={getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url)!}
-                          alt={building.name}
-                          width={22}
-                          height={22}
-                          className="h-[22px] w-[22px] object-contain"
-                        />
-                      )}
-                      <span className="truncate text-sm text-zinc-100">{building.name}</span>
+                      );
+                    });
+                  }
+                  return (
+                    <div key={building.slug} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
+                      {asset && <Image src={asset} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
+                      <span className="flex-1 truncate text-xs text-foreground">{building.name}</span>
+                      <Badge variant="secondary" className="text-[10px]">x{legacyCount}</Badge>
                     </div>
-                    <Badge variant="secondary">x{legacyCount}</Badge>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Build queue */}
+            {Object.keys(queuedBuildingCounts).length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">W kolejce</p>
+                {Object.entries(queuedBuildingCounts).map(([slug, count]) => {
+                  const building = buildings.find((e) => e.slug === slug);
+                  const asset = getPlayerBuildingAsset(building?.asset_key || slug, myCosmetics, building?.asset_url);
+                  return (
+                    <div key={slug} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
+                      {asset && <Image src={asset} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
+                      <span className="flex-1 truncate text-xs text-foreground">{building?.name ?? slug}</span>
+                      <Badge variant="secondary" className="text-[10px]">+{count}</Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Bonuses */}
+            {(region.defense_bonus > 0 || (region.energy_generation_bonus ?? 0) > 0) && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Bonusy</p>
+                {region.defense_bonus > 0 && (
+                  <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-xs">
+                    <span className="text-muted-foreground">Obrona</span>
+                    <span className="font-bold text-green-400">+{Math.round(region.defense_bonus * 100)}%</span>
                   </div>
-                );
-              })}
-            </div>
-            {displayedBuildings.length > compactDisplayedBuildings.length && (
-              <div className="mt-2 text-[11px] text-zinc-500">
-                +{displayedBuildings.length - compactDisplayedBuildings.length} kolejnych budynkow
+                )}
+                {(region.energy_generation_bonus ?? 0) > 0 && (
+                  <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-xs">
+                    <span className="text-muted-foreground">Energia</span>
+                    <span className="font-bold text-primary">+{(region.energy_generation_bonus ?? 0).toFixed(1)}/tick</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
-        {Object.keys(queuedBuildingCounts).length > 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
-            <div className="mb-3 text-xs uppercase tracking-[0.18em] text-zinc-500">
-              W kolejce
-            </div>
-            <div className="grid gap-2">
-              {Object.entries(queuedBuildingCounts).map(([slug, count]) => {
-                const building = buildings.find((entry) => entry.slug === slug);
-                const label = building?.name ?? slug;
-                const asset = getPlayerBuildingAsset(building?.asset_key || slug, myCosmetics, building?.asset_url);
-                return (
-                  <div
-                    key={slug}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      {asset && (
-                        <Image
-                          src={asset}
-                          alt={label}
-                          width={22}
-                          height={22}
-                          className="h-[22px] w-[22px] object-contain"
-                        />
-                      )}
-                      <span className="truncate text-sm text-zinc-100">{label}</span>
-                    </div>
-                    <Badge variant="secondary">+{count}</Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {region.defense_bonus > 0 && (
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-            <span className="min-w-0 text-zinc-400">Bonus obrony</span>
-            <span className="whitespace-nowrap flex items-center gap-1 text-green-400">
-              <Image
-                src={getActionAsset("defense")}
-                alt=""
-                width={14}
-                height={14}
-                className="h-3.5 w-3.5 object-contain"
-              />
-              +{Math.round(region.defense_bonus * 100)}%
-            </span>
-          </div>
-        )}
-
-        {(region.energy_generation_bonus ?? 0) > 0 && (
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-            <span className="min-w-0 text-zinc-400">Energia regionu</span>
-            <span className="whitespace-nowrap flex items-center gap-1 text-cyan-300">
-              <span className="text-[13px]">⚡</span>
-              +{(region.energy_generation_bonus ?? 0).toFixed(1)}/tick
-            </span>
-          </div>
-        )}
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-zinc-400">
-          {movementHint}
-        </div>
-      </div>
-
-      {isOwned && (
-        <>
-          <Separator className="my-5 bg-white/10" />
-          <div data-tutorial="build-section">
-          <h4 className="flex items-center gap-2 text-sm font-medium text-amber-400">
-            <Image
-              src={getActionAsset("build")}
-              alt=""
-              width={18}
-              height={18}
-              className="h-[18px] w-[18px] object-contain"
-            />
-            Rozbudowa infrastruktury
-          </h4>
-          <div className="mt-3 space-y-2">
-            {compactBuildOptions.map((building) => {
+        {/* ═══ BUILD TAB ═══ */}
+        {activeTab === "build" && (
+          <div className="space-y-1.5" data-tutorial="build-section">
+            {buildOptions.map((building) => {
               const isBuildingLocked = hasBuildingLocks && !unlockedBuildings!.includes(building.slug);
-              // Derive the minimum level instance for this building type (weakest = first to upgrade)
               const typeInstances = instancesByType[building.slug] ?? [];
               const currentRegionLevel = typeInstances.length > 0
                 ? typeInstances[0].level
                 : region.building_levels?.[building.slug];
               const playerMaxLevel = buildingLevels?.[building.slug];
-              const canUpgrade =
-                currentRegionLevel != null &&
-                playerMaxLevel != null &&
-                currentRegionLevel < playerMaxLevel;
-              const isAtMaxLevel =
-                currentRegionLevel != null &&
-                playerMaxLevel != null &&
-                currentRegionLevel >= playerMaxLevel;
+              const canUpgrade = currentRegionLevel != null && playerMaxLevel != null && currentRegionLevel < playerMaxLevel;
+              const isAtMaxLevel = currentRegionLevel != null && playerMaxLevel != null && currentRegionLevel >= playerMaxLevel;
               const hasBuilt = (buildingCounts[building.slug] ?? 0) > 0;
-              const upgradeLabel = canUpgrade
-                ? `Ulepsz do Lvl ${currentRegionLevel! + 1}${typeInstances.length > 1 ? ` (najslabsza: Lvl ${currentRegionLevel})` : ""}`
-                : "Buduj Lvl 1";
               const displayName = hasBuilt && currentRegionLevel != null
                 ? `${building.name} Lvl ${currentRegionLevel}`
                 : building.name;
@@ -472,144 +342,95 @@ export default memo(function RegionPanel({
               const nextLevel = isUpgrade ? (currentRegionLevel ?? 0) + 1 : 1;
               const nextCost = building.level_stats?.[String(nextLevel)]?.energy_cost ?? building.energy_cost;
               const nextTime = building.level_stats?.[String(nextLevel)]?.build_time_ticks ?? building.build_time_ticks;
+              const asset = getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url);
+
               return (
                 <button
                   key={building.id}
                   onClick={() => !isBuildingLocked && onBuild(building.slug)}
                   disabled={myEnergy < nextCost || isBuildingLocked || isAtMaxLevel === true}
-                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[22px] border border-amber-400/10 bg-amber-500/10 px-3 py-3 text-left text-sm transition-colors hover:bg-amber-500/15 disabled:opacity-40"
+                  className="flex w-full items-center gap-2.5 rounded-xl border border-accent/10 bg-accent/5 px-2.5 py-2 text-left transition-colors hover:bg-accent/15 active:scale-[0.98] disabled:opacity-40"
                 >
-                  <span className="flex min-w-0 items-center gap-3">
-                    {getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url) && (
-                      <Image
-                        src={getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url)!}
-                        alt={building.name}
-                        width={32}
-                        height={32}
-                        className="h-8 w-8 shrink-0 object-contain"
-                      />
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-1.5 truncate font-medium text-zinc-50">
-                        {isBuildingLocked && <Lock className="h-3 w-3 shrink-0 text-zinc-500" />}
-                        {displayName}
-                      </span>
-                      <span className="mt-1 block text-[11px] leading-4 text-zinc-400">
-                        {isBuildingLocked
-                          ? "Wymaga blueprintu z talii"
-                          : isAtMaxLevel
-                            ? "Max"
-                            : canUpgrade
-                              ? upgradeLabel
-                              : `Limit ${(buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0)}/${building.max_per_region}`}
-                      </span>
-                    </span>
-                  </span>
-                  <div className="text-right text-[11px] text-zinc-400">
+                  {asset && (
+                    <Image src={asset} alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1 truncate text-sm font-medium text-foreground">
+                      {isBuildingLocked && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
+                      {displayName}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {isBuildingLocked
+                        ? "Wymaga blueprintu"
+                        : isAtMaxLevel
+                          ? "Maksymalny poziom"
+                          : canUpgrade
+                            ? `Ulepsz do Lvl ${currentRegionLevel! + 1}`
+                            : `${(buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0)}/${building.max_per_region}`}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
                     {isBuildingLocked ? (
-                      <Lock className="ml-auto h-4 w-4 text-zinc-600" />
+                      <Lock className="h-4 w-4 text-muted-foreground" />
                     ) : isAtMaxLevel ? (
-                      <span className="rounded border border-yellow-300/20 bg-yellow-300/10 px-1.5 py-0.5 text-[10px] font-medium text-yellow-300">
-                        Max
-                      </span>
+                      <span className="rounded border border-yellow-300/20 bg-yellow-300/10 px-1.5 py-0.5 text-[10px] font-bold text-yellow-300">Max</span>
                     ) : (
-                      <>
-                        <span className="flex items-center justify-end gap-1">
-                          <span className="text-[13px] text-cyan-400">⚡</span>
-                          {nextCost}
-                        </span>
-                        <span className="mt-1 flex items-center justify-end gap-1">
-                          <Image
-                            src="/assets/icons/time_icon.png"
-                            alt=""
-                            width={14}
-                            height={14}
-                            className="h-3.5 w-3.5 object-contain opacity-70"
-                          />
-                          {nextTime} tick
-                        </span>
-                      </>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-end gap-0.5 text-xs font-bold">
+                          <span className="text-primary">⚡</span>
+                          <span className={myEnergy >= nextCost ? "text-foreground" : "text-destructive"}>{nextCost}</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">{nextTime}t</div>
+                      </div>
                     )}
                   </div>
                 </button>
               );
             })}
           </div>
-          {buildOptions.length > compactBuildOptions.length && (
-            <div className="mt-2 text-[11px] text-zinc-500">
-              Pokazano {compactBuildOptions.length} z {buildOptions.length} mozliwych budynkow
-            </div>
-          )}
-          </div>{/* close data-tutorial="build-section" */}
+        )}
 
-          {compactProducedUnits.length > 0 && (
-            <>
-              <Separator className="my-5 bg-white/10" />
-              <h4 className="flex items-center gap-2 text-sm font-medium text-cyan-300">
-                <Image
-                  src={getPlayerUnitAsset(region.unit_type ?? "default", myCosmetics, getUnitConfig(region.unit_type ?? "")?.asset_url)}
-                  alt=""
-                  width={18}
-                  height={18}
-                  className="h-[18px] w-[18px] object-contain"
-                />
-                Produkcja jednostek specjalnych
-              </h4>
-              <div className="mt-3 space-y-2">
-                {compactProducedUnits.map((unit) => {
-                  const isUnitLocked = hasUnitLocks && Boolean(unit.produced_by_slug) && !unlockedUnits!.includes(unit.slug);
-                  return (
-                    <button
-                      key={unit.id}
-                      onClick={() => !isUnitLocked && onProduceUnit(unit.slug)}
-                      disabled={myEnergy < unit.production_cost || isUnitLocked}
-                      className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[22px] border border-cyan-400/10 bg-cyan-500/10 px-3 py-3 text-left transition-colors hover:bg-cyan-500/15 disabled:opacity-40"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Image
-                          src={getPlayerUnitAsset(unit.asset_key || unit.slug, myCosmetics, unit.asset_url)}
-                          alt={unit.name}
-                          width={28}
-                          height={28}
-                          className="h-7 w-7 object-contain"
-                        />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 truncate font-medium text-zinc-50">
-                            {isUnitLocked && <Lock className="h-3 w-3 shrink-0 text-zinc-500" />}
-                            {unit.name}
-                          </div>
-                          <div className="text-xs text-zinc-400">
-                            {isUnitLocked ? "Wymaga blueprintu z talii" : unit.description}
-                          </div>
-                        </div>
+        {/* ═══ PRODUCE TAB ═══ */}
+        {activeTab === "produce" && (
+          <div className="space-y-1.5">
+            {producedUnits.map((unit) => {
+              const isUnitLocked = hasUnitLocks && Boolean(unit.produced_by_slug) && !unlockedUnits!.includes(unit.slug);
+              return (
+                <button
+                  key={unit.id}
+                  onClick={() => !isUnitLocked && onProduceUnit(unit.slug)}
+                  disabled={myEnergy < unit.production_cost || isUnitLocked}
+                  className="flex w-full items-center gap-2.5 rounded-xl border border-primary/10 bg-primary/5 px-2.5 py-2 text-left transition-colors hover:bg-primary/15 active:scale-[0.98] disabled:opacity-40"
+                >
+                  <Image
+                    src={getPlayerUnitAsset(unit.asset_key || unit.slug, myCosmetics, unit.asset_url)}
+                    alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1 truncate text-sm font-medium text-foreground">
+                      {isUnitLocked && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
+                      {unit.name}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {isUnitLocked ? "Wymaga blueprintu" : `Zaloga ${unit.manpower_cost} · ${unit.production_time_ticks}t`}
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    {isUnitLocked ? (
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <div className="flex items-center gap-0.5 text-xs font-bold">
+                        <span className="text-primary">⚡</span>
+                        <span className={myEnergy >= unit.production_cost ? "text-foreground" : "text-destructive"}>{unit.production_cost}</span>
                       </div>
-                      <div className="whitespace-nowrap text-right text-xs text-zinc-400">
-                        {isUnitLocked ? (
-                          <Lock className="ml-auto h-4 w-4 text-zinc-600" />
-                        ) : (
-                          <>
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="text-[13px] text-cyan-400">⚡</span>
-                              {unit.production_cost}
-                            </div>
-                            <div>Załoga: {unit.manpower_cost} piech.</div>
-                            <div>{unit.production_time_ticks} tick</div>
-                          </>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              {producedUnits.length > compactProducedUnits.length && (
-                <div className="mt-2 text-[11px] text-zinc-500">
-                  +{producedUnits.length - compactProducedUnits.length} dodatkowych jednostek specjalnych
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 });

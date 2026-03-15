@@ -34,6 +34,7 @@ import {
   type User as UserType,
 } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { BannedBadge } from "@/components/ui/banned-badge";
 import dynamic from "next/dynamic";
 
 const ProfileCharts = dynamic(() => import("@/components/profile/ProfileCharts"), { ssr: false });
@@ -153,6 +154,7 @@ export default function ProfilePage() {
 
   const currentUser = profile ?? user!;
   const displayName = isOwnProfile ? currentUser.username : (entry?.username ?? "Gracz");
+  const isBanned = isOwnProfile ? currentUser.is_banned : (entry?.is_banned ?? false);
   const elo = isOwnProfile ? currentUser.elo_rating : (entry?.elo_rating ?? 0);
   const matchesPlayed = isOwnProfile ? matches.length : (entry?.matches_played ?? 0);
   const wins = isOwnProfile
@@ -191,6 +193,18 @@ export default function ProfilePage() {
         )}
       </div>
 
+      {/* Banned banner */}
+      {isBanned && (
+        <div className="px-4 md:px-0">
+          <div className="flex items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3">
+            <BannedBadge className="text-xs px-2 py-1" />
+            <span className="text-sm text-destructive font-medium">
+              {isOwnProfile ? "Twoje konto zostało zbanowane." : "To konto zostało zbanowane."}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Identity + stats */}
       <div className="px-4 md:px-0">
         <div data-animate="identity" className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
@@ -208,6 +222,7 @@ export default function ProfilePage() {
                 {placement && (
                   <span className="text-xs md:text-sm text-muted-foreground font-medium">#{placement}</span>
                 )}
+                {isBanned && <BannedBadge />}
               </div>
               {isOwnProfile && (
                 <p className="text-xs md:text-sm text-muted-foreground truncate">{currentUser.email}</p>

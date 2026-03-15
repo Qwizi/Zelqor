@@ -4,7 +4,7 @@ from django.utils import timezone
 from ninja.errors import HttpError
 from ninja_extra import api_controller, route
 from ninja_extra.permissions import IsAuthenticated
-from ninja_jwt.authentication import JWTAuth
+from apps.accounts.auth import ActiveUserJWTAuth
 
 from apps.developers.models import (
     VALID_SCOPES,
@@ -48,7 +48,7 @@ class OAuthController:
     # The authenticated user grants permission to a third-party app.
     # -------------------------------------------------------------------------
 
-    @route.post('/authorize/', auth=JWTAuth(), permissions=[IsAuthenticated])
+    @route.post('/authorize/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def authorize(self, request, payload: OAuthAuthorizeRequestSchema):
         """Issue an authorization code for the authenticated user."""
         try:

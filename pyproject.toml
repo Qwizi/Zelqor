@@ -20,3 +20,8 @@ dependencies = [
     "requests>=2.32.5",
     "django-unfold>=0.84.0",
 ]
+
+[dependency-groups]
+dev = [
+    "websockets>=16.0",
+]

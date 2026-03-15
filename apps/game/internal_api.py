@@ -41,6 +41,25 @@ class CancelMatchRequest(Schema):
     match_id: str
 
 
+class ReportViolationRequest(Schema):
+    match_id: str
+    player_id: str
+    violation_kind: str
+    severity: str
+    detail: str
+    tick: int
+
+
+class BanPlayerRequest(Schema):
+    player_id: str
+    reason: str
+
+
+class CompensateRequest(Schema):
+    match_id: str
+    player_ids: list[str] = Field(default_factory=list)
+
+
 # --- Controller ---
 
 
@@ -107,6 +126,7 @@ class GameInternalController(ControllerBase):
                 'id': str(user.id),
                 'username': user.username,
                 'elo_rating': user.elo_rating,
+                'is_active': not user.is_banned,
             }
         except User.DoesNotExist:
             return self.create_response({'error': 'User not found'}, status_code=404)
@@ -116,9 +136,14 @@ class GameInternalController(ControllerBase):
         if not check_internal_secret(request):
             return self.create_response({'error': 'Unauthorized'}, status_code=403)
 
+        from apps.accounts.models import User
         from apps.matchmaking.models import MatchPlayer
         is_member = MatchPlayer.objects.filter(match_id=match_id, user_id=user_id).exists()
-        return {'is_member': is_member}
+        try:
+            is_banned = User.objects.filter(id=user_id).values_list('is_banned', flat=True).get()
+        except User.DoesNotExist:
+            is_banned = True
+        return {'is_member': is_member, 'is_active': not is_banned}
 
     @route.get('/matches/{match_id}/data/')
     def get_match_data(self, request, match_id: str):
@@ -247,6 +272,88 @@ class GameInternalController(ControllerBase):
             status__in=[Match.Status.SELECTING, Match.Status.IN_PROGRESS]
         ).values_list('id', flat=True)
         return {'match_ids': [str(m) for m in matches]}
+
+    @route.post('/anticheat/report-violation/')
+    def report_violation(self, request, body: ReportViolationRequest):
+        """Record an anti-cheat violation detected by the Rust gateway."""
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from apps.game.models import AnticheatViolation
+        AnticheatViolation.objects.create(
+            match_id=body.match_id,
+            player_id=body.player_id,
+            violation_kind=body.violation_kind,
+            severity=body.severity,
+            detail=body.detail,
+            tick=body.tick,
+        )
+        logger.info(
+            "Anticheat violation recorded: %s (%s) for player %s in match %s at tick %d",
+            body.violation_kind,
+            body.severity,
+            body.player_id,
+            body.match_id,
+            body.tick,
+        )
+        return self.create_response({'ok': True}, status_code=201)
+
+    @route.post('/anticheat/ban-player/')
+    def ban_player(self, request, body: BanPlayerRequest):
+        """Deactivate (ban) a player account flagged by the Rust gateway."""
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from apps.accounts.models import User
+        updated = User.objects.filter(id=body.player_id).update(is_banned=True, banned_reason=body.reason)
+        if not updated:
+            return self.create_response({'error': 'User not found'}, status_code=404)
+
+        logger.warning(
+            "Player %s banned via anticheat. Reason: %s",
+            body.player_id,
+            body.reason,
+        )
+        return {'ok': True, 'player_id': body.player_id}
+
+    @route.post('/anticheat/compensate/')
+    def compensate_players(self, request, body: CompensateRequest):
+        """Reverse ELO changes for players affected by a cheater in a match."""
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from django.db import transaction
+        from apps.game.models import PlayerResult
+
+        compensated = []
+        errors = []
+
+        with transaction.atomic():
+            for player_id in body.player_ids:
+                try:
+                    pr = PlayerResult.objects.select_related('user').get(
+                        match_result__match_id=body.match_id,
+                        user_id=player_id,
+                    )
+                    if pr.elo_change != 0:
+                        pr.user.elo_rating -= pr.elo_change
+                        pr.user.save(update_fields=['elo_rating'])
+                        logger.info(
+                            "Compensated player %s: reversed ELO change of %+d (match %s)",
+                            player_id,
+                            pr.elo_change,
+                            body.match_id,
+                        )
+                    compensated.append(player_id)
+                except PlayerResult.DoesNotExist:
+                    logger.warning(
+                        "No PlayerResult for player %s in match %s — skipping compensation",
+                        player_id,
+                        body.match_id,
+                    )
+                    errors.append(player_id)
+
+        return {'ok': True, 'compensated': compensated, 'not_found': errors}
 
     @route.get('/regions/neighbors/')
     def get_neighbor_map(self, request):

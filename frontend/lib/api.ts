@@ -80,6 +80,14 @@ export interface User {
   elo_rating: number;
   date_joined: string;
   tutorial_completed: boolean;
+  is_banned: boolean;
+}
+
+export class BannedError extends Error {
+  constructor() {
+    super("Account banned");
+    this.name = "BannedError";
+  }
 }
 
 export async function login(
@@ -114,6 +122,19 @@ export async function getMe(token: string): Promise<User> {
   return fetchAPI<User>("/auth/me", { token });
 }
 
+export interface WsTicketResponse {
+  ticket: string;
+  challenge: string;
+  difficulty: number;
+}
+
+export async function getWsTicket(token: string): Promise<WsTicketResponse> {
+  return fetchAPI<WsTicketResponse>("/auth/ws-ticket/", {
+    method: "POST",
+    token,
+  });
+}
+
 export interface LeaderboardEntry {
   id: string;
   username: string;
@@ -122,6 +143,7 @@ export interface LeaderboardEntry {
   wins: number;
   win_rate: number;
   average_placement: number;
+  is_banned: boolean;
 }
 
 export async function getLeaderboard(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<LeaderboardEntry>> {
@@ -343,6 +365,7 @@ export interface MatchPlayer {
   color: string;
   is_alive: boolean;
   joined_at: string;
+  is_banned: boolean;
 }
 
 export interface Match {
@@ -366,6 +389,7 @@ export interface PlayerResult {
   units_lost: number;
   buildings_built: number;
   elo_change: number;
+  is_banned: boolean;
 }
 
 export interface MatchResult {

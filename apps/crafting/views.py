@@ -1,7 +1,7 @@
 import logging
 from django.db import transaction
 from ninja_extra import api_controller, route
-from ninja_jwt.authentication import JWTAuth
+from apps.accounts.auth import ActiveUserJWTAuth
 from apps.pagination import paginate_qs
 
 from apps.crafting.models import CraftingLog, Recipe
@@ -24,7 +24,7 @@ class CraftingController:
             .prefetch_related('ingredients__item', 'ingredients__item__category')
         )
 
-    @route.get('/history/', response=dict, auth=JWTAuth())
+    @route.get('/history/', response=dict, auth=ActiveUserJWTAuth())
     def crafting_history(self, request, limit: int = 50, offset: int = 0):
         """Get user's crafting history."""
         qs = (
@@ -33,7 +33,7 @@ class CraftingController:
         )
         return paginate_qs(qs, limit, offset, schema=CraftingLogOutSchema)
 
-    @route.post('/craft/', auth=JWTAuth())
+    @route.post('/craft/', auth=ActiveUserJWTAuth())
     def craft_item(self, request, payload: CraftInSchema):
         """Craft an item using a recipe."""
         recipe = (

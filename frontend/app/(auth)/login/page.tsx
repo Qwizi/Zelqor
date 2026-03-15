@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AuthScreen from "@/components/auth/AuthScreen";
 import { toast } from "sonner";
-import { APIError, type User } from "@/lib/api";
+import { APIError, BannedError, type User } from "@/lib/api";
 import { Plus, X, ArrowLeft, Save, SkipForward } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -140,10 +140,14 @@ function LoginForm() {
   const [view, setView] = useState<ViewState>({ kind: "profiles" });
   const [generalError, setGeneralError] = useState<string | null>(null);
 
-  // Redirect if already logged in
+  const isBannedParam = searchParams.get("banned") === "1";
+
+  // Redirect if already logged in (but not during save-prompt / auto-save flow)
   useEffect(() => {
-    if (user) router.replace("/dashboard");
-  }, [user, router]);
+    if (user && view.kind !== "save-prompt" && view.kind !== "auto-save") {
+      router.replace("/dashboard");
+    }
+  }, [user, router, view.kind]);
 
   // Load profiles once on the client
   useEffect(() => {
@@ -210,6 +214,10 @@ function LoginForm() {
     try {
       await login(data.identifier, data.password);
     } catch (err: unknown) {
+      if (err instanceof BannedError) {
+        setGeneralError("Twoje konto zostało zbanowane za oszustwo.");
+        return;
+      }
       if (err instanceof APIError) {
         if (
           err.status === 401 ||
@@ -392,6 +400,13 @@ function LoginForm() {
                 {selectedProfile.username}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Ban notice — shown when redirected from game with ?banned=1 */}
+        {isBannedParam && !generalError && (
+          <div className="rounded-xl md:rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 md:px-6 md:py-4 text-sm text-destructive font-medium">
+            Twoje konto zostało zbanowane za oszustwo.
           </div>
         )}
 

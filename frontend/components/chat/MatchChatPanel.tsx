@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { MessageList, type ChatMessage } from "./MessageList";
 import { ChatInput } from "./ChatInput";
-import { MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { MessageSquare, ChevronDown, ChevronUp, X } from "lucide-react";
 
 const CHAT_NOTIFICATION_SOUND = "/assets/audio/gui/int_popup.ogg";
 
@@ -23,12 +23,12 @@ interface MatchChatPanelProps {
 
 export default function MatchChatPanel({ messages, currentUserId, onSend }: MatchChatPanelProps) {
   const [expanded, setExpanded] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const prevCountRef = useRef(messages.length);
   const initializedRef = useRef(false);
 
   useEffect(() => {
-    // Skip sound on initial history load
     if (!initializedRef.current) {
       initializedRef.current = messages.length > 0;
       prevCountRef.current = messages.length;
@@ -40,48 +40,108 @@ export default function MatchChatPanel({ messages, currentUserId, onSend }: Matc
 
     if (newCount <= 0) return;
 
-    // Check if new messages are from someone else
     const latestMsg = messages[messages.length - 1];
     if (latestMsg && latestMsg.user_id !== currentUserId) {
       playNotificationSound();
-      if (!expanded) {
+      if (!expanded && !mobileOpen) {
         setUnread((u) => u + newCount);
       }
     }
-  }, [messages.length, currentUserId, expanded]);
+  }, [messages.length, currentUserId, expanded, mobileOpen]);
 
   return (
-    <div>
-      <div className="flex w-64 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/88 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:w-72">
-        {/* Header — always visible, toggles expand */}
+    <>
+      {/* ═══ MOBILE: FAB + Bottom Sheet ═══ */}
+
+      {/* FAB button */}
+      <button
+        onClick={() => {
+          setMobileOpen(true);
+          setUnread(0);
+        }}
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card shadow-lg transition-all active:scale-95 sm:hidden"
+        title="Czat meczu"
+      >
+        <MessageSquare className="h-4 w-4 text-primary" />
+        {unread > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-0.5 text-[9px] font-bold text-primary-foreground">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </button>
+
+      {/* Bottom sheet overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 sm:hidden">
+          {/* Scrim */}
+          <div className="absolute inset-0 bg-background/60" onClick={() => setMobileOpen(false)} />
+
+          {/* Sheet */}
+          <div className="absolute inset-x-0 bottom-0 flex max-h-[60vh] flex-col overflow-hidden rounded-t-[20px] border-t border-border bg-card shadow-lg">
+            {/* Drag handle */}
+            <div className="flex justify-center py-2">
+              <div className="h-1 w-8 rounded-full bg-muted-foreground/30" />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 pb-2">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-foreground">Czat meczu</span>
+                <span className="text-xs text-muted-foreground">{messages.length}</span>
+              </div>
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-hidden border-t border-border">
+              <div className="flex h-full flex-col">
+                <MessageList messages={messages} currentUserId={currentUserId} />
+              </div>
+            </div>
+
+            {/* Input */}
+            <ChatInput onSend={onSend} placeholder="Napisz do graczy..." />
+          </div>
+        </div>
+      )}
+
+      {/* ═══ DESKTOP: Collapsible panel ═══ */}
+      <div className="hidden w-64 flex-col overflow-hidden rounded-2xl border border-border bg-card/85 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:flex">
+        {/* Header */}
         <button
           onClick={() => {
             setExpanded(!expanded);
             if (!expanded) setUnread(0);
           }}
-          className="flex items-center justify-between px-3 py-2 transition-colors hover:bg-white/[0.04]"
+          className="flex items-center justify-between px-3 py-2 transition-colors hover:bg-muted/30"
         >
           <div className="flex items-center gap-2">
-            <MessageSquare className="h-3 w-3 text-slate-400" />
-            <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">
+            <MessageSquare className="h-3.5 w-3.5 text-primary" />
+            <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               Czat meczu
             </span>
             {!expanded && unread > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-slate-950">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-primary-foreground">
                 {unread}
               </span>
             )}
           </div>
           {expanded ? (
-            <ChevronDown className="h-3 w-3 text-slate-500" />
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
           ) : (
-            <ChevronUp className="h-3 w-3 text-slate-500" />
+            <ChevronUp className="h-3 w-3 text-muted-foreground" />
           )}
         </button>
 
         {expanded && (
           <>
-            <div className="h-44 border-t border-white/[0.06]">
+            <div className="h-36 border-t border-border">
               <div className="flex h-full flex-col">
                 <MessageList messages={messages} currentUserId={currentUserId} />
               </div>
@@ -90,6 +150,6 @@ export default function MatchChatPanel({ messages, currentUserId, onSend }: Matc
           </>
         )}
       </div>
-    </div>
+    </>
   );
 }

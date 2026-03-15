@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useMemo } from "react";
+import { memo, useState, useMemo, useRef } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import type { GameRegion } from "@/hooks/useGameSocket";
@@ -67,29 +67,34 @@ export default memo(function ActionBar({
   const availableUnitsByType = sourceRegion.units ?? {};
   const liveMaxUnits = availableUnitsByType[selectedUnitType] ?? 0;
   const hasAttack = targets.some((target) => target.isAttack);
-  const accentClass = hasAttack ? "border-red-800/60" : "border-cyan-900/60";
+  const accentClass = hasAttack ? "border-destructive/30" : "border-primary/30";
 
   // Freeze slider max so game ticks don't shift the thumb while user is interacting.
   // Only update when user switches unit type, or live count drops below current frozen max.
-  const [maxUnits, setMaxUnits] = useState(liveMaxUnits);
-  const [prevSelectedUnitType, setPrevSelectedUnitType] = useState(selectedUnitType);
+  // Using refs avoids setState-in-render double renders — mutations here are synchronous
+  // and don't schedule an extra re-render.
+  const maxUnitsRef = useRef(liveMaxUnits);
+  const prevUnitTypeRef = useRef(selectedUnitType);
 
-  if (prevSelectedUnitType !== selectedUnitType) {
-    setPrevSelectedUnitType(selectedUnitType);
-    setMaxUnits(liveMaxUnits);
-  } else if (liveMaxUnits < maxUnits) {
-    setMaxUnits(liveMaxUnits);
+  if (prevUnitTypeRef.current !== selectedUnitType) {
+    prevUnitTypeRef.current = selectedUnitType;
+    maxUnitsRef.current = liveMaxUnits;
+  } else if (liveMaxUnits < maxUnitsRef.current) {
+    maxUnitsRef.current = liveMaxUnits;
   }
+  const maxUnits = maxUnitsRef.current;
 
-  // Derived default for slider: half of maxUnits, reset whenever max or unit type changes
+  // Derived default for slider: half of maxUnits, reset whenever max or unit type changes.
+  // totalUnits stays as state because the user mutates it via the range input.
+  // Previous-value tracking uses refs to avoid setState-in-render.
   const defaultTotalUnits = Math.max(1, Math.floor(maxUnits / 2) || 1);
   const [totalUnits, setTotalUnits] = useState(defaultTotalUnits);
-  const [prevMaxUnits, setPrevMaxUnits] = useState(maxUnits);
-  const [prevUnitTypeForSlider, setPrevUnitTypeForSlider] = useState(selectedUnitType);
+  const prevMaxForSliderRef = useRef(maxUnits);
+  const prevUnitForSliderRef = useRef(selectedUnitType);
 
-  if (prevUnitTypeForSlider !== selectedUnitType || prevMaxUnits !== maxUnits) {
-    setPrevUnitTypeForSlider(selectedUnitType);
-    setPrevMaxUnits(maxUnits);
+  if (prevUnitForSliderRef.current !== selectedUnitType || prevMaxForSliderRef.current !== maxUnits) {
+    prevUnitForSliderRef.current = selectedUnitType;
+    prevMaxForSliderRef.current = maxUnits;
     setTotalUnits(defaultTotalUnits);
   }
 
@@ -104,19 +109,19 @@ export default memo(function ActionBar({
   if (maxUnits < 1) return null;
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-30 px-2 pb-2 sm:left-1/2 sm:right-auto sm:w-[min(600px,calc(100vw-1rem))] sm:-translate-x-1/2 sm:px-0 sm:pb-3">
-      <div className={`overflow-hidden rounded-[22px] border bg-slate-950/94 shadow-[0_-10px_32px_rgba(0,0,0,0.28)] backdrop-blur-xl ${accentClass}`}>
-        <div className="sm:hidden p-2 space-y-1.5">
+    <div className="absolute inset-x-0 bottom-0 z-30 px-2 pb-2 sm:left-1/2 sm:right-auto sm:w-[min(480px,calc(100vw-1rem))] sm:-translate-x-1/2 sm:px-0 sm:pb-3">
+      <div className={`overflow-hidden rounded-xl border bg-card sm:bg-card/90 shadow-lg sm:shadow-[0_-10px_32px_rgba(0,0,0,0.28)] sm:backdrop-blur-xl ${accentClass}`}>
+        <div className="sm:hidden p-1.5 space-y-1">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                 {sourceName}
               </div>
             </div>
             <button
               onClick={onCancel}
               aria-label="Anuluj"
-              className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-1.5 text-zinc-400"
+              className="shrink-0 rounded-full border border-border bg-muted/30 p-1.5 text-muted-foreground"
             >
               <Image
                 src={getActionAsset("close")}
@@ -136,10 +141,10 @@ export default memo(function ActionBar({
                 <button
                   key={unitType}
                   onClick={() => onSelectedUnitTypeChange(unitType)}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-2 py-1.5 text-left ${
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-1.5 py-1 text-left ${
                     active
-                      ? "border-cyan-300/30 bg-cyan-400/15 text-cyan-100"
-                      : "border-white/10 bg-white/[0.04] text-zinc-300"
+                      ? "border-primary/30 bg-primary/15 text-primary"
+                      : "border-border bg-muted/30 text-foreground/80"
                   }`}
                 >
                   <Image
@@ -150,14 +155,14 @@ export default memo(function ActionBar({
                     className="h-4 w-4 object-contain"
                   />
                   <span className="text-[11px] font-medium">{getUnitLabel(unitType)}</span>
-                  <span className={`text-[10px] ${active ? "text-cyan-200/80" : "text-zinc-500"}`}>{count}</span>
+                  <span className={`text-[10px] ${active ? "text-primary/80" : "text-muted-foreground"}`}>{count}</span>
                 </button>
               );
             })}
           </div>
 
-          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-            <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Wysylasz</span>
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2 py-1.5">
+            <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Wysylasz</span>
             <input
               type="range"
               min={minUnits}
@@ -166,7 +171,7 @@ export default memo(function ActionBar({
               onChange={(e) => setTotalUnits(Number(e.target.value))}
               className={`min-w-0 flex-1 ${hasAttack ? "accent-red-500" : "accent-cyan-400"}`}
             />
-            <span className="font-display text-xs text-zinc-100">{safeTotalUnits}/{maxUnits}</span>
+            <span className="font-display text-xs text-foreground">{safeTotalUnits}/{maxUnits}</span>
           </div>
 
           <div className="flex items-center gap-1.5 overflow-x-auto">
@@ -182,19 +187,19 @@ export default memo(function ActionBar({
                   }`}
                 >
                   <span className="max-w-[90px] truncate">{target.name}</span>
-                  <span className="text-zinc-400">{allocations[index].units * selectedUnitScale}</span>
+                  <span className="text-muted-foreground">{allocations[index].units * selectedUnitScale}</span>
                 </button>
               ))
             ) : (
-              <div className="text-[11px] text-zinc-500">Wybierz cele na mapie</div>
+              <div className="text-[11px] text-muted-foreground">Wybierz cele na mapie</div>
             )}
           </div>
 
           <Button
             onClick={() => onConfirm({ allocations, unitType: selectedUnitType })}
             disabled={targets.length === 0}
-            className={`h-9 w-full ${
-              hasAttack ? "bg-red-600 text-white hover:bg-red-500" : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+            className={`h-8 w-full ${
+              hasAttack ? "bg-red-600 text-white hover:bg-red-500" : "bg-primary text-primary-foreground hover:bg-cyan-400"
             }`}
           >
             <Image
@@ -208,12 +213,12 @@ export default memo(function ActionBar({
           </Button>
         </div>
 
-        <div className="hidden sm:block p-2.5 sm:px-3 sm:py-2.5">
+        <div className="hidden sm:block p-2">
           <div className="mb-2 min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
               Region zrodlowy
             </div>
-            <div className="truncate font-display text-sm text-zinc-100">
+            <div className="truncate font-display text-sm text-foreground">
               {sourceName}
             </div>
           </div>
@@ -227,10 +232,10 @@ export default memo(function ActionBar({
                   <button
                     key={unitType}
                     onClick={() => onSelectedUnitTypeChange(unitType)}
-                    className={`inline-flex min-w-[120px] max-w-full items-center gap-2 rounded-2xl border px-3 py-2 text-left transition-colors ${
+                    className={`inline-flex min-w-[100px] max-w-full items-center gap-2 rounded-xl border px-2 py-1.5 text-left transition-colors ${
                       active
-                        ? "border-cyan-300/30 bg-cyan-400/15 text-cyan-100 shadow-[0_0_0_1px_rgba(34,211,238,0.12)]"
-                        : "border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08]"
+                        ? "border-primary/30 bg-primary/15 text-primary shadow-[0_0_0_1px_rgba(34,211,238,0.12)]"
+                        : "border-border bg-muted/30 text-foreground/80 hover:bg-muted/50"
                     }`}
                   >
                     <Image
@@ -244,7 +249,7 @@ export default memo(function ActionBar({
                       <span className="block text-[11px] font-medium leading-none">
                         {getUnitLabel(unitType)}
                       </span>
-                      <span className={`mt-1 block text-[10px] leading-none ${active ? "text-cyan-200/80" : "text-zinc-500"}`}>
+                      <span className={`mt-1 block text-[10px] leading-none ${active ? "text-primary/80" : "text-muted-foreground"}`}>
                         {count}
                       </span>
                     </span>
@@ -253,10 +258,10 @@ export default memo(function ActionBar({
               })}
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-              <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+            <div className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
+              <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                 <span>Wysylasz</span>
-                <span className="font-display text-xs text-zinc-100">{safeTotalUnits} / {maxUnits}</span>
+                <span className="font-display text-xs text-foreground">{safeTotalUnits} / {maxUnits}</span>
               </div>
               <input
                 type="range"
@@ -284,11 +289,11 @@ export default memo(function ActionBar({
                         }`}
                       >
                         <span className="max-w-[96px] truncate">{target.name}</span>
-                        <span className="text-zinc-500">{allocations[index].units * selectedUnitScale}</span>
+                        <span className="text-muted-foreground">{allocations[index].units * selectedUnitScale}</span>
                       </button>
                     ))
                   ) : (
-                    <div className="text-[11px] text-zinc-500">
+                    <div className="text-[11px] text-muted-foreground">
                       Wybierz cel na mapie
                     </div>
                   )}
@@ -298,8 +303,8 @@ export default memo(function ActionBar({
               <Button
                 onClick={() => onConfirm({ allocations, unitType: selectedUnitType })}
                 disabled={targets.length === 0}
-                className={`h-9 shrink-0 px-3 text-[11px] uppercase tracking-[0.16em] ${
-                  hasAttack ? "bg-red-600 text-white hover:bg-red-500" : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+                className={`h-8 shrink-0 px-3 text-[11px] uppercase tracking-[0.16em] ${
+                  hasAttack ? "bg-red-600 text-white hover:bg-red-500" : "bg-primary text-primary-foreground hover:bg-cyan-400"
                 }`}
               >
                 <Image
@@ -315,7 +320,7 @@ export default memo(function ActionBar({
               <button
                 onClick={onCancel}
                 aria-label="Anuluj"
-                className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] p-2 text-zinc-400"
+                className="shrink-0 rounded-full border border-border bg-muted/30 p-2 text-muted-foreground"
               >
                 <Image
                   src={getActionAsset("close")}

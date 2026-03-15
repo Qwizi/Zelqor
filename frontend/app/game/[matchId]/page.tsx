@@ -28,11 +28,13 @@ import BuildQueue from "@/components/game/BuildQueue";
 import MobileBuildSheet from "@/components/game/MobileBuildSheet";
 import AbilityBar from "@/components/game/AbilityBar";
 import { Loader2 } from "lucide-react";
-import { useGameNotifications, GameNotificationOverlay } from "@/components/game/GameNotification";
+import MatchIntroOverlay from "@/components/game/MatchIntroOverlay";
+import { toast } from "sonner";
 import { useTutorial } from "@/hooks/useTutorial";
 import TutorialOverlay from "@/components/game/TutorialOverlay";
 import MatchChatPanel from "@/components/chat/MatchChatPanel";
 import VoicePanel from "@/components/chat/VoicePanel";
+import DesktopChatVoice from "@/components/game/DesktopChatVoice";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
 
 const BOOST_EFFECT_LABELS: Record<string, string> = {
@@ -100,6 +102,7 @@ export default function GamePage({
     matchChatMessages,
     voiceToken,
     voiceUrl,
+    bannedReason,
     selectCapital,
     attack,
     move,
@@ -143,6 +146,7 @@ export default function GamePage({
   const [animations, setAnimations] = useState<TroopAnimation[]>([]);
   const [nukeBlackout, setNukeBlackout] = useState<Array<{ rid: string; startTime: number }>>([]);
   const [mapReady, setMapReady] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [gameEndCountdown, setGameEndCountdown] = useState(10);
   const myUserId = user?.id || "";
@@ -156,9 +160,9 @@ export default function GamePage({
   const gameStateRef = useRef(gameState);
   useLayoutEffect(() => { gameStateRef.current = gameState; });
 
-  // Track the last processed event batch so animation derivation survives event list trimming.
-  const lastProcessedEventKeyRef = useRef<string | null>(null);
-  const lastProcessedAudioKeyRef = useRef<string | null>(null);
+  // Track processed events by their unique keys (survives ring-buffer trimming).
+  const processedAnimKeysRef = useRef(new Set<string>());
+  const processedAudioKeysRef = useRef(new Set<string>());
   const localDispatchKeysRef = useRef(new Map<string, number>());
 
   // Redirect if not logged in
@@ -167,6 +171,13 @@ export default function GamePage({
       router.replace("/login");
     }
   }, [user, authLoading, router]);
+
+  // Redirect if account is banned via WebSocket close code 4003
+  useEffect(() => {
+    if (bannedReason) {
+      router.replace("/login?banned=1");
+    }
+  }, [bannedReason, router]);
 
   // Load geo graph filtered to this match's map config, plus global config
   useEffect(() => {
@@ -180,25 +191,39 @@ export default function GamePage({
       .catch(console.error);
   }, [matchId]);
 
-  // Prune finished animations + nuke blackout
+  // Prune finished animations + nuke blackout — only run when there are items to prune
+  const pruneTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
-    const NUKE_BLACKOUT_DURATION = 3000;
-    const timer = setInterval(() => {
-      const now = Date.now();
-      setAnimations((prev) => {
-        const active = prev.filter((a) => {
-          const maxDur = a.unitType === "nuke_rocket" ? (a.durationMs || 8000) + 2000 : ANIMATION_DURATION_MS + 500;
-          return now - a.startTime < maxDur;
+    const hasItems = animations.length > 0 || nukeBlackout.length > 0;
+    if (hasItems && !pruneTimerRef.current) {
+      const NUKE_BLACKOUT_DURATION = 3000;
+      pruneTimerRef.current = setInterval(() => {
+        const now = Date.now();
+        setAnimations((prev) => {
+          if (prev.length === 0) return prev;
+          const active = prev.filter((a) => {
+            const maxDur = a.unitType === "nuke_rocket" ? (a.durationMs || 8000) + 2000 : ANIMATION_DURATION_MS + 500;
+            return now - a.startTime < maxDur;
+          });
+          return active.length !== prev.length ? active : prev;
         });
-        return active.length !== prev.length ? active : prev;
-      });
-      setNukeBlackout((prev) => {
-        const active = prev.filter((b) => now - b.startTime < NUKE_BLACKOUT_DURATION);
-        return active.length !== prev.length ? active : prev;
-      });
-    }, 500);
-    return () => clearInterval(timer);
-  }, []);
+        setNukeBlackout((prev) => {
+          if (prev.length === 0) return prev;
+          const active = prev.filter((b) => now - b.startTime < NUKE_BLACKOUT_DURATION);
+          return active.length !== prev.length ? active : prev;
+        });
+      }, 500);
+    } else if (!hasItems && pruneTimerRef.current) {
+      clearInterval(pruneTimerRef.current);
+      pruneTimerRef.current = null;
+    }
+    return () => {
+      if (pruneTimerRef.current) {
+        clearInterval(pruneTimerRef.current);
+        pruneTimerRef.current = null;
+      }
+    };
+  }, [animations.length > 0, nukeBlackout.length > 0]);
 
   useEffect(() => {
     if (status !== "selecting") return;
@@ -644,9 +669,6 @@ export default function GamePage({
       );
   }, [status, players]);
 
-  // ── Notification system (must be before event processing) ──
-  const { notifications, notify, dismiss } = useGameNotifications();
-
   // ── Event-driven animations (visible to ALL clients) ───────
   //
   // Instead of triggering animations locally (only visible to the acting player),
@@ -656,18 +678,19 @@ export default function GamePage({
   useEffect(() => {
     if (events.length === 0) return;
 
-    const eventKeys = events.map((event, index) => event.__eventKey || `${event.type}:${index}`);
-    const lastProcessedKey = lastProcessedEventKeyRef.current;
-    const startIndex =
-      lastProcessedKey === null
-        ? 0
-        : Math.max(0, eventKeys.findIndex((key) => key === lastProcessedKey) + 1);
-    const newEvents = events.slice(startIndex);
-    const latestEventKey = eventKeys.at(-1) ?? null;
-    if (latestEventKey) {
-      lastProcessedEventKeyRef.current = latestEventKey;
-    }
+    const seen = processedAnimKeysRef.current;
+    const newEvents = events.filter((e) => {
+      const key = e.__eventKey;
+      return key ? !seen.has(key) : true;
+    });
     if (newEvents.length === 0) return;
+    for (const e of newEvents) { if (e.__eventKey) seen.add(e.__eventKey); }
+    // Cap set size to prevent unbounded growth
+    if (seen.size > 200) {
+      const keep = new Set<string>();
+      for (const e of events) { if (e.__eventKey) keep.add(e.__eventKey); }
+      processedAnimKeysRef.current = keep;
+    }
 
     const newAnims: TroopAnimation[] = [];
     for (const e of newEvents) {
@@ -712,18 +735,18 @@ export default function GamePage({
         // Arrival event only; travel animation is driven by troops_sent.
       } else if (e.type === "boost_activated" && e.player_id === myUserId) {
         const effectLabel = BOOST_EFFECT_LABELS[e.effect_type as string] ?? (e.effect_type as string);
-        notify(`Boost aktywowany: ${effectLabel}`, "success");
+        toast.success(`Boost aktywowany: ${effectLabel}`);
       } else if (e.type === "boost_expired" && e.player_id === myUserId) {
         const slug = e.boost_slug as string;
         const label = slug.replace(/^boost-/, "").replace(/-\d+$/, "").replace(/-/g, " ");
-        notify(`Boost wygasł: ${label}`, "warning");
+        toast.warning(`Boost wygasł: ${label}`);
       }
     }
 
     if (newAnims.length > 0) {
       setAnimations((prev) => [...prev, ...newAnims]);
     }
-  }, [events, myUserId, unitsConfig, notify]);
+  }, [events, myUserId, unitsConfig]);
 
   // ── Click handler ──────────────────────────────────────────
 
@@ -744,10 +767,7 @@ export default function GamePage({
         // Too close to an existing capital
         if (dimmedRegions.includes(regionId)) {
           const minDist = parseInt(gameState?.meta?.min_capital_distance || "3", 10);
-          notify(
-            `Stolica musi być co najmniej ${minDist} regiony od stolicy innego gracza`,
-            "error"
-          );
+          toast.error(`Stolica musi być co najmniej ${minDist} regiony od stolicy innego gracza`);
           return;
         }
         selectCapital(regionId);
@@ -768,11 +788,10 @@ export default function GamePage({
             (abilityDef.target_type === "enemy" && region.owner_id !== myUserId) ||
             (abilityDef.target_type === "own" && region.owner_id === myUserId);
           if (!isValidTarget) {
-            notify(
+            toast.error(
               abilityDef.target_type === "enemy"
                 ? "Zdolnosc wymaga wrogiego celu"
-                : "Zdolnosc wymaga wlasnego regionu",
-              "error"
+                : "Zdolnosc wymaga wlasnego regionu"
             );
             return;
           }
@@ -798,7 +817,7 @@ export default function GamePage({
           effectiveUnitType &&
           !isTargetReachableForUnitType(regionId, effectiveUnitType)
         ) {
-          notify("Ten cel nie jest osiągalny dla wybranego typu jednostki", "error");
+          toast.error("Ten cel nie jest osiągalny dla wybranego typu jednostki");
           return;
         }
 
@@ -812,7 +831,7 @@ export default function GamePage({
             return prev.filter((id) => id !== regionId);
           }
           if (prev.length >= 3) {
-            notify("Mozesz wybrac maksymalnie 3 cele", "error");
+            toast.error("Mozesz wybrac maksymalnie 3 cele");
             return prev;
           }
           return [...prev, regionId];
@@ -850,7 +869,6 @@ export default function GamePage({
       selectedAbility,
       effectiveAbilities,
       castAbility,
-      notify,
     ]
   );
 
@@ -871,7 +889,7 @@ export default function GamePage({
           ? (reachability?.attackDistanceByTarget.get(regionId) ?? null)
           : (reachability?.moveDistanceByTarget.get(regionId) ?? null);
         if (distance === null) {
-          notify("Wybrany typ jednostki nie moze dosiegnac tego celu", "error");
+          toast.error("Wybrany typ jednostki nie moze dosiegnac tego celu");
           continue;
         }
         const rules = unitConfigBySlug[unitType] ?? getUnitRules(unitsConfig, unitType);
@@ -886,6 +904,13 @@ export default function GamePage({
           units,
         ].join(":");
         localDispatchKeysRef.current.set(dispatchKey, Date.now());
+        // Prune stale dispatch keys
+        if (localDispatchKeysRef.current.size > 50) {
+          const now = Date.now();
+          for (const [k, t] of localDispatchKeysRef.current) {
+            if (now - t > 5000) localDispatchKeysRef.current.delete(k);
+          }
+        }
         localAnims.push({
           id: crypto.randomUUID(),
           sourceId: selectedRegion,
@@ -911,7 +936,7 @@ export default function GamePage({
       setSelectedActionUnitType(null);
       setActionTargets([]);
     },
-    [selectedRegion, gameState, myUserId, attack, move, reachabilityByUnitType, unitConfigBySlug, unitsConfig, notify]
+    [selectedRegion, gameState, myUserId, attack, move, reachabilityByUnitType, unitConfigBySlug, unitsConfig]
   );
 
   const handleBuild = useCallback(
@@ -1005,43 +1030,45 @@ export default function GamePage({
   useEffect(() => {
     if (events.length === 0) return;
 
-    const eventKeys = events.map((e, i) => e.__eventKey || `${e.type}:${i}`);
-    const lastAudioKey = lastProcessedAudioKeyRef.current;
-    const startIndex =
-      lastAudioKey === null
-        ? 0
-        : Math.max(0, eventKeys.findIndex((k) => k === lastAudioKey) + 1);
-    const newEvents = events.slice(startIndex);
-    const latestKey = eventKeys.at(-1) ?? null;
-    if (latestKey) lastProcessedAudioKeyRef.current = latestKey;
+    const seen = processedAudioKeysRef.current;
+    const newEvents = events.filter((e) => {
+      const key = e.__eventKey;
+      return key ? !seen.has(key) : true;
+    });
     if (newEvents.length === 0) return;
+    for (const e of newEvents) { if (e.__eventKey) seen.add(e.__eventKey); }
+    if (seen.size > 200) {
+      const keep = new Set<string>();
+      for (const e of events) { if (e.__eventKey) keep.add(e.__eventKey); }
+      processedAudioKeysRef.current = keep;
+    }
 
     for (const e of newEvents) {
       if (e.type === "game_over") {
         const winnerId = e.winner_id as string;
         const winner = gameState?.players[winnerId];
         if (winnerId === myUserId) {
-          notify("Wygrales", "success");
+          toast.success("Wygrales");
           playSound("popup");
         } else {
-          notify(`Przegrales. Wygrywa: ${winner?.username || "?"}`, "error");
+          toast.error(`Przegrales. Wygrywa: ${winner?.username || "?"}`);
           playSound("buzzer");
         }
       }
       if (e.type === "player_eliminated" && e.player_id === myUserId) {
         if (e.reason === "disconnect_timeout") {
-          notify("Zostales usuniety z meczu przez brak powrotu na czas", "error");
+          toast.error("Zostales usuniety z meczu przez brak powrotu na czas");
         } else if (e.reason === "left_match") {
-          notify("Opuściłeś mecz", "error");
+          toast.error("Opuściłeś mecz");
         } else {
-          notify("Twoja stolica zostala zdobyta", "error");
+          toast.error("Twoja stolica zostala zdobyta");
         }
         playSound("buzzer");
       }
       if (e.type === "player_disconnected" && e.player_id !== myUserId) {
         const disconnectedPlayer = gameStateRef.current?.players[String(e.player_id)];
         const graceSeconds = Number(e.grace_seconds || 0);
-        notify(`${disconnectedPlayer?.username || "Gracz"} rozlaczyl sie. Limit powrotu: ${graceSeconds}s`, "warning");
+        toast.warning(`${disconnectedPlayer?.username || "Gracz"} rozlaczyl sie. Limit powrotu: ${graceSeconds}s`);
       }
       if (e.type === "build_started" && e.player_id === myUserId) {
         playSound("build");
@@ -1065,7 +1092,7 @@ export default function GamePage({
           const attackerName = gameStateRef.current?.players[attackerId ?? ""]?.username ?? "Wróg";
           const regionName = gameStateRef.current?.regions[targetRegionId]?.name ?? targetRegionId;
           playSound("alert");
-          notify(`⚔️ ${attackerName} atakuje ${regionName}!`, "warning", 5000);
+          toast.warning(`⚔️ ${attackerName} atakuje ${regionName}!`, { duration: 5000 });
         }
       }
       if (e.type === "attack_success" && e.player_id !== myUserId) {
@@ -1090,10 +1117,10 @@ export default function GamePage({
           }
         }
         if (isMyAbility) {
-          notify(`Uzyto: ${abilityName}`, "success");
+          toast.success(`Uzyto: ${abilityName}`);
         } else {
           const attackerName = gameStateRef.current?.players[String(e.player_id)]?.username ?? "Wrog";
-          notify(`${attackerName} uzyl zdolnosci: ${abilityName}`, "warning");
+          toast.warning(`${attackerName} uzyl zdolnosci: ${abilityName}`);
         }
         // Nuke rocket animation — flies from caster's capital to target
         if (isNuke) {
@@ -1131,12 +1158,12 @@ export default function GamePage({
       if (e.type === "shield_blocked") {
         const targetRegionName = gameStateRef.current?.regions[String(e.target_region_id)]?.name ?? "region";
         if (e.attacker_id === myUserId) {
-          notify(`Atak na ${targetRegionName} zostal zablokowany przez tarcze!`, "error");
+          toast.error(`Atak na ${targetRegionName} zostal zablokowany przez tarcze!`);
           playSound("shield");
         } else {
           const targetOwner = gameStateRef.current?.regions[String(e.target_region_id)]?.owner_id;
           if (targetOwner === myUserId) {
-            notify(`Tarcza ochronila ${targetRegionName}!`, "success");
+            toast.success(`Tarcza ochronila ${targetRegionName}!`);
             playSound("shield");
           }
         }
@@ -1147,19 +1174,19 @@ export default function GamePage({
         if (effectType === "ab_shield") {
           const regionOwner = gameStateRef.current?.regions[String(e.target_region_id)]?.owner_id;
           if (regionOwner === myUserId) {
-            notify(`Tarcza na ${targetRegionName} wygasla`, "info");
+            toast.info(`Tarcza na ${targetRegionName} wygasla`);
           }
         }
       }
       if (e.type === "action_rejected" && e.player_id === myUserId) {
-        notify(String(e.message ?? "Akcja zostala odrzucona"), "error");
+        toast.error(String(e.message ?? "Akcja zostala odrzucona"));
         playSound("fail");
       }
       if (e.type === "server_error") {
-        notify(e.message as string, "error");
+        toast.error(e.message as string);
       }
     }
-  }, [events, myUserId, neighborMap, gameState?.players, playSound, notify]);
+  }, [events, myUserId, neighborMap, gameState?.players, playSound]);
 
   const targets = useMemo<TargetEntry[]>(() => {
     const visible = actionTargets.filter((rid) => highlightedNeighbors.includes(rid));
@@ -1174,6 +1201,18 @@ export default function GamePage({
   const visibleActionTargets = useMemo(() => targets.map((t) => t.regionId), [targets]);
   const capitalSelectionEndsAt = Number(gameState?.meta?.capital_selection_ends_at || 0);
 
+  // Capital selection toast
+  useEffect(() => {
+    if (status === "selecting") {
+      toast.info("Wybierz region startowy", {
+        id: "capital-selection",
+        duration: Infinity,
+      });
+    } else {
+      toast.dismiss("capital-selection");
+    }
+  }, [status]);
+
   // ── Render ─────────────────────────────────────────────────
 
   if (authLoading || !user) {
@@ -1186,27 +1225,13 @@ export default function GamePage({
   const capitalSelectionRemaining = status === "selecting" && capitalSelectionEndsAt > 0
     ? Math.max(0, capitalSelectionEndsAt - Math.floor(nowMs / 1000))
     : 0;
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#050b14]">
-      <div className="pointer-events-none absolute inset-0 bg-[url('/assets/ui/hex_bg_tile.webp')] bg-[size:240px] opacity-[0.04]" />
+      {/* Hex tile overlay hidden on mobile for GPU perf */}
+      <div className="pointer-events-none absolute inset-0 hidden bg-[url('/assets/ui/hex_bg_tile.webp')] bg-[size:240px] opacity-[0.04] sm:block" />
 
-      {status === "selecting" && (
-        <div className="absolute left-1/2 top-2 z-20 -translate-x-1/2 sm:top-4">
-          <div className="rounded-full border border-amber-300/20 bg-slate-950/88 px-4 py-2 text-center shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-amber-200/70">
-              Wybór stolicy
-            </div>
-            <div className="mt-0.5 flex items-center justify-center gap-2 text-sm text-zinc-100">
-              <span>Wybierz region startowy</span>
-              <span className="font-display text-amber-200">
-                {capitalSelectionRemaining}s
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
 
-      <GameNotificationOverlay notifications={notifications} onDismiss={dismiss} />
 
       {tutorial.isActive && tutorial.currentStep && (
         <TutorialOverlay
@@ -1220,27 +1245,28 @@ export default function GamePage({
         />
       )}
 
+      {/* Top-right controls */}
       <div className="absolute right-2 top-2 z-20 flex items-center gap-2 sm:right-4 sm:top-4">
         <div className="relative">
           <button
             onClick={toggleMute}
             title={muted ? "Włącz dźwięk" : "Wycisz dźwięk"}
-            className="rounded-full border border-white/10 bg-slate-950/84 p-2 text-slate-300 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-white/[0.08] hover:text-white"
+            className="rounded-full border border-border bg-card p-1.5 text-muted-foreground shadow-lg transition-colors hover:bg-muted/50 hover:text-foreground sm:bg-card/85 sm:p-2 sm:backdrop-blur-xl"
           >
             {muted ? "🔇" : "🔊"}
           </button>
           <button
             onClick={() => setMusicPickerOpen((prev) => !prev)}
             title="Wybierz muzyke"
-            className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-[10px] text-slate-400 transition-colors hover:text-white"
+            className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-card text-[10px] text-muted-foreground transition-colors hover:text-foreground"
           >
             ♫
           </button>
           {musicPickerOpen && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setMusicPickerOpen(false)} />
-              <div className="absolute right-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-[0_16px_48px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-                <div className="px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+              <div className="absolute right-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-lg sm:bg-card/95 sm:backdrop-blur-xl">
+                <div className="px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                   Muzyka
                 </div>
                 {MUSIC_TRACKS.map((track, i) => (
@@ -1250,10 +1276,10 @@ export default function GamePage({
                       selectTrack(i);
                       setMusicPickerOpen(false);
                     }}
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.06] ${
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/30 ${
                       i === currentTrackIndex
-                        ? "bg-white/[0.04] text-amber-200"
-                        : "text-zinc-300"
+                        ? "bg-muted/30 text-accent"
+                        : "text-foreground/80"
                     }`}
                   >
                     <span className="w-4 text-center text-xs">
@@ -1266,9 +1292,10 @@ export default function GamePage({
             </>
           )}
         </div>
+        {/* Desktop-only action buttons */}
         <button
           onClick={() => router.push("/dashboard")}
-          className="rounded-full border border-white/10 bg-slate-950/84 px-3 py-2 text-xs text-slate-200 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-white/[0.08] sm:px-4"
+          className="hidden rounded-full border border-border bg-card/85 px-4 py-2 text-xs text-foreground/80 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-muted/50 sm:block"
         >
           Wyjdz
         </button>
@@ -1278,12 +1305,38 @@ export default function GamePage({
               if (!window.confirm("Na pewno chcesz opuscic mecz calkowicie?")) return;
               const confirmed = await leaveMatch();
               if (!confirmed) {
-                notify("Nie udalo sie potwierdzic opuszczenia meczu", "error");
+                toast.error("Nie udalo sie potwierdzic opuszczenia meczu");
                 return;
               }
               router.push("/dashboard");
             }}
-            className="rounded-full border border-red-400/20 bg-red-950/70 px-3 py-2 text-xs text-red-100 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-red-900/80 sm:px-4"
+            className="hidden rounded-full border border-destructive/20 bg-destructive/10 px-4 py-2 text-xs text-destructive shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-destructive/20 sm:block"
+          >
+            Opuść mecz
+          </button>
+        )}
+      </div>
+
+      {/* Mobile bottom action bar */}
+      <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-between gap-2 border-t border-border bg-card px-3 py-2 sm:hidden">
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="rounded-full border border-border bg-muted/50 px-4 py-2 text-xs text-foreground/80 transition-colors hover:bg-muted"
+        >
+          Wyjdz
+        </button>
+        {status !== "finished" && (
+          <button
+            onClick={async () => {
+              if (!window.confirm("Na pewno chcesz opuscic mecz calkowicie?")) return;
+              const confirmed = await leaveMatch();
+              if (!confirmed) {
+                toast.error("Nie udalo sie potwierdzic opuszczenia meczu");
+                return;
+              }
+              router.push("/dashboard");
+            }}
+            className="rounded-full border border-destructive/20 bg-destructive/10 px-4 py-2 text-xs text-destructive transition-colors hover:bg-destructive/20"
           >
             Opuść mecz
           </button>
@@ -1293,17 +1346,17 @@ export default function GamePage({
       {/* Match cancelled overlay */}
       {status === "cancelled" && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="flex max-w-sm flex-col items-center gap-4 rounded-2xl border border-red-400/30 bg-slate-950/95 p-8 text-center shadow-2xl backdrop-blur-xl">
+          <div className="flex max-w-sm flex-col items-center gap-4 rounded-2xl border border-red-400/30 bg-card p-8 text-center shadow-2xl">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-500/20">
               <span className="text-2xl">⚠️</span>
             </div>
-            <h2 className="font-display text-2xl text-zinc-50">Mecz anulowany</h2>
-            <p className="text-sm text-slate-400">
+            <h2 className="font-display text-2xl text-foreground">Mecz anulowany</h2>
+            <p className="text-sm text-muted-foreground">
               Ten mecz został anulowany z powodu błędu serwera lub rozłączenia graczy.
             </p>
             <button
               onClick={() => router.push("/dashboard")}
-              className="mt-2 rounded-xl border border-cyan-400/30 bg-cyan-500/20 px-6 py-2.5 text-sm font-medium text-cyan-200 transition-all hover:bg-cyan-500/30"
+              className="mt-2 rounded-xl border border-primary/30 bg-primary/20 px-6 py-2.5 text-sm font-medium text-primary transition-all hover:bg-primary/30"
             >
               Wróć do panelu
             </button>
@@ -1313,7 +1366,7 @@ export default function GamePage({
 
       {!connected && status !== "finished" && status !== "cancelled" && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="flex items-center gap-3 rounded-[24px] border border-white/10 bg-slate-950/88 px-6 py-4 backdrop-blur-xl">
+          <div className="flex items-center gap-3 rounded-[24px] border border-border bg-card px-6 py-4">
             <Image
               src="/assets/common/world.webp"
               alt=""
@@ -1327,9 +1380,20 @@ export default function GamePage({
         </div>
       )}
 
-      {!mapReady && connected && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-zinc-950/90">
-          <div className="flex flex-col items-center gap-3 rounded-[26px] border border-white/10 bg-slate-950/88 px-8 py-6 backdrop-blur-xl">
+      {/* Match intro overlay — shows players VS while map loads */}
+      {showIntro && Object.keys(players).length > 0 && (
+        <MatchIntroOverlay
+          players={players}
+          myUserId={myUserId}
+          mapReady={mapReady && connected}
+          onComplete={() => setShowIntro(false)}
+        />
+      )}
+
+      {/* Fallback loading if intro already dismissed but map not ready */}
+      {!showIntro && !mapReady && connected && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/90">
+          <div className="flex flex-col items-center gap-3 rounded-[26px] border border-border bg-card px-8 py-6">
             <Image
               src="/assets/match_making/circle291.webp"
               alt=""
@@ -1337,15 +1401,15 @@ export default function GamePage({
               height={52}
               className="h-12 w-12 animate-spin object-contain"
             />
-            <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
-            <span className="text-sm text-zinc-300">Ładowanie mapy...</span>
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Ładowanie mapy...</span>
           </div>
         </div>
       )}
 
       {status === "finished" && !tutorial.isActive && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
-          <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/92 p-0 text-center shadow-[0_32px_80px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+          <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-0 text-center shadow-2xl sm:rounded-[32px]">
             <div className="relative h-36 w-full overflow-hidden">
               <Image
                 src="/assets/match_gui/finish/g77116.webp"
@@ -1369,35 +1433,35 @@ export default function GamePage({
                 />
               </div>
             </div>
-            <div className="px-8 py-6">
-              <h2 className="mb-1 font-display text-4xl text-zinc-50">Koniec gry</h2>
-              <p className="mb-4 text-sm text-slate-400">Rozgrywka zakończona</p>
+            <div className="px-4 py-4 sm:px-8 sm:py-6">
+              <h2 className="mb-1 font-display text-2xl text-foreground sm:text-4xl">Koniec gry</h2>
+              <p className="mb-4 text-sm text-muted-foreground">Rozgrywka zakończona</p>
               {finalRanking.length > 0 && (
-                <div className="mb-5 w-full min-w-[320px] space-y-1.5 text-left">
+                <div className="mb-5 w-full min-w-0 space-y-1.5 text-left sm:min-w-[320px]">
                   {finalRanking.map((p, i) => {
                     const isMe = p.user_id === myUserId;
                     return (
                       <div
                         key={p.user_id}
                         className={`flex items-center gap-3 rounded-xl px-3 py-2 ${
-                          isMe ? "bg-cyan-500/15 border border-cyan-400/30" : "bg-white/[0.04] border border-white/5"
+                          isMe ? "bg-primary/15 border border-primary/30" : "bg-muted/30 border border-border/50"
                         }`}
                       >
-                        <span className="w-6 text-center font-display text-lg text-zinc-400">
+                        <span className="w-6 text-center font-display text-lg text-muted-foreground">
                           {i + 1}
                         </span>
                         <span
                           className="h-3 w-3 shrink-0 rounded-full"
                           style={{ backgroundColor: p.color }}
                         />
-                        <span className={`flex-1 truncate text-sm ${isMe ? "font-medium text-zinc-50" : "text-zinc-300"}`}>
+                        <span className={`flex-1 truncate text-sm ${isMe ? "font-medium text-foreground" : "text-foreground/80"}`}>
                           {p.username}
-                          {p.isBot && <span className="ml-1.5 text-[10px] text-zinc-500">BOT</span>}
+                          {p.isBot && <span className="ml-1.5 text-[10px] text-muted-foreground">BOT</span>}
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-muted-foreground">
                           {p.regionsConquered} reg
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-muted-foreground">
                           {p.unitsProduced} jedn.
                         </span>
                         {p.isAlive ? (
@@ -1414,16 +1478,16 @@ export default function GamePage({
                   })}
                 </div>
               )}
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
               <button
                 onClick={() => router.push(`/match/${matchId}`)}
-                className="rounded-full border border-white/15 bg-white/[0.06] px-6 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.1]"
+                className="rounded-full border border-border bg-muted/30 px-6 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted/50"
               >
                 Statystyki meczu ({gameEndCountdown}s)
               </button>
               <button
                 onClick={() => router.push("/dashboard")}
-                className="rounded-full bg-cyan-500 px-8 py-2.5 font-medium text-slate-950 transition-colors hover:bg-cyan-400"
+                className="rounded-full bg-primary px-8 py-2.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 Wróć do lobby
               </button>
@@ -1467,6 +1531,24 @@ export default function GamePage({
         myUnitCount={myUnitCount}
         myEnergy={myEnergy}
       />
+
+      {/* Desktop: chat + voice in bottom-left, separate from HUD to avoid re-render perf issues */}
+      {status !== "finished" && status !== "cancelled" && connected && (
+        <DesktopChatVoice
+          myUserId={myUserId}
+          chatMessages={matchChatMessages}
+          onSendChat={sendChat}
+          voiceToken={voiceToken}
+          voiceUrl={effectiveVoiceUrl}
+          voiceConnected={voice.connected}
+          voiceMicEnabled={voice.micEnabled}
+          voiceIsSpeaking={voice.isSpeaking}
+          voicePeers={voice.peers}
+          onVoiceJoin={handleVoiceJoin}
+          onVoiceLeave={voice.leave}
+          onVoiceToggleMic={voice.toggleMic}
+        />
+      )}
 
       {/* Build queue progress */}
       <BuildQueue
@@ -1540,13 +1622,13 @@ export default function GamePage({
       {/* Ability targeting hint */}
       {selectedAbility && (
         <div className="absolute left-1/2 top-12 z-20 -translate-x-1/2 sm:top-16">
-          <div className="flex items-center gap-2 rounded-full border border-amber-300/20 bg-slate-950/88 px-4 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-            <span className="text-sm text-amber-200">
+          <div className="flex items-center gap-2 rounded-full border border-accent/20 bg-card px-4 py-2 shadow-lg sm:bg-card/85 sm:backdrop-blur-xl">
+            <span className="text-sm text-accent">
               Wybierz cel dla: {effectiveAbilities.find((a) => a.slug === selectedAbility)?.name}
             </span>
             <button
               onClick={() => setSelectedAbility(null)}
-              className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-zinc-300 hover:bg-white/20"
+              className="rounded-full bg-muted/30 px-2 py-0.5 text-xs text-foreground/80 hover:bg-muted/50"
             >
               Anuluj
             </button>
@@ -1554,9 +1636,9 @@ export default function GamePage({
         </div>
       )}
 
-      {/* Voice + Match chat panel */}
+      {/* Mobile: voice + chat FABs, bottom-right above action bar */}
       {status !== "finished" && status !== "cancelled" && connected && (
-        <div className="absolute bottom-14 left-2 z-20 flex flex-col items-start gap-2 sm:bottom-4 sm:left-4">
+        <div className="absolute bottom-14 right-2 z-20 flex flex-col items-end gap-2 sm:hidden">
           <VoicePanel
             token={voiceToken}
             url={effectiveVoiceUrl}

@@ -17,6 +17,7 @@ class UserOutSchema(Schema):
     role: str
     elo_rating: int
     tutorial_completed: bool
+    is_banned: bool
     date_joined: datetime
 
     class Config:
@@ -31,6 +32,7 @@ class LeaderboardEntrySchema(Schema):
     wins: int
     win_rate: float = 0.0
     average_placement: float = 0.0
+    is_banned: bool = False
 
     class Config:
         from_attributes = True

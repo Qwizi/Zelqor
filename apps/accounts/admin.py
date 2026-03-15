@@ -13,11 +13,13 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
-    list_display = ('email', 'username', 'display_role', 'display_elo', 'is_staff', 'is_active')
+    list_display = ('email', 'username', 'display_role', 'display_elo', 'is_staff', 'is_active', 'is_banned')
     list_filter = (
         'role',
         'is_staff',
         'is_active',
+        'is_banned',
+        'banned_reason',
         ('elo_rating', RangeNumericFilter),
     )
     list_filter_submit = True
@@ -27,7 +29,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     warn_unsaved_form = True
     inlines = [ItemInstanceInline, UserInventoryInline, EquippedCosmeticInline, DeckInline]
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('Game', {'fields': ('role', 'elo_rating', 'avatar', 'tutorial_completed')}),
+        ('Game', {'fields': ('role', 'elo_rating', 'avatar', 'tutorial_completed', 'is_banned', 'banned_reason')}),
     )
 
     @display(description="Role", label={"USER": "info", "ADMIN": "danger"})

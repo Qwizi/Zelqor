@@ -1,6 +1,6 @@
 from ninja_extra import api_controller, route
 from ninja_extra.permissions import IsAuthenticated
-from ninja_jwt.authentication import JWTAuth
+from apps.accounts.auth import ActiveUserJWTAuth
 
 from django.shortcuts import get_object_or_404
 from apps.matchmaking.models import Match
@@ -11,7 +11,7 @@ from apps.pagination import paginate_qs
 @api_controller('/matches', tags=['Matches'])
 class MatchController:
 
-    @route.get('/', response=dict, auth=JWTAuth(), permissions=[IsAuthenticated])
+    @route.get('/', response=dict, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def list_my_matches(self, request, limit: int = 50, offset: int = 0):
         """List matches for the authenticated user (excludes tutorial matches)."""
         qs = (
@@ -22,7 +22,7 @@ class MatchController:
         )
         return paginate_qs(qs, limit, offset, schema=MatchOutSchema)
 
-    @route.get('/player/{user_id}/', response=dict, auth=JWTAuth(), permissions=[IsAuthenticated])
+    @route.get('/player/{user_id}/', response=dict, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def list_player_matches(self, request, user_id: str, limit: int = 50, offset: int = 0):
         """List matches for any player by user ID."""
         qs = (
@@ -33,7 +33,7 @@ class MatchController:
         )
         return paginate_qs(qs, limit, offset, schema=MatchOutSchema)
 
-    @route.get('/{match_id}/', response=MatchOutSchema, auth=JWTAuth(), permissions=[IsAuthenticated])
+    @route.get('/{match_id}/', response=MatchOutSchema, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def get_match(self, request, match_id: str):
         return get_object_or_404(Match.objects.prefetch_related('players', 'players__user'), id=match_id)
 
@@ -41,7 +41,7 @@ class MatchController:
 @api_controller('/matches/tutorial', tags=['Tutorial'])
 class TutorialController:
 
-    @route.post('/start/', auth=JWTAuth(), permissions=[IsAuthenticated])
+    @route.post('/start/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def start_tutorial(self, request):
         """Start a tutorial match. Returns existing active tutorial if one exists."""
         from apps.game_config.models import AbilityType, BuildingType, GameMode, UnitType
@@ -207,7 +207,7 @@ class TutorialController:
 
         return {'match_id': str(match.id)}
 
-    @route.post('/cleanup/', auth=JWTAuth(), permissions=[IsAuthenticated])
+    @route.post('/cleanup/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def cleanup_tutorial(self, request):
         """Cancel and delete all tutorial matches for the user."""
         user = request.auth

@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getLeaderboard, type LeaderboardEntry } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { BannedBadge } from "@/components/ui/banned-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -120,8 +121,9 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-semibold text-foreground truncate">{entry.username}</span>
+                    <span className={`text-sm font-semibold text-foreground truncate ${entry.is_banned ? "line-through opacity-60" : ""}`}>{entry.username}</span>
                     {isMe && <span className="text-[10px] font-bold text-primary">Ty</span>}
+                    {entry.is_banned && <BannedBadge />}
                   </div>
                   <span className="text-xs text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR · {entry.matches_played} meczy</span>
                 </div>
@@ -176,8 +178,9 @@ export default function LeaderboardPage() {
                     </TableCell>
                     <TableCell className="py-3.5">
                       <div className="flex items-center gap-2">
-                        <Link href={`/profile/${entry.id}`} className="text-base font-semibold text-foreground hover:text-primary transition-colors">{entry.username}</Link>
+                        <Link href={`/profile/${entry.id}`} className={`text-base font-semibold text-foreground hover:text-primary transition-colors ${entry.is_banned ? "line-through opacity-60" : ""}`}>{entry.username}</Link>
                         {isMe && <Badge className="border-0 bg-primary/15 text-xs text-primary hover:bg-primary/15">Ty</Badge>}
+                        {entry.is_banned && <BannedBadge />}
                       </div>
                     </TableCell>
                     <TableCell className="py-3.5 text-center"><span className="text-base tabular-nums text-foreground">{entry.matches_played}</span></TableCell>

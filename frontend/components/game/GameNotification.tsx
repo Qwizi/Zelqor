@@ -125,7 +125,7 @@ function NotificationItem({ notification, onDismiss }: NotificationItemProps) {
         // Layout
         "flex cursor-pointer items-center gap-3 rounded-full px-4 py-2.5",
         // Glassmorphism — matches capital-selection banner exactly
-        "border bg-slate-950/88 backdrop-blur-xl",
+        "border bg-card/85 backdrop-blur-xl",
         config.borderClass,
         config.glowClass,
         // Transition
@@ -142,7 +142,7 @@ function NotificationItem({ notification, onDismiss }: NotificationItemProps) {
         >
           {config.label}
         </span>
-        <span className="text-sm leading-snug text-zinc-100">{message}</span>
+        <span className="text-sm leading-snug text-foreground">{message}</span>
       </div>
     </div>
   );

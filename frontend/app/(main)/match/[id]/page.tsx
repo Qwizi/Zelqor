@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getMatch, getMatchResult, createShareLink, type Match, type MatchResult } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { BannedBadge } from "@/components/ui/banned-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -411,6 +412,7 @@ export default function MatchDetailPage() {
                     <span className="text-sm font-semibold text-foreground truncate">{player.username}</span>
                     {isMe && <span className="text-[10px] font-bold text-primary">Ty</span>}
                     {isWinner && <Crown className="h-3.5 w-3.5 text-accent" />}
+                    {player.is_banned && <BannedBadge />}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {!player.is_alive && <span className="text-[10px] text-destructive font-medium">Wyeliminowany</span>}
@@ -475,6 +477,7 @@ export default function MatchDetailPage() {
                             <span className="text-lg font-semibold text-foreground">{player.username}</span>
                             {isMe && <Badge className="border-0 bg-primary/15 text-sm text-primary">Ty</Badge>}
                             {isWinner && <Crown className="h-4 w-4 text-accent" />}
+                            {player.is_banned && <BannedBadge />}
                           </div>
                         </div>
                       </div>

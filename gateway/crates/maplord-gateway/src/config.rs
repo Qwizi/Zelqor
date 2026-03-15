@@ -12,6 +12,9 @@ pub struct AppConfig {
     pub livekit_public_url: String,
     pub livekit_api_key: String,
     pub livekit_api_secret: String,
+    /// Allowed WebSocket origins — shares CORS_ALLOWED_ORIGINS with Django.
+    /// Empty = allow all (dev mode).
+    pub allowed_ws_origins: Vec<String>,
 }
 
 impl AppConfig {
@@ -44,6 +47,12 @@ impl AppConfig {
                 .unwrap_or_else(|_| "devkey".into()),
             livekit_api_secret: std::env::var("LIVEKIT_API_SECRET")
                 .unwrap_or_else(|_| "secret".into()),
+            allowed_ws_origins: std::env::var("CORS_ALLOWED_ORIGINS")
+                .unwrap_or_default()
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
         }
     }
 

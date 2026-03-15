@@ -7,6 +7,7 @@ from ninja import Schema
 class PlayerResultOutSchema(Schema):
     user_id: uuid.UUID
     username: str
+    is_banned: bool = False
     placement: int
     regions_conquered: int
     units_produced: int
@@ -17,6 +18,10 @@ class PlayerResultOutSchema(Schema):
     @staticmethod
     def resolve_username(obj):
         return obj.user.username
+
+    @staticmethod
+    def resolve_is_banned(obj):
+        return obj.user.is_banned
 
     class Config:
         from_attributes = True
@@ -67,6 +72,7 @@ class SharedMatchPlayerSchema(Schema):
     id: str
     user_id: str
     username: str
+    is_banned: bool = False
     color: str
     is_alive: bool
     joined_at: datetime
@@ -75,6 +81,7 @@ class SharedMatchPlayerSchema(Schema):
 class SharedPlayerResultSchema(Schema):
     user_id: str
     username: str
+    is_banned: bool = False
     placement: int
     regions_conquered: int
     units_produced: int

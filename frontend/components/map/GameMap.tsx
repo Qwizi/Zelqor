@@ -313,6 +313,7 @@ export default memo(function GameMap({
   const impactFlashesRef = useRef<ImpactFlash[]>([]);
   const arrivedAnimsRef = useRef(new Set<string>());
   const rafRef = useRef(0);
+  const animTickRef = useRef<(() => void) | null>(null);
   const capitalMarkersRef = useRef(new Map<string, maplibregl.Marker>());
   const buildingMarkersRef = useRef(new Map<string, maplibregl.Marker>());
   const prevRegionsRef = useRef<Record<string, GameRegion>>({});
@@ -912,9 +913,25 @@ export default memo(function GameMap({
     const prevRegions = prevRegionsRef.current;
     const prevPlayers = prevPlayersRef.current;
     const changedRegionIds = new Set<string>();
+    // Local color resolver — captures current regions/players without depending on
+    // the getRegionColor useCallback (which changes every tick because it depends on
+    // [regions, players], causing the entire effect to re-run with all regions marked).
+    const getColor = (regionId: string): string => {
+      const r = regions[regionId];
+      if (!r?.owner_id) return DEFAULT_COLOR;
+      return players[r.owner_id]?.color || DEFAULT_COLOR;
+    };
     for (const [rid, region] of Object.entries(regions)) {
-      if (prevRegions[rid] !== region || prevPlayers !== players) {
+      const prevRegion = prevRegions[rid];
+      if (!prevRegion || prevRegion !== region) {
         changedRegionIds.add(rid);
+      } else if (region.owner_id) {
+        // Only mark changed if the owner's color actually changed
+        const prevColor = prevPlayers[region.owner_id]?.color;
+        const currColor = players[region.owner_id]?.color;
+        if (prevColor !== currColor) {
+          changedRegionIds.add(rid);
+        }
       }
     }
     for (const rid of Object.keys(prevRegions)) {
@@ -950,7 +967,7 @@ export default memo(function GameMap({
         try {
           map.setFeatureState(
             { source: "regions", sourceLayer: "regions", id: rid },
-            { color: getRegionColor(rid) }
+            { color: getColor(rid) }
           );
         } catch {
           // tile not yet in memory — re-applied via sourcedata listener
@@ -962,7 +979,7 @@ export default memo(function GameMap({
 
     prevRegionsRef.current = regions;
     prevPlayersRef.current = players;
-  }, [regions, players, myUserId, getRegionColor, buildingIcons, centroids, layersReady]);
+  }, [regions, players, myUserId, buildingIcons, centroids, layersReady]);
 
   // ── Effect: Voice speaking glow on regions + mic icon at capital ──
   const prevSpeakingRef = useRef<Set<string>>(new Set());
@@ -999,10 +1016,12 @@ export default memo(function GameMap({
       // players is keyed by ID but we need to find which key matches
     }
     // Build map of player_id -> capital centroid for speaking players
+    const capitalsByOwner = new Map<string, string>();
+    for (const [rid, r] of Object.entries(regions)) {
+      if (r.is_capital && r.owner_id) capitalsByOwner.set(r.owner_id, rid);
+    }
     for (const pid of speakingSet) {
-      const capitalRid = Object.entries(regions).find(
-        ([, r]) => r.owner_id === pid && r.is_capital
-      )?.[0];
+      const capitalRid = capitalsByOwner.get(pid);
       if (!capitalRid) continue;
       const centroid = centroids[capitalRid];
       if (!centroid) continue;
@@ -1079,7 +1098,7 @@ export default memo(function GameMap({
         features: labelFeatures,
       } as unknown as GeoJSON.FeatureCollection);
     } catch { /* source not ready */ }
-  }, [regions, players, myUserId, animations, buildingIcons, centroids, activeEffects, layersReady]);
+  }, [regions, players, myUserId, animations, centroids, activeEffects, layersReady]);
 
   // ── Effect A2: selection + target markers ──
   //
@@ -1459,7 +1478,7 @@ export default memo(function GameMap({
 
       // Build cache key to skip redundant updates
       const key = affected.size > 0
-        ? [...affected.entries()].map(([rid, e]) => `${rid}:${e.effectType}`).sort().join(",")
+        ? [...affected.entries()].map(([rid, e]) => `${rid}:${e.effectType}`).join(",")
         : "";
       if (prevEffectFiltersRef.current.__all === key) return;
       prevEffectFiltersRef.current.__all = key;
@@ -1545,6 +1564,10 @@ export default memo(function GameMap({
     }
     if (newAnims.length > 0) {
       animsRef.current = [...animsRef.current, ...newAnims];
+      // Restart animation rAF loop if it was dormant
+      if (rafRef.current === 0 && animTickRef.current) {
+        rafRef.current = requestAnimationFrame(animTickRef.current);
+      }
     }
   }, [animations, centroids]);
 
@@ -1569,6 +1592,7 @@ export default memo(function GameMap({
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
+      animTickRef.current = tick;
 
       const now = Date.now();
       // Maximum impact duration bound used for animation record GC only.
@@ -1608,6 +1632,18 @@ export default memo(function GameMap({
       );
       if (arrivedAnimsRef.current.size > 200) {
         arrivedAnimsRef.current.clear();
+      }
+
+      // Early-return when there is nothing to animate — skip the expensive
+      // setData() calls on all five GeoJSON sources and reschedule cheaply.
+      const hasWork =
+        animsRef.current.length > 0 ||
+        impactFlashesRef.current.length > 0 ||
+        unitPulsesRef.current.size > 0;
+      if (!hasWork) {
+        // Stop the loop entirely — it will be restarted by the animations effect
+        rafRef.current = 0;
+        return;
       }
 
       lineFeats.length = 0;

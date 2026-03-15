@@ -21,9 +21,11 @@ import {
   Loader2,
   MessageSquare,
   Search,
+  Swords,
   Users,
   X,
 } from "lucide-react";
+import { BannedBadge } from "@/components/ui/banned-badge";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 
@@ -62,6 +64,7 @@ function PlayerSlot({ player, isHost }: { player: LobbyPlayer; isHost: boolean }
           </span>
           {isHost && <Crown size={12} className="text-accent shrink-0 md:size-[14px]" />}
           {player.is_bot && <Bot size={12} className="text-muted-foreground shrink-0 md:size-[14px]" />}
+          {player.is_banned && <BannedBadge />}
         </div>
         <span className={cn("text-xs md:text-sm", player.is_ready ? "text-green-400" : "text-muted-foreground")}>
           {player.is_ready ? "Gotowy" : "Oczekuje..."}

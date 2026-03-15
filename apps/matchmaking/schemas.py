@@ -8,6 +8,7 @@ class MatchPlayerOutSchema(Schema):
     id: uuid.UUID
     user_id: uuid.UUID
     username: str
+    is_banned: bool = False
     color: str
     is_alive: bool
     capital_region_id: Optional[uuid.UUID] = None
@@ -16,6 +17,10 @@ class MatchPlayerOutSchema(Schema):
     @staticmethod
     def resolve_username(obj):
         return obj.user.username
+
+    @staticmethod
+    def resolve_is_banned(obj):
+        return obj.user.is_banned
 
     class Config:
         from_attributes = True

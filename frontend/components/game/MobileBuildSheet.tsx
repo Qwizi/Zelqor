@@ -111,14 +111,14 @@ export default memo(function MobileBuildSheet({
           <button
             onClick={() => setMode("build")}
             title="Buduj"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-amber-400/20 bg-slate-950/92 shadow-[0_8px_24px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-colors active:bg-amber-500/20"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-accent/20 bg-card shadow-lg transition-colors active:bg-accent/20"
           >
             <Image
               src={getActionAsset("build")}
               alt="Buduj"
-              width={22}
-              height={22}
-              className="h-[22px] w-[22px] object-contain"
+              width={18}
+              height={18}
+              className="h-[18px] w-[18px] object-contain"
             />
           </button>
         )}
@@ -126,14 +126,14 @@ export default memo(function MobileBuildSheet({
           <button
             onClick={() => setMode("produce")}
             title="Produkuj"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/20 bg-slate-950/92 shadow-[0_8px_24px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-colors active:bg-cyan-500/20"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/20 bg-card shadow-lg transition-colors active:bg-primary/20"
           >
             <Image
               src={getPlayerUnitAsset(region.unit_type ?? "default", myCosmetics, unitConfigMap.get(region.unit_type ?? "")?.asset_url)}
               alt="Produkuj"
-              width={22}
-              height={22}
-              className="h-[22px] w-[22px] object-contain"
+              width={18}
+              height={18}
+              className="h-[18px] w-[18px] object-contain"
             />
           </button>
         )}
@@ -144,15 +144,15 @@ export default memo(function MobileBuildSheet({
   // ── Bottom sheet ──
   const isBuildMode = mode === "build";
   const sheetTitle = isBuildMode ? "Budowa" : "Produkcja jednostek";
-  const accentBorder = isBuildMode ? "border-amber-400/15" : "border-cyan-400/15";
+  const accentBorder = isBuildMode ? "border-accent/15" : "border-primary/15";
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 sm:hidden">
-      <div className="fixed inset-0 bg-black/40" onClick={() => setMode(null)} />
+      <div className="fixed inset-0 bg-background/60" onClick={() => setMode(null)} />
 
-      <div className={`relative max-h-[55vh] overflow-y-auto rounded-t-[24px] border-t ${accentBorder} bg-slate-950/95 pb-6 shadow-[0_-16px_48px_rgba(0,0,0,0.5)] backdrop-blur-xl`}>
-        <div className="sticky top-0 z-10 flex items-center justify-between bg-slate-950/95 px-4 pb-2 pt-3 backdrop-blur-xl">
-          <h4 className={`flex items-center gap-2 text-sm font-medium ${isBuildMode ? "text-amber-400" : "text-cyan-300"}`}>
+      <div className={`relative max-h-[45vh] overflow-y-auto rounded-t-[18px] border-t ${accentBorder} bg-card pb-4 shadow-lg`}>
+        <div className="sticky top-0 z-10 flex items-center justify-between bg-card px-4 pb-1.5 pt-2.5">
+          <h4 className={`flex items-center gap-2 text-sm font-medium ${isBuildMode ? "text-accent" : "text-primary"}`}>
             <Image
               src={isBuildMode ? getActionAsset("build") : getPlayerUnitAsset(region.unit_type ?? "default", myCosmetics)}
               alt=""
@@ -165,7 +165,7 @@ export default memo(function MobileBuildSheet({
           <button
             onClick={() => setMode(null)}
             aria-label="Zamknij"
-            className="rounded-full p-1.5 text-zinc-400 active:bg-zinc-800"
+            className="rounded-full p-1.5 text-muted-foreground active:bg-secondary"
           >
             <Image
               src={getActionAsset("close")}
@@ -177,7 +177,7 @@ export default memo(function MobileBuildSheet({
           </button>
         </div>
 
-        <div className="px-4 space-y-2">
+        <div className="px-4 space-y-1.5">
           {isBuildMode &&
             buildOptions.map((building) => {
               const isBuildingLocked = hasBuildingLocks && !unlockedBuildings!.includes(building.slug);
@@ -214,24 +214,24 @@ export default memo(function MobileBuildSheet({
                     setMode(null);
                   }}
                   disabled={myEnergy < nextCost || isBuildingLocked || isAtMaxLevel === true}
-                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-amber-400/10 bg-amber-500/10 px-3 py-2.5 text-left transition-colors active:bg-amber-500/20 disabled:opacity-40"
+                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-accent/10 bg-accent/10 px-2.5 py-2 text-left transition-colors active:bg-accent/20 disabled:opacity-40"
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
                     {getPlayerBuildingAsset(building.asset_key || building.slug, myCosmetics, building.asset_url) && (
                       <Image
                         src={getPlayerBuildingAsset(building.asset_key || building.slug, myCosmetics, building.asset_url)!}
                         alt={building.name}
-                        width={28}
-                        height={28}
-                        className="h-7 w-7 shrink-0 object-contain"
+                        width={24}
+                        height={24}
+                        className="h-6 w-6 shrink-0 object-contain"
                       />
                     )}
                     <span className="min-w-0">
-                      <span className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-50">
-                        {isBuildingLocked && <Lock className="h-3 w-3 shrink-0 text-zinc-500" />}
+                      <span className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
+                        {isBuildingLocked && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
                         {displayName}
                       </span>
-                      <span className="block text-[11px] text-zinc-500">
+                      <span className="block text-[11px] text-muted-foreground">
                         {isBuildingLocked
                           ? "Wymaga blueprintu z talii"
                           : isAtMaxLevel
@@ -243,14 +243,14 @@ export default memo(function MobileBuildSheet({
                     </span>
                   </span>
                   {isBuildingLocked ? (
-                    <Lock className="h-4 w-4 text-zinc-600" />
+                    <Lock className="h-4 w-4 text-muted-foreground" />
                   ) : isAtMaxLevel ? (
                     <span className="rounded border border-yellow-300/20 bg-yellow-300/10 px-1.5 py-0.5 text-[10px] font-medium text-yellow-300">
                       Max
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-xs text-zinc-400">
-                      <span className="text-[13px] text-cyan-400">⚡</span>
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <span className="text-[13px] text-primary">⚡</span>
                       {nextCost}
                     </span>
                   )}
@@ -270,22 +270,22 @@ export default memo(function MobileBuildSheet({
                     setMode(null);
                   }}
                   disabled={myEnergy < unit.production_cost || isUnitLocked}
-                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-cyan-400/10 bg-cyan-500/10 px-3 py-2.5 text-left transition-colors active:bg-cyan-500/20 disabled:opacity-40"
+                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-primary/10 bg-primary/10 px-2.5 py-2 text-left transition-colors active:bg-primary/20 disabled:opacity-40"
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
                     <Image
                       src={getPlayerUnitAsset(unit.asset_key || unit.slug, myCosmetics, unit.asset_url)}
                       alt={unit.name}
-                      width={24}
-                      height={24}
-                      className="h-6 w-6 object-contain"
+                      width={20}
+                      height={20}
+                      className="h-5 w-5 object-contain"
                     />
                     <span className="min-w-0">
-                      <span className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-50">
-                        {isUnitLocked && <Lock className="h-3 w-3 shrink-0 text-zinc-500" />}
+                      <span className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
+                        {isUnitLocked && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
                         {unit.name}
                       </span>
-                      <span className="block text-[11px] text-zinc-500">
+                      <span className="block text-[11px] text-muted-foreground">
                         {isUnitLocked
                           ? "Wymaga blueprintu z talii"
                           : `Zaloga: ${unit.manpower_cost} · ${unit.production_time_ticks} tick`}
@@ -293,10 +293,10 @@ export default memo(function MobileBuildSheet({
                     </span>
                   </span>
                   {isUnitLocked ? (
-                    <Lock className="h-4 w-4 text-zinc-600" />
+                    <Lock className="h-4 w-4 text-muted-foreground" />
                   ) : (
-                    <span className="flex items-center gap-1 text-xs text-zinc-400">
-                      <span className="text-[13px] text-cyan-400">⚡</span>
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <span className="text-[13px] text-primary">⚡</span>
                       {unit.production_cost}
                     </span>
                   )}

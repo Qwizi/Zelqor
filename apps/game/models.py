@@ -76,3 +76,35 @@ class ShareLink(models.Model):
     @classmethod
     def generate_token(cls):
         return secrets.token_urlsafe(16)
+
+
+class AnticheatViolation(models.Model):
+    """Records anti-cheat violations detected by the Rust gateway."""
+
+    SEVERITY_CHOICES = [
+        ('warn', 'Warning'),
+        ('flag', 'Flagged'),
+        ('ban', 'Banned'),
+    ]
+
+    match = models.ForeignKey(
+        'matchmaking.Match',
+        on_delete=models.CASCADE,
+        related_name='anticheat_violations',
+    )
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='anticheat_violations',
+    )
+    violation_kind = models.CharField(max_length=50)  # action_flood, impossible_timing, etc.
+    severity = models.CharField(max_length=10, choices=SEVERITY_CHOICES)
+    detail = models.TextField()
+    tick = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.violation_kind} ({self.severity}) - {self.player} in match {self.match_id}"

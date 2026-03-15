@@ -15,6 +15,8 @@ class User(AbstractUser):
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     is_bot = models.BooleanField(default=False)
     tutorial_completed = models.BooleanField(default=False)
+    is_banned = models.BooleanField(default=False)
+    banned_reason = models.TextField(blank=True, default='')
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']

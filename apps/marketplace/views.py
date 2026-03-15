@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from ninja_extra import api_controller, route
-from ninja_jwt.authentication import JWTAuth
+from apps.accounts.auth import ActiveUserJWTAuth
 from apps.pagination import paginate_qs
 
 from apps.inventory.models import Item, UserInventory, Wallet
@@ -42,7 +42,7 @@ class MarketplaceController:
 
         return paginate_qs(qs.order_by('listing_type', 'price_per_unit'), limit, offset, schema=MarketListingOutSchema)
 
-    @route.get('/my-listings/', response=dict, auth=JWTAuth())
+    @route.get('/my-listings/', response=dict, auth=ActiveUserJWTAuth())
     def my_listings(self, request, limit: int = 50, offset: int = 0):
         """Get current user's listings."""
         qs = (
@@ -53,7 +53,7 @@ class MarketplaceController:
         )
         return paginate_qs(qs, limit, offset, schema=MarketListingOutSchema)
 
-    @route.get('/history/', response=dict, auth=JWTAuth())
+    @route.get('/history/', response=dict, auth=ActiveUserJWTAuth())
     def my_history(self, request, limit: int = 50, offset: int = 0):
         """Get current user's transaction history."""
         qs = (
@@ -64,7 +64,7 @@ class MarketplaceController:
         )
         return paginate_qs(qs, limit, offset, schema=MarketTransactionOutSchema)
 
-    @route.post('/create-listing/', response=MarketListingOutSchema, auth=JWTAuth())
+    @route.post('/create-listing/', response=MarketListingOutSchema, auth=ActiveUserJWTAuth())
     def create_listing(self, request, payload: CreateListingInSchema):
         """Create a sell or buy order."""
         config = MarketConfig.get()
@@ -114,7 +114,7 @@ class MarketplaceController:
         listing = MarketListing.objects.select_related('seller', 'item', 'item__category').get(pk=listing.pk)
         return listing
 
-    @route.post('/buy/', auth=JWTAuth())
+    @route.post('/buy/', auth=ActiveUserJWTAuth())
     def buy_from_listing(self, request, payload: BuyFromListingInSchema):
         """Buy items from a sell listing."""
         config = MarketConfig.get()
@@ -182,7 +182,7 @@ class MarketplaceController:
 
         return {'message': f'Bought {qty}x {listing.item.name} for {total_price} gold (fee: {fee})'}
 
-    @route.post('/cancel/{listing_id}/', auth=JWTAuth())
+    @route.post('/cancel/{listing_id}/', auth=ActiveUserJWTAuth())
     def cancel_listing(self, request, listing_id: str):
         """Cancel your own listing and return items/gold."""
         with transaction.atomic():
