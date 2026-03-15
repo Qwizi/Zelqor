@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -49,9 +49,13 @@ const strengthConfig = {
 };
 
 export default function RegisterPage() {
-  const { register: registerUser } = useAuth();
+  const { register: registerUser, user } = useAuth();
   const router = useRouter();
   const [generalError, setGeneralError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) router.replace("/dashboard");
+  }, [user, router]);
 
   const {
     register: rhfRegister,
@@ -137,30 +141,30 @@ export default function RegisterPage() {
       altHref="/login"
       altLabel="Zaloguj się"
     >
-      <div className="space-y-8">
+      <div className="space-y-5 md:space-y-8">
         {generalError && (
-          <div className="rounded-2xl border border-destructive/20 bg-destructive/5 px-6 py-4 text-lg text-destructive">
+          <div className="rounded-xl md:rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 md:px-6 md:py-4 text-sm md:text-sm text-destructive">
             {generalError}
           </div>
         )}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="space-y-3">
-            <Label htmlFor="username" className="text-lg">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 md:space-y-6">
+          <div className="space-y-2 md:space-y-3">
+            <Label htmlFor="username" className="text-sm md:text-sm">
               Nazwa użytkownika
             </Label>
             <Input
               id="username"
               placeholder="Strateg42"
               autoComplete="username"
-              className={`h-16 text-xl rounded-2xl ${errors.username ? "border-destructive" : ""}`}
+              className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.username ? "border-destructive" : ""}`}
               {...rhfRegister("username")}
             />
             {errors.username && (
-              <p className="text-base text-destructive mt-2">{errors.username.message}</p>
+              <p className="text-xs md:text-base text-destructive">{errors.username.message}</p>
             )}
           </div>
-          <div className="space-y-3">
-            <Label htmlFor="email" className="text-lg">
+          <div className="space-y-2 md:space-y-3">
+            <Label htmlFor="email" className="text-sm md:text-sm">
               Email
             </Label>
             <Input
@@ -168,15 +172,15 @@ export default function RegisterPage() {
               type="email"
               placeholder="dowódca@maplord.gg"
               autoComplete="email"
-              className={`h-16 text-xl rounded-2xl ${errors.email ? "border-destructive" : ""}`}
+              className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.email ? "border-destructive" : ""}`}
               {...rhfRegister("email")}
             />
             {errors.email && (
-              <p className="text-base text-destructive mt-2">{errors.email.message}</p>
+              <p className="text-xs md:text-base text-destructive">{errors.email.message}</p>
             )}
           </div>
-          <div className="space-y-3">
-            <Label htmlFor="password" className="text-lg">
+          <div className="space-y-2 md:space-y-3">
+            <Label htmlFor="password" className="text-sm md:text-sm">
               Hasło
             </Label>
             <Input
@@ -184,23 +188,23 @@ export default function RegisterPage() {
               type="password"
               placeholder="min. 8 znaków"
               autoComplete="new-password"
-              className={`h-16 text-xl rounded-2xl ${errors.password ? "border-destructive" : ""}`}
+              className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.password ? "border-destructive" : ""}`}
               {...rhfRegister("password")}
             />
             {passwordValue && strength !== "none" && (
-              <div className="mt-2 h-2 w-full rounded-full bg-secondary">
+              <div className="mt-1.5 md:mt-2 h-1.5 md:h-2 w-full rounded-full bg-secondary">
                 <div
-                  className={`h-2 rounded-full transition-all duration-300 ${strengthConfig[strength].color}`}
+                  className={`h-1.5 md:h-2 rounded-full transition-all duration-300 ${strengthConfig[strength].color}`}
                   style={{ width: strengthConfig[strength].width }}
                 />
               </div>
             )}
             {errors.password && (
-              <p className="text-base text-destructive mt-2">{errors.password.message}</p>
+              <p className="text-xs md:text-base text-destructive">{errors.password.message}</p>
             )}
           </div>
-          <div className="space-y-3">
-            <Label htmlFor="confirmPassword" className="text-lg">
+          <div className="space-y-2 md:space-y-3">
+            <Label htmlFor="confirmPassword" className="text-sm md:text-sm">
               Powtórz hasło
             </Label>
             <Input
@@ -208,16 +212,16 @@ export default function RegisterPage() {
               type="password"
               placeholder="••••••••"
               autoComplete="new-password"
-              className={`h-16 text-xl rounded-2xl ${errors.confirmPassword ? "border-destructive" : ""}`}
+              className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.confirmPassword ? "border-destructive" : ""}`}
               {...rhfRegister("confirmPassword")}
             />
             {errors.confirmPassword && (
-              <p className="text-base text-destructive mt-2">{errors.confirmPassword.message}</p>
+              <p className="text-xs md:text-base text-destructive">{errors.confirmPassword.message}</p>
             )}
           </div>
           <Button
             type="submit"
-            className="h-16 w-full rounded-2xl bg-primary font-display text-xl uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
+            className="h-12 md:h-14 w-full rounded-full md:rounded-xl bg-primary font-display text-base md:text-lg uppercase tracking-wider text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-all"
             disabled={isSubmitting}
           >
             {isSubmitting ? "Rejestracja..." : "Utwórz konto"}

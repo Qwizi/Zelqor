@@ -22,6 +22,17 @@ class MatchController:
         )
         return paginate_qs(qs, limit, offset, schema=MatchOutSchema)
 
+    @route.get('/player/{user_id}/', response=dict, auth=JWTAuth(), permissions=[IsAuthenticated])
+    def list_player_matches(self, request, user_id: str, limit: int = 50, offset: int = 0):
+        """List matches for any player by user ID."""
+        qs = (
+            Match.objects.filter(players__user_id=user_id)
+            .exclude(is_tutorial=True)
+            .prefetch_related('players', 'players__user')
+            .distinct()
+        )
+        return paginate_qs(qs, limit, offset, schema=MatchOutSchema)
+
     @route.get('/{match_id}/', response=MatchOutSchema, auth=JWTAuth(), permissions=[IsAuthenticated])
     def get_match(self, request, match_id: str):
         return get_object_or_404(Match.objects.prefetch_related('players', 'players__user'), id=match_id)

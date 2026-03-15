@@ -380,6 +380,10 @@ export async function getMyMatches(token: string, limit?: number, offset?: numbe
   return fetchPaginated<Match>("/matches/", { token, limit, offset });
 }
 
+export async function getPlayerMatches(token: string, userId: string, limit?: number, offset?: number): Promise<PaginatedResponse<Match>> {
+  return fetchPaginated<Match>(`/matches/player/${userId}/`, { token, limit, offset });
+}
+
 export async function getMatch(
   token: string,
   matchId: string

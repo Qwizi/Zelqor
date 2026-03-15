@@ -63,21 +63,16 @@ export default function ReplayPage() {
   speedRef.current = speed;
   currentIndexRef.current = currentIndex;
 
-  // Cache loaded snapshots
   const snapshotCache = useRef<Map<number, GameState>>(new Map());
 
-  // ── Load a snapshot ─────────────────────────────────────
   const loadSnapshot = useCallback(async (tick: number, index: number) => {
     if (!token) return;
-
-    // Check cache first
     const cached = snapshotCache.current.get(tick);
     if (cached) {
       setGameState(cached);
       setCurrentIndex(index);
       return;
     }
-
     setSnapshotLoading(true);
     try {
       const snap = await getSnapshot(token, matchId, tick);
@@ -92,14 +87,9 @@ export default function ReplayPage() {
     }
   }, [token, matchId]);
 
-  // ── Load initial data ───────────────────────────────────
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !token) {
-      router.replace("/login");
-      return;
-    }
-
+    if (!user || !token) { router.replace("/login"); return; }
     Promise.all([
       getMatch(token, matchId),
       getMatchSnapshots(token, matchId),
@@ -112,61 +102,42 @@ export default function ReplayPage() {
       setRegionGraph(graph);
       setBuildingTypes(cfg.buildings);
       setLoading(false);
-
-      // Load first snapshot
-      if (snapshotList.length > 0) {
-        loadSnapshot(snapshotList[0].tick, 0);
-      }
+      if (snapshotList.length > 0) loadSnapshot(snapshotList[0].tick, 0);
     }).catch(() => setLoading(false));
   }, [authLoading, user, token, matchId, router, loadSnapshot]);
 
-  // ── Prefetch next snapshots ─────────────────────────────
   useEffect(() => {
     if (!token || snapshots.length === 0) return;
-    // Prefetch next 2 snapshots
     for (let i = currentIndex + 1; i <= Math.min(currentIndex + 2, snapshots.length - 1); i++) {
       const tick = snapshots[i].tick;
       if (!snapshotCache.current.has(tick)) {
         getSnapshot(token, matchId, tick)
-          .then((snap) => {
-            snapshotCache.current.set(tick, snap.state_data as unknown as GameState);
-          })
+          .then((snap) => { snapshotCache.current.set(tick, snap.state_data as unknown as GameState); })
           .catch(() => {});
       }
     }
   }, [currentIndex, token, matchId, snapshots]);
 
-  // ── Playback loop ───────────────────────────────────────
   useEffect(() => {
     if (!playing || snapshots.length === 0) return;
-
     const interval = setInterval(() => {
       if (!playingRef.current) return;
       const nextIdx = currentIndexRef.current + 1;
-      if (nextIdx >= snapshots.length) {
-        setPlaying(false);
-        return;
-      }
+      if (nextIdx >= snapshots.length) { setPlaying(false); return; }
       loadSnapshot(snapshots[nextIdx].tick, nextIdx);
     }, 1000 / speedRef.current);
-
     return () => clearInterval(interval);
   }, [playing, snapshots, loadSnapshot]);
 
-  // ── Derived data ────────────────────────────────────────
   const centroids = useMemo(() => {
     const c: Record<string, [number, number]> = {};
-    for (const entry of regionGraph) {
-      if (entry.centroid) c[entry.id] = entry.centroid;
-    }
+    for (const entry of regionGraph) { if (entry.centroid) c[entry.id] = entry.centroid; }
     return c;
   }, [regionGraph]);
 
   const buildingIcons = useMemo(() => {
     const m: Record<string, string> = {};
-    for (const b of buildingTypes) {
-      m[b.slug] = b.asset_key || b.slug;
-    }
+    for (const b of buildingTypes) { m[b.slug] = b.asset_key || b.slug; }
     return m;
   }, [buildingTypes]);
 
@@ -175,16 +146,12 @@ export default function ReplayPage() {
   const currentTick = snapshots[currentIndex]?.tick ?? 0;
   const totalTicks = snapshots.length > 0 ? snapshots[snapshots.length - 1].tick : 0;
 
-  // Player stats for current snapshot
   const playerList = useMemo(() => {
     const entries = Object.entries(players) as [string, GamePlayer][];
     const regionEntries = Object.values(regions) as GameRegion[];
-
     return entries.map(([id, p]) => {
       const ownedRegions = regionEntries.filter((r) => r.owner_id === id).length;
-      const totalUnits = regionEntries
-        .filter((r) => r.owner_id === id)
-        .reduce((sum, r) => sum + (r.unit_count || 0), 0);
+      const totalUnits = regionEntries.filter((r) => r.owner_id === id).reduce((sum, r) => sum + (r.unit_count || 0), 0);
       return { id, ...p, ownedRegions, totalUnits };
     }).sort((a, b) => b.ownedRegions - a.ownedRegions);
   }, [players, regions]);
@@ -198,114 +165,80 @@ export default function ReplayPage() {
     return m;
   }, [players]);
 
-  // ── Handlers ────────────────────────────────────────────
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const idx = Number(e.target.value);
     setPlaying(false);
     loadSnapshot(snapshots[idx].tick, idx);
   };
+  const stepForward = () => { if (currentIndex < snapshots.length - 1) { setPlaying(false); loadSnapshot(snapshots[currentIndex + 1].tick, currentIndex + 1); } };
+  const stepBackward = () => { if (currentIndex > 0) { setPlaying(false); loadSnapshot(snapshots[currentIndex - 1].tick, currentIndex - 1); } };
+  const cycleSpeed = () => { const idx = SPEEDS.indexOf(speed); setSpeed(SPEEDS[(idx + 1) % SPEEDS.length]); };
 
-  const stepForward = () => {
-    if (currentIndex < snapshots.length - 1) {
-      setPlaying(false);
-      loadSnapshot(snapshots[currentIndex + 1].tick, currentIndex + 1);
-    }
-  };
-
-  const stepBackward = () => {
-    if (currentIndex > 0) {
-      setPlaying(false);
-      loadSnapshot(snapshots[currentIndex - 1].tick, currentIndex - 1);
-    }
-  };
-
-  const cycleSpeed = () => {
-    const idx = SPEEDS.indexOf(speed);
-    setSpeed(SPEEDS[(idx + 1) % SPEEDS.length]);
-  };
-
-  // ── Loading state ───────────────────────────────────────
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <Image
-          src="/assets/match_making/circle291.webp"
-          alt=""
-          width={48}
-          height={48}
-          className="h-12 w-12 animate-spin object-contain"
-        />
+        <Image src="/assets/match_making/circle291.webp" alt="" width={48} height={48} className="h-12 w-12 animate-spin object-contain" />
       </div>
     );
   }
 
   if (!match || snapshots.length === 0) {
     return (
-      <div className="space-y-4">
-        <Link
-          href={`/match/${matchId}`}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-zinc-100"
-        >
+      <div className="space-y-4 px-4 md:px-0">
+        <Link href={`/match/${matchId}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
-          Powrot do meczu
+          Powrót do meczu
         </Link>
-        <div className="rounded-[24px] border border-white/10 bg-slate-950/55 px-6 py-12 text-center backdrop-blur-xl">
-          <p className="text-slate-400">
-            Brak snapshotow dla tego meczu. Replay nie jest dostepny.
-          </p>
+        <div className="rounded-2xl border border-border bg-card px-6 py-12 text-center">
+          <p className="text-sm md:text-base text-muted-foreground">Brak snapshotów. Replay nie jest dostępny.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2 px-4 md:px-0">
+        <div className="flex items-center gap-2">
           <Link
             href={`/match/${matchId}`}
-            className="inline-flex items-center gap-2 text-base text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center justify-center h-9 w-9 md:h-auto md:w-auto md:gap-2 rounded-full md:rounded-lg text-muted-foreground transition-all hover:text-foreground hover:bg-muted active:scale-[0.95]"
           >
-            <ArrowLeft className="h-5 w-5" />
-            Szczegóły meczu
+            <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
+            <span className="hidden md:inline text-base">Szczegóły meczu</span>
           </Link>
-          <h1 className="font-display text-4xl text-foreground">Replay</h1>
+          <h1 className="font-display text-lg md:text-4xl text-foreground">Replay</h1>
         </div>
-        <div className="flex items-center gap-3 text-base text-muted-foreground">
-          <span>Tick <span className="font-display text-lg text-foreground">{currentTick}</span> / {totalTicks}</span>
-          <span className="text-border">|</span>
-          <span>{snapshots.length} snapshotów</span>
-        </div>
-      </div>
-
-      {/* Timeline controls — above map */}
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <Button variant="ghost" onClick={stepBackward} disabled={currentIndex === 0} className="h-10 w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30">
-              <SkipBack className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" onClick={() => setPlaying(!playing)} className="h-12 w-12 rounded-full p-0 text-primary hover:bg-primary/10">
-              {playing ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
-            </Button>
-            <Button variant="ghost" onClick={stepForward} disabled={currentIndex >= snapshots.length - 1} className="h-10 w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30">
-              <SkipForward className="h-5 w-5" />
-            </Button>
-          </div>
-          <input type="range" min={0} max={snapshots.length - 1} value={currentIndex} onChange={handleSliderChange} className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-primary [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(34,211,238,0.4)]" />
-          <button onClick={cycleSpeed} className="rounded-full border border-border px-4 py-1.5 text-base font-semibold text-foreground hover:bg-muted">{speed}x</button>
-          <div className="hidden text-right sm:block">
-            <span className="font-display text-xl text-foreground">{currentTick}</span>
-            <span className="text-base text-muted-foreground"> / {totalTicks}</span>
-          </div>
+        <div className="flex items-center gap-2 text-xs md:text-base text-muted-foreground">
+          <span className="font-display text-sm md:text-lg text-foreground tabular-nums">{currentTick}</span>
+          <span>/ {totalTicks}</span>
         </div>
       </div>
 
-      {/* Map + players sidebar */}
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]" style={{ height: "calc(100vh - 20rem)" }}>
-        {/* Map container */}
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
+      {/* Timeline controls */}
+      <div className="rounded-none md:rounded-2xl border-y md:border border-border bg-card/80 md:bg-card px-3 py-2.5 md:p-5 mx-0 md:mx-0">
+        <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex items-center gap-0.5 md:gap-1.5">
+            <Button variant="ghost" onClick={stepBackward} disabled={currentIndex === 0} className="h-8 w-8 md:h-10 md:w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30">
+              <SkipBack className="h-4 w-4 md:h-5 md:w-5" />
+            </Button>
+            <Button variant="ghost" onClick={() => setPlaying(!playing)} className="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 text-primary hover:bg-primary/10">
+              {playing ? <Pause className="h-5 w-5 md:h-6 md:w-6" /> : <Play className="h-5 w-5 md:h-6 md:w-6" />}
+            </Button>
+            <Button variant="ghost" onClick={stepForward} disabled={currentIndex >= snapshots.length - 1} className="h-8 w-8 md:h-10 md:w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30">
+              <SkipForward className="h-4 w-4 md:h-5 md:w-5" />
+            </Button>
+          </div>
+          <input type="range" min={0} max={snapshots.length - 1} value={currentIndex} onChange={handleSliderChange} className="h-1.5 md:h-2 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-primary [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 md:[&::-webkit-slider-thumb]:h-5 md:[&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(34,211,238,0.4)]" />
+          <button onClick={cycleSpeed} className="rounded-full border border-border px-3 py-1 md:px-4 md:py-1.5 text-sm md:text-base font-semibold text-foreground hover:bg-muted active:scale-[0.95]">{speed}x</button>
+        </div>
+      </div>
+
+      {/* Map + players */}
+      <div className="grid gap-3 md:gap-4 lg:grid-cols-[1fr_320px] px-4 md:px-0 lg:h-[calc(100vh-20rem)]">
+        {/* Map */}
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-card h-[50vh] md:h-full">
           <div className="h-full w-full">
             {gameState && (
               <GameMap
@@ -327,48 +260,75 @@ export default function ReplayPage() {
             )}
           </div>
           {snapshotLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-950/50">
-              <Image
-                src="/assets/match_making/circle291.webp"
-                alt=""
-                width={32}
-                height={32}
-                className="h-8 w-8 animate-spin object-contain"
-              />
+            <div className="absolute inset-0 flex items-center justify-center bg-card/70">
+              <Image src="/assets/match_making/circle291.webp" alt="" width={32} height={32} className="h-8 w-8 animate-spin object-contain" />
             </div>
           )}
         </div>
 
-        {/* Player panel */}
-        <div className="rounded-2xl border border-border bg-card p-5 overflow-y-auto">
-          <div className="mb-4 flex items-center gap-2.5">
-            <Users className="h-5 w-5 text-primary" />
-            <h3 className="font-display text-base uppercase tracking-[0.2em] text-foreground">
+        {/* Player panel — horizontal scroll on mobile, sidebar on desktop */}
+        <div>
+          <div className="mb-2 md:mb-4 flex items-center gap-2 md:gap-2.5">
+            <Users className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+            <h3 className="text-[11px] md:text-base font-display uppercase tracking-[0.15em] md:tracking-[0.2em] text-foreground">
               Gracze
             </h3>
           </div>
-          <div className="space-y-3">
+
+          {/* Mobile: horizontal scroll */}
+          <div className="flex gap-2 overflow-x-auto pb-1 md:hidden scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+            {playerList.map((p) => {
+              const isWinner = p.id === match.winner_id;
+              return (
+                <div
+                  key={p.id}
+                  className={`shrink-0 rounded-xl border p-3 w-36 ${
+                    !p.is_alive ? "border-border/30 opacity-40"
+                      : isWinner ? "border-accent/25 bg-accent/5"
+                      : "border-border bg-secondary/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-5 w-5 rounded-md border border-border" style={{ backgroundColor: p.color }} />
+                    <span className="flex-1 truncate text-xs font-semibold text-foreground">{p.username}</span>
+                    {isWinner && <Crown className="h-3.5 w-3.5 text-accent shrink-0" />}
+                    {!p.is_alive && <Skull className="h-3.5 w-3.5 text-destructive shrink-0" />}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 text-center">
+                    <div>
+                      <div className="text-[9px] text-muted-foreground">Reg</div>
+                      <div className="font-display text-sm text-primary">{p.ownedRegions}</div>
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-muted-foreground">Jedn</div>
+                      <div className="font-display text-sm text-foreground">{p.totalUnits}</div>
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-muted-foreground">Ener</div>
+                      <div className="font-display text-sm text-primary">{p.energy}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop: vertical sidebar */}
+          <div className="hidden md:block rounded-2xl border border-border bg-card p-5 overflow-y-auto space-y-3">
             {playerList.map((p) => {
               const isWinner = p.id === match.winner_id;
               return (
                 <div
                   key={p.id}
                   className={`rounded-xl border p-4 ${
-                    !p.is_alive
-                      ? "border-border/30 opacity-40"
-                      : isWinner
-                        ? "border-accent/25 bg-accent/5"
-                        : "border-border bg-secondary/50"
+                    !p.is_alive ? "border-border/30 opacity-40"
+                      : isWinner ? "border-accent/25 bg-accent/5"
+                      : "border-border bg-secondary/50"
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div
-                      className="h-6 w-6 rounded-lg border border-border"
-                      style={{ backgroundColor: p.color }}
-                    />
-                    <span className="flex-1 truncate text-base font-semibold text-foreground">
-                      {p.username}
-                    </span>
+                    <div className="h-6 w-6 rounded-lg border border-border" style={{ backgroundColor: p.color }} />
+                    <span className="flex-1 truncate text-base font-semibold text-foreground">{p.username}</span>
                     {isWinner && <Crown className="h-5 w-5 text-accent" />}
                     {!p.is_alive && <Skull className="h-5 w-5 text-destructive" />}
                   </div>
@@ -392,7 +352,6 @@ export default function ReplayPage() {
           </div>
         </div>
       </div>
-
     </div>
   );
 }

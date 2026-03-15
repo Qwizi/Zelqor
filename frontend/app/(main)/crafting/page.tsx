@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -113,52 +114,53 @@ function RecipeRow({ recipe, craftable, active, rarity, owned, onSelect }: {
 }) {
   return (
     <button
+      data-animate="recipe"
       onClick={onSelect}
-      className={`group w-full rounded-xl border p-4 text-left transition-colors ${
+      className={`group w-full rounded-xl border p-3 md:p-4 text-left transition-colors active:scale-[0.98] ${
         active ? "bg-secondary/50 border-primary/30" : "border-border/30 hover:bg-muted/30"
       } ${!craftable ? "opacity-50" : ""}`}
     >
-      <div className="flex items-center gap-4">
-        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border ${RARITY_BORDER[rarity]} bg-secondary text-3xl`}>
+      <div className="flex items-center gap-3 md:gap-4">
+        <div className={`flex h-10 w-10 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-xl border ${RARITY_BORDER[rarity]} bg-secondary text-2xl md:text-3xl`}>
           {recipe.result_item.icon || "📦"}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-semibold text-foreground">{recipe.result_item.name}</span>
-            <Badge className={`border px-1.5 py-0.5 text-xs font-bold uppercase ${RARITY_BORDER[rarity]} ${RARITY_BG[rarity]} ${RARITY_TEXT[rarity]}`}>
+          <div className="flex items-center gap-1.5 md:gap-2">
+            <span className="text-sm md:text-lg font-semibold text-foreground truncate">{recipe.result_item.name}</span>
+            <Badge className={`shrink-0 border px-1 md:px-1.5 py-0.5 text-[10px] md:text-xs font-bold uppercase ${RARITY_BORDER[rarity]} ${RARITY_BG[rarity]} ${RARITY_TEXT[rarity]}`}>
               {RARITY_LABEL[rarity]}
             </Badge>
             {recipe.result_item.level > 1 && (
-              <span className="text-sm font-medium text-muted-foreground">Lvl {recipe.result_item.level}</span>
+              <span className="hidden md:inline text-sm font-medium text-muted-foreground">Lvl {recipe.result_item.level}</span>
             )}
           </div>
-          <div className="mt-2 flex items-center gap-3">
-            {recipe.ingredients.slice(0, 5).map((ing) => (
-              <span key={ing.item.slug} className="flex items-center gap-1">
-                <span className="text-lg">{ing.item.icon || "?"}</span>
-                <span className={`text-base font-semibold ${owned(ing.item.slug) >= ing.quantity ? "text-foreground" : "text-red-400"}`}>
+          <div className="mt-1 md:mt-2 flex items-center gap-2 md:gap-3">
+            {recipe.ingredients.slice(0, 3).map((ing) => (
+              <span key={ing.item.slug} className="flex items-center gap-0.5 md:gap-1">
+                <span className="text-sm md:text-lg">{ing.item.icon || "?"}</span>
+                <span className={`text-xs md:text-base font-semibold tabular-nums ${owned(ing.item.slug) >= ing.quantity ? "text-foreground" : "text-red-400"}`}>
                   {owned(ing.item.slug)}/{ing.quantity}
                 </span>
               </span>
             ))}
-            {recipe.ingredients.length > 5 && (
-              <span className="text-base text-muted-foreground">+{recipe.ingredients.length - 5}</span>
+            {recipe.ingredients.length > 3 && (
+              <span className="text-xs md:text-base text-muted-foreground">+{recipe.ingredients.length - 3}</span>
             )}
             {recipe.gold_cost > 0 && (
-              <span className="flex items-center gap-1 text-base font-semibold text-accent">
-                <Coins className="h-4 w-4" />{recipe.gold_cost}
+              <span className="flex items-center gap-0.5 text-xs md:text-base font-semibold text-accent">
+                <Coins className="h-3 w-3 md:h-4 md:w-4" />{recipe.gold_cost}
               </span>
             )}
           </div>
         </div>
         <div className="shrink-0">
           {craftable ? (
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-green-500/15 text-green-400">
-              <Check className="h-5 w-5" />
+            <div className="flex h-8 w-8 md:h-11 md:w-11 items-center justify-center rounded-full bg-green-500/15 text-green-400">
+              <Check className="h-4 w-4 md:h-5 md:w-5" />
             </div>
           ) : (
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground/40">
-              <Lock className="h-5 w-5" />
+            <div className="flex h-8 w-8 md:h-11 md:w-11 items-center justify-center rounded-full bg-muted text-muted-foreground/40">
+              <Lock className="h-4 w-4 md:h-5 md:w-5" />
             </div>
           )}
         </div>
@@ -180,6 +182,12 @@ export default function CraftingPage() {
   const [lastResult, setLastResult] = useState<CraftResult | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [showOnlyCraftable, setShowOnlyCraftable] = useState(false);
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    if (!pageRef.current || loading) return;
+    gsap.fromTo("[data-animate='recipe']", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, stagger: 0.04, ease: "power2.out" });
+  }, { scope: pageRef, dependencies: [loading, category, showOnlyCraftable] });
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -326,53 +334,60 @@ export default function CraftingPage() {
   if (authLoading || !user) return null;
 
   return (
-    <div className="space-y-8">
+    <div ref={pageRef} className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* ── Header ── */}
-      <div className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Warsztat</p>
-        <h1 className="font-display text-4xl sm:text-5xl text-foreground">Kuźnia</h1>
+      <div className="px-4 md:px-0">
+        <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground">Warsztat</p>
+        <h1 className="font-display text-2xl md:text-5xl text-foreground">Kuźnia</h1>
       </div>
 
       {/* ── Wallet bar ── */}
       {wallet && (
-        <Card className="flex-row items-center gap-3 rounded-2xl px-6 py-4 backdrop-blur-xl">
-          <Coins className="h-6 w-6 text-accent" />
-          <span className="font-display text-2xl text-accent">{wallet.gold}</span>
-          <span className="text-base text-muted-foreground">złota</span>
-        </Card>
+        <div className="px-4 md:px-0">
+          {/* Mobile: inline */}
+          <div className="flex items-center gap-2.5 md:hidden">
+            <Coins className="h-5 w-5 text-accent" />
+            <span className="font-display text-xl tabular-nums text-accent">{wallet.gold}</span>
+            <span className="text-xs text-muted-foreground">złota</span>
+          </div>
+          {/* Desktop: card */}
+          <Card className="hidden md:flex flex-row items-center gap-3 rounded-2xl px-6 py-4 backdrop-blur-xl">
+            <Coins className="h-6 w-6 text-accent" />
+            <span className="font-display text-2xl text-accent">{wallet.gold}</span>
+            <span className="text-base text-muted-foreground">złota</span>
+          </Card>
+        </div>
       )}
 
       {/* ── Last craft result ── */}
       {lastResult?.instance && (
-        <Card className="rounded-2xl border-amber-500/25 p-4 backdrop-blur-xl">
-          <CardContent className="px-0">
-            <div className="flex flex-wrap items-center gap-3">
-              <Sparkles className="h-5 w-5 text-amber-400" />
-              <span className="font-display text-xl text-amber-200">{lastResult.item_name}</span>
-              <Badge
-                className={`border px-2 py-0.5 text-xs font-bold ${WEAR_COLORS[lastResult.instance.wear_condition] ?? "text-muted-foreground bg-muted border-border"}`}
-              >
-                {WEAR_FULL[lastResult.instance.wear_condition] ?? lastResult.instance.wear_condition}
+        <div className="px-4 md:px-0">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/[0.04] p-3 md:p-4">
+            <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-amber-400" />
+            <span className="font-display text-base md:text-xl text-amber-200">{lastResult.item_name}</span>
+            <Badge
+              className={`border px-1.5 md:px-2 py-0.5 text-[10px] md:text-xs font-bold ${WEAR_COLORS[lastResult.instance.wear_condition] ?? "text-muted-foreground bg-muted border-border"}`}
+            >
+              {WEAR_FULL[lastResult.instance.wear_condition] ?? lastResult.instance.wear_condition}
+            </Badge>
+            <span className="hidden md:inline font-mono text-sm text-muted-foreground tabular-nums">
+              {lastResult.instance.wear.toFixed(6)}
+            </span>
+            {lastResult.instance.stattrak && (
+              <Badge className="border border-orange-500/40 bg-orange-500/15 px-1.5 py-0.5 text-[10px] md:text-xs font-bold text-orange-300">
+                ST
               </Badge>
-              <span className="font-mono text-sm text-muted-foreground tabular-nums">
-                {lastResult.instance.wear.toFixed(6)}
-              </span>
-              {lastResult.instance.stattrak && (
-                <Badge className="border border-orange-500/40 bg-orange-500/15 px-2 py-0.5 text-xs font-bold text-orange-300">
-                  StatTrak™
-                </Badge>
-              )}
-              {lastResult.instance.is_rare_pattern && (
-                <span className="text-base text-accent">⭐ Rzadki wzór #{lastResult.instance.pattern_seed}</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+            )}
+            {lastResult.instance.is_rare_pattern && (
+              <span className="text-xs md:text-base text-accent">⭐</span>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── Main layout: sidebar categories + recipe list + detail panel ── */}
-      <Card
-        className="flex-row gap-4 rounded-2xl p-5 backdrop-blur-xl"
+      <div
+        className="md:flex md:flex-row md:gap-4 md:rounded-2xl md:border md:border-border md:bg-card md:p-5 md:backdrop-blur-xl px-4 md:px-5"
         style={{ maxHeight: "calc(100vh - 12rem)" }}
       >
         {/* ── Left: categories ── */}
@@ -401,21 +416,21 @@ export default function CraftingPage() {
         </div>
 
         {/* ── Center: recipe list ── */}
-        <div className="min-w-0 flex-1 space-y-4 overflow-y-auto">
+        <div className="min-w-0 flex-1 space-y-3 md:space-y-4 overflow-y-auto">
           {/* Mobile categories */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none lg:hidden">
+          <div className="flex gap-1.5 md:gap-2 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] lg:hidden">
             {CATEGORIES.map((c) => (
               <button
                 key={c.value}
                 onClick={() => { setCategory(c.value); setSelected(null); }}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                className={`flex shrink-0 items-center gap-1 md:gap-1.5 rounded-full border px-2.5 md:px-3 py-1.5 text-xs md:text-sm font-medium transition-colors ${
                   category === c.value
                     ? "border-primary/25 bg-primary/10 text-primary"
                     : "border-border text-muted-foreground hover:border-border/60"
                 }`}
               >
-                <span>{c.icon}</span>
-                {c.label}
+                <span className="text-xs md:text-base">{c.icon}</span>
+                <span className="hidden md:inline">{c.label}</span>
               </button>
             ))}
           </div>
@@ -428,22 +443,22 @@ export default function CraftingPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Szukaj receptury lub składnika..."
-                className="pl-9 rounded-xl h-11"
+                placeholder="Szukaj..."
+                className="pl-9 rounded-full md:rounded-xl h-10 md:h-11 text-sm md:text-base"
               />
             </div>
-            <Button
-              variant={showOnlyCraftable ? "secondary" : "outline"}
+            <button
               onClick={() => setShowOnlyCraftable((v) => !v)}
-              className={`shrink-0 rounded-xl gap-1.5 px-4 h-11 text-base font-medium ${
+              className={`flex shrink-0 items-center gap-1 md:gap-1.5 rounded-full md:rounded-xl border px-3 md:px-4 h-10 md:h-11 text-xs md:text-base font-medium transition-colors ${
                 showOnlyCraftable
-                  ? "border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/15"
-                  : ""
+                  ? "border-green-500/30 bg-green-500/10 text-green-300"
+                  : "border-border text-muted-foreground"
               }`}
             >
-              <Check className="h-4 w-4" />
-              Dostępne
-            </Button>
+              <Check className="h-3.5 w-3.5 md:h-4 md:w-4" />
+              <span className="hidden md:inline">Dostępne</span>
+              <span className="md:hidden">Mam</span>
+            </button>
           </div>
 
           {/* Recipe grid */}
@@ -461,12 +476,12 @@ export default function CraftingPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5 md:space-y-2">
               {/* Available recipes */}
               {filtered.filter((r) => canCraft(r)).length > 0 && (
-                <div className="flex items-center gap-2 px-1 pt-1 pb-2">
-                  <Check className="h-4 w-4 text-green-400" />
-                  <span className="text-sm font-semibold uppercase tracking-[0.2em] text-green-400">
+                <div className="flex items-center gap-1.5 md:gap-2 px-1 pt-1 pb-1.5 md:pb-2">
+                  <Check className="h-3.5 w-3.5 md:h-4 md:w-4 text-green-400" />
+                  <span className="text-[11px] md:text-sm font-semibold uppercase tracking-[0.15em] md:tracking-[0.2em] text-green-400">
                     Dostępne ({filtered.filter((r) => canCraft(r)).length})
                   </span>
                   <div className="h-px flex-1 bg-green-500/20" />
@@ -482,9 +497,9 @@ export default function CraftingPage() {
 
               {/* Unavailable recipes */}
               {!showOnlyCraftable && filtered.filter((r) => !canCraft(r)).length > 0 && (
-                <div className="flex items-center gap-2 px-1 pt-4 pb-2">
-                  <Lock className="h-4 w-4 text-muted-foreground/50" />
-                  <span className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground/50">
+                <div className="flex items-center gap-1.5 md:gap-2 px-1 pt-3 md:pt-4 pb-1.5 md:pb-2">
+                  <Lock className="h-3.5 w-3.5 md:h-4 md:w-4 text-muted-foreground/50" />
+                  <span className="text-[11px] md:text-sm font-semibold uppercase tracking-[0.15em] md:tracking-[0.2em] text-muted-foreground/50">
                     Brak składników ({filtered.filter((r) => !canCraft(r)).length})
                   </span>
                   <div className="h-px flex-1 bg-border/30" />
@@ -520,7 +535,7 @@ export default function CraftingPage() {
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       {/* ── Mobile detail: expands below selected recipe ── */}
       {selectedRecipe && (
@@ -625,16 +640,16 @@ function RecipeDetail({
     <Card
       className={`rounded-2xl border space-y-0 ${RARITY_BORDER[rarity]} bg-card ${RARITY_GLOW[rarity]}`}
     >
-      <CardHeader className="pb-0">
+      <CardHeader className="pb-0 px-4 md:px-6 pt-4 md:pt-6">
         {/* Result item */}
         <div className="flex items-start gap-3">
           <div
-            className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border text-3xl ${RARITY_BORDER[rarity]} bg-secondary`}
+            className={`flex h-12 w-12 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-xl border text-2xl md:text-3xl ${RARITY_BORDER[rarity]} bg-secondary`}
           >
             {recipe.result_item.icon || "📦"}
           </div>
           <div>
-            <CardTitle className={`font-display text-2xl ${RARITY_TEXT[rarity]}`}>
+            <CardTitle className={`font-display text-lg md:text-2xl ${RARITY_TEXT[rarity]}`}>
               {recipe.result_item.name}
             </CardTitle>
             <div className="mt-0.5 flex items-center gap-2">
@@ -656,7 +671,7 @@ function RecipeDetail({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 md:space-y-4 px-4 md:px-6">
         {/* Wear preview for unique items */}
         {isUnique && (
           <>
@@ -686,23 +701,23 @@ function RecipeDetail({
           <p className="mb-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
             Składniki
           </p>
-          <div className="space-y-2">
+          <div className="space-y-1.5 md:space-y-2">
             {recipe.ingredients.map((ing) => {
               const have = owned(ing.item.slug);
               const enough = have >= ing.quantity;
               return (
                 <div
                   key={ing.item.slug}
-                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 ${
+                  className={`flex items-center gap-2 md:gap-2.5 rounded-xl border px-2.5 py-2 md:px-3 md:py-2.5 ${
                     enough
                       ? "border-green-500/20 bg-green-500/[0.05]"
                       : "border-red-500/20 bg-red-500/[0.05]"
                   }`}
                 >
-                  <span className="text-xl">{ing.item.icon || "?"}</span>
-                  <span className="flex-1 text-base text-foreground/80">{ing.item.name}</span>
+                  <span className="text-lg md:text-xl">{ing.item.icon || "?"}</span>
+                  <span className="flex-1 text-sm md:text-base text-foreground/80 truncate">{ing.item.name}</span>
                   <span
-                    className={`font-mono text-base font-bold tabular-nums ${
+                    className={`font-mono text-sm md:text-base font-bold tabular-nums ${
                       enough ? "text-green-400" : "text-red-400"
                     }`}
                   >
@@ -714,16 +729,16 @@ function RecipeDetail({
             })}
             {recipe.gold_cost > 0 && (
               <div
-                className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 ${
+                className={`flex items-center gap-2 md:gap-2.5 rounded-lg border px-2.5 py-2 md:px-3 md:py-2.5 ${
                   wallet && wallet.gold >= recipe.gold_cost
                     ? "border-amber-500/20 bg-amber-500/[0.04]"
                     : "border-red-500/20 bg-red-500/[0.04]"
                 }`}
               >
-                <Coins className="h-5 w-5 text-amber-400" />
-                <span className="flex-1 text-base text-foreground/80">Złoto</span>
+                <Coins className="h-4 w-4 md:h-5 md:w-5 text-amber-400" />
+                <span className="flex-1 text-sm md:text-base text-foreground/80">Złoto</span>
                 <span
-                  className={`font-mono text-base font-bold tabular-nums ${
+                  className={`font-mono text-sm md:text-base font-bold tabular-nums ${
                     wallet && wallet.gold >= recipe.gold_cost ? "text-amber-400" : "text-red-400"
                   }`}
                 >
@@ -739,7 +754,7 @@ function RecipeDetail({
 
         {/* Craft button */}
         <Button
-          className={`w-full gap-2 rounded-xl h-14 text-lg font-bold transition-all ${
+          className={`w-full gap-2 rounded-full md:rounded-xl h-12 md:h-14 text-base md:text-lg font-bold transition-all active:scale-[0.97] ${
             craftable
               ? "bg-primary text-primary-foreground hover:bg-primary/90"
               : "bg-muted text-muted-foreground border border-border"

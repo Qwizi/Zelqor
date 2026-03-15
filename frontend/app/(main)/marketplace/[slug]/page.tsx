@@ -217,7 +217,7 @@ export default function MarketplaceItemPage() {
       {/* Item header */}
       {representativeItem ? (
         <Card className="rounded-2xl">
-          <CardContent className="flex gap-5 p-6">
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:gap-5 sm:p-6">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/30 text-4xl">
               {representativeItem.icon || "📦"}
             </div>
@@ -259,7 +259,7 @@ export default function MarketplaceItemPage() {
 
       {/* Wallet strip */}
       <Card className="rounded-xl">
-        <CardContent className="flex items-center gap-3 px-5 py-3.5">
+        <CardContent className="flex flex-wrap items-center gap-2 sm:gap-3 px-4 sm:px-5 py-3.5">
           <Coins className="h-5 w-5 text-accent" />
           <span className="font-mono tabular-nums text-lg font-semibold text-accent">
             {wallet?.gold ?? "—"}
@@ -274,7 +274,7 @@ export default function MarketplaceItemPage() {
               </span>
             </>
           )}
-          <span className="ml-auto text-base text-muted-foreground">
+          <span className="sm:ml-auto mt-1 sm:mt-0 w-full sm:w-auto text-left sm:text-right text-base text-muted-foreground">
             Prowizja: {feePercent}%
           </span>
         </CardContent>

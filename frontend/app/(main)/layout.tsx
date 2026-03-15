@@ -2,7 +2,7 @@
 
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Backpack,
   ChevronLeft,
@@ -18,15 +18,18 @@ import {
   LogOut,
   Medal,
   MoreHorizontal,
+  Search,
   Settings,
   Shirt,
   Store,
   Trophy,
   UserCircle,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
+import { MatchmakingProvider, useMatchmaking } from "@/hooks/useMatchmaking";
 import { getMyWallet, type WalletOut } from "@/lib/api";
 import { cn } from "@/lib/utils";
 // ---------------------------------------------------------------------------
@@ -40,31 +43,24 @@ interface NavItem {
   matchExact?: boolean;
 }
 
-const ACTION_ITEMS: NavItem[] = [
-  {
-    href: "/dashboard",
-    label: "Panel",
-    icon: <LayoutDashboard size={22} />,
-    matchExact: true,
-  },
-  {
-    href: "/leaderboard",
-    label: "Ranking",
-    icon: <Medal size={22} />,
-    matchExact: true,
-  },
+const PLAY_ITEMS: NavItem[] = [
+  { href: "/dashboard", label: "Graj", icon: <LayoutDashboard size={20} />, matchExact: true },
+  { href: "/leaderboard", label: "Ranking", icon: <Medal size={20} />, matchExact: true },
+];
+
+const LOADOUT_ITEMS: NavItem[] = [
+  { href: "/inventory", label: "Ekwipunek", icon: <Backpack size={20} /> },
+  { href: "/decks", label: "Talie", icon: <Layers size={20} /> },
+  { href: "/cosmetics", label: "Skórki", icon: <Shirt size={20} /> },
 ];
 
 const ECONOMY_ITEMS: NavItem[] = [
-  { href: "/inventory", label: "Ekwipunek", icon: <Backpack size={22} /> },
-  { href: "/cosmetics", label: "Kosmetyki", icon: <Shirt size={22} /> },
-  { href: "/decks", label: "Talia", icon: <Layers size={22} /> },
-  { href: "/marketplace", label: "Rynek", icon: <Store size={22} /> },
-  { href: "/crafting", label: "Kuźnia", icon: <Hammer size={22} /> },
+  { href: "/marketplace", label: "Rynek", icon: <Store size={20} /> },
+  { href: "/crafting", label: "Kuźnia", icon: <Hammer size={20} /> },
 ];
 
 const OTHER_ITEMS: NavItem[] = [
-  { href: "/developers", label: "Deweloperzy", icon: <Code size={22} /> },
+  { href: "/developers", label: "API", icon: <Code size={20} /> },
 ];
 
 // ---------------------------------------------------------------------------
@@ -91,43 +87,46 @@ function ProfilePopover({
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "flex w-full items-center gap-3 rounded-lg transition-colors",
-          collapsed ? "justify-center py-2.5" : "px-2.5 py-2.5",
+          "flex w-full items-center gap-2.5 rounded-lg transition-colors",
+          collapsed ? "justify-center py-2.5" : "px-3 py-2.5",
           open ? "bg-muted" : "hover:bg-muted"
         )}
       >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/40 to-accent/20 text-sm font-bold uppercase text-accent ring-2 ring-accent/30">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-xs font-bold uppercase text-primary">
           {initial}
         </div>
         {!collapsed && (
-          <span className="flex-1 truncate text-left text-base font-medium text-foreground">{user.username}</span>
+          <>
+            <span className="flex-1 truncate text-left text-sm font-medium text-foreground">{user.username}</span>
+            <ChevronRight size={14} className={cn("shrink-0 text-muted-foreground/50 transition-transform duration-200", open && "rotate-90")} />
+          </>
         )}
       </button>
 
-      {/* Submenu — opens inline below, pushes content down */}
+      {/* Submenu */}
       {open && !collapsed && (
-        <div className="mt-1.5 rounded-lg border border-border bg-secondary overflow-hidden">
+        <div className="mt-1 mx-2 rounded-lg border border-border bg-secondary/80 overflow-hidden">
           <Link
             href="/profile"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-3 px-4 py-2.5 text-base text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
-            <UserCircle size={22} />
+            <UserCircle size={18} />
             Profil
           </Link>
           <Link
             href="/settings"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-3 px-4 py-2.5 text-base text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
-            <Settings size={22} />
+            <Settings size={18} />
             Ustawienia
           </Link>
           <button
             onClick={() => { setOpen(false); onLogout(); }}
-            className="flex w-full items-center gap-3 px-4 py-2.5 text-base text-destructive hover:bg-destructive/10 transition-colors border-t border-border"
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors border-t border-border"
           >
-            <LogOut size={22} />
+            <LogOut size={18} />
             Wyloguj
           </button>
         </div>
@@ -256,11 +255,10 @@ function SidebarItem({
         aria-current={active ? "page" : undefined}
         title={item.label}
         className={cn(
-          "flex items-center justify-center py-3 mx-1 rounded-lg transition-colors",
-          "border-l-2",
+          "flex items-center justify-center py-2.5 mx-1 rounded-lg transition-colors",
           active
-            ? "border-accent bg-accent/10 text-foreground"
-            : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
+            ? "bg-primary/10 text-primary"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted"
         )}
       >
         <span className="shrink-0">{item.icon}</span>
@@ -274,10 +272,10 @@ function SidebarItem({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-3.5 px-4 py-3.5 text-lg font-medium transition-colors rounded-lg",
+        "flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors rounded-lg mx-2",
         active
-          ? "border-l-2 border-accent bg-accent/10 text-foreground pl-[10px]"
-          : "border-l-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-muted pl-[10px]"
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted"
       )}
     >
       <span className="shrink-0">{item.icon}</span>
@@ -292,7 +290,7 @@ function SidebarItem({
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-4 pb-2 pt-6 text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground select-none">
+    <div className="px-5 pb-1.5 pt-5 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 select-none">
       {label}
     </div>
   );
@@ -303,7 +301,7 @@ function SectionHeader({ label }: { label: string }) {
 // ---------------------------------------------------------------------------
 
 function CollapsedSeparator() {
-  return <div className="mx-3 my-2 border-t border-white/10" />;
+  return <div className="mx-3 my-1.5 border-t border-border" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -317,69 +315,37 @@ function DesktopSidebarContent({
   pathname: string;
   collapsed: boolean;
 }) {
+  const groups = [
+    { label: "GRA", items: PLAY_ITEMS },
+    { label: "WYPOSAŻENIE", items: LOADOUT_ITEMS },
+    { label: "HANDEL", items: ECONOMY_ITEMS },
+    { label: "WIĘCEJ", items: OTHER_ITEMS },
+  ];
+
   if (collapsed) {
     return (
       <nav className="flex flex-col py-2">
-        {ACTION_ITEMS.map((item) => (
-          <SidebarItem
-            key={item.href}
-            item={item}
-            pathname={pathname}
-            collapsed={true}
-          />
-        ))}
-        <CollapsedSeparator />
-        {ECONOMY_ITEMS.map((item) => (
-          <SidebarItem
-            key={item.href}
-            item={item}
-            pathname={pathname}
-            collapsed={true}
-          />
-        ))}
-        <CollapsedSeparator />
-        {OTHER_ITEMS.map((item) => (
-          <SidebarItem
-            key={item.href}
-            item={item}
-            pathname={pathname}
-            collapsed={true}
-          />
+        {groups.map((g, i) => (
+          <div key={g.label}>
+            {i > 0 && <CollapsedSeparator />}
+            {g.items.map((item) => (
+              <SidebarItem key={item.href} item={item} pathname={pathname} collapsed={true} />
+            ))}
+          </div>
         ))}
       </nav>
     );
   }
 
   return (
-    <nav className="flex flex-col py-2">
-      <SectionHeader label="AKCJA" />
-      {ACTION_ITEMS.map((item) => (
-        <SidebarItem
-          key={item.href}
-          item={item}
-          pathname={pathname}
-          collapsed={false}
-        />
-      ))}
-
-      <SectionHeader label="EKONOMIA" />
-      {ECONOMY_ITEMS.map((item) => (
-        <SidebarItem
-          key={item.href}
-          item={item}
-          pathname={pathname}
-          collapsed={false}
-        />
-      ))}
-
-      <SectionHeader label="INNE" />
-      {OTHER_ITEMS.map((item) => (
-        <SidebarItem
-          key={item.href}
-          item={item}
-          pathname={pathname}
-          collapsed={false}
-        />
+    <nav className="flex flex-col py-1">
+      {groups.map((g) => (
+        <div key={g.label}>
+          <SectionHeader label={g.label} />
+          {g.items.map((item) => (
+            <SidebarItem key={item.href} item={item} pathname={pathname} collapsed={false} />
+          ))}
+        </div>
       ))}
     </nav>
   );
@@ -396,54 +362,27 @@ function MobileSidebarContent({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  const groups = [
+    { label: "GRA", items: PLAY_ITEMS },
+    { label: "WYPOSAŻENIE", items: LOADOUT_ITEMS },
+    { label: "HANDEL", items: ECONOMY_ITEMS },
+    { label: "WIĘCEJ", items: OTHER_ITEMS },
+    { label: "KONTO", items: [
+      { href: "/profile", label: "Profil", icon: <UserCircle size={20} /> },
+      { href: "/settings", label: "Ustawienia", icon: <Settings size={20} /> },
+    ] as NavItem[] },
+  ];
+
   return (
-    <nav className="flex flex-col py-2">
-      <SectionHeader label="AKCJA" />
-      {ACTION_ITEMS.map((item) => (
-        <SidebarItem
-          key={item.href}
-          item={item}
-          pathname={pathname}
-          collapsed={false}
-          onClick={onNavigate}
-        />
+    <nav className="flex flex-col py-1">
+      {groups.map((g) => (
+        <div key={g.label}>
+          <SectionHeader label={g.label} />
+          {g.items.map((item) => (
+            <SidebarItem key={item.href} item={item} pathname={pathname} collapsed={false} onClick={onNavigate} />
+          ))}
+        </div>
       ))}
-
-      <SectionHeader label="EKONOMIA" />
-      {ECONOMY_ITEMS.map((item) => (
-        <SidebarItem
-          key={item.href}
-          item={item}
-          pathname={pathname}
-          collapsed={false}
-          onClick={onNavigate}
-        />
-      ))}
-
-      <SectionHeader label="INNE" />
-      {OTHER_ITEMS.map((item) => (
-        <SidebarItem
-          key={item.href}
-          item={item}
-          pathname={pathname}
-          collapsed={false}
-          onClick={onNavigate}
-        />
-      ))}
-
-      <SectionHeader label="KONTO" />
-      <SidebarItem
-        item={{ href: "/profile", label: "Profil", icon: <UserCircle size={22} /> }}
-        pathname={pathname}
-        collapsed={false}
-        onClick={onNavigate}
-      />
-      <SidebarItem
-        item={{ href: "/settings", label: "Ustawienia", icon: <Settings size={22} /> }}
-        pathname={pathname}
-        collapsed={false}
-        onClick={onNavigate}
-      />
     </nav>
   );
 }
@@ -475,10 +414,90 @@ function BottomBarItem({ item, pathname }: { item: NavItem; pathname: string }) 
 }
 
 // ---------------------------------------------------------------------------
+// Queue banner — shows when in matchmaking queue on any page
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Blocked pages during queue
+// ---------------------------------------------------------------------------
+
+const BLOCKED_DURING_QUEUE = ["/decks", "/cosmetics"];
+
+function QueueGuard({ children, pathname }: { children: ReactNode; pathname: string }) {
+  const { inQueue } = useMatchmaking();
+
+  const isBlocked = inQueue && BLOCKED_DURING_QUEUE.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
+
+  if (!isBlocked) return <>{children}</>;
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-20 md:py-32 text-center px-4">
+      <div className="flex h-14 w-14 md:h-16 md:w-16 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20">
+        <Search className="h-6 w-6 md:h-7 md:w-7 text-primary" />
+      </div>
+      <h2 className="font-display text-xl md:text-2xl text-foreground">Szukanie meczu</h2>
+      <p className="text-sm md:text-base text-muted-foreground max-w-xs">
+        Nie możesz edytować talii ani kosmetyków podczas szukania meczu.
+      </p>
+      <Link
+        href="/dashboard"
+        className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-all"
+      >
+        Wróć do dashboardu
+      </Link>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Queue banner inline in header
+// ---------------------------------------------------------------------------
+
+function QueueBannerInline() {
+  const { inQueue, playersInQueue, queueSeconds, leaveQueue, matchId } = useMatchmaking();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (matchId) router.push(`/game/${matchId}`);
+  }, [matchId, router]);
+
+  if (!inQueue) return null;
+
+  const mins = Math.floor(queueSeconds / 60);
+  const secs = String(queueSeconds % 60).padStart(2, "0");
+
+  return (
+    <div className="flex items-center gap-2 md:gap-2.5 ml-auto">
+      <div className="flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 pl-2.5 pr-1 py-1 md:pl-3 md:pr-1.5 md:py-1">
+        <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+        <span className="text-xs md:text-sm font-semibold text-primary tabular-nums">{mins}:{secs}</span>
+        <span className="hidden md:inline text-xs text-primary/70">· {playersInQueue} w kolejce</span>
+        <button
+          onClick={leaveQueue}
+          className="flex items-center justify-center h-5 w-5 md:h-6 md:w-6 rounded-full bg-primary/20 text-primary hover:bg-destructive/20 hover:text-destructive transition-colors ml-0.5 active:scale-[0.9]"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main layout
 // ---------------------------------------------------------------------------
 
 export default function MainLayout({ children }: { children: ReactNode }) {
+  return (
+    <MatchmakingProvider>
+      <MainLayoutInner>{children}</MainLayoutInner>
+    </MatchmakingProvider>
+  );
+}
+
+function MainLayoutInner({ children }: { children: ReactNode }) {
   const { user, logout, token } = useAuth();
   const pathname = usePathname();
   const [wallet, setWallet] = useState<WalletOut | null>(null);
@@ -519,17 +538,20 @@ export default function MainLayout({ children }: { children: ReactNode }) {
           {/* Logo */}
           <Link
             href="/dashboard"
-            className="flex shrink-0 items-center gap-2 mr-2"
+            className="flex shrink-0 items-center gap-2.5 mr-2"
           >
-            <div className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.04]">
-              <Globe size={15} className="text-slate-300" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-secondary">
+              <Globe size={16} className="text-primary" />
             </div>
-            <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-zinc-100">
+            <span className="font-display text-sm font-bold uppercase tracking-[0.18em] text-foreground">
               MAPLORD
             </span>
           </Link>
 
           <div className="flex-1" />
+
+          {/* Queue indicator — inline in header */}
+          <QueueBannerInline />
         </div>
       </header>
 
@@ -551,35 +573,33 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         >
           {/* Avatar popover first, then stats below */}
           {user && (
-            <div className="border-b border-white/10">
-              {/* Avatar + name — clickable popover */}
-              <div className={cn(collapsed ? "px-1 pt-2 pb-1" : "px-2 pt-3 pb-1")}>
+            <div className="border-b border-border">
+              {/* Avatar + name */}
+              <div className={cn(collapsed ? "px-1 pt-2.5 pb-1.5" : "px-2 pt-3 pb-1.5")}>
                 <ProfilePopover user={user} wallet={wallet} collapsed={collapsed} onLogout={logout} />
               </div>
-              {/* Stats — always visible BELOW avatar */}
+              {/* Stats */}
               {!collapsed && (
-                <div className="px-3 pb-3 pt-1.5 space-y-2">
-                  <div className="flex items-center gap-2.5 rounded-lg bg-secondary border border-border px-3.5 py-2.5">
-                    <Trophy size={20} className="text-accent shrink-0" />
-                    <span className="text-xl font-bold tabular-nums text-foreground">{user.elo_rating}</span>
-                    <span className="text-sm text-muted-foreground ml-auto font-medium">ELO</span>
+                <div className="px-3 pb-3 pt-1 flex gap-2">
+                  <div className="flex-1 flex items-center gap-2 rounded-lg bg-secondary/80 px-2.5 py-2">
+                    <Trophy size={14} className="text-accent shrink-0" />
+                    <span className="text-sm font-bold tabular-nums text-foreground">{user.elo_rating}</span>
                   </div>
                   {wallet && (
-                    <div className="flex items-center gap-2.5 rounded-lg bg-accent/[0.07] border border-accent/15 px-3.5 py-2.5">
-                      <Coins size={20} className="text-accent shrink-0" />
-                      <span className="text-xl font-bold tabular-nums text-accent">{wallet.gold.toLocaleString("pl-PL")}</span>
-                      <span className="text-sm text-accent/70 ml-auto font-medium">złota</span>
+                    <div className="flex-1 flex items-center gap-2 rounded-lg bg-accent/[0.06] px-2.5 py-2">
+                      <Coins size={14} className="text-accent shrink-0" />
+                      <span className="text-sm font-bold tabular-nums text-accent">{wallet.gold > 9999 ? `${Math.floor(wallet.gold / 1000)}k` : wallet.gold.toLocaleString("pl-PL")}</span>
                     </div>
                   )}
                 </div>
               )}
               {collapsed && (
                 <div className="flex flex-col items-center gap-1 px-1 pb-2">
-                  <div title={`ELO: ${user.elo_rating}`} className="flex h-8 w-full items-center justify-center rounded-lg bg-secondary text-xs font-bold tabular-nums text-foreground">
+                  <div title={`ELO: ${user.elo_rating}`} className="flex h-7 w-full items-center justify-center rounded-md bg-secondary text-[10px] font-bold tabular-nums text-foreground">
                     {user.elo_rating}
                   </div>
                   {wallet && (
-                    <div title={`${wallet.gold} złota`} className="flex h-8 w-full items-center justify-center rounded-lg bg-accent/10 text-xs font-bold tabular-nums text-accent">
+                    <div title={`${wallet.gold} złota`} className="flex h-7 w-full items-center justify-center rounded-md bg-accent/10 text-[10px] font-bold tabular-nums text-accent">
                       {wallet.gold > 9999 ? `${Math.floor(wallet.gold / 1000)}k` : wallet.gold}
                     </div>
                   )}
@@ -594,7 +614,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
           </div>
 
           {/* Collapse toggle */}
-          <div className="border-t border-white/10">
+          <div className="border-t border-border">
             <button
               onClick={toggleCollapsed}
               className={cn(
@@ -618,9 +638,11 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             contentPadding
           )}
         >
-          <div className="px-4 py-6 pb-20 sm:px-6 lg:px-8 md:pb-6">
+          <div className="px-4 py-4 pb-20 md:py-6 sm:px-6 lg:px-8 md:pb-6">
             <Breadcrumbs pathname={pathname} />
-            {children}
+            <QueueGuard pathname={pathname}>
+              {children}
+            </QueueGuard>
           </div>
         </main>
       </div>

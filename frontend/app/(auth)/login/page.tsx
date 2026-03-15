@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import AuthScreen from "@/components/auth/AuthScreen";
 import { toast } from "sonner";
 import { APIError, type User } from "@/lib/api";
-import { Trophy, Plus, X, ArrowLeft, Save, SkipForward } from "lucide-react";
+import { Plus, X, ArrowLeft, Save, SkipForward } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Saved profiles — stored in localStorage, no passwords
@@ -22,7 +22,6 @@ interface SavedProfile {
   username: string;
   email: string;
   avatar: string | null;
-  elo_rating: number;
 }
 
 function getSavedProfiles(): SavedProfile[] {
@@ -41,7 +40,6 @@ function saveProfile(user: User) {
     username: user.username,
     email: user.email,
     avatar: null,
-    elo_rating: user.elo_rating,
   };
   if (existing >= 0) {
     profiles[existing] = profile;
@@ -98,18 +96,14 @@ function ProfileCard({
           onSelect(profile);
         }
       }}
-      className="group flex w-full cursor-pointer items-center gap-4 rounded-2xl border border-border bg-secondary p-5 text-left transition-all hover:border-border/60 hover:bg-muted"
+      className="group flex w-full cursor-pointer items-center gap-3 md:gap-4 rounded-2xl border border-border bg-secondary p-3.5 md:p-5 text-left transition-all hover:border-border/60 hover:bg-muted active:scale-[0.98]"
     >
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/20 font-display text-2xl text-primary">
+      <div className="flex h-11 w-11 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-full bg-primary/20 font-display text-lg md:text-2xl text-primary">
         {profile.username[0].toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-xl font-semibold text-foreground">
+        <div className="truncate text-base md:text-xl font-semibold text-foreground">
           {profile.username}
-        </div>
-        <div className="flex items-center gap-1.5 text-base text-muted-foreground">
-          <Trophy className="h-4 w-4 text-accent" />
-          {profile.elo_rating} ELO
         </div>
       </div>
       <button
@@ -117,7 +111,7 @@ function ProfileCard({
           e.stopPropagation();
           onRemove(profile.username);
         }}
-        className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-destructive group-hover:opacity-100"
+        className="rounded-lg p-1.5 text-muted-foreground opacity-100 md:opacity-0 transition-all hover:bg-muted hover:text-destructive group-hover:opacity-100"
         title="Usuń profil"
       >
         <X className="h-4 w-4" />
@@ -296,10 +290,6 @@ function LoginForm() {
                 <div className="truncate text-lg font-medium text-foreground">
                   {user.username}
                 </div>
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Trophy className="h-3.5 w-3.5 text-accent" />
-                  {user.elo_rating} ELO
-                </div>
               </div>
             </div>
           )}
@@ -357,9 +347,9 @@ function LoginForm() {
           <Button
             variant="outline"
             onClick={() => setView({ kind: "form", selectedProfile: null })}
-            className="h-16 w-full gap-3 rounded-2xl border-dashed text-xl"
+            className="h-12 md:h-16 w-full gap-2 md:gap-3 rounded-2xl border-dashed text-sm md:text-xl"
           >
-            <Plus className="h-6 w-6" />
+            <Plus className="h-4 w-4 md:h-6 md:w-6" />
             Zaloguj na inne konto
           </Button>
         </div>
@@ -379,31 +369,27 @@ function LoginForm() {
       altHref="/register"
       altLabel="Zarejestruj się"
     >
-      <div className="space-y-8">
+      <div className="space-y-5 md:space-y-8">
         {/* Back link */}
         {savedProfiles.length > 0 && (
           <button
             onClick={backToProfiles}
-            className="flex items-center gap-2 text-lg text-muted-foreground transition-colors hover:text-foreground"
+            className="flex items-center gap-1.5 md:gap-2 text-sm md:text-sm text-muted-foreground transition-colors hover:text-foreground active:scale-[0.97]"
           >
-            <ArrowLeft className="h-5 w-5" />
-            Powrót do wyboru profilu
+            <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
+            Powrót
           </button>
         )}
 
         {/* Selected profile preview */}
         {selectedProfile && (
-          <div className="flex items-center gap-4 rounded-2xl border border-border bg-secondary p-5">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary/20 font-display text-2xl text-primary">
+          <div className="flex items-center gap-3 md:gap-4 rounded-2xl border border-border bg-secondary p-3.5 md:p-5">
+            <div className="flex h-11 w-11 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-full bg-primary/20 font-display text-lg md:text-2xl text-primary">
               {selectedProfile.username[0].toUpperCase()}
             </div>
             <div className="min-w-0">
-              <div className="truncate text-2xl font-semibold text-foreground">
+              <div className="truncate text-lg md:text-2xl font-semibold text-foreground">
                 {selectedProfile.username}
-              </div>
-              <div className="flex items-center gap-2 text-lg text-muted-foreground">
-                <Trophy className="h-5 w-5 text-accent" />
-                {selectedProfile.elo_rating} ELO
               </div>
             </div>
           </div>
@@ -411,28 +397,28 @@ function LoginForm() {
 
         {/* General error */}
         {generalError && (
-          <div className="rounded-2xl border border-destructive/20 bg-destructive/5 px-6 py-4 text-lg text-destructive">
+          <div className="rounded-xl md:rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 md:px-6 md:py-4 text-sm md:text-sm text-destructive">
             {generalError}
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 md:space-y-6">
           {/* Identifier field */}
           {!selectedProfile && (
-            <div className="space-y-3">
-              <Label htmlFor="identifier" className="text-lg">
-                Nazwa użytkownika lub email
+            <div className="space-y-2 md:space-y-3">
+              <Label htmlFor="identifier" className="text-sm md:text-sm">
+                Login lub email
               </Label>
               <Input
                 id="identifier"
                 type="text"
-                placeholder="dowódca lub dowódca@maplord.gg"
+                placeholder="dowódca@maplord.gg"
                 autoComplete="username"
-                className={`h-16 text-xl rounded-2xl ${errors.identifier ? "border-destructive" : ""}`}
+                className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.identifier ? "border-destructive" : ""}`}
                 {...rhfRegister("identifier")}
               />
               {errors.identifier && (
-                <p className="mt-2 text-base text-destructive">
+                <p className="text-xs md:text-base text-destructive">
                   {errors.identifier.message}
                 </p>
               )}
@@ -440,19 +426,19 @@ function LoginForm() {
           )}
 
           {/* Password field */}
-          <div className="space-y-3">
-            <Label htmlFor="password" className="text-lg">Hasło</Label>
+          <div className="space-y-2 md:space-y-3">
+            <Label htmlFor="password" className="text-sm md:text-sm">Hasło</Label>
             <Input
               id="password"
               type="password"
               placeholder="••••••••"
               autoComplete="current-password"
               autoFocus={!!selectedProfile}
-              className={`h-16 text-xl rounded-2xl ${errors.password ? "border-destructive" : ""}`}
+              className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.password ? "border-destructive" : ""}`}
               {...rhfRegister("password")}
             />
             {errors.password && (
-              <p className="mt-2 text-base text-destructive">
+              <p className="text-xs md:text-base text-destructive">
                 {errors.password.message}
               </p>
             )}
@@ -460,7 +446,7 @@ function LoginForm() {
 
           <Button
             type="submit"
-            className="h-16 w-full rounded-2xl bg-primary font-display text-xl uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
+            className="h-12 md:h-14 w-full rounded-full md:rounded-xl bg-primary font-display text-base md:text-lg uppercase tracking-wider text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-all"
             disabled={isSubmitting}
           >
             {isSubmitting ? "Logowanie..." : "Wejdź do gry"}

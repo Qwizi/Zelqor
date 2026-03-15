@@ -1,213 +1,440 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
-import { Trophy, Swords, Crown, ChevronLeft } from "lucide-react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
+import {
+  ArrowLeft,
+  ChevronRight,
+  Crown,
+  Layers,
+  Loader2,
+  Package,
+  Settings,
+  Swords,
+  Trophy,
+  User,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { getLeaderboard, type LeaderboardEntry } from "@/lib/api";
+import {
+  getLeaderboard,
+  getMe,
+  getMyMatches,
+  getMyWallet,
+  getMyInventory,
+  getMyDecks,
+  getPlayerMatches,
+  type LeaderboardEntry,
+  type Match,
+  type WalletOut,
+  type InventoryItemOut,
+  type DeckOut,
+  type User as UserType,
+} from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
+import dynamic from "next/dynamic";
 
-function StatCard({
-  value,
-  label,
-  color = "text-zinc-50",
-}: {
-  value: string | number;
-  label: string;
-  color?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center">
-      <div className={`font-display text-2xl ${color}`}>{value}</div>
-      <div className="mt-0.5 text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
-        {label}
-      </div>
-    </div>
-  );
-}
+const ProfileCharts = dynamic(() => import("@/components/profile/ProfileCharts"), { ssr: false });
 
-export default function PublicProfilePage() {
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+export default function ProfilePage() {
   const { user, loading: authLoading, token } = useAuth();
   const router = useRouter();
   const params = useParams();
   const userId = params.userId as string;
 
+  const isOwnProfile = user?.id === userId;
+
+  // Own profile data
+  const [profile, setProfile] = useState<UserType | null>(null);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [wallet, setWallet] = useState<WalletOut | null>(null);
+  const [inventory, setInventory] = useState<InventoryItemOut[]>([]);
+  const [decks, setDecks] = useState<DeckOut[]>([]);
+
+  // Other profile data
   const [entry, setEntry] = useState<LeaderboardEntry | null>(null);
   const [placement, setPlacement] = useState<number | null>(null);
+
   const [dataLoading, setDataLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    if (!containerRef.current || dataLoading) return;
+
+    containerRef.current.querySelectorAll("[data-counter]").forEach((el) => {
+      const target = parseInt(el.getAttribute("data-counter") || "0", 10);
+      const suffix = el.getAttribute("data-suffix") || "";
+      const obj = { val: 0 };
+      gsap.to(obj, {
+        val: target, duration: 1, ease: "power2.out",
+        onUpdate: () => { el.textContent = Math.round(obj.val).toString() + suffix; },
+      });
+    });
+
+    gsap.fromTo("[data-animate='identity']", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" });
+    gsap.fromTo("[data-animate='stat']", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.08, delay: 0.15, ease: "power2.out" });
+    gsap.fromTo("[data-animate='section']", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, stagger: 0.12, delay: 0.3, ease: "power2.out" });
+  }, { scope: containerRef, dependencies: [dataLoading] });
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !token) {
-      router.replace("/login");
-      return;
-    }
+    if (!user || !token) { router.replace("/login"); return; }
 
-    // If viewing own profile, redirect to /profile
-    if (user.id === userId) {
-      router.replace("/profile");
-      return;
-    }
-
-    getLeaderboard(token, 1000)
-      .then((res) => {
-        const idx = res.items.findIndex((e) => e.id === userId);
-        if (idx === -1) {
-          setNotFound(true);
-        } else {
-          setEntry(res.items[idx]);
-          setPlacement(idx + 1);
+    if (isOwnProfile) {
+      Promise.allSettled([
+        getMe(token),
+        getMyMatches(token, 50),
+        getMyWallet(token),
+        getMyInventory(token, 8),
+        getMyDecks(token),
+        getLeaderboard(token, 1000),
+      ]).then(([profileRes, matchesRes, walletRes, inventoryRes, decksRes, lbRes]) => {
+        if (profileRes.status === "fulfilled") setProfile(profileRes.value);
+        if (matchesRes.status === "fulfilled") setMatches(matchesRes.value.items);
+        if (walletRes.status === "fulfilled") setWallet(walletRes.value);
+        if (inventoryRes.status === "fulfilled") setInventory(inventoryRes.value.items);
+        if (decksRes.status === "fulfilled") setDecks(decksRes.value.items);
+        if (lbRes.status === "fulfilled") {
+          const idx = lbRes.value.items.findIndex((e) => e.id === userId);
+          if (idx >= 0) { setEntry(lbRes.value.items[idx]); setPlacement(idx + 1); }
         }
-      })
-      .catch(() => setNotFound(true))
-      .finally(() => setDataLoading(false));
-  }, [authLoading, user, token, userId, router]);
+        setDataLoading(false);
+      });
+    } else {
+      Promise.allSettled([
+        getLeaderboard(token, 1000),
+        getPlayerMatches(token, userId, 50),
+      ]).then(([lbRes, matchesRes]) => {
+        if (lbRes.status === "fulfilled") {
+          const idx = lbRes.value.items.findIndex((e) => e.id === userId);
+          if (idx === -1) { setNotFound(true); }
+          else { setEntry(lbRes.value.items[idx]); setPlacement(idx + 1); }
+        } else { setNotFound(true); }
+        if (matchesRes.status === "fulfilled") setMatches(matchesRes.value.items);
+        setDataLoading(false);
+      });
+    }
+  }, [authLoading, user, token, userId, router, isOwnProfile]);
 
   if (authLoading || dataLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
-        <Image
-          src="/assets/match_making/circle291.webp"
-          alt=""
-          width={48}
-          height={48}
-          className="h-12 w-12 animate-spin object-contain"
-        />
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  if (notFound || !entry) {
+  if (notFound && !isOwnProfile) {
     return (
-      <div className="space-y-6">
-        <div className="space-y-1">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
-            PROFIL
-          </p>
-          <h1 className="font-display text-3xl text-zinc-50">
-            Profil gracza
-          </h1>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-12 text-center backdrop-blur-xl">
-          <Swords className="mx-auto h-10 w-10 text-slate-500" />
-          <p className="mt-4 text-sm text-slate-400">
-            Nie znaleziono gracza
-          </p>
-          <Link
-            href="/leaderboard"
-            className="mt-4 inline-flex items-center gap-2 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
-          >
-            <ChevronLeft className="h-3 w-3" />
-            Wróć do rankingu
+      <div className="space-y-4 px-4 md:px-0">
+        <h1 className="font-display text-2xl text-foreground">Profil gracza</h1>
+        <div className="rounded-2xl border border-border bg-card p-12 text-center">
+          <Swords className="mx-auto h-10 w-10 text-muted-foreground/40" />
+          <p className="mt-4 text-sm text-muted-foreground">Nie znaleziono gracza</p>
+          <Link href="/leaderboard" className="mt-4 inline-flex items-center gap-2 text-xs text-primary">
+            <ArrowLeft className="h-3 w-3" /> Ranking
           </Link>
         </div>
       </div>
     );
   }
 
-  const winRate = Math.round(entry.win_rate * 100);
+  const currentUser = profile ?? user!;
+  const displayName = isOwnProfile ? currentUser.username : (entry?.username ?? "Gracz");
+  const elo = isOwnProfile ? currentUser.elo_rating : (entry?.elo_rating ?? 0);
+  const matchesPlayed = isOwnProfile ? matches.length : (entry?.matches_played ?? 0);
+  const wins = isOwnProfile
+    ? matches.filter((m) => m.status === "finished" && m.winner_id === currentUser.id).length
+    : (entry?.wins ?? 0);
+  const winRate = isOwnProfile
+    ? (matches.filter((m) => m.status === "finished").length > 0
+      ? Math.round((wins / matches.filter((m) => m.status === "finished").length) * 100)
+      : 0)
+    : Math.round((entry?.win_rate ?? 0) * 100);
+  const defaultDeck = decks.find((d) => d.is_default);
 
   return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <div className="space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
-          PROFIL
-        </p>
-        <h1 className="font-display text-3xl text-zinc-50">
-          Profil gracza: {entry.username}
-        </h1>
-      </div>
-
-      {/* Back link */}
-      <Link
-        href="/leaderboard"
-        className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-cyan-300 transition-colors"
-      >
-        <ChevronLeft className="h-3 w-3" />
-        Tabela liderów
-      </Link>
-
-      {/* Player card */}
-      <section className="rounded-2xl border border-white/10 bg-slate-950/55 p-6 backdrop-blur-xl">
-        <div className="flex items-center gap-4">
-          {/* Rank badge */}
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] font-display text-2xl text-zinc-50">
-            {placement !== null && placement <= 3 ? (
-              <Crown className="h-7 w-7 text-amber-300" />
-            ) : (
-              <span>#{placement}</span>
-            )}
-          </div>
-
-          <div>
-            <h2 className="font-display text-2xl text-zinc-50">
-              {entry.username}
-            </h2>
-            {placement !== null && (
-              <p className="mt-0.5 text-sm text-slate-400">
-                Ranking #{placement}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Stats grid */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard
-            value={entry.elo_rating}
-            label="ELO"
-            color="text-amber-200"
-          />
-          <StatCard
-            value={entry.matches_played}
-            label="Mecze"
-            color="text-cyan-200"
-          />
-          <StatCard
-            value={entry.wins}
-            label="Wygrane"
-            color="text-emerald-300"
-          />
-          <StatCard
-            value={`${winRate}%`}
-            label="Win Rate"
-            color="text-violet-300"
-          />
-        </div>
-
-        {/* Extra stats */}
-        <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
-          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-300">
-            <span>
-              Śr. placement:{" "}
-              <span className="text-zinc-200">
-                {entry.average_placement.toFixed(2)}
-              </span>
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* Leaderboard CTA */}
-      <section className="rounded-2xl border border-white/10 bg-slate-950/55 p-6 backdrop-blur-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Trophy className="h-5 w-5 text-amber-300" />
-            <p className="text-sm text-slate-300">
-              Sprawdź pełną tabelę liderów
-            </p>
-          </div>
+    <div ref={containerRef} className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 md:px-0">
+        {!isOwnProfile && (
           <Link
             href="/leaderboard"
-            className="rounded-xl border border-cyan-400/20 bg-cyan-500/15 px-4 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/25 transition-colors"
+            className="inline-flex items-center justify-center h-9 w-9 rounded-full text-muted-foreground transition-all hover:text-foreground hover:bg-muted active:scale-[0.95] shrink-0"
           >
-            Ranking
+            <ArrowLeft className="h-4 w-4" />
           </Link>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground">Profil</p>
+          <h1 className="font-display text-2xl md:text-3xl text-foreground truncate">{displayName}</h1>
         </div>
-      </section>
+        {isOwnProfile && (
+          <Link
+            href="/settings"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors active:scale-[0.95]"
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
+        )}
+      </div>
+
+      {/* Identity + stats */}
+      <div className="px-4 md:px-0">
+        <div data-animate="identity" className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="flex h-12 w-12 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-2xl border border-border bg-primary/10">
+              {placement !== null && placement <= 3 ? (
+                <Crown className="h-6 w-6 md:h-7 md:w-7 text-accent" />
+              ) : (
+                <User className="h-6 w-6 md:h-7 md:w-7 text-primary" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-display text-lg md:text-2xl text-foreground truncate">{displayName}</span>
+                {placement && (
+                  <span className="text-xs md:text-sm text-muted-foreground font-medium">#{placement}</span>
+                )}
+              </div>
+              {isOwnProfile && (
+                <p className="text-xs md:text-sm text-muted-foreground truncate">{currentUser.email}</p>
+              )}
+            </div>
+            {isOwnProfile && wallet && (
+              <div className="hidden md:flex items-center gap-1.5 text-accent">
+                <Trophy className="h-4 w-4" />
+                <span className="font-display text-lg tabular-nums">{wallet.gold.toLocaleString("pl-PL")}g</span>
+              </div>
+            )}
+          </div>
+
+          {/* Stats — horizontal scroll on mobile, grid on desktop */}
+          <div className="flex gap-2 mt-3 md:mt-5 overflow-x-auto pb-0.5 md:grid md:grid-cols-4 md:gap-3 md:overflow-visible scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+            {[
+              { value: elo, label: "ELO", color: "text-accent", isNum: true },
+              { value: matchesPlayed, label: "Mecze", color: "text-primary", isNum: true },
+              { value: wins, label: "Wygrane", color: "text-emerald-300", isNum: true },
+              { value: winRate, label: "Win Rate", color: "text-violet-300", isNum: true, suffix: "%" },
+            ].map((s) => (
+              <div key={s.label} data-animate="stat" className="flex shrink-0 items-center gap-2.5 rounded-xl bg-secondary/50 border border-border px-3 py-2 md:p-4 md:flex-col md:items-start md:gap-1.5 min-w-[100px] md:min-w-0">
+                <span className="text-[9px] md:text-xs uppercase tracking-[0.15em] md:tracking-[0.2em] text-muted-foreground font-medium">{s.label}</span>
+                <span data-counter={s.isNum ? s.value : undefined} data-suffix={s.suffix ?? ""} className={`font-display text-base md:text-3xl tabular-nums ${s.color} ml-auto md:ml-0`}>{s.isNum ? "0" + (s.suffix ?? "") : s.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Extra stats */}
+          {entry && (
+            <div className="mt-3 flex flex-wrap gap-3 text-xs md:text-sm text-muted-foreground">
+              <span>Śr. placement: <span className="text-foreground/80">{entry.average_placement.toFixed(2)}</span></span>
+              {isOwnProfile && wallet && (
+                <span className="md:hidden">Złoto: <span className="text-accent">{wallet.gold.toLocaleString("pl-PL")}</span></span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* === CHARTS — for all profiles === */}
+      {matches.length > 0 && (
+        <div data-animate="section" className="px-4 md:px-0">
+          <ProfileCharts matches={matches} userId={userId} currentElo={elo} />
+        </div>
+      )}
+
+      {/* === MATCHES — for all profiles === */}
+      {matches.length > 0 && (
+          <div data-animate="section" className="px-4 md:px-0">
+            <div className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
+              <div className="flex items-center justify-between mb-2 md:mb-4">
+                <p className="text-[11px] md:text-sm uppercase tracking-[0.18em] md:tracking-[0.2em] text-muted-foreground font-medium">Ostatnie mecze</p>
+                {isOwnProfile && (
+                  <Link href="/dashboard" className="text-xs md:text-sm text-primary hover:text-primary/80 transition-colors">
+                    Panel <ChevronRight className="inline h-3 w-3 md:h-4 md:w-4" />
+                  </Link>
+                )}
+              </div>
+
+              {matches.length === 0 ? (
+                <div className="rounded-xl border border-border bg-secondary/30 py-8 text-center">
+                  <Swords className="mx-auto h-6 w-6 md:h-8 md:w-8 text-muted-foreground/40" />
+                  <p className="mt-2 text-xs md:text-sm text-muted-foreground">Brak meczów</p>
+                </div>
+              ) : (
+                <>
+                <div className="md:hidden space-y-0.5">
+                  {matches.slice(0, 8).map((match) => {
+                    const isActive = match.status === "in_progress" || match.status === "selecting";
+                    const isWinner = match.winner_id === userId;
+                    const profilePlayer = match.players.find((p) => p.user_id === userId);
+                    const isLoss = match.status === "finished" && !isWinner && profilePlayer && !profilePlayer.is_alive;
+                    const date = new Date(match.finished_at ?? match.started_at ?? match.created_at);
+                    return (
+                      <button key={match.id} className="flex w-full items-center gap-3 rounded-xl py-2.5 px-1 text-left transition-all active:bg-muted/50"
+                        onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}>
+                        <div className="flex gap-0.5 shrink-0">
+                          {match.players.map((p) => (<div key={p.id} className="h-4 w-4 rounded-md" style={{ backgroundColor: p.color, opacity: !p.is_alive && match.status === "finished" ? 0.3 : 1 }} />))}
+                        </div>
+                        <span className="text-xs font-medium flex-1">
+                          {isActive ? <span className="text-primary">Na żywo</span> : isWinner ? <span className="text-accent">Wygrana</span> : isLoss ? <span className="text-destructive">Przegrana</span> : <span className="text-muted-foreground">Zakończony</span>}
+                          <span className="text-[10px] text-muted-foreground ml-1.5">{match.max_players <= 2 ? "1v1" : `${match.max_players}P`}</span>
+                        </span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums">{date.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</span>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop: proper table */}
+                <Table className="hidden md:table text-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="h-10 text-xs font-semibold">Wynik</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold">Gracze</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold">Tryb</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold text-right">Czas</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold text-right">Data</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {matches.slice(0, 8).map((match) => {
+                      const isActive = match.status === "in_progress" || match.status === "selecting";
+                      const isWinner = match.winner_id === userId;
+                      const profilePlayer = match.players.find((p) => p.user_id === userId);
+                      const isLoss = match.status === "finished" && !isWinner && profilePlayer && !profilePlayer.is_alive;
+                      const date = new Date(match.finished_at ?? match.started_at ?? match.created_at);
+                      const startDate = match.started_at ? new Date(match.started_at) : null;
+                      const endDate = match.finished_at ? new Date(match.finished_at) : null;
+                      const durationMin = startDate && endDate ? Math.round((endDate.getTime() - startDate.getTime()) / 60000) : null;
+                      return (
+                        <TableRow key={match.id} className="cursor-pointer hover:bg-muted/30" onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}>
+                          <TableCell className="py-2.5">
+                            <div className="flex items-center gap-2">
+                              <div className="flex gap-0.5 shrink-0">
+                                {match.players.map((p) => (<div key={p.id} className="h-5 w-5 rounded" style={{ backgroundColor: p.color, opacity: !p.is_alive && match.status === "finished" ? 0.3 : 1 }} />))}
+                              </div>
+                              <span className="text-sm font-medium">
+                                {isActive ? <span className="text-primary">Na żywo</span> : isWinner ? <span className="text-accent">Wygrana</span> : isLoss ? <span className="text-destructive">Przegrana</span> : <span className="text-muted-foreground">{match.status === "cancelled" ? "Anulowany" : "Zakończony"}</span>}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-2.5 text-sm text-muted-foreground">{match.players.length} graczy</TableCell>
+                          <TableCell className="py-2.5 text-sm text-muted-foreground">{match.max_players <= 2 ? "1v1" : `${match.max_players}P`}</TableCell>
+                          <TableCell className="py-2.5 text-sm text-muted-foreground text-right tabular-nums">{durationMin != null ? `${durationMin} min` : isActive ? "W toku" : "—"}</TableCell>
+                          <TableCell className="py-2.5 text-sm text-muted-foreground text-right tabular-nums">{date.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                </>
+              )}
+            </div>
+          </div>
+      )}
+
+      {/* === OWN PROFILE SECTIONS === */}
+      {isOwnProfile && (
+        <>
+          {/* Inventory preview */}
+          <div className="px-4 md:px-0">
+            <div className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
+              <div className="flex items-center justify-between mb-2 md:mb-4">
+                <p className="text-[11px] md:text-sm uppercase tracking-[0.18em] md:tracking-[0.2em] text-muted-foreground font-medium">Ekwipunek</p>
+                <Link href="/inventory" className="text-xs md:text-sm text-primary hover:text-primary/80 transition-colors">
+                  Pełny <ChevronRight className="inline h-3 w-3 md:h-4 md:w-4" />
+                </Link>
+              </div>
+
+              {inventory.length === 0 ? (
+                <div className="rounded-xl border border-border bg-secondary/30 py-8 text-center">
+                  <Package className="mx-auto h-6 w-6 md:h-8 md:w-8 text-muted-foreground/40" />
+                  <p className="mt-2 text-xs md:text-sm text-muted-foreground">Brak przedmiotów</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-1.5 md:grid-cols-8 lg:grid-cols-10 md:gap-2">
+                  {inventory.map((inv) => (
+                    <Link key={inv.id} href="/inventory" title={`${inv.item.name} ×${inv.quantity}`}
+                      className="relative flex flex-col items-center justify-center rounded-xl border border-border bg-secondary/50 p-1.5 md:p-2 transition-all hover:bg-muted hover:border-border/60 hover:scale-[1.02] aspect-square md:aspect-auto md:py-2.5">
+                      <span className="text-lg md:text-xl leading-none select-none">{inv.item.icon || "📦"}</span>
+                      <span className="mt-1 text-[9px] md:text-[10px] font-medium text-foreground/80 text-center leading-tight line-clamp-1">{inv.item.name.replace(/^(Blueprint|Pakiet|Bonus): ?/, "")}</span>
+                      {inv.quantity > 1 && <span className="absolute top-0.5 right-1 text-[7px] md:text-[9px] text-muted-foreground font-semibold">×{inv.quantity}</span>}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Active deck */}
+          <div className="px-4 md:px-0">
+            <div className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
+              <div className="flex items-center justify-between mb-2 md:mb-4">
+                <p className="text-[11px] md:text-sm uppercase tracking-[0.18em] md:tracking-[0.2em] text-muted-foreground font-medium">Aktywna talia</p>
+                <Link href="/decks" className="text-xs md:text-sm text-primary hover:text-primary/80 transition-colors">
+                  Zarządzaj <ChevronRight className="inline h-3 w-3 md:h-4 md:w-4" />
+                </Link>
+              </div>
+
+              {!defaultDeck ? (
+                <div className="rounded-xl border border-border bg-secondary/30 py-8 text-center">
+                  <Layers className="mx-auto h-6 w-6 md:h-8 md:w-8 text-muted-foreground/40" />
+                  <p className="mt-2 text-xs md:text-sm text-muted-foreground">Brak domyślnej talii</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border bg-secondary/50 p-3 md:p-4">
+                  <div className="flex items-center gap-2.5 md:gap-3 mb-2 md:mb-3">
+                    <Layers className="h-4 w-4 md:h-5 md:w-5 text-primary shrink-0" />
+                    <span className="text-sm md:text-lg font-medium text-foreground">{defaultDeck.name}</span>
+                    <Badge className="bg-accent/20 text-accent border-accent/30 text-[10px] md:text-xs">domyślna</Badge>
+                  </div>
+                  {defaultDeck.items.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 md:gap-2">
+                      {defaultDeck.items.map((di, i) => (
+                        <span key={i} className="rounded-full border border-border bg-secondary px-2.5 py-0.5 md:px-3 md:py-1 text-[10px] md:text-sm text-foreground/80">
+                          {di.item.name}{di.quantity > 1 && ` ×${di.quantity}`}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* === OTHER PROFILE — Leaderboard CTA === */}
+      {!isOwnProfile && (
+        <div className="px-4 md:px-0">
+          <div className="flex items-center justify-between rounded-2xl border border-border bg-card/50 md:bg-card p-3 md:p-5">
+            <div className="flex items-center gap-2 md:gap-3">
+              <Trophy className="h-4 w-4 md:h-5 md:w-5 text-accent" />
+              <span className="text-xs md:text-base text-muted-foreground">Pełna tabela liderów</span>
+            </div>
+            <Link
+              href="/leaderboard"
+              className="rounded-full md:rounded-xl border border-primary/20 bg-primary/10 px-3 py-1.5 md:px-5 md:py-2.5 text-xs md:text-sm font-semibold text-primary hover:bg-primary/20 transition-colors active:scale-[0.97]"
+            >
+              Ranking
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

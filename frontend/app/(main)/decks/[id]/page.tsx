@@ -332,110 +332,140 @@ export default function DeckEditorPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Back */}
-      <Link
-        href="/decks"
-        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-base text-muted-foreground transition-all hover:text-foreground hover:bg-muted"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Powrót do talii
-      </Link>
+    <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+      {/* Back + title */}
+      <div className="flex items-center gap-2 px-4 md:px-0">
+        <Link
+          href="/decks"
+          className="inline-flex items-center justify-center h-9 w-9 md:h-auto md:w-auto md:gap-1.5 rounded-full md:rounded-lg md:px-2 md:py-1.5 text-muted-foreground transition-all hover:text-foreground hover:bg-muted active:scale-[0.95]"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span className="hidden md:inline text-base">Powrót do talii</span>
+        </Link>
+        <h1 className="font-display text-lg md:hidden text-foreground truncate flex-1">{editName || "Edytor talii"}</h1>
+        <span className="text-xs text-muted-foreground md:hidden tabular-nums">{totalDraftItems} szt.</span>
+      </div>
 
-      {/* Editor top bar */}
-      <Card className="rounded-2xl backdrop-blur-xl">
-        <CardContent className="flex flex-wrap items-center gap-3 px-5 py-4">
-          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-            Talia:
-          </span>
+      {/* Editor top bar — compact on mobile */}
+      <div className="px-4 md:px-0">
+        {/* Mobile: name input + save row */}
+        <div className="flex items-center gap-2 md:hidden">
           <Input
             type="text"
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
-            className="min-w-0 flex-1 h-11"
+            className="min-w-0 flex-1 h-10 text-sm"
+            placeholder="Nazwa talii..."
           />
-
           <button
             onClick={() => setIsDefault((v) => !v)}
-            className={`flex h-11 items-center gap-1.5 rounded-lg border px-4 text-sm font-medium transition-colors ${
-              isDefault
-                ? "border-accent/25 bg-accent/10 text-accent"
-                : "border-border bg-muted/40 text-muted-foreground hover:border-accent/20 hover:text-accent"
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
+              isDefault ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
             }`}
           >
-            {isDefault ? (
-              <Star className="h-4 w-4" />
-            ) : (
-              <StarOff className="h-4 w-4" />
-            )}
-            {isDefault ? "Domyślna" : "Ustaw domyślną"}
+            {isDefault ? <Star className="h-4 w-4" /> : <StarOff className="h-4 w-4" />}
           </button>
-
-          <Button
-            size="sm"
+          <button
             onClick={handleSave}
             disabled={saving}
-            className="h-11 gap-1.5 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20 px-5 text-base"
+            className="flex h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 active:scale-[0.95] transition-all"
           >
             <Check className="h-4 w-4" />
             Zapisz
-          </Button>
-          <Link href="/decks">
+          </button>
+        </div>
+
+        {/* Desktop: full bar */}
+        <Card className="hidden md:block rounded-2xl backdrop-blur-xl">
+          <CardContent className="flex flex-wrap items-center gap-3 px-5 py-4">
+            <span className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+              Talia:
+            </span>
+            <Input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="min-w-0 flex-1 h-11"
+            />
+
+            <button
+              onClick={() => setIsDefault((v) => !v)}
+              className={`flex h-11 items-center gap-1.5 rounded-lg border px-4 text-sm font-medium transition-colors ${
+                isDefault
+                  ? "border-accent/25 bg-accent/10 text-accent"
+                  : "border-border bg-muted/40 text-muted-foreground hover:border-accent/20 hover:text-accent"
+              }`}
+            >
+              {isDefault ? <Star className="h-4 w-4" /> : <StarOff className="h-4 w-4" />}
+              {isDefault ? "Domyślna" : "Ustaw domyślną"}
+            </button>
+
             <Button
               size="sm"
-              variant="ghost"
-              className="h-11 rounded-xl text-muted-foreground hover:text-foreground px-4 text-base"
+              onClick={handleSave}
+              disabled={saving}
+              className="h-11 gap-1.5 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20 px-5 text-base"
             >
-              <X className="mr-1 h-4 w-4" />
-              Anuluj
+              <Check className="h-4 w-4" />
+              Zapisz
             </Button>
-          </Link>
+            <Link href="/decks">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-11 rounded-xl text-muted-foreground hover:text-foreground px-4 text-base"
+              >
+                <X className="mr-1 h-4 w-4" />
+                Anuluj
+              </Button>
+            </Link>
 
-          <span className="ml-auto text-sm text-muted-foreground">
-            {totalDraftItems} przedmiot
-            {totalDraftItems === 1 ? "" : totalDraftItems < 5 ? "y" : "ów"}
-          </span>
-        </CardContent>
-      </Card>
+            <span className="ml-auto text-sm text-muted-foreground">
+              {totalDraftItems} przedmiot
+              {totalDraftItems === 1 ? "" : totalDraftItems < 5 ? "y" : "ów"}
+            </span>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Two-column layout: deck slots (left) + available items (right) */}
-      <div className="flex gap-6" style={{ minHeight: "calc(100vh - 16rem)" }}>
+      <div className="flex flex-col gap-3 md:gap-6 lg:flex-row px-4 md:px-0" style={{ minHeight: "calc(100vh - 16rem)" }}>
         {/* ── Left: Deck slots ── */}
-        <Card className="rounded-2xl flex-1 min-w-0 overflow-y-auto">
-          <CardContent className="p-6 space-y-6">
+        <div className="md:rounded-2xl md:border md:border-border md:bg-card flex-1 min-w-0 overflow-y-auto">
+          <div className="md:p-6 space-y-4 md:space-y-6">
             {SECTION_CONFIG.map((section) => {
               const slots = draftSlots[section.type];
               const filled = slots.length;
 
               return (
                 <div key={section.type}>
-                  <div className="mb-3 flex items-center gap-2">
-                    <span className="text-xl leading-none">{section.icon}</span>
-                    <span className={`text-sm font-semibold uppercase tracking-[0.2em] ${section.colorClass}`}>
+                  <div className="mb-2 md:mb-3 flex items-center gap-1.5 md:gap-2">
+                    <span className="text-base md:text-xl leading-none">{section.icon}</span>
+                    <span className={`text-[11px] md:text-sm font-semibold uppercase tracking-[0.15em] md:tracking-[0.2em] ${section.colorClass}`}>
                       {section.label}
                     </span>
-                    <span className="text-sm text-muted-foreground">
-                      ({filled}/{section.slots})
+                    <span className="text-[11px] md:text-sm text-muted-foreground">
+                      {filled}/{section.slots}
                     </span>
                     <div className="h-px flex-1 bg-border/40" />
                   </div>
 
                   {filled === 0 ? (
-                    <p className="text-base text-muted-foreground/50 py-3">Brak — dodaj z prawej strony</p>
+                    <p className="text-xs md:text-base text-muted-foreground/50 py-2 md:py-3"><span className="hidden lg:inline">Brak — dodaj z prawej strony</span><span className="lg:hidden">Brak — dodaj poniżej</span></p>
                   ) : (
-                    <div className="space-y-1.5">
+                    <div className="space-y-1 md:space-y-1.5">
                       {slots.map((slot, i) => (
                         <div
                           key={`${slot.item_slug}-${i}`}
-                          className="flex items-center gap-3 rounded-xl border border-border bg-secondary/50 px-4 py-3 transition-all hover:border-destructive/30 hover:bg-destructive/5 cursor-pointer group"
+                          className="flex items-center gap-2.5 md:gap-3 rounded-xl border border-border bg-secondary/50 px-3 py-2.5 md:px-4 md:py-3 transition-all hover:border-destructive/30 hover:bg-destructive/5 cursor-pointer group active:scale-[0.98]"
                           onClick={() => removeSlotItem(section.type, i)}
                           title="Kliknij aby usunąć"
                         >
-                          <span className="text-2xl">{slot.icon || "📦"}</span>
+                          <span className="text-xl md:text-2xl">{slot.icon || "📦"}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-base font-medium text-foreground truncate">{slot.item_name}</p>
+                            <p className="text-sm md:text-base font-medium text-foreground truncate">{slot.item_name}</p>
                           </div>
-                          <span className={`text-sm font-bold ${levelBadgeClass(slot.level)}`}>
+                          <span className={`text-xs md:text-sm font-bold ${levelBadgeClass(slot.level)}`}>
                             Lvl {slot.level}
                           </span>
                           <X className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:text-destructive transition-opacity" />
@@ -446,46 +476,46 @@ export default function DeckEditorPage() {
                 </div>
               );
             })}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* ── Right: Available items ── */}
-        <Card className="rounded-2xl w-80 lg:w-96 shrink-0 overflow-y-auto">
-          <CardContent className="p-5">
-            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        <div className="md:rounded-2xl md:border md:border-border md:bg-card w-full lg:w-96 lg:shrink-0 overflow-y-auto">
+          <div className="md:p-5">
+            <p className="text-[11px] md:text-sm font-semibold uppercase tracking-[0.15em] md:tracking-[0.2em] text-muted-foreground mb-2.5 md:mb-4">
               Dodaj do talii
             </p>
 
             {/* Tab pills */}
-            <div className="mb-4 flex flex-wrap gap-1.5">
+            <div className="mb-3 md:mb-4 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
               {SECTION_CONFIG.map((s) => (
                 <button
                   key={s.type}
                   onClick={() => setAvailableTab(s.type)}
-                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  className={`flex shrink-0 items-center gap-1 md:gap-1.5 rounded-full border px-2.5 py-1.5 md:px-3 text-xs md:text-sm font-medium transition-colors ${
                     availableTab === s.type
                       ? "border-primary/40 bg-primary/15 text-primary"
                       : "border-border text-muted-foreground hover:border-border/50 hover:bg-muted hover:text-foreground"
                   }`}
                 >
-                  <span className="text-sm leading-none">{s.icon}</span>
-                  {s.label}
-                  <span className={`text-xs font-bold ${availableTab === s.type ? "text-primary/70" : "text-muted-foreground/50"}`}>
+                  <span className="text-xs md:text-sm leading-none">{s.icon}</span>
+                  <span className="hidden md:inline">{s.label}</span>
+                  <span className={`text-[10px] md:text-xs font-bold ${availableTab === s.type ? "text-primary/70" : "text-muted-foreground/50"}`}>
                     {inventory.filter((i) => i.item.item_type === s.type).length}
                   </span>
                 </button>
               ))}
             </div>
 
-            <Separator className="mb-4" />
+            <Separator className="mb-3 md:mb-4" />
 
             {/* Items list */}
             {availableItems.length === 0 ? (
-              <p className="py-8 text-center text-base text-muted-foreground">
+              <p className="py-6 md:py-8 text-center text-sm md:text-base text-muted-foreground">
                 Brak przedmiotów
               </p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-1 md:space-y-1.5">
                 {availableItems.map((inv) => {
                   const currentSection = sectionForType(availableTab);
                   const inDraftCount = countInDraft(inv.item.slug, availableTab);
@@ -503,27 +533,27 @@ export default function DeckEditorPage() {
                       key={inv.id}
                       onClick={() => !disabled && addItemToSection(inv)}
                       disabled={disabled}
-                      className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                      className={`w-full flex items-center gap-2.5 md:gap-3 rounded-xl border px-2.5 py-2 md:px-3 md:py-2.5 text-left transition-all active:scale-[0.98] ${
                         disabled
                           ? "border-border/20 opacity-30 cursor-not-allowed"
                           : "border-border hover:border-primary/30 hover:bg-primary/5 cursor-pointer"
                       }`}
                     >
-                      <span className="text-xl shrink-0">{inv.item.icon || "📦"}</span>
+                      <span className="text-lg md:text-xl shrink-0">{inv.item.icon || "📦"}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{inv.item.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs md:text-sm font-medium text-foreground truncate">{inv.item.name}</p>
+                        <p className="text-[10px] md:text-xs text-muted-foreground">
                           Lvl {inv.item.level ?? 1} · {owned - inDraftCount} szt.
                         </p>
                       </div>
-                      {!disabled && <Plus className="h-4 w-4 text-primary shrink-0" />}
+                      {!disabled && <Plus className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary shrink-0" />}
                     </button>
                   );
                 })}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
