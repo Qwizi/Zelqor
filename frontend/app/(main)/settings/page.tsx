@@ -3,11 +3,13 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import Image from "next/image";
 import {
   User,
   Lock,
   Gamepad2,
+  Bell,
   AlertTriangle,
   CheckCircle2,
   LogOut,
@@ -16,6 +18,7 @@ import {
 export default function SettingsPage() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
+  const { permission, subscribed, subscribe, unsubscribe } = usePushNotifications();
 
   useEffect(() => {
     if (loading) return;
@@ -124,6 +127,46 @@ export default function SettingsPage() {
           </button>
         </div>
       </section>
+
+      {/* Push notifications section */}
+      {"Notification" in globalThis && (
+        <section className="rounded-2xl border border-border bg-card/50 p-4 md:p-6 mx-4 md:mx-0">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary">
+              <Bell className="h-4 w-4 text-blue-300" />
+            </div>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">
+              Powiadomienia push
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-foreground">
+                {subscribed ? "Powiadomienia włączone" : "Powiadomienia wyłączone"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {permission === "denied"
+                  ? "Powiadomienia zablokowane w przeglądarce — zmień w ustawieniach"
+                  : "Otrzymuj powiadomienia o znalezionym meczu i ważnych wydarzeniach"}
+              </p>
+            </div>
+            {permission !== "denied" && (
+              <button
+                onClick={subscribed ? unsubscribe : subscribe}
+                className={`flex w-fit items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
+                  subscribed
+                    ? "border-border bg-secondary text-muted-foreground hover:bg-secondary/80"
+                    : "border-blue-400/30 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25"
+                }`}
+              >
+                <Bell className="h-3.5 w-3.5" />
+                {subscribed ? "Wyłącz" : "Włącz"}
+              </button>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Game section */}
       <section className="rounded-2xl border border-border bg-card/50 p-4 md:p-6 mx-4 md:mx-0">

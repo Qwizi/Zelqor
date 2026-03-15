@@ -122,6 +122,35 @@ export async function getMe(token: string): Promise<User> {
   return fetchAPI<User>("/auth/me", { token });
 }
 
+// --- Push Notifications ---
+
+export async function getVapidKey(): Promise<string> {
+  const res = await fetchAPI<{ vapid_public_key: string }>("/auth/push/vapid-key/");
+  return res.vapid_public_key;
+}
+
+export async function subscribePush(
+  token: string,
+  subscription: { endpoint: string; p256dh: string; auth: string }
+): Promise<void> {
+  await fetchAPI("/auth/push/subscribe/", {
+    method: "POST",
+    token,
+    body: JSON.stringify(subscription),
+  });
+}
+
+export async function unsubscribePush(
+  token: string,
+  endpoint: string
+): Promise<void> {
+  await fetchAPI("/auth/push/unsubscribe/", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ endpoint, p256dh: "", auth: "" }),
+  });
+}
+
 export interface WsTicketResponse {
   ticket: string;
   challenge: string;

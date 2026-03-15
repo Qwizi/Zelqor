@@ -4,6 +4,12 @@ from ninja import Schema
 from pydantic import EmailStr, Field, model_validator
 
 
+class PushSubscriptionSchema(Schema):
+    endpoint: str
+    p256dh: str
+    auth: str
+
+
 class RegisterSchema(Schema):
     email: EmailStr
     username: str = Field(min_length=3, max_length=30)

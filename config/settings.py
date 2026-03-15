@@ -152,6 +152,11 @@ CACHES = {
     }
 }
 
+# VAPID push notifications
+VAPID_PUBLIC_KEY = config('VAPID_PUBLIC_KEY', default='')
+VAPID_PRIVATE_KEY = config('VAPID_PRIVATE_KEY', default='')
+VAPID_MAILTO = config('VAPID_MAILTO', default='mailto:admin@maplord.com')
+
 AUTHENTICATION_BACKENDS = [
     'apps.accounts.backends.UsernameOrEmailBackend',
 ]

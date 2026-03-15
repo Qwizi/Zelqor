@@ -12,7 +12,8 @@ from ninja_extra import api_controller, route
 from ninja_extra.permissions import IsAuthenticated
 from apps.accounts.auth import ActiveUserJWTAuth
 
-from apps.accounts.schemas import LeaderboardEntrySchema, RegisterSchema, UserOutSchema
+from apps.accounts.models import PushSubscription
+from apps.accounts.schemas import LeaderboardEntrySchema, PushSubscriptionSchema, RegisterSchema, UserOutSchema
 from apps.pagination import paginate_qs
 
 User = get_user_model()
@@ -114,3 +115,27 @@ class AuthController:
             }),
         )
         return {'ticket': ticket, 'challenge': challenge, 'difficulty': difficulty}
+
+    @route.post('/push/subscribe/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def push_subscribe(self, request, payload: PushSubscriptionSchema):
+        PushSubscription.objects.update_or_create(
+            endpoint=payload.endpoint,
+            defaults={
+                'user': request.auth,
+                'p256dh': payload.p256dh,
+                'auth': payload.auth,
+            },
+        )
+        return {'ok': True}
+
+    @route.post('/push/unsubscribe/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def push_unsubscribe(self, request, payload: PushSubscriptionSchema):
+        PushSubscription.objects.filter(
+            user=request.auth,
+            endpoint=payload.endpoint,
+        ).delete()
+        return {'ok': True}
+
+    @route.get('/push/vapid-key/', auth=None)
+    def vapid_key(self, request):
+        return {'vapid_public_key': settings.VAPID_PUBLIC_KEY}

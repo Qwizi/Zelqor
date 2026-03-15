@@ -664,6 +664,21 @@ def _create_match_from_users(users, game_mode):
         if user.is_bot:
             bot_ids.append(str(user.id))
 
+    # Send push notifications to human players
+    human_ids = [uid for uid in user_ids if uid not in bot_ids]
+    if human_ids:
+        try:
+            from apps.accounts.push import send_push_to_users
+            send_push_to_users(
+                human_ids,
+                title="Mecz znaleziony!",
+                body="Twój mecz się rozpoczyna. Dołącz teraz!",
+                url=f"/game/{match.id}",
+                tag=f"match-{match.id}",
+            )
+        except Exception:
+            pass
+
     return {
         'match_id': str(match.id),
         'user_ids': user_ids,
