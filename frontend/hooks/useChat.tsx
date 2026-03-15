@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import { createSocket } from "@/lib/ws";
 import { getAccessToken } from "@/lib/auth";
+import { getWsTicket } from "@/lib/api";
+import { solveChallenge } from "@/lib/pow";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface ChatMessage {
@@ -70,7 +72,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     let backoffDelay = 1000;
     initializedRef.current = false;
 
-    const connect = () => {
+    const connect = async () => {
+      let ticket: string | null = null;
+      let nonce: string | null = null;
+      try {
+        const t = await getWsTicket(token);
+        ticket = t.ticket;
+        nonce = await solveChallenge(t.challenge, t.difficulty);
+      } catch {
+        // Fallback: connect without ticket/pow
+      }
       const ws = createSocket(
         "/chat/",
         token,
@@ -97,7 +108,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               if (!disposed) connect();
             }, delay);
           }
-        }
+        },
+        ticket,
+        nonce,
       );
 
       ws.onopen = () => {

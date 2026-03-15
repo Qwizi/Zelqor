@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createSocket, type WSMessage } from "@/lib/ws";
 import { getAccessToken } from "@/lib/auth";
+import { getWsTicket } from "@/lib/api";
+import { solveChallenge } from "@/lib/pow";
 
 /** Fast shallow comparison for active_effects — avoids re-renders when data is identical. */
 function shallowEqualEffects(
@@ -139,6 +141,7 @@ interface UseGameSocketReturn {
   matchChatMessages: MatchChatMessage[];
   voiceToken: string | null;
   voiceUrl: string | null;
+  bannedReason: string | null;
   selectCapital: (regionId: string) => void;
   attack: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
   move: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
@@ -158,6 +161,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
   const [matchChatMessages, setMatchChatMessages] = useState<MatchChatMessage[]>([]);
   const [voiceToken, setVoiceToken] = useState<string | null>(null);
   const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
+  const [bannedReason, setBannedReason] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const leaveResolverRef = useRef<((value: boolean) => void) | null>(null);
 
@@ -296,7 +300,16 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
 
-    const connect = () => {
+    const connect = async () => {
+      let ticket: string | null = null;
+      let nonce: string | null = null;
+      try {
+        const t = await getWsTicket(token);
+        ticket = t.ticket;
+        nonce = await solveChallenge(t.challenge, t.difficulty);
+      } catch {
+        // Fallback: connect without ticket/pow
+      }
       const ws = createSocket(
         `/game/${matchId}/`,
         token,
@@ -314,7 +327,18 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
           const isIntentionalClose =
             event.code === 1000 && event.reason === "component_disposed";
 
-          if (disposed || isPageUnload || isIntentionalClose) {
+          // Server rejected reconnect (player left match, timed out, or match cancelled)
+          const isServerRejection =
+            event.code === 4000 || event.code === 4001 || event.code === 4002;
+
+          // Account banned — do not reconnect, surface the ban reason
+          const isBanClose = event.code === 4003;
+          if (isBanClose) {
+            setBannedReason(event.reason || "Account banned");
+            return;
+          }
+
+          if (disposed || isPageUnload || isIntentionalClose || isServerRejection) {
             return;
           }
 
@@ -327,7 +351,9 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
               connect();
             }
           }, delay);
-        }
+        },
+        ticket,
+        nonce,
       );
 
       ws.onopen = () => {
@@ -460,6 +486,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     matchChatMessages,
     voiceToken,
     voiceUrl,
+    bannedReason,
     selectCapital,
     attack,
     move,

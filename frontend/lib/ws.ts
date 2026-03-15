@@ -16,9 +16,17 @@ export function createSocket(
   path: string,
   token: string | null,
   onMessage: WSHandler,
-  onClose?: (event: CloseEvent) => void
+  onClose?: (event: CloseEvent) => void,
+  ticket?: string | null,
+  nonce?: string | null,
 ): WebSocket {
-  const url = token ? `${WS_BASE}${path}?token=${token}` : `${WS_BASE}${path}`;
+  let url = token ? `${WS_BASE}${path}?token=${token}` : `${WS_BASE}${path}`;
+  if (ticket) {
+    url += `&ticket=${ticket}`;
+  }
+  if (nonce) {
+    url += `&nonce=${nonce}`;
+  }
   const ws = new WebSocket(url);
 
   ws.onmessage = (event) => {

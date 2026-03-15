@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback, ty
 import { createElement } from "react";
 import { createSocket, type WSMessage } from "@/lib/ws";
 import { getAccessToken } from "@/lib/auth";
+import { getWsTicket } from "@/lib/api";
+import { solveChallenge } from "@/lib/pow";
 
 // ─── Session storage keys ────────────────────────────────────────────────────
 
@@ -50,6 +52,7 @@ export interface LobbyPlayer {
   username: string;
   is_bot: boolean;
   is_ready: boolean;
+  is_banned: boolean;
 }
 
 export interface LobbyChatMessage {
@@ -317,17 +320,27 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const connectToQueue = useCallback((slug: string | null, fb: boolean, ib: boolean, joinedAt: number) => {
+  const connectToQueue = useCallback(async (slug: string | null, fb: boolean, ib: boolean, joinedAt: number) => {
     const token = getAccessToken();
     if (!token) return;
     if (wsRef.current) return;
+
+    let ticket: string | null = null;
+    let nonce: string | null = null;
+    try {
+      const t = await getWsTicket(token);
+      ticket = t.ticket;
+      nonce = await solveChallenge(t.challenge, t.difficulty);
+    } catch {
+      // Fallback: connect without ticket/pow
+    }
 
     const path = slug ? `/matchmaking/${slug}/` : `/matchmaking/`;
 
     const ws = createSocket(path, token, handleMessage, () => {
       setInQueue(false);
       wsRef.current = null;
-    });
+    }, ticket, nonce);
 
     ws.onopen = () => {
       setInQueue(true);

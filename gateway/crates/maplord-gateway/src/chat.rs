@@ -22,13 +22,20 @@ pub fn new_chat_connections() -> ChatConnections {
 #[derive(Deserialize)]
 pub struct TokenQuery {
     pub token: Option<String>,
+    pub ticket: Option<String>,
+    pub nonce: Option<String>,
 }
 
 pub async fn ws_chat_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     axum_extra::extract::Query(query): axum_extra::extract::Query<TokenQuery>,
 ) -> Response {
+    if let Err(resp) = crate::auth::check_origin(&headers, &state.config.allowed_ws_origins) {
+        return resp;
+    }
+
     let token = match query.token {
         Some(t) => t,
         None => {
@@ -48,6 +55,24 @@ pub async fn ws_chat_handler(
                 .unwrap();
         }
     };
+
+    if let Some(ticket) = query.ticket {
+        match crate::auth::validate_ticket(&ticket, query.nonce.as_deref(), &mut state.redis.clone()).await {
+            Ok(ticket_user_id) if ticket_user_id != user_id => {
+                return Response::builder()
+                    .status(401)
+                    .body("Ticket user mismatch".into())
+                    .unwrap();
+            }
+            Err(_) => {
+                return Response::builder()
+                    .status(401)
+                    .body("Invalid or expired ticket".into())
+                    .unwrap();
+            }
+            Ok(_) => {}
+        }
+    }
 
     ws.on_upgrade(move |socket| handle_chat_socket(socket, user_id, state))
 }
@@ -82,6 +107,30 @@ pub async fn resolve_username(state: &AppState, user_id: &str) -> String {
 
 async fn handle_chat_socket(socket: WebSocket, user_id: String, state: AppState) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    // Check that the account is active (not banned)
+    match state.django.get_user(&user_id).await {
+        Ok(user_info) if !user_info.is_active => {
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4003,
+                    reason: "Account banned".into(),
+                })))
+                .await;
+            return;
+        }
+        Err(e) => {
+            error!("Chat: failed to verify user {user_id}: {e}");
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4003,
+                    reason: "Failed to verify account".into(),
+                })))
+                .await;
+            return;
+        }
+        Ok(_) => {}
+    }
 
     // Resolve username (with cache)
     let username = resolve_username(&state, &user_id).await;

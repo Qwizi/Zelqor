@@ -13,6 +13,7 @@ maplord-state = { path = "../maplord-state" }
 maplord-matchmaking = { path = "../maplord-matchmaking" }
 maplord-django = { path = "../maplord-django" }
 maplord-ai = { path = "../maplord-ai" }
+maplord-anticheat = { path = "../maplord-anticheat" }
 
 tokio = { workspace = true }
 serde = { workspace = true }
@@ -32,3 +33,5 @@ dotenvy = "0.15"
 dashmap = "6"
 futures = "0.3"
 livekit-api = { version = "0.4", default-features = false, features = ["access-token"] }
+sha2 = "0.10"
+hex = "0.4"

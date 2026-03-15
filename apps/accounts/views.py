@@ -1,10 +1,16 @@
+import json
+import os
+import uuid
+
+import redis as redis_lib
+from django.conf import settings
 from django.db import IntegrityError
 from django.db.models import Avg, Count, Q
 from django.contrib.auth import get_user_model
 from ninja.errors import HttpError
 from ninja_extra import api_controller, route
 from ninja_extra.permissions import IsAuthenticated
-from ninja_jwt.authentication import JWTAuth
+from apps.accounts.auth import ActiveUserJWTAuth
 
 from apps.accounts.schemas import LeaderboardEntrySchema, RegisterSchema, UserOutSchema
 from apps.pagination import paginate_qs
@@ -64,18 +70,18 @@ class AuthController:
 
         return user
 
-    @route.get('/me', response=UserOutSchema, auth=JWTAuth(), permissions=[IsAuthenticated])
+    @route.get('/me', response=UserOutSchema, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def me(self, request):
         return request.auth
 
-    @route.post('/tutorial/complete/', auth=JWTAuth(), permissions=[IsAuthenticated])
+    @route.post('/tutorial/complete/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def complete_tutorial(self, request):
         user = request.auth
         user.tutorial_completed = True
         user.save(update_fields=['tutorial_completed'])
         return {'ok': True}
 
-    @route.get('/leaderboard', response=dict, auth=JWTAuth(), permissions=[IsAuthenticated])
+    @route.get('/leaderboard', response=dict, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def leaderboard(self, request, limit: int = 50, offset: int = 0):
         qs = (
             User.objects.filter(game_results__isnull=False, is_bot=False)
@@ -87,3 +93,24 @@ class AuthController:
             .order_by('-elo_rating', '-wins', 'average_placement', 'username')
         )
         return paginate_qs(qs, limit, offset, schema=LeaderboardEntrySchema)
+
+    @route.post('/ws-ticket/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def ws_ticket(self, request):
+        ticket = str(uuid.uuid4())
+        challenge = os.urandom(16).hex()
+        difficulty = 16
+        r = redis_lib.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=settings.REDIS_GAME_DB,
+        )
+        r.setex(
+            f"ws_ticket:{ticket}",
+            30,
+            json.dumps({
+                'user_id': str(request.auth.id),
+                'challenge': challenge,
+                'difficulty': difficulty,
+            }),
+        )
+        return {'ticket': ticket, 'challenge': challenge, 'difficulty': difficulty}
