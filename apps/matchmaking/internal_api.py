@@ -815,13 +815,21 @@ class LobbyInternalController(ControllerBase):
 
         LobbyPlayer.objects.filter(lobby=lobby, user_id=body.user_id).delete()
 
-        # Host left — cancel the lobby
+        remaining = lobby.players.count()
+
         if str(lobby.host_user_id) == body.user_id:
+            # Host left — cancel the lobby
             lobby.status = Lobby.Status.CANCELLED
             lobby.save(update_fields=['status'])
-        elif lobby.players.count() == 0:
+        elif remaining == 0:
             lobby.status = Lobby.Status.CANCELLED
             lobby.save(update_fields=['status'])
+        else:
+            # Non-host left — revert to waiting so new players can join
+            # Also reset all ready states since lobby composition changed
+            lobby.status = Lobby.Status.WAITING
+            lobby.save(update_fields=['status'])
+            lobby.players.update(is_ready=False)
 
         return {
             'status': lobby.status,

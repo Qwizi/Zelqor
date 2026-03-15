@@ -323,18 +323,34 @@ impl MatchmakingManager {
                         "reason": "host_left",
                     }), Some(user_id));
                     self.close_lobby_connections(&lobby_id);
+                    // Clean up Redis for all remaining users
+                    if let Some(connections) = self.lobby_connections.get(&lobby_id) {
+                        for conn in connections.iter() {
+                            self.redis_del_user_lobby(&conn.user_id).await;
+                        }
+                    }
                 } else {
+                    // Non-host left — broadcast player_left + send updated lobby state
                     self.broadcast_to_lobby(&lobby_id, &json!({
                         "type": "player_left",
                         "lobby_id": lobby_id,
                         "user_id": user_id,
                     }), None);
+                    // Send full updated state so remaining players see reset
+                    if let Ok(state) = self.django.get_lobby(&lobby_id).await {
+                        self.broadcast_to_lobby(&lobby_id, &json!({
+                            "type": "lobby_created",
+                            "lobby_id": state.lobby_id,
+                            "max_players": state.max_players,
+                            "players": state.players,
+                        }), None);
+                    }
                 }
             }
             Err(e) => warn!("Failed to leave lobby for cancel: {e}"),
         }
 
-        // Send confirmation and close
+        // Send confirmation and close to the leaving user
         self.send_to_user_in_lobby(&lobby_id, user_id, &json!({"type": "queue_left"}));
         if let Some(connections) = self.lobby_connections.get(&lobby_id) {
             for conn in connections.iter() {
@@ -344,7 +360,7 @@ impl MatchmakingManager {
             }
         }
 
-        // Clean up local + Redis
+        // Clean up local + Redis for leaving user
         if let Some(mut connections) = self.lobby_connections.get_mut(&lobby_id) {
             connections.retain(|c| c.user_id != user_id);
         }

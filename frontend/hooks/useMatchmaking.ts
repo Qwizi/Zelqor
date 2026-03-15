@@ -86,6 +86,8 @@ interface MatchmakingContextValue {
   // Voice
   voiceToken: string | null;
   voiceUrl: string | null;
+  // Ready timeout
+  readyCountdown: number | null;
 }
 
 const MatchmakingContext = createContext<MatchmakingContextValue | null>(null);
@@ -117,6 +119,8 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
   const [lobbyChatMessages, setLobbyChatMessages] = useState<LobbyChatMessage[]>([]);
   const [voiceToken, setVoiceToken] = useState<string | null>(null);
   const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
+  const [readyCountdown, setReadyCountdown] = useState<number | null>(null);
+  const [lobbyFullAt, setLobbyFullAt] = useState<number | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const fillBotsRef = useRef(fillBots);
@@ -138,6 +142,48 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!inQueue) setQueueSeconds(0);
   }, [inQueue]);
+
+  // Ready countdown (30s to accept after lobby_full)
+  const READY_TIMEOUT_SECS = 30;
+
+  useEffect(() => {
+    if (lobbyFull && !allReady) {
+      if (!lobbyFullAt) setLobbyFullAt(Date.now());
+    } else {
+      setLobbyFullAt(null);
+      setReadyCountdown(null);
+    }
+  }, [lobbyFull, allReady, lobbyFullAt]);
+
+  useEffect(() => {
+    if (!lobbyFullAt || allReady) return;
+    const id = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - lobbyFullAt) / 1000);
+      const remaining = Math.max(0, READY_TIMEOUT_SECS - elapsed);
+      setReadyCountdown(remaining);
+      if (remaining <= 0) {
+        // Time's up — auto-cancel
+        clearInterval(id);
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ action: "cancel" }));
+        }
+        wsRef.current?.close();
+        wsRef.current = null;
+        setInQueue(false);
+        setLobbyId(null);
+        setLobbyPlayers([]);
+        setLobbyFull(false);
+        setAllReady(false);
+        setLobbyChatMessages([]);
+        setVoiceToken(null);
+        setVoiceUrl(null);
+        setReadyCountdown(null);
+        setLobbyFullAt(null);
+        saveQueueSession(null);
+      }
+    }, 500);
+    return () => clearInterval(id);
+  }, [lobbyFullAt, allReady]);
 
   const handleMessage = useCallback((msg: WSMessage) => {
     switch (msg.type) {
@@ -365,7 +411,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
     inQueue, playersInQueue, matchId, activeMatchId, queueSeconds, gameModeSlug,
     fillBots, setFillBots, instantBot, setInstantBot, joinQueue, leaveQueue,
     lobbyId, lobbyPlayers, lobbyFull, allReady, setReady,
-    lobbyChatMessages, sendLobbyChat, voiceToken, voiceUrl,
+    lobbyChatMessages, sendLobbyChat, voiceToken, voiceUrl, readyCountdown,
   };
 
   return createElement(MatchmakingContext.Provider, { value }, children);

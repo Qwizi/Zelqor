@@ -117,6 +117,7 @@ export default function LobbyPage() {
     matchId,
     lobbyChatMessages,
     sendLobbyChat,
+    readyCountdown,
     voiceToken,
     voiceUrl,
   } = useMatchmaking();
@@ -409,14 +410,14 @@ export default function LobbyPage() {
                 className="h-14 w-full gap-3 rounded-2xl bg-green-500 font-display text-lg uppercase tracking-wider text-white hover:bg-green-400 active:scale-[0.98] transition-all"
               >
                 <Check className="h-6 w-6" />
-                Gotowy!
+                Gotowy! {readyCountdown !== null && <span className="tabular-nums">({readyCountdown}s)</span>}
               </Button>
             )}
 
             {lobbyFull && !allReady && myReady && (
               <div className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-green-500/10 border border-green-500/30 text-green-400">
                 <Loader2 className="h-5 w-5 animate-spin" />
-                <span className="font-display text-lg uppercase tracking-wider">Oczekiwanie na graczy...</span>
+                <span className="font-display text-lg uppercase tracking-wider">Oczekiwanie na graczy... {readyCountdown !== null && <span className="tabular-nums">({readyCountdown}s)</span>}</span>
               </div>
             )}
 
@@ -455,14 +456,14 @@ export default function LobbyPage() {
               className="h-14 w-full gap-2.5 rounded-full bg-green-500 font-display text-base uppercase tracking-wider text-white hover:bg-green-400 active:scale-[0.98] transition-all"
             >
               <Check className="h-5 w-5" />
-              Gotowy!
+              Gotowy! {readyCountdown !== null && <span className="tabular-nums">({readyCountdown}s)</span>}
             </Button>
           )}
 
           {lobbyFull && !allReady && myReady && (
             <div className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="font-display text-base uppercase tracking-wider">Oczekiwanie...</span>
+              <span className="font-display text-base uppercase tracking-wider">Oczekiwanie... {readyCountdown !== null && <span className="tabular-nums">({readyCountdown}s)</span>}</span>
             </div>
           )}
 
