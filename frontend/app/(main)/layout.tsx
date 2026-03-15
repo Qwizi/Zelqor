@@ -511,13 +511,13 @@ function QueueBannerInline() {
     }
   }, [readyCountdown, lobbyFull, allReady, setReady]);
 
-  // Dismiss toast on cancel / leave
+  // Dismiss toast when user is ready or leaves
   useEffect(() => {
-    if (!inQueue && lobbyToastRef.current) {
+    if (lobbyToastRef.current && (myReady || !inQueue)) {
       toast.dismiss(lobbyToastRef.current);
       lobbyToastRef.current = null;
     }
-  }, [inQueue]);
+  }, [myReady, inQueue]);
 
   if (!inQueue) return null;
 
