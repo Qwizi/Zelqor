@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 
 import "./globals.css";
@@ -65,6 +65,16 @@ const displayFont = localFont({
 export const metadata: Metadata = {
   title: "MapLord",
   description: "Real-time strategy game on a world map",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "MapLord",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
+  maximumScale: 1,
 };
 
 export default function RootLayout({
