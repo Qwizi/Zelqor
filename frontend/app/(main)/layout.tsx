@@ -475,7 +475,7 @@ function QueueBannerInline() {
       try { const a = new Audio("/assets/audio/gui/int_message_alert.ogg"); a.volume = 0.7; a.play().catch(() => {}); } catch {}
       lobbyToastRef.current = toast.success("Mecz znaleziony!", {
         description: "Kliknij Gotowy aby potwierdzić",
-        duration: 120000,
+        duration: Infinity,
         action: {
           label: "Gotowy!",
           onClick: () => setReady(),
@@ -490,26 +490,6 @@ function QueueBannerInline() {
       lobbyToastRef.current = null;
     }
   }, [lobbyFull, myReady, setReady]);
-
-  // Update toast with countdown
-  useEffect(() => {
-    if (lobbyToastRef.current && readyCountdown !== null && lobbyFull && !allReady) {
-      const m = Math.floor(readyCountdown / 60);
-      const s = String(readyCountdown % 60).padStart(2, "0");
-      toast.success("Mecz znaleziony!", {
-        id: lobbyToastRef.current,
-        description: `Kliknij Gotowy aby potwierdzić (${m}:${s})`,
-        duration: 120000,
-        action: {
-          label: "Gotowy!",
-          onClick: () => setReady(),
-        },
-        classNames: {
-          actionButton: "!bg-green-500 !text-white !font-bold !rounded-lg !px-4 !py-2 !text-sm hover:!bg-green-400 !border-0",
-        },
-      });
-    }
-  }, [readyCountdown, lobbyFull, allReady, setReady]);
 
   // Dismiss toast when user is ready or leaves
   useEffect(() => {

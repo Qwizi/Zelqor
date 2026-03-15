@@ -858,6 +858,10 @@ class LobbyInternalController(ControllerBase):
         if updated == 0:
             return self.create_response({'error': 'Player not in lobby'}, status_code=404)
 
+        # When a human readies up, auto-ready all bots in the lobby
+        if body.is_ready:
+            lobby.players.filter(is_bot=True).update(is_ready=True)
+
         players = list(lobby.players.select_related('user').all())
 
         if lobby.status == Lobby.Status.FULL and all(p.is_ready for p in players):

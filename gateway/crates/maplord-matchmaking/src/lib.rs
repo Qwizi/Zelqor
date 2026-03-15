@@ -391,12 +391,15 @@ impl MatchmakingManager {
 
         match self.django.set_ready(&lobby_id, user_id, new_ready).await {
             Ok(result) => {
-                self.broadcast_to_lobby(&lobby_id, &json!({
-                    "type": "player_ready",
-                    "lobby_id": lobby_id,
-                    "user_id": user_id,
-                    "is_ready": new_ready,
-                }), None);
+                // Broadcast ready state for all players (bots may have auto-readied)
+                for player in &result.players {
+                    self.broadcast_to_lobby(&lobby_id, &json!({
+                        "type": "player_ready",
+                        "lobby_id": lobby_id,
+                        "user_id": player.user_id,
+                        "is_ready": player.is_ready,
+                    }), None);
+                }
 
                 if new_ready && result.all_ready {
                     self.broadcast_to_lobby(&lobby_id, &json!({

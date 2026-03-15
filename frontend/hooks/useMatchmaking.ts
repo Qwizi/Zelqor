@@ -263,9 +263,8 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
           setLobbyPlayers(msg.players as LobbyPlayer[]);
           setPlayersInQueue((msg.players as LobbyPlayer[]).length);
         }
-        if (msg.full_at) {
-          setLobbyFullAt(msg.full_at as number);
-        }
+        // Server full_at (epoch seconds) or fallback to now
+        setLobbyFullAt(msg.full_at ? (msg.full_at as number) : Date.now() / 1000);
         break;
       }
       case "all_ready":
