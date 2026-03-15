@@ -382,16 +382,23 @@ impl MatchmakingManager {
             None => return,
         };
 
-        match self.django.set_ready(&lobby_id, user_id, true).await {
+        // Check current ready state to toggle
+        let currently_ready = self.django.get_lobby(&lobby_id).await
+            .ok()
+            .map(|state| state.players.iter().any(|p| p.user_id == user_id && p.is_ready))
+            .unwrap_or(false);
+        let new_ready = !currently_ready;
+
+        match self.django.set_ready(&lobby_id, user_id, new_ready).await {
             Ok(result) => {
                 self.broadcast_to_lobby(&lobby_id, &json!({
                     "type": "player_ready",
                     "lobby_id": lobby_id,
                     "user_id": user_id,
-                    "is_ready": true,
+                    "is_ready": new_ready,
                 }), None);
 
-                if result.all_ready {
+                if new_ready && result.all_ready {
                     self.broadcast_to_lobby(&lobby_id, &json!({
                         "type": "all_ready",
                         "lobby_id": lobby_id,

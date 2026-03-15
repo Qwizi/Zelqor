@@ -416,10 +416,14 @@ export default function LobbyPage() {
             )}
 
             {lobbyFull && !allReady && myReady && (
-              <div className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-green-500/10 border border-green-500/30 text-green-400">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span className="font-display text-lg uppercase tracking-wider">Oczekiwanie na graczy... {readyCountdown !== null && <span className="tabular-nums">({readyCountdown}s)</span>}</span>
-              </div>
+              <Button
+                size="lg"
+                onClick={setReady}
+                className="h-14 w-full gap-3 rounded-2xl bg-green-500/10 border-2 border-green-500/30 font-display text-lg uppercase tracking-wider text-green-400 hover:bg-green-500/20 active:scale-[0.98] transition-all"
+              >
+                <Check className="h-6 w-6" />
+                Gotowy {readyCountdown !== null && <span className="tabular-nums">({readyCountdown}s)</span>}
+              </Button>
             )}
 
             {allReady && (
@@ -462,10 +466,14 @@ export default function LobbyPage() {
           )}
 
           {lobbyFull && !allReady && myReady && (
-            <div className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="font-display text-base uppercase tracking-wider">Oczekiwanie... {readyCountdown !== null && <span className="tabular-nums">({readyCountdown}s)</span>}</span>
-            </div>
+            <Button
+              size="lg"
+              onClick={setReady}
+              className="h-14 w-full gap-2.5 rounded-full bg-green-500/10 border border-green-500/30 font-display text-base uppercase tracking-wider text-green-400 hover:bg-green-500/20 active:scale-[0.98] transition-all"
+            >
+              <Check className="h-5 w-5" />
+              Gotowy {readyCountdown !== null && <span className="tabular-nums">({readyCountdown}s)</span>}
+            </Button>
           )}
 
           {allReady && (

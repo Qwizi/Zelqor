@@ -42,7 +42,7 @@ def cleanup_stale_lobbies():
             lobby.status = Lobby.Status.WAITING
             lobby.full_at = None
             lobby.save(update_fields=['status', 'full_at'])
-            lobby.players.update(is_ready=False)
+            lobby.players.filter(is_bot=False).update(is_ready=False)
             logger.info(
                 f"Lobby {lobby.id}: kicked {kick_count} unready player(s), "
                 f"reverted to waiting"

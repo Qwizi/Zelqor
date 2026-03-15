@@ -828,11 +828,11 @@ class LobbyInternalController(ControllerBase):
             lobby.save(update_fields=['status'])
         else:
             # Non-host left — revert to waiting so new players can join
-            # Also reset all ready states since lobby composition changed
+            # Reset human ready states (bots stay ready)
             lobby.status = Lobby.Status.WAITING
             lobby.full_at = None
             lobby.save(update_fields=['status', 'full_at'])
-            lobby.players.update(is_ready=False)
+            lobby.players.filter(is_bot=False).update(is_ready=False)
 
         return {
             'status': lobby.status,

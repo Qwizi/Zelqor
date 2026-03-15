@@ -148,7 +148,8 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
 
   // Ready countdown — computed from server-provided full_at timestamp.
   // Backend handles the actual timeout (Celery kicks unready players after 2 min).
-  const READY_TIMEOUT_SECS = 120;
+  // 120s real timeout + 30s buffer for Celery interval
+  const READY_TIMEOUT_SECS = 150;
 
   useEffect(() => {
     if (!lobbyFull || allReady || !lobbyFullAt) {
@@ -202,10 +203,18 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
       // Lobby messages
       case "lobby_created": {
         const lid = msg.lobby_id as string;
+        const players = msg.players as LobbyPlayer[];
+        const mp = (msg.max_players as number) || 2;
         setLobbyId(lid);
-        if (msg.max_players) setLobbyMaxPlayers(msg.max_players as number);
-        setLobbyPlayers(msg.players as LobbyPlayer[]);
-        setPlayersInQueue((msg.players as LobbyPlayer[]).length);
+        setLobbyMaxPlayers(mp);
+        setLobbyPlayers(players);
+        setPlayersInQueue(players.length);
+        // Reset full/ready state if lobby is no longer full
+        if (players.length < mp) {
+          setLobbyFull(false);
+          setAllReady(false);
+          setLobbyFullAt(null);
+        }
         // Sync timer from server created_at
         if (msg.created_at) {
           setQueueJoinedAt(Math.floor((msg.created_at as number) * 1000));
