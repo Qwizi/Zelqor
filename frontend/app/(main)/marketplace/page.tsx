@@ -15,7 +15,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuth";
 import {
   cancelListing,
@@ -66,6 +73,12 @@ const TYPE_LABELS: Record<string, string> = {
   crate: "Skrzynka",
   key: "Klucz",
   cosmetic: "Kosmetyk",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  active: "Aktywny",
+  cancelled: "Anulowany",
+  fulfilled: "Zrealizowany",
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -142,23 +155,23 @@ function BrowseList({
       <div className="flex-1 min-w-0">
         {/* Search */}
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Szukaj przedmiotów..."
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9"
+            className="pl-10 h-12 text-base"
           />
         </div>
 
         {/* Mobile-only category pills (hidden on lg where sidebar shows) */}
-        <div className="mb-4 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] lg:hidden">
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] lg:hidden">
           {CATEGORY_PILLS.map((pill) => (
             <button
               key={pill.value}
               onClick={() => onFilterCategory(pill.value)}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              className={`cursor-target shrink-0 rounded-full px-4 py-2 text-base font-medium transition-colors ${
                 filterCategory === pill.value
                   ? "border border-primary/25 bg-primary/10 text-primary"
                   : "border border-border text-muted-foreground hover:bg-muted hover:border-border/50 hover:text-foreground"
@@ -172,37 +185,37 @@ function BrowseList({
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-16 animate-pulse rounded-xl border border-border/30 bg-muted/20" />
+              <div key={i} className="h-20 animate-pulse rounded-xl border border-border/30 bg-muted/20" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center">
             <Store className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-            <p className="text-muted-foreground">Brak ofert spełniających kryteria</p>
+            <p className="text-lg text-muted-foreground">Brak ofert spełniających kryteria</p>
           </div>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {filtered.map((agg) => {
               const rarity = agg.item.rarity ?? "common";
               return (
                 <Link
                   key={agg.item.slug}
                   href={`/marketplace/${agg.item.slug}`}
-                  className="group flex items-center gap-3 rounded-xl border border-border px-3 py-2.5 transition-all hover:border-border/60 hover:bg-muted"
+                  className="cursor-target group flex items-center gap-4 rounded-xl border border-border px-4 py-3.5 transition-all hover:border-border/60 hover:bg-muted"
                 >
                   {/* Item icon — inventory slot style */}
-                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-l-2 border-border/60 text-xl ${RARITY_LEFT_BORDER_SLOT[rarity]} ${RARITY_SLOT_BG[rarity]}`}>
+                  <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-l-2 border-border/60 text-2xl ${RARITY_LEFT_BORDER_SLOT[rarity]} ${RARITY_SLOT_BG[rarity]}`}>
                     {agg.item.icon || "📦"}
                   </div>
 
                   {/* Name + badges */}
                   <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground group-hover:text-foreground/90">{agg.item.name}</p>
+                    <p className="truncate text-lg font-medium text-foreground group-hover:text-foreground/90">{agg.item.name}</p>
                     <div className="mt-0.5 flex items-center gap-1.5">
-                      <span className={`rounded px-1.5 py-px text-[9px] font-medium ${RARITY_BADGE_CLASS[rarity]}`}>
+                      <span className={`rounded px-1.5 py-px text-sm font-medium ${RARITY_BADGE_CLASS[rarity]}`}>
                         {RARITY_LABELS[rarity]}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">{TYPE_LABELS[agg.item.item_type] ?? agg.item.item_type}</span>
+                      <span className="text-sm text-muted-foreground">{TYPE_LABELS[agg.item.item_type] ?? agg.item.item_type}</span>
                     </div>
                   </div>
 
@@ -210,15 +223,15 @@ function BrowseList({
                   <div className="shrink-0 text-right">
                     {agg.cheapestPrice > 0 ? (
                       <>
-                        <p className="text-sm font-mono tabular-nums text-accent">od {agg.cheapestPrice}g</p>
-                        <p className="text-[10px] text-muted-foreground">{agg.listingCount} {agg.listingCount === 1 ? "oferta" : "ofert"}</p>
+                        <p className="text-lg font-mono tabular-nums text-accent">od {agg.cheapestPrice}g</p>
+                        <p className="text-sm text-muted-foreground">{agg.listingCount} {agg.listingCount === 1 ? "oferta" : "ofert"}</p>
                       </>
                     ) : (
-                      <p className="text-xs text-muted-foreground">Brak ofert</p>
+                      <p className="text-base text-muted-foreground">Brak ofert</p>
                     )}
                   </div>
 
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </Link>
               );
             })}
@@ -227,14 +240,14 @@ function BrowseList({
       </div>
 
       {/* ── Filtry (prawa strona, desktop only) ── */}
-      <div className="hidden lg:block w-48 shrink-0">
-        <p className="mb-3 text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Kategoria</p>
+      <div className="hidden lg:block w-56 shrink-0">
+        <p className="mb-3 text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">Kategoria</p>
         <div className="space-y-1">
           {CATEGORY_PILLS.map((pill) => (
             <button
               key={pill.value}
               onClick={() => onFilterCategory(pill.value)}
-              className={`flex w-full items-center rounded-lg px-3 py-2 text-sm transition-all text-left ${
+              className={`cursor-target flex w-full items-center rounded-lg px-3 py-3 text-base transition-all text-left ${
                 filterCategory === pill.value
                   ? "bg-primary/10 text-primary border border-primary/25"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
@@ -282,46 +295,44 @@ function MyListingsTab({
     return (
       <div className="py-16 text-center">
         <ShoppingCart className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-        <p className="text-muted-foreground">Brak aktywnych ofert</p>
+        <p className="text-lg text-muted-foreground">Brak aktywnych ofert</p>
       </div>
     );
   }
 
   return (
     <div className="overflow-hidden rounded-xl border border-border/40">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/30">
-            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+      <Table className="text-base">
+        <TableHeader>
+          <TableRow className="bg-muted/30">
+            <TableHead className="h-14 pl-6 text-base font-semibold text-muted-foreground">
               Przedmiot
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+            </TableHead>
+            <TableHead className="h-14 text-base font-semibold text-muted-foreground">
               Typ
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+            </TableHead>
+            <TableHead className="h-14 text-base font-semibold text-right text-muted-foreground">
               Cena
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+            </TableHead>
+            <TableHead className="h-14 text-base font-semibold text-right text-muted-foreground">
               Pozostało
-            </th>
-            <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground">
+            </TableHead>
+            <TableHead className="h-14 text-base font-semibold text-center text-muted-foreground">
               Status
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground" />
-          </tr>
-        </thead>
-        <tbody>
-          {listings.map((listing, idx) => (
-            <tr
+            </TableHead>
+            <TableHead className="h-14 pr-6 text-right text-muted-foreground" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {listings.map((listing) => (
+            <TableRow
               key={listing.id}
-              className={`border-b border-border/30 transition-colors hover:bg-muted/30 ${
-                idx % 2 === 0 ? "" : "bg-muted/10"
-              }`}
+              className="cursor-target transition-colors hover:bg-muted/30"
             >
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
+              <TableCell className="pl-6 py-5">
+                <div className="flex items-center gap-3">
                   <div
-                    className={`h-1.5 w-1.5 rounded-full ${
+                    className={`h-2.5 w-2.5 rounded-full ${
                       listing.item.rarity === "legendary"
                         ? "bg-amber-500"
                         : listing.item.rarity === "epic"
@@ -333,49 +344,51 @@ function MyListingsTab({
                               : "bg-slate-500"
                     }`}
                   />
-                  <span className="font-medium text-foreground">
+                  <span className="text-base font-medium text-foreground">
                     {listing.item.name}
                   </span>
                 </div>
-              </td>
-              <td className="px-4 py-3 text-muted-foreground">
+              </TableCell>
+              <TableCell className="py-5 text-base text-muted-foreground">
                 {listing.listing_type === "sell" ? "Sprzedaż" : "Kupno"}
-              </td>
-              <td className="px-4 py-3 text-right font-mono tabular-nums text-accent">
+              </TableCell>
+              <TableCell className="py-5 text-right font-mono tabular-nums text-base text-accent">
                 {listing.price_per_unit}g
-              </td>
-              <td className="px-4 py-3 text-right text-foreground/80">
+              </TableCell>
+              <TableCell className="py-5 text-right text-base text-foreground/80">
                 {listing.quantity_remaining}/{listing.quantity}
-              </td>
-              <td className="px-4 py-3 text-center">
+              </TableCell>
+              <TableCell className="py-5 text-center">
                 <Badge
                   variant="outline"
-                  className={`rounded-full px-2 py-0.5 text-xs border-0 ${
+                  className={`rounded-full px-3 py-1 text-sm border-0 ${
                     listing.status === "active"
                       ? "bg-green-500/15 text-green-400 hover:bg-green-500/15"
-                      : "bg-muted text-muted-foreground hover:bg-muted"
+                      : listing.status === "cancelled"
+                        ? "bg-destructive/15 text-destructive hover:bg-destructive/15"
+                        : "bg-muted text-muted-foreground hover:bg-muted"
                   }`}
                 >
-                  {listing.status === "active" ? "Aktywna" : listing.status}
+                  {STATUS_LABELS[listing.status] ?? listing.status}
                 </Badge>
-              </td>
-              <td className="px-4 py-3 text-right">
+              </TableCell>
+              <TableCell className="py-5 pr-6 text-right">
                 {listing.status === "active" && (
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={() => handleCancel(listing.id)}
                     disabled={cancelling === listing.id}
-                    className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50 h-auto"
+                    className="cursor-target h-11 rounded-md bg-destructive/10 px-4 text-base text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
                   >
                     {cancelling === listing.id ? "..." : "Anuluj"}
                   </Button>
                 )}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -392,56 +405,54 @@ function HistoryTab({ history, currentUsername }: HistoryTabProps) {
     return (
       <div className="py-16 text-center">
         <Coins className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-        <p className="text-muted-foreground">Brak transakcji</p>
+        <p className="text-lg text-muted-foreground">Brak transakcji</p>
       </div>
     );
   }
 
   return (
     <div className="overflow-hidden rounded-xl border border-border/40">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/30">
-            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+      <Table className="text-base">
+        <TableHeader>
+          <TableRow className="bg-muted/30">
+            <TableHead className="h-14 pl-6 text-base font-semibold text-muted-foreground">
               Data
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+            </TableHead>
+            <TableHead className="h-14 text-base font-semibold text-muted-foreground">
               Przedmiot
-            </th>
-            <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground">
+            </TableHead>
+            <TableHead className="h-14 text-base font-semibold text-center text-muted-foreground">
               Typ
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+            </TableHead>
+            <TableHead className="h-14 text-base font-semibold text-right text-muted-foreground">
               Ilość
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+            </TableHead>
+            <TableHead className="h-14 text-base font-semibold text-right text-muted-foreground">
               Cena
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+            </TableHead>
+            <TableHead className="h-14 pr-6 text-base font-semibold text-right text-muted-foreground">
               Prowizja
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {history.map((tx, idx) => {
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {history.map((tx) => {
             const isBuyer = tx.buyer_username === currentUsername;
             return (
-              <tr
+              <TableRow
                 key={tx.id}
-                className={`border-b border-border/20 transition-colors hover:bg-muted/30 ${
-                  idx % 2 === 0 ? "" : "bg-muted/10"
-                }`}
+                className="cursor-target transition-colors hover:bg-muted/30"
               >
-                <td className="px-4 py-3 text-muted-foreground">
+                <TableCell className="pl-6 py-5 text-base text-muted-foreground">
                   {new Date(tx.created_at).toLocaleDateString("pl-PL")}
-                </td>
-                <td className="px-4 py-3 font-medium text-foreground">
+                </TableCell>
+                <TableCell className="py-5 text-base font-medium text-foreground">
                   {tx.item.name}
-                </td>
-                <td className="px-4 py-3 text-center">
+                </TableCell>
+                <TableCell className="py-5 text-center">
                   <Badge
                     variant="outline"
-                    className={`rounded-full border-0 px-2 py-0.5 text-xs ${
+                    className={`rounded-full border-0 px-3 py-1 text-sm ${
                       isBuyer
                         ? "bg-destructive/15 text-destructive hover:bg-destructive/15"
                         : "bg-green-500/15 text-green-400 hover:bg-green-500/15"
@@ -449,26 +460,26 @@ function HistoryTab({ history, currentUsername }: HistoryTabProps) {
                   >
                     {isBuyer ? "Kupno" : "Sprzedaż"}
                   </Badge>
-                </td>
-                <td className="px-4 py-3 text-right text-foreground/80">
+                </TableCell>
+                <TableCell className="py-5 text-right text-base text-foreground/80">
                   x{tx.quantity}
-                </td>
-                <td
-                  className={`px-4 py-3 text-right font-mono tabular-nums ${
+                </TableCell>
+                <TableCell
+                  className={`py-5 text-right font-mono tabular-nums text-base ${
                     isBuyer ? "text-destructive" : "text-green-400"
                   }`}
                 >
                   {isBuyer ? "-" : "+"}
                   {isBuyer ? tx.total_price : tx.total_price - tx.fee}g
-                </td>
-                <td className="px-4 py-3 text-right font-mono tabular-nums text-muted-foreground">
+                </TableCell>
+                <TableCell className="py-5 pr-6 text-right font-mono tabular-nums text-base text-muted-foreground">
                   {tx.fee > 0 ? `${tx.fee}g` : "—"}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -562,29 +573,29 @@ function MarketplaceContent() {
   if (authLoading || !user) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Page header */}
-      <div className="space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Rynek</p>
-        <h1 className="font-display text-3xl text-foreground">Rynek handlowy</h1>
+      <div className="space-y-2">
+        <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Rynek</p>
+        <h1 className="font-display text-4xl sm:text-5xl text-foreground">Rynek handlowy</h1>
       </div>
 
       {/* Wallet bar */}
       <Card className="rounded-2xl backdrop-blur-xl">
-        <CardContent className="flex items-center justify-between px-5 py-2.5">
-          <div className="flex items-center gap-2">
-            <Coins className="h-4 w-4 text-accent" />
-            <span className="font-mono tabular-nums text-lg font-semibold text-accent">
+        <CardContent className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3">
+            <Coins className="h-6 w-6 text-accent" />
+            <span className="font-mono tabular-nums text-2xl font-semibold text-accent">
               {wallet?.gold ?? "—"}
             </span>
-            <span className="text-sm text-muted-foreground">złota</span>
+            <span className="text-base text-muted-foreground">złota</span>
           </div>
-          <span className="text-xs text-muted-foreground">Prowizja rynkowa: 5%</span>
+          <span className="text-base text-muted-foreground">Prowizja rynkowa: 5%</span>
         </CardContent>
       </Card>
 
       {/* Tab bar — URL-based via ?tab= */}
-      <div className="flex gap-1 overflow-x-auto scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
         {[
           { href: "/marketplace", label: "Przeglądaj", key: "browse" as const },
           { href: "/marketplace?tab=my-listings", label: "Moje oferty", key: "my-listings" as const },
@@ -593,7 +604,7 @@ function MarketplaceContent() {
           <Link
             key={t.key}
             href={t.href}
-            className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+            className={`cursor-target rounded-lg px-5 py-2.5 text-lg font-medium transition-colors ${
               tab === t.key
                 ? "border border-primary/40 bg-primary/15 text-primary"
                 : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -601,7 +612,7 @@ function MarketplaceContent() {
           >
             {t.label}
             {t.key === "my-listings" && myListings.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] text-primary">
+              <span className="ml-1.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-sm text-primary">
                 {myListings.filter((l) => l.status === "active").length}
               </span>
             )}

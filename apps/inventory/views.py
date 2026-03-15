@@ -344,11 +344,17 @@ _DECK_ALLOWED_TYPES = {
 
 def _cleanup_stale_deck_items(user, deck):
     """Remove consumable items from a deck if the user no longer owns them."""
+    from apps.inventory.models import ItemInstance
     for di in list(deck.items.select_related('item').all()):
         if di.item.is_consumable:
-            owns = UserInventory.objects.filter(
-                user=user, item=di.item, quantity__gte=1,
-            ).exists()
+            if di.item.is_stackable:
+                owns = UserInventory.objects.filter(
+                    user=user, item=di.item, quantity__gte=1,
+                ).exists()
+            else:
+                owns = ItemInstance.objects.filter(
+                    owner=user, item=di.item,
+                ).exists()
             if not owns:
                 di.delete()
 
@@ -462,9 +468,17 @@ class DeckController:
                             new_deck_requirements.get(item_id, 0)
                             + other_requirements.get(item_id, 0)
                         )
-                        owned = UserInventory.objects.filter(
-                            user=request.user, item_id=item_id
-                        ).values_list('quantity', flat=True).first() or 0
+                        # Check both UserInventory (stackable) and ItemInstance (non-stackable)
+                        item_obj = Item.objects.filter(id=item_id).first()
+                        if item_obj and not item_obj.is_stackable:
+                            from apps.inventory.models import ItemInstance
+                            owned = ItemInstance.objects.filter(
+                                owner=request.user, item_id=item_id
+                            ).count()
+                        else:
+                            owned = UserInventory.objects.filter(
+                                user=request.user, item_id=item_id
+                            ).values_list('quantity', flat=True).first() or 0
                         if owned < total_required:
                             try:
                                 item_name = Item.objects.get(id=item_id).name

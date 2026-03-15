@@ -6,6 +6,16 @@ import Link from "next/link";
 import { ArrowLeft, Coins, Store } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuth";
 import {
   buyFromListing,
@@ -183,11 +193,11 @@ export default function MarketplaceItemPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 w-24 animate-pulse rounded-lg bg-white/[0.04]" />
-        <div className="h-28 animate-pulse rounded-2xl border border-white/10 bg-white/[0.05]" />
+        <div className="h-8 w-24 animate-pulse rounded-lg bg-muted/20" />
+        <div className="h-32 animate-pulse rounded-2xl border border-border/30 bg-muted/10" />
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="h-48 animate-pulse rounded-xl border border-white/10 bg-white/[0.05]" />
-          <div className="h-48 animate-pulse rounded-xl border border-white/10 bg-white/[0.05]" />
+          <div className="h-56 animate-pulse rounded-xl border border-border/30 bg-muted/10" />
+          <div className="h-56 animate-pulse rounded-xl border border-border/30 bg-muted/10" />
         </div>
       </div>
     );
@@ -198,7 +208,7 @@ export default function MarketplaceItemPage() {
       {/* Back link */}
       <Link
         href="/marketplace"
-        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-400 transition-all hover:text-zinc-100 hover:bg-white/[0.08]"
+        className="cursor-target inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-base text-muted-foreground transition-all hover:text-foreground hover:bg-muted"
       >
         <ArrowLeft className="h-4 w-4" />
         Powrót do rynku
@@ -206,188 +216,191 @@ export default function MarketplaceItemPage() {
 
       {/* Item header */}
       {representativeItem ? (
-        <div className="flex gap-4 rounded-2xl border border-white/10 bg-slate-950/55 p-5 backdrop-blur-xl">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-3xl">
-            {representativeItem.icon || "📦"}
-          </div>
-          <div className="min-w-0">
-            <h1 className="font-display text-2xl text-zinc-50">
-              {representativeItem.name}
-            </h1>
-            <p className="text-sm text-slate-400">
-              {TYPE_LABELS[representativeItem.item_type] ??
-                representativeItem.item_type}
-            </p>
-            <div className="mt-1 flex items-center gap-2">
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${RARITY_BADGE[representativeItem.rarity] ?? "bg-slate-500/20 text-slate-300"}`}
-              >
-                {RARITY_LABELS[representativeItem.rarity] ??
-                  representativeItem.rarity}
-              </span>
+        <Card className="rounded-2xl">
+          <CardContent className="flex gap-5 p-6">
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/30 text-4xl">
+              {representativeItem.icon || "📦"}
             </div>
-            {representativeItem.description && (
-              <p className="mt-2 text-sm text-slate-400">
-                {representativeItem.description}
+            <div className="min-w-0">
+              <h1 className="font-display text-3xl text-foreground">
+                {representativeItem.name}
+              </h1>
+              <p className="mt-1 text-base text-muted-foreground">
+                {TYPE_LABELS[representativeItem.item_type] ??
+                  representativeItem.item_type}
               </p>
-            )}
-          </div>
-        </div>
+              <div className="mt-2 flex items-center gap-2">
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-sm font-medium ${RARITY_BADGE[representativeItem.rarity] ?? "bg-slate-500/20 text-slate-300"}`}
+                >
+                  {RARITY_LABELS[representativeItem.rarity] ??
+                    representativeItem.rarity}
+                </span>
+              </div>
+              {representativeItem.description && (
+                <p className="mt-3 text-base text-muted-foreground">
+                  {representativeItem.description}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-slate-950/55 p-5 backdrop-blur-xl">
-          <Store className="h-8 w-8 text-slate-500" />
-          <div>
-            <p className="font-medium text-slate-200">{slug}</p>
-            <p className="text-sm text-slate-400">Brak aktywnych ofert</p>
-          </div>
-        </div>
+        <Card className="rounded-2xl">
+          <CardContent className="flex items-center gap-4 p-6">
+            <Store className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="text-lg font-medium text-foreground">{slug}</p>
+              <p className="text-base text-muted-foreground">Brak aktywnych ofert</p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Wallet strip */}
-      <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5">
-        <Coins className="h-4 w-4 text-amber-400" />
-        <span className="font-mono tabular-nums text-amber-300">
-          {wallet?.gold ?? "—"}
-        </span>
-        <span className="text-sm text-slate-400">złota</span>
-        {ownedQty > 0 && (
-          <>
-            <span className="mx-2 text-slate-700">·</span>
-            <span className="text-sm text-slate-300">
-              Posiadasz:{" "}
-              <span className="font-medium text-zinc-100">{ownedQty}</span>
-            </span>
-          </>
-        )}
-        <span className="ml-auto text-xs text-slate-400">
-          Prowizja: {feePercent}%
-        </span>
-      </div>
+      <Card className="rounded-xl">
+        <CardContent className="flex items-center gap-3 px-5 py-3.5">
+          <Coins className="h-5 w-5 text-accent" />
+          <span className="font-mono tabular-nums text-lg font-semibold text-accent">
+            {wallet?.gold ?? "—"}
+          </span>
+          <span className="text-base text-muted-foreground">złota</span>
+          {ownedQty > 0 && (
+            <>
+              <span className="mx-2 text-border">·</span>
+              <span className="text-base text-muted-foreground">
+                Posiadasz:{" "}
+                <span className="font-semibold text-foreground">{ownedQty}</span>
+              </span>
+            </>
+          )}
+          <span className="ml-auto text-base text-muted-foreground">
+            Prowizja: {feePercent}%
+          </span>
+        </CardContent>
+      </Card>
 
       {/* Order books */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Sell listings */}
         <div>
-          <h2 className="mb-2 text-sm font-medium text-slate-300">
+          <h2 className="mb-3 text-base font-semibold text-foreground">
             Oferty sprzedaży
           </h2>
           {sellListings.length === 0 ? (
-            <p className="rounded-xl border border-white/10 py-8 text-center text-sm text-slate-400">
+            <p className="rounded-xl border border-border py-10 text-center text-base text-muted-foreground">
               Brak ofert sprzedaży
             </p>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-white/[0.08]">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 bg-white/[0.05]">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">
+            <div className="overflow-hidden rounded-xl border border-border/40">
+              <Table className="text-base">
+                <TableHeader>
+                  <TableRow className="bg-muted/30">
+                    <TableHead className="h-12 pl-4 text-sm font-semibold text-muted-foreground">
                       Sprzedawca
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-slate-400">
+                    </TableHead>
+                    <TableHead className="h-12 text-sm font-semibold text-right text-muted-foreground">
                       Cena
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-slate-400">
+                    </TableHead>
+                    <TableHead className="h-12 text-sm font-semibold text-right text-muted-foreground">
                       Ilość
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-slate-500" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {sellListings.map((listing, idx) => (
-                    <tr
+                    </TableHead>
+                    <TableHead className="h-12 pr-4 text-right text-muted-foreground" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sellListings.map((listing) => (
+                    <TableRow
                       key={listing.id}
-                      className={`border-b border-white/[0.04] transition-colors hover:bg-white/[0.08] ${
-                        idx % 2 === 0 ? "" : "bg-white/[0.03]"
-                      }`}
+                      className="transition-colors hover:bg-muted/30"
                     >
-                      <td className="px-3 py-2 text-zinc-300">
-                        <span className="flex items-center gap-1.5">
+                      <TableCell className="pl-4 py-4 text-base text-foreground">
+                        <span className="flex items-center gap-2">
                           {listing.seller_username}
                           {listing.is_bot_listing && (
-                            <span className="rounded bg-cyan-500/15 px-1 py-0.5 text-[10px] text-cyan-400">
+                            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary">
                               Bot
                             </span>
                           )}
                         </span>
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono tabular-nums text-amber-300">
+                      </TableCell>
+                      <TableCell className="py-4 text-right font-mono tabular-nums text-base text-accent">
                         {listing.price_per_unit}g
-                      </td>
-                      <td className="px-3 py-2 text-right text-slate-300">
+                      </TableCell>
+                      <TableCell className="py-4 text-right text-base text-foreground/80">
                         x{listing.quantity_remaining}
-                      </td>
-                      <td className="px-3 py-2 text-right">
+                      </TableCell>
+                      <TableCell className="py-4 pr-4 text-right">
                         {listing.seller_username !== user.username && (
-                          <button
+                          <Button
+                            size="sm"
                             onClick={() => handleBuyDirect(listing, 1)}
                             disabled={buying}
-                            className="rounded-md bg-cyan-500/15 px-2 py-1 text-xs text-cyan-300 transition-colors hover:bg-cyan-500/25 disabled:opacity-50"
+                            className="cursor-target h-9 rounded-md bg-primary text-primary-foreground px-4 text-sm hover:bg-primary/90 disabled:opacity-50"
                           >
                             Kup
-                          </button>
+                          </Button>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>
 
         {/* Buy listings */}
         <div>
-          <h2 className="mb-2 text-sm font-medium text-slate-300">
+          <h2 className="mb-3 text-base font-semibold text-foreground">
             Oferty kupna
           </h2>
           {buyListings.length === 0 ? (
-            <p className="rounded-xl border border-white/10 py-8 text-center text-sm text-slate-400">
+            <p className="rounded-xl border border-border py-10 text-center text-base text-muted-foreground">
               Brak ofert kupna
             </p>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-white/[0.08]">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 bg-white/[0.05]">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">
+            <div className="overflow-hidden rounded-xl border border-border/40">
+              <Table className="text-base">
+                <TableHeader>
+                  <TableRow className="bg-muted/30">
+                    <TableHead className="h-12 pl-4 text-sm font-semibold text-muted-foreground">
                       Kupujący
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-slate-400">
+                    </TableHead>
+                    <TableHead className="h-12 text-sm font-semibold text-right text-muted-foreground">
                       Cena
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-slate-400">
+                    </TableHead>
+                    <TableHead className="h-12 pr-4 text-sm font-semibold text-right text-muted-foreground">
                       Ilość
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {buyListings.map((listing, idx) => (
-                    <tr
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {buyListings.map((listing) => (
+                    <TableRow
                       key={listing.id}
-                      className={`border-b border-white/[0.04] transition-colors hover:bg-white/[0.08] ${
-                        idx % 2 === 0 ? "" : "bg-white/[0.03]"
-                      }`}
+                      className="transition-colors hover:bg-muted/30"
                     >
-                      <td className="px-3 py-2 text-zinc-300">
-                        <span className="flex items-center gap-1.5">
+                      <TableCell className="pl-4 py-4 text-base text-foreground">
+                        <span className="flex items-center gap-2">
                           {listing.seller_username}
                           {listing.is_bot_listing && (
-                            <span className="rounded bg-cyan-500/15 px-1 py-0.5 text-[10px] text-cyan-400">
+                            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary">
                               Bot
                             </span>
                           )}
                         </span>
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono tabular-nums text-green-300">
+                      </TableCell>
+                      <TableCell className="py-4 text-right font-mono tabular-nums text-base text-green-400">
                         {listing.price_per_unit}g
-                      </td>
-                      <td className="px-3 py-2 text-right text-slate-300">
+                      </TableCell>
+                      <TableCell className="py-4 pr-4 text-right text-base text-foreground/80">
                         x{listing.quantity_remaining}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>
@@ -397,104 +410,106 @@ export default function MarketplaceItemPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Quick buy */}
         {cheapestAvailable && (
-          <div className="rounded-xl border border-white/10 bg-white/[0.05] p-4">
-            <h3 className="mb-3 text-sm font-medium text-slate-300">Kup</h3>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <input
-                type="number"
-                min={1}
-                max={cheapestAvailable.quantity_remaining}
-                value={buyQty}
-                onChange={(e) =>
-                  setBuyQty(
-                    Math.max(
-                      1,
-                      Math.min(
-                        cheapestAvailable.quantity_remaining,
-                        parseInt(e.target.value) || 1
+          <Card className="rounded-xl">
+            <CardContent className="p-5 space-y-4">
+              <h3 className="text-base font-semibold text-foreground">Kup najszybciej</h3>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Input
+                  type="number"
+                  min={1}
+                  max={cheapestAvailable.quantity_remaining}
+                  value={buyQty}
+                  onChange={(e) =>
+                    setBuyQty(
+                      Math.max(
+                        1,
+                        Math.min(
+                          cheapestAvailable.quantity_remaining,
+                          parseInt(e.target.value) || 1
+                        )
                       )
                     )
-                  )
-                }
-                className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-sm text-zinc-100 outline-none focus:border-cyan-400/50 sm:w-20"
-              />
-              <Button
-                onClick={handleBuyCheapest}
-                disabled={buying}
-                className="w-full rounded-lg sm:flex-1"
-              >
-                <Coins className="mr-1.5 h-4 w-4 text-amber-300" />
-                Kup za{" "}
-                <span className="ml-1 font-mono tabular-nums text-amber-300">
-                  {buyCost}
-                </span>{" "}
-                gold
-              </Button>
-            </div>
-          </div>
+                  }
+                  className="h-12 w-full text-base sm:w-24 text-center"
+                />
+                <Button
+                  onClick={handleBuyCheapest}
+                  disabled={buying}
+                  className="cursor-target h-12 w-full rounded-lg bg-primary text-primary-foreground text-base hover:bg-primary/90 sm:flex-1"
+                >
+                  <Coins className="mr-2 h-4 w-4" />
+                  Kup za{" "}
+                  <span className="ml-1 font-mono tabular-nums">
+                    {buyCost}g
+                  </span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Sell form */}
         {representativeItem?.is_tradeable && (
-          <div className="rounded-xl border border-white/10 bg-white/[0.05] p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-medium text-slate-300">
-                Wystaw na sprzedaż
-              </h3>
-              <span className="text-xs text-slate-400">
-                Posiadasz:{" "}
-                <span className="text-zinc-200">{ownedQty}</span>
-              </span>
-            </div>
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block text-[11px] text-slate-400 font-medium">
-                    Ilość
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={ownedQty || undefined}
-                    value={sellQty}
-                    onChange={(e) =>
-                      setSellQty(Math.max(1, parseInt(e.target.value) || 1))
-                    }
-                    className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-100 outline-none focus:border-cyan-400/50"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] text-slate-400 font-medium">
-                    Cena/szt.
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={sellPrice}
-                    onChange={(e) =>
-                      setSellPrice(Math.max(1, parseInt(e.target.value) || 1))
-                    }
-                    className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-100 outline-none focus:border-cyan-400/50"
-                  />
-                </div>
+          <Card className="rounded-xl">
+            <CardContent className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-foreground">
+                  Wystaw na sprzedaż
+                </h3>
+                <span className="text-base text-muted-foreground">
+                  Posiadasz:{" "}
+                  <span className="font-semibold text-foreground">{ownedQty}</span>
+                </span>
               </div>
-              <div className="rounded-lg bg-white/[0.05] px-3 py-2 text-xs text-slate-400">
-                Prowizja: {feePercent}% ={" "}
-                <span className="text-amber-300/80">{feeCost}g</span>
-                <span className="mx-2 text-slate-500">·</span>
-                Otrzymasz:{" "}
-                <span className="text-green-300">{netReceive}g</span>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
+                      Ilość
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={ownedQty || undefined}
+                      value={sellQty}
+                      onChange={(e) =>
+                        setSellQty(Math.max(1, parseInt(e.target.value) || 1))
+                      }
+                      className="h-12 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
+                      Cena / szt.
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={sellPrice}
+                      onChange={(e) =>
+                        setSellPrice(Math.max(1, parseInt(e.target.value) || 1))
+                      }
+                      className="h-12 text-base"
+                    />
+                  </div>
+                </div>
+                <div className="rounded-lg bg-muted/50 px-4 py-3 text-base text-muted-foreground">
+                  Prowizja: {feePercent}% ={" "}
+                  <span className="text-accent font-medium">{feeCost}g</span>
+                  <span className="mx-2 text-border">·</span>
+                  Otrzymasz:{" "}
+                  <span className="text-green-400 font-medium">{netReceive}g</span>
+                </div>
+                <Button
+                  onClick={handleSell}
+                  disabled={selling || ownedQty < 1}
+                  className="cursor-target h-12 w-full rounded-lg bg-accent text-accent-foreground text-base hover:bg-accent/90 disabled:opacity-50"
+                >
+                  Wystaw na sprzedaż
+                </Button>
               </div>
-              <Button
-                onClick={handleSell}
-                disabled={selling || ownedQty < 1}
-                variant="outline"
-                className="w-full rounded-lg"
-              >
-                Wystaw
-              </Button>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

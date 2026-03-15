@@ -48,27 +48,27 @@ const ACTION_ITEMS: NavItem[] = [
   {
     href: "/dashboard",
     label: "Panel",
-    icon: <LayoutDashboard size={18} />,
+    icon: <LayoutDashboard size={22} />,
     matchExact: true,
   },
   {
     href: "/leaderboard",
     label: "Ranking",
-    icon: <Medal size={18} />,
+    icon: <Medal size={22} />,
     matchExact: true,
   },
 ];
 
 const ECONOMY_ITEMS: NavItem[] = [
-  { href: "/inventory", label: "Ekwipunek", icon: <Backpack size={18} /> },
-  { href: "/cosmetics", label: "Kosmetyki", icon: <Shirt size={18} /> },
-  { href: "/decks", label: "Talia", icon: <Layers size={18} /> },
-  { href: "/marketplace", label: "Rynek", icon: <Store size={18} /> },
-  { href: "/crafting", label: "Kuźnia", icon: <Hammer size={18} /> },
+  { href: "/inventory", label: "Ekwipunek", icon: <Backpack size={22} /> },
+  { href: "/cosmetics", label: "Kosmetyki", icon: <Shirt size={22} /> },
+  { href: "/decks", label: "Talia", icon: <Layers size={22} /> },
+  { href: "/marketplace", label: "Rynek", icon: <Store size={22} /> },
+  { href: "/crafting", label: "Kuźnia", icon: <Hammer size={22} /> },
 ];
 
 const OTHER_ITEMS: NavItem[] = [
-  { href: "/developers", label: "Deweloperzy", icon: <Code size={18} /> },
+  { href: "/developers", label: "Deweloperzy", icon: <Code size={22} /> },
 ];
 
 // ---------------------------------------------------------------------------
@@ -95,43 +95,43 @@ function ProfilePopover({
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "flex w-full items-center gap-2.5 rounded-lg transition-colors",
-          collapsed ? "justify-center py-2" : "px-2 py-2",
-          open ? "bg-white/[0.08]" : "hover:bg-white/[0.10]"
+          "cursor-target flex w-full items-center gap-3 rounded-lg transition-colors",
+          collapsed ? "justify-center py-2.5" : "px-2.5 py-2.5",
+          open ? "bg-muted" : "hover:bg-muted"
         )}
       >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500/40 to-amber-700/25 text-xs font-bold uppercase text-amber-100 ring-2 ring-amber-400/30">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/40 to-accent/20 text-sm font-bold uppercase text-accent ring-2 ring-accent/30">
           {initial}
         </div>
         {!collapsed && (
-          <span className="flex-1 truncate text-left text-sm font-medium text-zinc-200">{user.username}</span>
+          <span className="flex-1 truncate text-left text-base font-medium text-foreground">{user.username}</span>
         )}
       </button>
 
       {/* Submenu — opens inline below, pushes content down */}
       {open && !collapsed && (
-        <div className="mt-1 rounded-lg border border-white/10 bg-white/[0.05] overflow-hidden">
+        <div className="mt-1.5 rounded-lg border border-border bg-secondary overflow-hidden">
           <Link
             href="/profile"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-zinc-100 transition-colors"
+            className="cursor-target flex items-center gap-3 px-4 py-2.5 text-base text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
-            <UserCircle size={15} />
+            <UserCircle size={22} />
             Profil
           </Link>
           <Link
             href="/settings"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-zinc-100 transition-colors"
+            className="cursor-target flex items-center gap-3 px-4 py-2.5 text-base text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
-            <Settings size={15} />
+            <Settings size={22} />
             Ustawienia
           </Link>
           <button
             onClick={() => { setOpen(false); onLogout(); }}
-            className="flex w-full items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors border-t border-white/[0.08]"
+            className="cursor-target flex w-full items-center gap-3 px-4 py-2.5 text-base text-destructive hover:bg-destructive/10 transition-colors border-t border-border"
           >
-            <LogOut size={15} />
+            <LogOut size={22} />
             Wyloguj
           </button>
         </div>
@@ -260,11 +260,11 @@ function SidebarItem({
         aria-current={active ? "page" : undefined}
         title={item.label}
         className={cn(
-          "cursor-target flex items-center justify-center py-2 mx-1 rounded-sm transition-colors",
+          "cursor-target flex items-center justify-center py-3 mx-1 rounded-lg transition-colors",
           "border-l-2",
           active
-            ? "border-amber-400 bg-white/[0.04] text-zinc-50"
-            : "border-transparent text-slate-400 hover:text-zinc-100 hover:bg-white/[0.08]"
+            ? "border-accent bg-accent/10 text-foreground"
+            : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
         )}
       >
         <span className="shrink-0">{item.icon}</span>
@@ -278,10 +278,10 @@ function SidebarItem({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "cursor-target flex items-center gap-3 px-3 py-2 text-sm font-medium transition-colors rounded-sm",
+        "cursor-target flex items-center gap-3.5 px-4 py-3.5 text-lg font-medium transition-colors rounded-lg",
         active
-          ? "border-l-2 border-amber-400 bg-white/[0.04] text-zinc-50 pl-[10px]"
-          : "border-l-2 border-transparent text-slate-400 hover:text-zinc-100 hover:bg-white/[0.08] pl-[10px]"
+          ? "border-l-2 border-accent bg-accent/10 text-foreground pl-[10px]"
+          : "border-l-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-muted pl-[10px]"
       )}
     >
       <span className="shrink-0">{item.icon}</span>
@@ -296,7 +296,7 @@ function SidebarItem({
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-3 pb-1 pt-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500 select-none">
+    <div className="px-4 pb-2 pt-6 text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground select-none">
       {label}
     </div>
   );
@@ -437,13 +437,13 @@ function MobileSidebarContent({
 
       <SectionHeader label="KONTO" />
       <SidebarItem
-        item={{ href: "/profile", label: "Profil", icon: <UserCircle size={18} /> }}
+        item={{ href: "/profile", label: "Profil", icon: <UserCircle size={22} /> }}
         pathname={pathname}
         collapsed={false}
         onClick={onNavigate}
       />
       <SidebarItem
-        item={{ href: "/settings", label: "Ustawienia", icon: <Settings size={18} /> }}
+        item={{ href: "/settings", label: "Ustawienia", icon: <Settings size={22} /> }}
         pathname={pathname}
         collapsed={false}
         onClick={onNavigate}
@@ -466,11 +466,11 @@ function BottomBarItem({ item, pathname }: { item: NavItem; pathname: string }) 
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex flex-1 flex-col items-center gap-0.5 px-2 py-2 text-[10px] font-medium transition-colors",
-        active ? "text-amber-300" : "text-slate-400 hover:text-slate-300"
+        "cursor-target flex flex-1 flex-col items-center gap-0.5 px-2 py-2 text-xs font-medium transition-colors",
+        active ? "text-accent" : "text-muted-foreground hover:text-foreground"
       )}
     >
-      <span className={cn("transition-colors", active && "text-amber-400")}>
+      <span className={cn("transition-colors", active && "text-accent")}>
         {item.icon}
       </span>
       <span>{item.label}</span>
@@ -564,28 +564,28 @@ export default function MainLayout({ children }: { children: ReactNode }) {
               </div>
               {/* Stats — always visible BELOW avatar */}
               {!collapsed && (
-                <div className="px-3 pb-3 pt-1 space-y-1.5">
-                  <div className="flex items-center gap-2 rounded-lg bg-white/[0.06] border border-white/10 px-2.5 py-1.5">
-                    <Trophy size={14} className="text-amber-400 shrink-0" />
-                    <span className="text-sm font-bold tabular-nums text-zinc-100">{user.elo_rating}</span>
-                    <span className="text-[11px] text-slate-400 ml-auto font-medium">ELO</span>
+                <div className="px-3 pb-3 pt-1.5 space-y-2">
+                  <div className="flex items-center gap-2.5 rounded-lg bg-secondary border border-border px-3.5 py-2.5">
+                    <Trophy size={20} className="text-accent shrink-0" />
+                    <span className="text-xl font-bold tabular-nums text-foreground">{user.elo_rating}</span>
+                    <span className="text-sm text-muted-foreground ml-auto font-medium">ELO</span>
                   </div>
                   {wallet && (
-                    <div className="flex items-center gap-2 rounded-lg bg-amber-500/[0.07] border border-amber-400/15 px-2.5 py-1.5">
-                      <Coins size={14} className="text-amber-400 shrink-0" />
-                      <span className="text-sm font-bold tabular-nums text-amber-200">{wallet.gold.toLocaleString("pl-PL")}</span>
-                      <span className="text-[11px] text-amber-300/70 ml-auto font-medium">złota</span>
+                    <div className="flex items-center gap-2.5 rounded-lg bg-accent/[0.07] border border-accent/15 px-3.5 py-2.5">
+                      <Coins size={20} className="text-accent shrink-0" />
+                      <span className="text-xl font-bold tabular-nums text-accent">{wallet.gold.toLocaleString("pl-PL")}</span>
+                      <span className="text-sm text-accent/70 ml-auto font-medium">złota</span>
                     </div>
                   )}
                 </div>
               )}
               {collapsed && (
                 <div className="flex flex-col items-center gap-1 px-1 pb-2">
-                  <div title={`ELO: ${user.elo_rating}`} className="flex h-7 w-full items-center justify-center rounded bg-white/[0.04] text-[10px] font-bold tabular-nums text-zinc-200">
+                  <div title={`ELO: ${user.elo_rating}`} className="flex h-8 w-full items-center justify-center rounded-lg bg-secondary text-xs font-bold tabular-nums text-foreground">
                     {user.elo_rating}
                   </div>
                   {wallet && (
-                    <div title={`${wallet.gold} złota`} className="flex h-7 w-full items-center justify-center rounded bg-amber-500/[0.07] text-[10px] font-bold tabular-nums text-amber-300">
+                    <div title={`${wallet.gold} złota`} className="flex h-8 w-full items-center justify-center rounded-lg bg-accent/10 text-xs font-bold tabular-nums text-accent">
                       {wallet.gold > 9999 ? `${Math.floor(wallet.gold / 1000)}k` : wallet.gold}
                     </div>
                   )}
@@ -604,13 +604,13 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             <button
               onClick={toggleCollapsed}
               className={cn(
-                "flex w-full items-center py-2.5 text-slate-400 hover:text-zinc-100 hover:bg-white/[0.08] transition-colors",
-                collapsed ? "justify-center" : "gap-2 px-3"
+                "cursor-target flex w-full items-center py-3 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
+                collapsed ? "justify-center" : "gap-2.5 px-3"
               )}
               aria-label={collapsed ? "Rozwiń" : "Zwiń"}
               title={collapsed ? "Rozwiń" : "Zwiń"}
             >
-              {collapsed ? <ChevronRight size={16} /> : <><ChevronLeft size={16} /><span className="text-sm">Zwiń</span></>}
+              {collapsed ? <ChevronRight size={22} /> : <><ChevronLeft size={22} /><span className="text-base">Zwiń</span></>}
             </button>
           </div>
         </aside>

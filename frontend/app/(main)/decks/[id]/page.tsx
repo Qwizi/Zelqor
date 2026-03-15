@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Check,
+  Plus,
   Star,
   StarOff,
   X,
@@ -115,30 +116,25 @@ function FilledSlot({ item, onRemove }: FilledSlotProps) {
       title={`${item.item_name} — kliknij aby usunąć`}
     >
       {hovered && (
-        <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive/80 text-destructive-foreground z-10">
-          <X className="h-2.5 w-2.5" />
+        <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive/80 text-destructive-foreground z-10">
+          <X className="h-3 w-3" />
         </div>
       )}
       <div
-        className={`absolute left-1 top-1 text-[10px] font-bold leading-none ${levelBadgeClass(item.level)}`}
+        className={`absolute left-1 top-1 text-xs font-bold leading-none ${levelBadgeClass(item.level)}`}
       >
         {item.level}
       </div>
       <span className="text-2xl leading-none select-none">
         {item.icon || "📦"}
       </span>
-      <p className="mt-1 max-w-full truncate px-1 text-center text-[10px] leading-none text-foreground">
+      <p className="mt-1 max-w-full truncate px-1 text-center text-xs leading-none text-foreground">
         {item.item_name}
       </p>
     </div>
   );
 }
 
-function EmptySlot() {
-  return (
-    <div className="aspect-square rounded-lg border border-dashed border-border/40 bg-muted/10 transition-colors hover:border-border/60" />
-  );
-}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -336,11 +332,11 @@ export default function DeckEditorPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Back */}
       <Link
         href="/decks"
-        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-muted-foreground transition-all hover:text-foreground hover:bg-muted"
+        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-base text-muted-foreground transition-all hover:text-foreground hover:bg-muted"
       >
         <ArrowLeft className="h-4 w-4" />
         Powrót do talii
@@ -348,29 +344,29 @@ export default function DeckEditorPage() {
 
       {/* Editor top bar */}
       <Card className="rounded-2xl backdrop-blur-xl">
-        <CardContent className="flex flex-wrap items-center gap-2 px-4 py-3 sm:gap-3">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+        <CardContent className="flex flex-wrap items-center gap-3 px-5 py-4">
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
             Talia:
           </span>
           <Input
             type="text"
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
-            className="min-w-0 flex-1"
+            className="min-w-0 flex-1 h-11"
           />
 
           <button
             onClick={() => setIsDefault((v) => !v)}
-            className={`flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
+            className={`flex h-11 items-center gap-1.5 rounded-lg border px-4 text-sm font-medium transition-colors ${
               isDefault
                 ? "border-accent/25 bg-accent/10 text-accent"
                 : "border-border bg-muted/40 text-muted-foreground hover:border-accent/20 hover:text-accent"
             }`}
           >
             {isDefault ? (
-              <Star className="h-3.5 w-3.5" />
+              <Star className="h-4 w-4" />
             ) : (
-              <StarOff className="h-3.5 w-3.5" />
+              <StarOff className="h-4 w-4" />
             )}
             {isDefault ? "Domyślna" : "Ustaw domyślną"}
           </button>
@@ -379,7 +375,7 @@ export default function DeckEditorPage() {
             size="sm"
             onClick={handleSave}
             disabled={saving}
-            className="gap-1.5 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20"
+            className="cursor-target h-11 gap-1.5 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20 px-5 text-base"
           >
             <Check className="h-4 w-4" />
             Zapisz
@@ -388,154 +384,147 @@ export default function DeckEditorPage() {
             <Button
               size="sm"
               variant="ghost"
-              className="rounded-xl text-muted-foreground hover:text-foreground"
+              className="cursor-target h-11 rounded-xl text-muted-foreground hover:text-foreground px-4 text-base"
             >
               <X className="mr-1 h-4 w-4" />
               Anuluj
             </Button>
           </Link>
 
-          <span className="ml-auto text-xs text-muted-foreground">
+          <span className="ml-auto text-sm text-muted-foreground">
             {totalDraftItems} przedmiot
             {totalDraftItems === 1 ? "" : totalDraftItems < 5 ? "y" : "ów"}
           </span>
         </CardContent>
       </Card>
 
-      {/* Slot sections */}
-      <Card className="rounded-2xl backdrop-blur-xl">
-        <CardContent className="p-6 space-y-6">
-          {SECTION_CONFIG.map((section) => {
-            const slots = draftSlots[section.type];
-            const filled = slots.length;
-            const empty = section.slots - filled;
+      {/* Two-column layout: deck slots (left) + available items (right) */}
+      <div className="flex gap-6" style={{ minHeight: "calc(100vh - 16rem)" }}>
+        {/* ── Left: Deck slots ── */}
+        <Card className="rounded-2xl flex-1 min-w-0 overflow-y-auto">
+          <CardContent className="p-6 space-y-6">
+            {SECTION_CONFIG.map((section) => {
+              const slots = draftSlots[section.type];
+              const filled = slots.length;
 
-            return (
-              <div key={section.type}>
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="text-base leading-none">{section.icon}</span>
-                  <span
-                    className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${section.colorClass}`}
-                  >
-                    {section.label}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    ({filled}/{section.slots})
-                  </span>
-                  <div className="h-px flex-1 bg-border/40" />
+              return (
+                <div key={section.type}>
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="text-xl leading-none">{section.icon}</span>
+                    <span className={`text-sm font-semibold uppercase tracking-[0.2em] ${section.colorClass}`}>
+                      {section.label}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      ({filled}/{section.slots})
+                    </span>
+                    <div className="h-px flex-1 bg-border/40" />
+                  </div>
+
+                  {filled === 0 ? (
+                    <p className="text-base text-muted-foreground/50 py-3">Brak — dodaj z prawej strony</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {slots.map((slot, i) => (
+                        <div
+                          key={`${slot.item_slug}-${i}`}
+                          className="cursor-target flex items-center gap-3 rounded-xl border border-border bg-secondary/50 px-4 py-3 transition-all hover:border-destructive/30 hover:bg-destructive/5 cursor-pointer group"
+                          onClick={() => removeSlotItem(section.type, i)}
+                          title="Kliknij aby usunąć"
+                        >
+                          <span className="text-2xl">{slot.icon || "📦"}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-base font-medium text-foreground truncate">{slot.item_name}</p>
+                          </div>
+                          <span className={`text-sm font-bold ${levelBadgeClass(slot.level)}`}>
+                            Lvl {slot.level}
+                          </span>
+                          <X className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:text-destructive transition-opacity" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              );
+            })}
+          </CardContent>
+        </Card>
 
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9">
-                  {slots.map((slot, i) => (
-                    <FilledSlot
-                      key={`${slot.item_slug}-${i}`}
-                      item={slot}
-                      onRemove={() => removeSlotItem(section.type, i)}
-                    />
-                  ))}
-                  {Array.from({ length: empty }).map((_, i) => (
-                    <EmptySlot key={`empty-${i}`} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      {/* Available items */}
-      <Card className="rounded-2xl backdrop-blur-xl">
-        <CardContent className="p-6">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-            Dostępne przedmioty
-          </p>
-
-          {/* Tab pills */}
-          <div className="mb-4 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
-            {SECTION_CONFIG.map((s) => (
-              <button
-                key={s.type}
-                onClick={() => setAvailableTab(s.type)}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  availableTab === s.type
-                    ? "border-primary/40 bg-primary/15 text-primary"
-                    : "border-border text-muted-foreground hover:border-border/50 hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <span className="text-sm leading-none">{s.icon}</span>
-                {s.label}
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${availableTab === s.type ? "bg-primary/20" : "bg-muted"}`}
-                >
-                  {inventory.filter((i) => i.item.item_type === s.type).length}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <Separator className="mb-4" />
-
-          {/* Items grid */}
-          {availableItems.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              Brak przedmiotów tego typu w ekwipunku
+        {/* ── Right: Available items ── */}
+        <Card className="rounded-2xl w-80 lg:w-96 shrink-0 overflow-y-auto">
+          <CardContent className="p-5">
+            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Dodaj do talii
             </p>
-          ) : (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
-              {availableItems.map((inv) => {
-                const currentSection = sectionForType(availableTab);
-                const inDraftCount = countInDraft(inv.item.slug, availableTab);
-                const owned = ownedQty(inv.item.slug);
-                const sectionFull =
-                  draftSlots[availableTab].length >= (currentSection?.slots ?? 0);
-                // Non-consumable: max 1 per deck; consumable: limited by owned qty
-                const alreadyInDeck = !inv.item.is_consumable && inDraftCount >= 1;
-                // Only one level per blueprint_ref (e.g. can't have barracks lvl 1 AND lvl 2)
-                const refTaken = !!(inv.item.blueprint_ref && draftSlots[availableTab].some(
-                  (s) => s.blueprint_ref === inv.item.blueprint_ref
-                ));
-                const exhausted = inv.item.is_consumable && inDraftCount >= owned;
-                const disabled = sectionFull || alreadyInDeck || refTaken || exhausted;
 
-                return (
-                  <button
-                    key={inv.id}
-                    onClick={() => !disabled && addItemToSection(inv)}
-                    disabled={disabled}
-                    title={
-                      disabled
-                        ? sectionFull
-                          ? "Sekcja pełna"
-                          : "Brak sztuk"
-                        : `Dodaj ${inv.item.name}`
-                    }
-                    className={`group relative flex flex-col items-center gap-1 rounded-lg border p-2 transition-all ${
-                      disabled
-                        ? "border-border/20 bg-muted/10 opacity-35 cursor-not-allowed"
-                        : `border-border bg-muted/40 cursor-pointer hover:border-border/60 hover:bg-muted hover:scale-[1.02] ${RARITY_BG[inv.item.rarity]}`
-                    }`}
-                  >
-                    <span className="text-xl leading-none select-none">
-                      {inv.item.icon || "📦"}
-                    </span>
-                    <p className="line-clamp-2 text-center text-[10px] leading-tight text-foreground group-hover:text-foreground/90">
-                      {inv.item.name}
-                    </p>
-                    <span
-                      className={`text-[10px] font-bold ${levelBadgeClass(inv.item.level ?? 1)}`}
-                    >
-                      Lvl {inv.item.level ?? 1}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      Posiadasz: {owned - inDraftCount}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Tab pills */}
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              {SECTION_CONFIG.map((s) => (
+                <button
+                  key={s.type}
+                  onClick={() => setAvailableTab(s.type)}
+                  className={`cursor-target flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    availableTab === s.type
+                      ? "border-primary/40 bg-primary/15 text-primary"
+                      : "border-border text-muted-foreground hover:border-border/50 hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <span className="text-sm leading-none">{s.icon}</span>
+                  {s.label}
+                  <span className={`text-xs font-bold ${availableTab === s.type ? "text-primary/70" : "text-muted-foreground/50"}`}>
+                    {inventory.filter((i) => i.item.item_type === s.type).length}
+                  </span>
+                </button>
+              ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            <Separator className="mb-4" />
+
+            {/* Items list */}
+            {availableItems.length === 0 ? (
+              <p className="py-8 text-center text-base text-muted-foreground">
+                Brak przedmiotów
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {availableItems.map((inv) => {
+                  const currentSection = sectionForType(availableTab);
+                  const inDraftCount = countInDraft(inv.item.slug, availableTab);
+                  const owned = ownedQty(inv.item.slug);
+                  const sectionFull = draftSlots[availableTab].length >= (currentSection?.slots ?? 0);
+                  const alreadyInDeck = !inv.item.is_consumable && inDraftCount >= 1;
+                  const refTaken = !!(inv.item.blueprint_ref && draftSlots[availableTab].some(
+                    (s) => s.blueprint_ref === inv.item.blueprint_ref
+                  ));
+                  const exhausted = inv.item.is_consumable && inDraftCount >= owned;
+                  const disabled = sectionFull || alreadyInDeck || refTaken || exhausted;
+
+                  return (
+                    <button
+                      key={inv.id}
+                      onClick={() => !disabled && addItemToSection(inv)}
+                      disabled={disabled}
+                      className={`cursor-target w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                        disabled
+                          ? "border-border/20 opacity-30 cursor-not-allowed"
+                          : "border-border hover:border-primary/30 hover:bg-primary/5 cursor-pointer"
+                      }`}
+                    >
+                      <span className="text-xl shrink-0">{inv.item.icon || "📦"}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{inv.item.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Lvl {inv.item.level ?? 1} · {owned - inDraftCount} szt.
+                        </p>
+                      </div>
+                      {!disabled && <Plus className="h-4 w-4 text-primary shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

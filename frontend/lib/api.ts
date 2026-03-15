@@ -795,6 +795,7 @@ export interface ItemDropOut {
   quantity: number;
   source: string;
   match_id: string | null;
+  instance: ItemInstanceOut | null;
   created_at: string;
 }
 

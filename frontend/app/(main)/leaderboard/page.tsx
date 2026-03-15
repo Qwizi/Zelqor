@@ -2,13 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
-import { Trophy, Medal, ChevronLeft, ChevronRight } from "lucide-react";
+import { Trophy, Medal, ChevronLeft, ChevronRight, Loader2, Target, Swords, Crown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getLeaderboard, type LeaderboardEntry } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const PAGE_SIZE = 20;
 
@@ -35,14 +43,8 @@ export default function LeaderboardPage() {
 
   if (loading || pageLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
-        <Image
-          src="/assets/match_making/circle291.webp"
-          alt=""
-          width={48}
-          height={48}
-          className="h-12 w-12 animate-spin object-contain"
-        />
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -53,120 +55,194 @@ export default function LeaderboardPage() {
   const paginatedEntries = entries.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
-    <div className="space-y-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Ranking</p>
-            <h1 className="font-display text-3xl text-zinc-50">Tabela liderów</h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Ranking uwzględnia ELO, wygrane, win rate i średni placement.
-            </p>
-          </div>
-          <Badge className="border-white/10 bg-white/[0.04] px-3 py-2 text-slate-200 hover:bg-white/[0.04]">
-            {entries.length} graczy
-          </Badge>
+    <div className="space-y-8">
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">Ranking</p>
+          <h1 className="font-display text-4xl sm:text-5xl text-foreground">Tabela liderów</h1>
+          <p className="text-base text-muted-foreground">
+            Ranking uwzględnia ELO, wygrane, win rate i średni placement.
+          </p>
         </div>
+        <Badge variant="outline" className="text-base px-4 py-2 text-foreground">
+          {entries.length} graczy
+        </Badge>
+      </div>
 
-        {myPlacement > 0 && user && (
-          <div className="rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-4 py-3 backdrop-blur-xl">
-            <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
-              Twoja pozycja
-            </div>
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <div>
-                <div className="font-display text-2xl text-zinc-50">#{myPlacement}</div>
-                <div className="text-sm text-slate-300">{user.username}</div>
+      {/* ── Twoja pozycja ── */}
+      {myPlacement > 0 && user && (
+        <Card className="rounded-2xl border-primary/25 bg-primary/5">
+          <CardContent className="flex items-center justify-between gap-4 p-6">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-medium">
+                Twoja pozycja
+              </p>
+              <div className="mt-2 flex items-baseline gap-3">
+                <span className="font-display text-5xl text-primary">#{myPlacement}</span>
+                <span className="text-lg text-foreground">{user.username}</span>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPageOverride(Math.ceil(myPlacement / PAGE_SIZE))}
-                className="rounded-full border-cyan-300/25 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"
-              >
-                Pokaż mnie
-              </Button>
             </div>
-          </div>
-        )}
-
-        <div className="grid gap-3">
-          {paginatedEntries.map((entry, index) => {
-            const isMe = entry.id === user?.id;
-            const placement = (safePage - 1) * PAGE_SIZE + index + 1;
-            return (
-              <div
-                key={entry.id}
-                className={`grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border p-4 backdrop-blur-xl transition-colors ${
-                  isMe
-                    ? "border-cyan-300/25 bg-cyan-400/10 hover:border-cyan-300/40 hover:bg-cyan-400/15"
-                    : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.06]"
-                }`}
-              >
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] font-display text-lg text-zinc-50">
-                  {placement <= 3 ? <Medal className="h-5 w-5 text-amber-300" /> : placement}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href={`/profile/${entry.id}`}
-                      className="truncate font-medium text-zinc-50 hover:text-cyan-300 transition-colors"
-                    >
-                      {entry.username}
-                    </Link>
-                    {isMe && (
-                      <Badge className="border-0 bg-cyan-400/15 text-cyan-200 hover:bg-cyan-400/15">
-                        Ty
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-300">
-                    <span>{entry.matches_played} meczów</span>
-                    <span>{entry.wins} wygranych</span>
-                    <span>{Math.round(entry.win_rate * 100)}% win rate</span>
-                    <span>avg place {entry.average_placement.toFixed(2)}</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center justify-end gap-2 text-amber-200">
-                    <Trophy className="h-4 w-4" />
-                    <span className="font-display text-2xl">{entry.elo_rating}</span>
-                  </div>
-                  <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
-                    ELO
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 backdrop-blur-xl">
-          <div className="text-sm text-slate-300">
-            Strona {safePage} z {totalPages}
-          </div>
-          <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              size="sm"
+              className="cursor-target h-11 rounded-xl border-primary/30 bg-primary/10 text-base text-primary hover:bg-primary/20"
+              onClick={() => setPageOverride(Math.ceil(myPlacement / PAGE_SIZE))}
+            >
+              Pokaż mnie
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Tabela ── */}
+      <Card className="rounded-2xl overflow-hidden">
+        <Table className="text-base">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="h-14 pl-6 w-20 text-base font-semibold">#</TableHead>
+              <TableHead className="h-14 text-base font-semibold">Gracz</TableHead>
+              <TableHead className="h-14 text-base font-semibold text-center">
+                <div className="flex items-center gap-1.5 justify-center">
+                  <Swords className="h-4 w-4" />
+                  Mecze
+                </div>
+              </TableHead>
+              <TableHead className="h-14 text-base font-semibold text-center">
+                <div className="flex items-center gap-1.5 justify-center">
+                  <Crown className="h-4 w-4" />
+                  Wygrane
+                </div>
+              </TableHead>
+              <TableHead className="h-14 text-base font-semibold text-center">
+                <div className="flex items-center gap-1.5 justify-center">
+                  <Target className="h-4 w-4" />
+                  Win Rate
+                </div>
+              </TableHead>
+              <TableHead className="h-14 text-base font-semibold text-center">Avg Place</TableHead>
+              <TableHead className="h-14 pr-6 text-base font-semibold text-right">
+                <div className="flex items-center gap-1.5 justify-end">
+                  <Trophy className="h-4 w-4 text-accent" />
+                  ELO
+                </div>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedEntries.map((entry, index) => {
+              const isMe = entry.id === user?.id;
+              const placement = (safePage - 1) * PAGE_SIZE + index + 1;
+              const isTop3 = placement <= 3;
+
+              return (
+                <TableRow
+                  key={entry.id}
+                  onClick={() => router.push(`/profile/${entry.id}`)}
+                  className={`cursor-target cursor-pointer ${
+                    isMe
+                      ? "bg-primary/5 hover:bg-primary/10"
+                      : "hover:bg-muted/50"
+                  }`}
+                >
+                  {/* Placement */}
+                  <TableCell className="pl-6 py-5">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl font-display text-lg font-bold ${
+                      isTop3
+                        ? "bg-accent/15 text-accent"
+                        : "bg-secondary text-muted-foreground"
+                    }`}>
+                      {isTop3 ? <Medal className="h-5 w-5" /> : placement}
+                    </div>
+                  </TableCell>
+
+                  {/* Player name */}
+                  <TableCell className="py-5">
+                    <div className="flex items-center gap-3">
+                      <Link
+                        href={`/profile/${entry.id}`}
+                        className="text-lg font-semibold text-foreground hover:text-primary transition-colors"
+                      >
+                        {entry.username}
+                      </Link>
+                      {isMe && (
+                        <Badge className="border-0 bg-primary/15 text-sm text-primary hover:bg-primary/15">
+                          Ty
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+
+                  {/* Matches */}
+                  <TableCell className="py-5 text-center">
+                    <span className="text-lg tabular-nums text-foreground">{entry.matches_played}</span>
+                  </TableCell>
+
+                  {/* Wins */}
+                  <TableCell className="py-5 text-center">
+                    <span className="text-lg tabular-nums text-foreground">{entry.wins}</span>
+                  </TableCell>
+
+                  {/* Win Rate */}
+                  <TableCell className="py-5 text-center">
+                    <span className={`text-lg tabular-nums font-semibold ${
+                      entry.win_rate >= 0.6
+                        ? "text-green-400"
+                        : entry.win_rate >= 0.4
+                          ? "text-foreground"
+                          : "text-muted-foreground"
+                    }`}>
+                      {Math.round(entry.win_rate * 100)}%
+                    </span>
+                  </TableCell>
+
+                  {/* Avg Placement */}
+                  <TableCell className="py-5 text-center">
+                    <span className="text-lg tabular-nums text-muted-foreground">
+                      {entry.average_placement.toFixed(1)}
+                    </span>
+                  </TableCell>
+
+                  {/* ELO */}
+                  <TableCell className="py-5 pr-6 text-right">
+                    <span className="font-display text-2xl tabular-nums text-accent">
+                      {entry.elo_rating}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {/* ── Paginacja ── */}
+      <Card className="rounded-2xl">
+        <CardContent className="flex items-center justify-between p-5">
+          <span className="text-base text-muted-foreground">
+            Strona <span className="font-semibold text-foreground">{safePage}</span> z {totalPages}
+          </span>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              className="cursor-target h-11 gap-2 rounded-xl text-base"
               disabled={safePage <= 1}
               onClick={() => setPageOverride(Math.max(1, safePage - 1))}
-              className="rounded-full border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.10] hover:text-zinc-100"
             >
-              <ChevronLeft className="mr-1 h-4 w-4" />
+              <ChevronLeft className="h-5 w-5" />
               Poprzednia
             </Button>
             <Button
               variant="outline"
-              size="sm"
+              className="cursor-target h-11 gap-2 rounded-xl text-base"
               disabled={safePage >= totalPages}
               onClick={() => setPageOverride(Math.min(totalPages, safePage + 1))}
-              className="rounded-full border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.10] hover:text-zinc-100"
             >
               Następna
-              <ChevronRight className="ml-1 h-4 w-4" />
+              <ChevronRight className="h-5 w-5" />
             </Button>
           </div>
-        </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

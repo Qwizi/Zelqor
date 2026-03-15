@@ -114,6 +114,14 @@ const TargetCursor: React.FC<TargetCursorProps> = ({
     const moveHandler = (e: MouseEvent) => moveCursor(e.clientX, e.clientY);
     window.addEventListener('mousemove', moveHandler);
 
+    // Watch for target element removal from DOM — triggers leave if element disappears
+    const observer = new MutationObserver(() => {
+      if (activeTarget && !document.body.contains(activeTarget)) {
+        currentLeaveHandler?.();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
     const scrollHandler = () => {
       if (!activeTarget || !cursorRef.current) return;
       const mouseX = gsap.getProperty(cursorRef.current, 'x') as number;
@@ -242,6 +250,7 @@ const TargetCursor: React.FC<TargetCursorProps> = ({
       window.removeEventListener('scroll', scrollHandler);
       window.removeEventListener('mousedown', mouseDownHandler);
       window.removeEventListener('mouseup', mouseUpHandler);
+      observer.disconnect();
       if (activeTarget) {
         cleanupTarget(activeTarget);
       }

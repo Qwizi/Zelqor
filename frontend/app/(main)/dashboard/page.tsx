@@ -232,27 +232,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* ═══ SZYBKIE SKRÓTY ═══ */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {[
-          { href: "/inventory", icon: Backpack, label: "Ekwipunek", desc: "Twoje przedmioty", color: "text-primary" },
-          { href: "/decks", icon: Layers, label: "Talia", desc: "Zarządzaj talią", color: "text-primary" },
-          { href: "/marketplace", icon: Store, label: "Rynek", desc: "Kupuj i sprzedawaj", color: "text-primary" },
-          { href: "/crafting", icon: Hammer, label: "Kuźnia", desc: "Twórz przedmioty", color: "text-accent" },
-          
-        ].map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            data-animate="shortcut"
-            className="cursor-target group rounded-2xl border border-border bg-card p-6 transition-all hover:border-border/50 hover:bg-muted"
-          >
-            <item.icon className={`h-8 w-8 ${item.color}`} />
-            <p className="mt-4 text-lg font-bold text-card-foreground group-hover:text-foreground transition-colors">{item.label}</p>
-            <p className="mt-1 text-base text-muted-foreground">{item.desc}</p>
-          </Link>
-        ))}
-      </div>
+      
 
       {/* ═══ AKTYWNY MECZ ═══ */}
       {activeMatch && (
@@ -480,6 +460,28 @@ export default function DashboardPage() {
           <ChevronRight className="h-5 w-5 text-muted-foreground" />
         </button>
       )}
+
+      {/* ═══ SZYBKIE SKRÓTY ═══ */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {[
+          { href: "/inventory", icon: Backpack, label: "Ekwipunek", desc: "Twoje przedmioty", color: "text-primary" },
+          { href: "/decks", icon: Layers, label: "Talia", desc: "Zarządzaj talią", color: "text-primary" },
+          { href: "/marketplace", icon: Store, label: "Rynek", desc: "Kupuj i sprzedawaj", color: "text-primary" },
+          { href: "/crafting", icon: Hammer, label: "Kuźnia", desc: "Twórz przedmioty", color: "text-accent" },
+          
+        ].map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            data-animate="shortcut"
+            className="cursor-target group rounded-2xl border border-border bg-card p-6 transition-all hover:border-border/50 hover:bg-muted"
+          >
+            <item.icon className={`h-8 w-8 ${item.color}`} />
+            <p className="mt-4 text-lg font-bold text-card-foreground group-hover:text-foreground transition-colors">{item.label}</p>
+            <p className="mt-1 text-base text-muted-foreground">{item.desc}</p>
+          </Link>
+        ))}
+      </div>
 
       {/* ═══ OSTATNIE MECZE ═══ */}
       {recentMatches.length > 0 && (

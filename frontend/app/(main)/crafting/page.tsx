@@ -211,19 +211,19 @@ export default function CraftingPage() {
   if (authLoading || !user) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       {/* ── Header ── */}
-      <div className="space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Warsztat</p>
-        <h1 className="font-display text-3xl text-foreground">Kuźnia</h1>
+      <div className="space-y-2">
+        <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Warsztat</p>
+        <h1 className="font-display text-4xl sm:text-5xl text-foreground">Kuźnia</h1>
       </div>
 
       {/* ── Wallet bar ── */}
       {wallet && (
-        <Card className="flex-row items-center gap-2 rounded-2xl px-6 py-3 backdrop-blur-xl">
-          <Coins className="h-5 w-5 text-accent" />
-          <span className="font-display text-xl text-accent">{wallet.gold}</span>
-          <span className="text-sm text-muted-foreground">złota</span>
+        <Card className="flex-row items-center gap-3 rounded-2xl px-6 py-4 backdrop-blur-xl">
+          <Coins className="h-6 w-6 text-accent" />
+          <span className="font-display text-2xl text-accent">{wallet.gold}</span>
+          <span className="text-base text-muted-foreground">złota</span>
         </Card>
       )}
 
@@ -233,22 +233,22 @@ export default function CraftingPage() {
           <CardContent className="px-0">
             <div className="flex flex-wrap items-center gap-3">
               <Sparkles className="h-5 w-5 text-amber-400" />
-              <span className="font-display text-lg text-amber-200">{lastResult.item_name}</span>
+              <span className="font-display text-xl text-amber-200">{lastResult.item_name}</span>
               <Badge
-                className={`border px-2 py-0.5 text-[11px] font-bold ${WEAR_COLORS[lastResult.instance.wear_condition] ?? "text-muted-foreground bg-muted border-border"}`}
+                className={`border px-2 py-0.5 text-xs font-bold ${WEAR_COLORS[lastResult.instance.wear_condition] ?? "text-muted-foreground bg-muted border-border"}`}
               >
                 {WEAR_FULL[lastResult.instance.wear_condition] ?? lastResult.instance.wear_condition}
               </Badge>
-              <span className="font-mono text-xs text-muted-foreground tabular-nums">
+              <span className="font-mono text-sm text-muted-foreground tabular-nums">
                 {lastResult.instance.wear.toFixed(6)}
               </span>
               {lastResult.instance.stattrak && (
-                <Badge className="border border-orange-500/40 bg-orange-500/15 px-2 py-0.5 text-[11px] font-bold text-orange-300">
+                <Badge className="border border-orange-500/40 bg-orange-500/15 px-2 py-0.5 text-xs font-bold text-orange-300">
                   StatTrak™
                 </Badge>
               )}
               {lastResult.instance.is_rare_pattern && (
-                <span className="text-sm text-accent">⭐ Rzadki wzór #{lastResult.instance.pattern_seed}</span>
+                <span className="text-base text-accent">⭐ Rzadki wzór #{lastResult.instance.pattern_seed}</span>
               )}
             </div>
           </CardContent>
@@ -261,7 +261,7 @@ export default function CraftingPage() {
         style={{ maxHeight: "calc(100vh - 12rem)" }}
       >
         {/* ── Left: categories ── */}
-        <div className="hidden w-48 shrink-0 space-y-1 overflow-y-auto lg:block">
+        <div className="hidden w-52 shrink-0 space-y-1 overflow-y-auto lg:block">
           {CATEGORIES.map((c) => {
             const count = categoryCounts[c.value] ?? 0;
             const active = category === c.value;
@@ -269,15 +269,15 @@ export default function CraftingPage() {
               <button
                 key={c.value}
                 onClick={() => { setCategory(c.value); setSelected(null); }}
-                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-all ${
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-3 text-left transition-all ${
                   active
                     ? "bg-secondary text-foreground font-semibold border border-border"
                     : "text-foreground/70 hover:bg-muted hover:text-foreground border border-transparent"
                 }`}
               >
-                <span className="text-lg">{c.icon}</span>
-                <span className="flex-1 truncate text-sm">{c.label}</span>
-                <span className={`text-xs font-bold tabular-nums ${active ? "text-primary" : "text-muted-foreground"}`}>
+                <span className="text-xl">{c.icon}</span>
+                <span className="flex-1 truncate text-base">{c.label}</span>
+                <span className={`text-sm font-bold tabular-nums ${active ? "text-primary" : "text-muted-foreground"}`}>
                   {count}
                 </span>
               </button>
@@ -286,14 +286,14 @@ export default function CraftingPage() {
         </div>
 
         {/* ── Center: recipe list ── */}
-        <div className="min-w-0 flex-1 space-y-3 overflow-y-auto">
+        <div className="min-w-0 flex-1 space-y-4 overflow-y-auto">
           {/* Mobile categories */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none lg:hidden">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none lg:hidden">
             {CATEGORIES.map((c) => (
               <button
                 key={c.value}
                 onClick={() => { setCategory(c.value); setSelected(null); }}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                   category === c.value
                     ? "border-primary/25 bg-primary/10 text-primary"
                     : "border-border text-muted-foreground hover:border-border/60"
@@ -314,19 +314,19 @@ export default function CraftingPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Szukaj receptury lub składnika..."
-                className="pl-9 rounded-xl py-2.5 h-auto"
+                className="pl-9 rounded-xl h-11"
               />
             </div>
             <Button
               variant={showOnlyCraftable ? "secondary" : "outline"}
               onClick={() => setShowOnlyCraftable((v) => !v)}
-              className={`shrink-0 rounded-xl gap-1.5 px-3 py-2.5 h-auto text-sm font-medium ${
+              className={`shrink-0 rounded-xl gap-1.5 px-4 h-11 text-base font-medium ${
                 showOnlyCraftable
                   ? "border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/15"
                   : ""
               }`}
             >
-              <Check className="h-3.5 w-3.5" />
+              <Check className="h-4 w-4" />
               Dostępne
             </Button>
           </div>
@@ -341,7 +341,7 @@ export default function CraftingPage() {
           ) : filtered.length === 0 ? (
             <div className="py-12 text-center">
               <Hammer className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-base text-muted-foreground">
                 Brak receptur{showOnlyCraftable ? " do wycraftowania" : ""}
               </p>
             </div>
@@ -361,28 +361,28 @@ export default function CraftingPage() {
                   >
                     <div className="flex items-center gap-3">
                       {/* Icon */}
-                      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${RARITY_BORDER[rarity]} bg-secondary text-2xl`}>
+                      <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border ${RARITY_BORDER[rarity]} bg-secondary text-2xl`}>
                         {recipe.result_item.icon || "📦"}
                       </div>
 
                       {/* Name + ingredients preview */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-[15px] font-semibold text-foreground">
+                          <span className="text-lg font-semibold text-foreground">
                             {recipe.result_item.name}
                           </span>
                           <Badge
-                            className={`border px-1.5 py-0.5 text-[10px] font-bold uppercase ${RARITY_BORDER[rarity]} ${RARITY_BG[rarity]} ${RARITY_TEXT[rarity]}`}
+                            className={`border px-1.5 py-0.5 text-xs font-bold uppercase ${RARITY_BORDER[rarity]} ${RARITY_BG[rarity]} ${RARITY_TEXT[rarity]}`}
                           >
                             {RARITY_LABEL[rarity]}
                           </Badge>
                           {recipe.result_item.level > 1 && (
-                            <span className="text-xs font-medium text-muted-foreground">
+                            <span className="text-sm font-medium text-muted-foreground">
                               Lvl {recipe.result_item.level}
                             </span>
                           )}
                         </div>
-                        <div className="mt-1.5 flex items-center gap-2.5 text-sm">
+                        <div className="mt-1.5 flex items-center gap-3 text-base">
                           {recipe.ingredients.slice(0, 4).map((ing) => (
                             <span key={ing.item.slug} className="flex items-center gap-1">
                               <span className="text-base">{ing.item.icon || "?"}</span>
@@ -414,11 +414,11 @@ export default function CraftingPage() {
                       {/* Status */}
                       <div className="shrink-0">
                         {craftable ? (
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/15 text-green-400">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-500/15 text-green-400">
                             <Check className="h-4 w-4" />
                           </div>
                         ) : (
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground/40">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground/40">
                             <Lock className="h-4 w-4" />
                           </div>
                         )}
@@ -444,7 +444,7 @@ export default function CraftingPage() {
               lastResult={selected === lastResult?.item_slug ? lastResult : null}
             />
           ) : (
-            <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">
+            <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-border text-base text-muted-foreground">
               Wybierz recepturę
             </div>
           )}
@@ -499,26 +499,26 @@ function RecipeDetail({
         {/* Result item */}
         <div className="flex items-start gap-3">
           <div
-            className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border text-3xl ${RARITY_BORDER[rarity]} bg-secondary`}
+            className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border text-3xl ${RARITY_BORDER[rarity]} bg-secondary`}
           >
             {recipe.result_item.icon || "📦"}
           </div>
           <div>
-            <CardTitle className={`font-display text-xl ${RARITY_TEXT[rarity]}`}>
+            <CardTitle className={`font-display text-2xl ${RARITY_TEXT[rarity]}`}>
               {recipe.result_item.name}
             </CardTitle>
             <div className="mt-0.5 flex items-center gap-2">
               <Badge
-                className={`border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${RARITY_BORDER[rarity]} ${RARITY_BG[rarity]} ${RARITY_TEXT[rarity]}`}
+                className={`border px-1.5 py-0.5 text-xs font-bold uppercase tracking-wider ${RARITY_BORDER[rarity]} ${RARITY_BG[rarity]} ${RARITY_TEXT[rarity]}`}
               >
                 {RARITY_LABEL[rarity]}
               </Badge>
               {recipe.result_item.level > 1 && (
-                <span className="text-xs text-muted-foreground">Lvl {recipe.result_item.level}</span>
+                <span className="text-sm text-muted-foreground">Lvl {recipe.result_item.level}</span>
               )}
             </div>
             {recipe.result_item.description && (
-              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {recipe.result_item.description}
               </p>
             )}
@@ -532,14 +532,14 @@ function RecipeDetail({
           <>
             <Separator />
             <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              <p className="mb-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
                 Losowy wear
               </p>
               <div className="flex gap-1">
                 {Object.entries(WEAR_LABELS).map(([key, label]) => (
                   <span
                     key={key}
-                    className={`flex-1 rounded border py-1 text-center text-[10px] font-bold ${WEAR_COLORS[key]}`}
+                    className={`flex-1 rounded border py-1 text-center text-xs font-bold ${WEAR_COLORS[key]}`}
                   >
                     {label}
                   </span>
@@ -553,26 +553,26 @@ function RecipeDetail({
 
         {/* Ingredients */}
         <div>
-          <p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="mb-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
             Składniki
           </p>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {recipe.ingredients.map((ing) => {
               const have = owned(ing.item.slug);
               const enough = have >= ing.quantity;
               return (
                 <div
                   key={ing.item.slug}
-                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 ${
+                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 ${
                     enough
                       ? "border-green-500/20 bg-green-500/[0.05]"
                       : "border-red-500/20 bg-red-500/[0.05]"
                   }`}
                 >
-                  <span className="text-lg">{ing.item.icon || "?"}</span>
-                  <span className="flex-1 text-sm text-foreground/80">{ing.item.name}</span>
+                  <span className="text-xl">{ing.item.icon || "?"}</span>
+                  <span className="flex-1 text-base text-foreground/80">{ing.item.name}</span>
                   <span
-                    className={`font-mono text-sm font-bold tabular-nums ${
+                    className={`font-mono text-base font-bold tabular-nums ${
                       enough ? "text-green-400" : "text-red-400"
                     }`}
                   >
@@ -584,16 +584,16 @@ function RecipeDetail({
             })}
             {recipe.gold_cost > 0 && (
               <div
-                className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 ${
+                className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 ${
                   wallet && wallet.gold >= recipe.gold_cost
                     ? "border-amber-500/20 bg-amber-500/[0.04]"
                     : "border-red-500/20 bg-red-500/[0.04]"
                 }`}
               >
                 <Coins className="h-5 w-5 text-amber-400" />
-                <span className="flex-1 text-sm text-foreground/80">Złoto</span>
+                <span className="flex-1 text-base text-foreground/80">Złoto</span>
                 <span
-                  className={`font-mono text-sm font-bold tabular-nums ${
+                  className={`font-mono text-base font-bold tabular-nums ${
                     wallet && wallet.gold >= recipe.gold_cost ? "text-amber-400" : "text-red-400"
                   }`}
                 >
@@ -609,7 +609,7 @@ function RecipeDetail({
 
         {/* Craft button */}
         <Button
-          className={`w-full gap-2 rounded-xl py-5 h-auto text-base font-bold transition-all ${
+          className={`w-full gap-2 rounded-xl h-12 text-lg font-bold transition-all ${
             craftable
               ? "bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20"
               : "bg-muted text-muted-foreground border border-border"
@@ -637,30 +637,30 @@ function RecipeDetail({
 
         {/* Last craft result */}
         {lastResult?.instance && (
-          <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3 space-y-2">
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-4 space-y-2">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-amber-400" />
-              <span className="text-sm font-semibold text-amber-200">Stworzono!</span>
+              <span className="text-base font-semibold text-amber-200">Stworzono!</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               <Badge
-                className={`border px-2 py-0.5 text-[11px] font-bold ${WEAR_COLORS[lastResult.instance.wear_condition] ?? ""}`}
+                className={`border px-2 py-0.5 text-xs font-bold ${WEAR_COLORS[lastResult.instance.wear_condition] ?? ""}`}
               >
                 {WEAR_FULL[lastResult.instance.wear_condition] ?? lastResult.instance.wear_condition}
               </Badge>
-              <Badge className="border border-border bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+              <Badge className="border border-border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground tabular-nums">
                 {lastResult.instance.wear.toFixed(6)}
               </Badge>
               {lastResult.instance.stattrak && (
-                <Badge className="border border-orange-500/40 bg-orange-500/15 px-2 py-0.5 text-[11px] font-bold text-orange-300">
+                <Badge className="border border-orange-500/40 bg-orange-500/15 px-2 py-0.5 text-xs font-bold text-orange-300">
                   StatTrak™
                 </Badge>
               )}
             </div>
             {lastResult.instance.is_rare_pattern && (
-              <p className="text-xs text-accent">⭐ Rzadki wzór #{lastResult.instance.pattern_seed}</p>
+              <p className="text-sm text-accent">⭐ Rzadki wzór #{lastResult.instance.pattern_seed}</p>
             )}
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Wzór: #{lastResult.instance.pattern_seed}
             </p>
           </div>
