@@ -67,6 +67,10 @@ impl AppConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Env var tests must run sequentially — shared mutex across all submodules.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     // -----------------------------------------------------------------------
     // AppConfig::redis_url
@@ -136,6 +140,7 @@ mod tests {
 
         // Run with env vars cleared to hit all defaults.
         fn default_config() -> AppConfig {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             // Temporarily unset env vars that would interfere.
             // We use a scoped approach: store originals, unset, load, restore.
             let vars = [
@@ -229,14 +234,10 @@ mod tests {
 
     mod from_env_overrides {
         use super::*;
-        use std::sync::Mutex;
-
-        // Env var tests must run sequentially — use a shared mutex.
-        static ENV_LOCK: Mutex<()> = Mutex::new(());
 
         #[test]
         fn cors_allowed_origins_splits_on_comma() {
-            let _guard = ENV_LOCK.lock().unwrap();
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             std::env::set_var(
                 "CORS_ALLOWED_ORIGINS",
                 "https://app.maplord.com,https://staging.maplord.com",
@@ -249,7 +250,7 @@ mod tests {
 
         #[test]
         fn cors_allowed_origins_trims_whitespace() {
-            let _guard = ENV_LOCK.lock().unwrap();
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             std::env::set_var(
                 "CORS_ALLOWED_ORIGINS",
                 "  https://app.maplord.com , https://staging.maplord.com  ",
@@ -263,7 +264,7 @@ mod tests {
 
         #[test]
         fn cors_allowed_origins_filters_empty_entries() {
-            let _guard = ENV_LOCK.lock().unwrap();
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             // Leading/trailing commas produce empty strings — they should be dropped.
             std::env::set_var("CORS_ALLOWED_ORIGINS", ",https://app.maplord.com,");
             let cfg = AppConfig::from_env();
@@ -275,7 +276,7 @@ mod tests {
 
         #[test]
         fn redis_port_invalid_string_falls_back_to_6379() {
-            let _guard = ENV_LOCK.lock().unwrap();
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             std::env::set_var("REDIS_PORT", "not-a-number");
             let cfg = AppConfig::from_env();
             std::env::remove_var("REDIS_PORT");
@@ -284,7 +285,7 @@ mod tests {
 
         #[test]
         fn gateway_port_invalid_string_falls_back_to_8080() {
-            let _guard = ENV_LOCK.lock().unwrap();
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             std::env::set_var("GATEWAY_PORT", "bad");
             let cfg = AppConfig::from_env();
             std::env::remove_var("GATEWAY_PORT");
@@ -293,7 +294,7 @@ mod tests {
 
         #[test]
         fn redis_port_valid_override_is_respected() {
-            let _guard = ENV_LOCK.lock().unwrap();
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             std::env::set_var("REDIS_PORT", "6380");
             let cfg = AppConfig::from_env();
             std::env::remove_var("REDIS_PORT");
