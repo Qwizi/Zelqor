@@ -228,10 +228,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
         break;
       }
       case "capital_selected":
-        setGameState((prev) => {
-          if (!prev) return prev;
-          return { ...prev };
-        });
+        // No state change needed — next game_tick will contain the updated region
         break;
       case "game_starting":
         setGameState((prev) => {

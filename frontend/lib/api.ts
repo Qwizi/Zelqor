@@ -307,8 +307,12 @@ export interface FullConfig {
   game_modes: GameModeListItem[];
 }
 
+let _configCache: FullConfig | null = null;
 export async function getConfig(): Promise<FullConfig> {
-  return fetchAPI<FullConfig>("/config/");
+  if (_configCache) return _configCache;
+  const config = await fetchAPI<FullConfig>("/config/");
+  _configCache = config;
+  return config;
 }
 
 /** Returns the numeric stat for a given level from level_stats, falling back to a base value. */

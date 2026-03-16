@@ -1092,12 +1092,16 @@ export default memo(function GameMap({
         properties: { units_text: labelText },
       });
     }
-    try {
-      (map.getSource("region-labels") as maplibregl.GeoJSONSource).setData({
-        type: "FeatureCollection",
-        features: labelFeatures,
-      } as unknown as GeoJSON.FeatureCollection);
-    } catch { /* source not ready */ }
+    // Throttle to next animation frame to avoid redundant label redraws
+    const rafId = requestAnimationFrame(() => {
+      try {
+        (map.getSource("region-labels") as maplibregl.GeoJSONSource).setData({
+          type: "FeatureCollection",
+          features: labelFeatures,
+        } as unknown as GeoJSON.FeatureCollection);
+      } catch { /* source not ready */ }
+    });
+    return () => cancelAnimationFrame(rafId);
   }, [regions, players, myUserId, animations, centroids, activeEffects, layersReady]);
 
   // ── Effect A2: selection + target markers ──

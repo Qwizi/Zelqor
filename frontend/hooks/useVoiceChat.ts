@@ -1,14 +1,12 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import {
-  Room,
-  RoomEvent,
-  RemoteParticipant,
-  RemoteTrackPublication,
-  Track,
-  ConnectionState,
-} from "livekit-client";
+
+// LiveKit types — imported dynamically to avoid ~500KB in the initial bundle.
+// Only loaded when the user actually joins voice chat.
+type LKRoom = import("livekit-client").Room;
+type LKRemoteParticipant = import("livekit-client").RemoteParticipant;
+type LKRemoteTrackPublication = import("livekit-client").RemoteTrackPublication;
 
 export interface VoicePeer {
   identity: string;
@@ -29,12 +27,13 @@ interface UseVoiceChatReturn {
 
 /** Attach a remote audio track to a hidden <audio> element so we can hear it. */
 function attachAudioTrack(
-  publication: RemoteTrackPublication,
-  participant: RemoteParticipant,
-  audioElements: Map<string, HTMLAudioElement>
+  publication: LKRemoteTrackPublication,
+  participant: LKRemoteParticipant,
+  audioElements: Map<string, HTMLAudioElement>,
+  AudioKind: unknown
 ) {
   const track = publication.track;
-  if (!track || publication.kind !== Track.Kind.Audio) return;
+  if (!track || publication.kind !== AudioKind) return;
 
   const key = `${participant.identity}:${publication.trackSid}`;
   if (audioElements.has(key)) return;
@@ -50,8 +49,8 @@ function attachAudioTrack(
 
 /** Detach and remove a hidden <audio> element. */
 function detachAudioTrack(
-  publication: RemoteTrackPublication,
-  participant: RemoteParticipant,
+  publication: LKRemoteTrackPublication,
+  participant: LKRemoteParticipant,
   audioElements: Map<string, HTMLAudioElement>
 ) {
   const key = `${participant.identity}:${publication.trackSid}`;
@@ -63,7 +62,7 @@ function detachAudioTrack(
 }
 
 export function useVoiceChat(): UseVoiceChatReturn {
-  const roomRef = useRef<Room | null>(null);
+  const roomRef = useRef<LKRoom | null>(null);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const [connected, setConnected] = useState(false);
   const [micEnabled, setMicEnabled] = useState(false);
@@ -74,7 +73,7 @@ export function useVoiceChat(): UseVoiceChatReturn {
     const room = roomRef.current;
     if (!room) return;
     const participants: VoicePeer[] = [];
-    room.remoteParticipants.forEach((p: RemoteParticipant) => {
+    room.remoteParticipants.forEach((p) => {
       participants.push({
         identity: p.identity,
         name: p.name || p.identity,
@@ -87,6 +86,9 @@ export function useVoiceChat(): UseVoiceChatReturn {
 
   const join = useCallback(
     async (url: string, token: string) => {
+      // Dynamic import — only loads livekit-client when user joins voice chat
+      const { Room, RoomEvent, Track, ConnectionState: _CS } = await import("livekit-client");
+
       // Disconnect existing room if any
       if (roomRef.current) {
         roomRef.current.disconnect();
@@ -131,12 +133,13 @@ export function useVoiceChat(): UseVoiceChatReturn {
       // Attach remote audio tracks so we can hear other participants
       room.on(
         RoomEvent.TrackSubscribed,
-        (track, publication, participant) => {
+        (track: { kind: unknown }, publication: LKRemoteTrackPublication, participant: LKRemoteParticipant) => {
           if (track.kind === Track.Kind.Audio) {
             attachAudioTrack(
-              publication as RemoteTrackPublication,
-              participant as RemoteParticipant,
-              audioElementsRef.current
+              publication as LKRemoteTrackPublication,
+              participant as LKRemoteParticipant,
+              audioElementsRef.current,
+              Track.Kind.Audio
             );
           }
           updatePeers();
@@ -145,11 +148,11 @@ export function useVoiceChat(): UseVoiceChatReturn {
 
       room.on(
         RoomEvent.TrackUnsubscribed,
-        (track, publication, participant) => {
+        (track: { kind: unknown }, publication: LKRemoteTrackPublication, participant: LKRemoteParticipant) => {
           if (track.kind === Track.Kind.Audio) {
             detachAudioTrack(
-              publication as RemoteTrackPublication,
-              participant as RemoteParticipant,
+              publication as LKRemoteTrackPublication,
+              participant as LKRemoteParticipant,
               audioElementsRef.current
             );
           }
@@ -159,10 +162,10 @@ export function useVoiceChat(): UseVoiceChatReturn {
 
       room.on(RoomEvent.ParticipantConnected, () => updatePeers());
       room.on(RoomEvent.ParticipantDisconnected, () => updatePeers());
-      room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+      room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Array<{ identity: string }>) => {
         updatePeers();
         const localSpeaking = speakers.some(
-          (s) => s.identity === room.localParticipant?.identity
+          (s: { identity: string }) => s.identity === room.localParticipant?.identity
         );
         setIsSpeaking(localSpeaking);
       });
@@ -183,7 +186,7 @@ export function useVoiceChat(): UseVoiceChatReturn {
 
   const toggleMic = useCallback(async () => {
     const room = roomRef.current;
-    if (!room || room.state !== ConnectionState.Connected) return;
+    if (!room || room.state !== "connected") return;
     const next = !micEnabled;
     await room.localParticipant.setMicrophoneEnabled(next);
     setMicEnabled(next);

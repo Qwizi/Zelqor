@@ -17,10 +17,10 @@ import {
 } from "@/lib/api";
 import { loadAssetOverrides } from "@/lib/assetOverrides";
 import { getSeaTravelRange, getTravelDistance } from "@/lib/gameTravel.js";
-import GameMap, {
-  type TroopAnimation,
-  ANIMATION_DURATION_MS,
-} from "@/components/map/GameMap";
+import dynamic from "next/dynamic";
+import type { TroopAnimation } from "@/components/map/GameMap";
+const ANIMATION_DURATION_MS = 2200;
+const GameMap = dynamic(() => import("@/components/map/GameMap"), { ssr: false });
 import GameHUD from "@/components/game/GameHUD";
 import RegionPanel from "@/components/game/RegionPanel";
 import ActionBar, { type TargetEntry } from "@/components/game/ActionBar";
@@ -330,13 +330,24 @@ export default function GamePage({
     sourceRegionData.owner_id === myUserId &&
     sourceRegionData.unit_count > 0;
 
+  // Stable reference to regions for reachability — only recompute when selectedRegion's
+  // owner or units change, not on every tick's region delta.
+  const selectedRegionKey = useMemo(() => {
+    if (!selectedRegion || status !== "in_progress") return "";
+    const r = gameState?.regions?.[selectedRegion];
+    if (!r || r.owner_id !== myUserId) return "";
+    // Key on unit composition so we recompute only when units in selected region change
+    const unitEntries = Object.entries(r.units ?? {}).filter(([, c]) => c > 0).sort().map(([t, c]) => `${t}:${c}`).join(",");
+    return `${selectedRegion}|${unitEntries}`;
+  }, [selectedRegion, status, gameState?.regions, myUserId]);
+
   const reachabilityByUnitType = useMemo(() => {
-    if (!selectedRegion || status !== "in_progress") {
+    if (!selectedRegionKey) {
       return {} as Record<string, ReachabilityEntry>;
     }
 
     const mapRegions = gameState?.regions || {};
-    const sourceRegion = mapRegions[selectedRegion];
+    const sourceRegion = selectedRegion ? mapRegions[selectedRegion] : undefined;
     if (!sourceRegion) {
       return {} as Record<string, ReachabilityEntry>;
     }
@@ -414,7 +425,8 @@ export default function GamePage({
     }
 
     return result;
-  }, [gameState?.regions, myUserId, neighborMap, selectedRegion, status, unitConfigBySlug, unitsConfig]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- gated by selectedRegionKey to avoid BFS on every tick
+  }, [selectedRegionKey, gameState?.regions, myUserId, neighborMap, selectedRegion, unitConfigBySlug, unitsConfig]);
 
   const getPreferredReachableUnitType = useCallback((targetId: string) => {
     if (!sourceRegionData) return null;
@@ -514,8 +526,9 @@ export default function GamePage({
         visited.add(rid);
         queue.push([rid, 0]);
       }
-      while (queue.length > 0) {
-        const [current, dist] = queue.shift()!;
+      let qi = 0;
+      while (qi < queue.length) {
+        const [current, dist] = queue[qi++];
         inRange.add(current);
         if (dist >= abilityDef.range) continue;
         for (const neighbor of neighborMap[current] || []) {
@@ -562,8 +575,9 @@ export default function GamePage({
     for (const capitalId of existingCapitals) {
       const visited = new Set([capitalId]);
       const queue: [string, number][] = [[capitalId, 0]];
-      while (queue.length > 0) {
-        const [current, dist] = queue.shift()!;
+      let qi = 0;
+      while (qi < queue.length) {
+        const [current, dist] = queue[qi++];
         if (dist > 0 && current in mapRegions) tooClose.add(current);
         if (dist >= MIN_CAPITAL_DISTANCE) continue;
         for (const neighbor of neighborMap[current] || []) {
