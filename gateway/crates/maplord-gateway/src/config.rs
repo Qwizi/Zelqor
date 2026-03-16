@@ -63,3 +63,237 @@ impl AppConfig {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // AppConfig::redis_url
+    // -----------------------------------------------------------------------
+
+    mod redis_url {
+        use super::*;
+
+        fn config_with(host: &str, port: u16, db: u8) -> AppConfig {
+            AppConfig {
+                secret_key: "key".to_string(),
+                redis_host: host.to_string(),
+                redis_port: port,
+                redis_game_db: db,
+                django_internal_url: "http://backend:8000".to_string(),
+                internal_secret: "secret".to_string(),
+                gateway_port: 8080,
+                livekit_url: "ws://livekit:7880".to_string(),
+                livekit_public_url: "ws://localhost:7880".to_string(),
+                livekit_api_key: "key".to_string(),
+                livekit_api_secret: "secret".to_string(),
+                allowed_ws_origins: vec![],
+            }
+        }
+
+        #[test]
+        fn url_contains_host_port_and_db() {
+            let cfg = config_with("redis", 6379, 1);
+            let url = cfg.redis_url();
+            assert_eq!(url, "redis://redis:6379/1");
+        }
+
+        #[test]
+        fn url_uses_custom_host() {
+            let cfg = config_with("my-redis-host", 6380, 2);
+            let url = cfg.redis_url();
+            assert!(url.contains("my-redis-host"));
+        }
+
+        #[test]
+        fn url_uses_custom_port() {
+            let cfg = config_with("localhost", 6380, 0);
+            let url = cfg.redis_url();
+            assert!(url.contains(":6380/"));
+        }
+
+        #[test]
+        fn url_uses_custom_db_number() {
+            let cfg = config_with("redis", 6379, 5);
+            let url = cfg.redis_url();
+            assert!(url.ends_with("/5"));
+        }
+
+        #[test]
+        fn url_has_redis_scheme() {
+            let cfg = config_with("redis", 6379, 1);
+            assert!(cfg.redis_url().starts_with("redis://"));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // AppConfig::from_env — default values
+    // -----------------------------------------------------------------------
+
+    mod from_env_defaults {
+        use super::*;
+
+        // Run with env vars cleared to hit all defaults.
+        fn default_config() -> AppConfig {
+            // Temporarily unset env vars that would interfere.
+            // We use a scoped approach: store originals, unset, load, restore.
+            let vars = [
+                "SECRET_KEY",
+                "REDIS_HOST",
+                "REDIS_PORT",
+                "REDIS_GAME_DB",
+                "DJANGO_INTERNAL_URL",
+                "INTERNAL_SECRET",
+                "GATEWAY_PORT",
+                "LIVEKIT_URL",
+                "LIVEKIT_PUBLIC_URL",
+                "LIVEKIT_API_KEY",
+                "LIVEKIT_API_SECRET",
+                "CORS_ALLOWED_ORIGINS",
+            ];
+            let originals: Vec<(_, Option<String>)> = vars
+                .iter()
+                .map(|k| (*k, std::env::var(k).ok()))
+                .collect();
+
+            for key in &vars {
+                std::env::remove_var(key);
+            }
+
+            let cfg = AppConfig::from_env();
+
+            // Restore
+            for (key, val) in originals {
+                match val {
+                    Some(v) => std::env::set_var(key, v),
+                    None => std::env::remove_var(key),
+                }
+            }
+
+            cfg
+        }
+
+        #[test]
+        fn default_redis_host_is_redis() {
+            let cfg = default_config();
+            assert_eq!(cfg.redis_host, "redis");
+        }
+
+        #[test]
+        fn default_redis_port_is_6379() {
+            let cfg = default_config();
+            assert_eq!(cfg.redis_port, 6379);
+        }
+
+        #[test]
+        fn default_redis_game_db_is_1() {
+            let cfg = default_config();
+            assert_eq!(cfg.redis_game_db, 1);
+        }
+
+        #[test]
+        fn default_gateway_port_is_8080() {
+            let cfg = default_config();
+            assert_eq!(cfg.gateway_port, 8080);
+        }
+
+        #[test]
+        fn default_django_url_points_to_backend() {
+            let cfg = default_config();
+            assert_eq!(cfg.django_internal_url, "http://backend:8000");
+        }
+
+        #[test]
+        fn default_allowed_ws_origins_is_empty() {
+            let cfg = default_config();
+            assert!(
+                cfg.allowed_ws_origins.is_empty(),
+                "empty CORS_ALLOWED_ORIGINS should produce empty vec"
+            );
+        }
+
+        #[test]
+        fn default_secret_key_is_insecure_dev_key() {
+            let cfg = default_config();
+            assert!(
+                cfg.secret_key.contains("insecure"),
+                "default key should be obviously insecure for dev"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // AppConfig::from_env — reading actual env vars
+    // -----------------------------------------------------------------------
+
+    mod from_env_overrides {
+        use super::*;
+
+        #[test]
+        fn cors_allowed_origins_splits_on_comma() {
+            std::env::set_var(
+                "CORS_ALLOWED_ORIGINS",
+                "https://app.maplord.com,https://staging.maplord.com",
+            );
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("CORS_ALLOWED_ORIGINS");
+            assert_eq!(cfg.allowed_ws_origins.len(), 2);
+            assert!(cfg
+                .allowed_ws_origins
+                .contains(&"https://app.maplord.com".to_string()));
+            assert!(cfg
+                .allowed_ws_origins
+                .contains(&"https://staging.maplord.com".to_string()));
+        }
+
+        #[test]
+        fn cors_allowed_origins_trims_whitespace() {
+            std::env::set_var(
+                "CORS_ALLOWED_ORIGINS",
+                "  https://app.maplord.com , https://staging.maplord.com  ",
+            );
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("CORS_ALLOWED_ORIGINS");
+            assert!(cfg
+                .allowed_ws_origins
+                .contains(&"https://app.maplord.com".to_string()));
+        }
+
+        #[test]
+        fn cors_allowed_origins_filters_empty_entries() {
+            // Leading/trailing commas produce empty strings — they should be dropped.
+            std::env::set_var("CORS_ALLOWED_ORIGINS", ",https://app.maplord.com,");
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("CORS_ALLOWED_ORIGINS");
+            assert_eq!(
+                cfg.allowed_ws_origins,
+                vec!["https://app.maplord.com".to_string()]
+            );
+        }
+
+        #[test]
+        fn redis_port_invalid_string_falls_back_to_6379() {
+            std::env::set_var("REDIS_PORT", "not-a-number");
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("REDIS_PORT");
+            assert_eq!(cfg.redis_port, 6379);
+        }
+
+        #[test]
+        fn gateway_port_invalid_string_falls_back_to_8080() {
+            std::env::set_var("GATEWAY_PORT", "bad");
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("GATEWAY_PORT");
+            assert_eq!(cfg.gateway_port, 8080);
+        }
+
+        #[test]
+        fn redis_port_valid_override_is_respected() {
+            std::env::set_var("REDIS_PORT", "6380");
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("REDIS_PORT");
+            assert_eq!(cfg.redis_port, 6380);
+        }
+    }
+}

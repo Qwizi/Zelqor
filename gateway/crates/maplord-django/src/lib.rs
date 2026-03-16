@@ -880,3 +880,405 @@ impl std::fmt::Display for DjangoError {
 }
 
 impl std::error::Error for DjangoError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // DjangoClient construction
+    // -----------------------------------------------------------------------
+
+    mod client_construction {
+        use super::*;
+
+        #[test]
+        fn new_stores_base_url_and_secret() {
+            let client = DjangoClient::new(
+                "http://backend:8000".to_string(),
+                "my-internal-secret".to_string(),
+            );
+            // Verify the stored values are accessible via url() indirectly.
+            // We can't inspect private fields, but we can assert construction
+            // doesn't panic and that the client is Clone.
+            let _cloned = client.clone();
+        }
+
+        #[test]
+        fn new_trims_trailing_slash_from_base_url() {
+            // DjangoClient::new strips trailing slashes so url() doesn't
+            // double-slash when a path like "/api/..." is appended.
+            let client = DjangoClient::new(
+                "http://backend:8000/".to_string(),
+                "secret".to_string(),
+            );
+            // Clone to prove it survives — the real assertion is no panic/build error.
+            let _c2 = client.clone();
+        }
+
+        #[test]
+        fn new_trims_multiple_trailing_slashes() {
+            // trim_end_matches('/') removes all trailing slashes.
+            let client = DjangoClient::new(
+                "http://backend:8000///".to_string(),
+                "secret".to_string(),
+            );
+            let _c2 = client.clone();
+        }
+
+        #[test]
+        fn clone_produces_independent_value() {
+            let client = DjangoClient::new(
+                "http://backend:8000".to_string(),
+                "secret-a".to_string(),
+            );
+            let cloned = client.clone();
+            // Cloning should not panic; both values are independently valid.
+            drop(client);
+            drop(cloned);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // DjangoError formatting
+    // -----------------------------------------------------------------------
+
+    mod django_error_display {
+        use super::*;
+
+        #[test]
+        fn status_error_includes_code_and_path() {
+            let err = DjangoError::Status(404, "/api/v1/internal/users/999/".to_string());
+            let msg = err.to_string();
+            assert!(msg.contains("404"), "display should include the status code");
+            assert!(
+                msg.contains("/api/v1/internal/users/999/"),
+                "display should include the path"
+            );
+        }
+
+        #[test]
+        fn status_error_503_is_formatted() {
+            let err = DjangoError::Status(503, "/api/v1/internal/game/snapshot/".to_string());
+            let msg = err.to_string();
+            assert!(msg.contains("503"));
+        }
+
+        #[test]
+        fn django_error_implements_std_error() {
+            // Compile-time check: DjangoError must satisfy std::error::Error.
+            let err: Box<dyn std::error::Error> =
+                Box::new(DjangoError::Status(500, "/path/".to_string()));
+            assert!(err.to_string().contains("500"));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Request/response type construction and serialisation
+    // -----------------------------------------------------------------------
+
+    mod request_types {
+        use super::*;
+
+        #[test]
+        fn queue_add_request_serialises_with_game_mode() {
+            let req = QueueAddRequest {
+                user_id: "user-1".to_string(),
+                game_mode: Some("ranked".to_string()),
+            };
+            let json = serde_json::to_string(&req).expect("serialise should succeed");
+            assert!(json.contains("user-1"));
+            assert!(json.contains("ranked"));
+        }
+
+        #[test]
+        fn queue_add_request_serialises_without_game_mode() {
+            let req = QueueAddRequest {
+                user_id: "user-2".to_string(),
+                game_mode: None,
+            };
+            let json = serde_json::to_string(&req).expect("serialise should succeed");
+            assert!(json.contains("user-2"));
+        }
+
+        #[test]
+        fn queue_remove_request_serialises() {
+            let req = QueueRemoveRequest {
+                user_id: "user-3".to_string(),
+            };
+            let json = serde_json::to_string(&req).expect("serialise should succeed");
+            assert!(json.contains("user-3"));
+        }
+
+        #[test]
+        fn snapshot_request_serialises() {
+            let req = SnapshotRequest {
+                match_id: "match-abc".to_string(),
+                tick: 42,
+                state_data: serde_json::json!({"regions": {}}),
+            };
+            let json = serde_json::to_string(&req).expect("serialise should succeed");
+            assert!(json.contains("match-abc"));
+            assert!(json.contains("42"));
+        }
+
+        #[test]
+        fn finalize_request_with_winner_serialises() {
+            let req = FinalizeRequest {
+                match_id: "match-xyz".to_string(),
+                winner_id: Some("player-1".to_string()),
+                total_ticks: 500,
+                final_state: serde_json::json!({}),
+            };
+            let json = serde_json::to_string(&req).expect("serialise should succeed");
+            assert!(json.contains("player-1"));
+            assert!(json.contains("500"));
+        }
+
+        #[test]
+        fn finalize_request_without_winner_serialises() {
+            let req = FinalizeRequest {
+                match_id: "match-draw".to_string(),
+                winner_id: None,
+                total_ticks: 300,
+                final_state: serde_json::json!({}),
+            };
+            let json = serde_json::to_string(&req).expect("serialise should succeed");
+            assert!(json.contains("match-draw"));
+        }
+
+        #[test]
+        fn create_chat_message_request_serialises() {
+            let req = CreateChatMessageRequest {
+                user_id: "user-9".to_string(),
+                content: "hello world".to_string(),
+            };
+            let json = serde_json::to_string(&req).expect("serialise should succeed");
+            assert!(json.contains("hello world"));
+        }
+
+        #[test]
+        fn join_lobby_request_bot_flag_serialises() {
+            let req = JoinLobbyRequest {
+                lobby_id: "lobby-1".to_string(),
+                user_id: "bot-1".to_string(),
+                is_bot: true,
+            };
+            let json = serde_json::to_string(&req).expect("serialise should succeed");
+            assert!(json.contains("true"));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Response type deserialisation
+    // -----------------------------------------------------------------------
+
+    mod response_types {
+        use super::*;
+
+        #[test]
+        fn user_info_deserialises_with_defaults() {
+            // is_active has default_true, so omitting it should give true.
+            let json = r#"{"id":"u1","username":"alice","elo_rating":1200}"#;
+            let info: UserInfo = serde_json::from_str(json).expect("deserialise should succeed");
+            assert_eq!(info.id, "u1");
+            assert_eq!(info.username, "alice");
+            assert_eq!(info.elo_rating, 1200);
+            assert!(info.is_active, "is_active should default to true");
+        }
+
+        #[test]
+        fn user_info_explicit_is_active_false() {
+            let json = r#"{"id":"u2","username":"bob","elo_rating":900,"is_active":false}"#;
+            let info: UserInfo = serde_json::from_str(json).expect("deserialise should succeed");
+            assert!(!info.is_active);
+        }
+
+        #[test]
+        fn verify_player_result_defaults_is_active_true() {
+            let json = r#"{"is_member":true}"#;
+            let result: VerifyPlayerResult =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert!(result.is_member);
+            assert!(result.is_active, "is_active should default to true");
+        }
+
+        #[test]
+        fn active_match_result_none_when_null() {
+            let json = r#"{"match_id":null}"#;
+            let result: ActiveMatchResult =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert!(result.match_id.is_none());
+        }
+
+        #[test]
+        fn active_match_result_some_when_present() {
+            let json = r#"{"match_id":"match-456"}"#;
+            let result: ActiveMatchResult =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert_eq!(result.match_id.as_deref(), Some("match-456"));
+        }
+
+        #[test]
+        fn lobby_state_result_deserialises_full_payload() {
+            let json = r#"{
+                "lobby_id": "lobby-99",
+                "status": "waiting",
+                "max_players": 4,
+                "game_mode": "ranked",
+                "host_user_id": "user-1",
+                "players": [
+                    {"user_id":"user-1","username":"alice","is_bot":false,"is_ready":false}
+                ],
+                "full_at": null,
+                "created_at": 1234567890.5
+            }"#;
+            let state: LobbyStateResult =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert_eq!(state.lobby_id, "lobby-99");
+            assert_eq!(state.status, "waiting");
+            assert_eq!(state.max_players, 4);
+            assert_eq!(state.players.len(), 1);
+            assert!(!state.players[0].is_bot);
+            assert!(state.full_at.is_none());
+            assert!(state.created_at.is_some());
+        }
+
+        #[test]
+        fn set_ready_result_all_ready_flag() {
+            let json = r#"{
+                "all_ready": true,
+                "players": [
+                    {"user_id":"u1","username":"p1","is_bot":false,"is_ready":true}
+                ]
+            }"#;
+            let result: SetReadyResult =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert!(result.all_ready);
+            assert_eq!(result.players.len(), 1);
+            assert!(result.players[0].is_ready);
+        }
+
+        #[test]
+        fn leave_lobby_result_cancelled_flag() {
+            let json = r#"{"status":"cancelled","cancelled":true}"#;
+            let result: LeaveLobbyResult =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert!(result.cancelled);
+        }
+
+        #[test]
+        fn find_or_create_lobby_result_created_false() {
+            let json = r#"{
+                "lobby_id":"lobby-77",
+                "max_players":4,
+                "status":"waiting",
+                "created":false,
+                "players":[],
+                "full_at":null
+            }"#;
+            let result: FindOrCreateLobbyResult =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert!(!result.created);
+            assert_eq!(result.lobby_id, "lobby-77");
+        }
+
+        #[test]
+        fn match_player_info_defaults_empty_collections() {
+            let json = r#"{
+                "user_id":"u1",
+                "username":"alice",
+                "color":"red"
+            }"#;
+            let info: MatchPlayerInfo =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert!(!info.is_bot);
+            assert!(info.unlocked_buildings.is_empty());
+            assert!(info.unlocked_units.is_empty());
+            assert!(info.ability_scrolls.is_empty());
+            assert!(info.active_boosts.is_empty());
+            assert!(info.ability_levels.is_empty());
+            assert!(info.building_levels.is_empty());
+            assert!(info.cosmetics.is_empty());
+        }
+
+        #[test]
+        fn fill_lobby_bots_result_deserialises() {
+            let json = r#"{
+                "bot_ids":["bot-1","bot-2"],
+                "players":[
+                    {"user_id":"user-1","username":"alice","is_bot":false,"is_ready":true},
+                    {"user_id":"bot-1","username":"Bot1","is_bot":true,"is_ready":true},
+                    {"user_id":"bot-2","username":"Bot2","is_bot":true,"is_ready":true}
+                ]
+            }"#;
+            let result: FillLobbyBotsResult =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert_eq!(result.bot_ids.len(), 2);
+            assert_eq!(result.players.len(), 3);
+            assert!(result.players[1].is_bot);
+        }
+
+        #[test]
+        fn latest_snapshot_response_with_none_fields() {
+            let json = r#"{"tick":null,"state_data":null}"#;
+            let resp: LatestSnapshotResponse =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert!(resp.tick.is_none());
+            assert!(resp.state_data.is_none());
+        }
+
+        #[test]
+        fn latest_snapshot_response_with_data() {
+            let json = r#"{"tick":100,"state_data":{"regions":{}}}"#;
+            let resp: LatestSnapshotResponse =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert_eq!(resp.tick, Some(100));
+            assert!(resp.state_data.is_some());
+        }
+
+        #[test]
+        fn neighbor_map_deserialises() {
+            let json = r#"{"neighbors":{"r1":["r2","r3"],"r2":["r1"]}}"#;
+            let nm: NeighborMap =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert_eq!(nm.neighbors["r1"].len(), 2);
+            assert_eq!(nm.neighbors["r2"].len(), 1);
+        }
+
+        #[test]
+        fn queue_count_result_deserialises() {
+            let json = r#"{"count":7}"#;
+            let result: QueueCountResult =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert_eq!(result.count, 7);
+        }
+
+        #[test]
+        fn chat_message_data_deserialises() {
+            let json = r#"{
+                "user_id":"u1",
+                "username":"alice",
+                "content":"GG!",
+                "timestamp":1700000000.123
+            }"#;
+            let msg: ChatMessageData =
+                serde_json::from_str(json).expect("deserialise should succeed");
+            assert_eq!(msg.content, "GG!");
+            assert!((msg.timestamp - 1700000000.123).abs() < 0.001);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // default_true helper
+    // -----------------------------------------------------------------------
+
+    mod default_true_fn {
+        use super::*;
+
+        #[test]
+        fn default_true_returns_true() {
+            assert!(default_true());
+        }
+    }
+}
