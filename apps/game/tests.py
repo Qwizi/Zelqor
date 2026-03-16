@@ -480,3 +480,727 @@ class GameModelStrTests(TestCase):
         )
         self.assertIn('strtest', str(pr))
         self.assertIn('#1', str(pr))
+
+
+# ---------------------------------------------------------------------------
+# Internal API — shared helpers
+# ---------------------------------------------------------------------------
+
+INTERNAL_SECRET = 'test-internal-secret'
+WRONG_SECRET = 'wrong-secret'
+
+
+def _auth():
+    return {'X-Internal-Secret': INTERNAL_SECRET}
+
+
+# ---------------------------------------------------------------------------
+# GameInternalAPITests
+# ---------------------------------------------------------------------------
+
+class GameInternalAPITests(TestCase):
+    """Tests for the GameInternalController endpoints."""
+
+    def setUp(self):
+        GameSettings.get()
+        self.user1 = User.objects.create_user(
+            email='gapi1@test.com', username='gapi_player1',
+            password='testpass123', elo_rating=1000,
+        )
+        self.user2 = User.objects.create_user(
+            email='gapi2@test.com', username='gapi_player2',
+            password='testpass123', elo_rating=1000,
+        )
+        self.match = Match.objects.create(
+            status=Match.Status.IN_PROGRESS,
+            max_players=2,
+            started_at=timezone.now() - timedelta(minutes=5),
+        )
+        from apps.matchmaking.models import MatchPlayer
+        MatchPlayer.objects.create(match=self.match, user=self.user1, color='#FF0000')
+        MatchPlayer.objects.create(match=self.match, user=self.user2, color='#0000FF')
+
+    # --- Auth guards ---
+
+    def test_snapshot_missing_secret_returns_403(self):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/game/snapshot/',
+            data=json.dumps({'match_id': str(self.match.id), 'tick': 1, 'state_data': {}}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_snapshot_wrong_secret_returns_403(self):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/game/snapshot/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+            data=json.dumps({'match_id': str(self.match.id), 'tick': 1, 'state_data': {}}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_finalize_wrong_secret_returns_403(self):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/game/finalize/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+            data=json.dumps({
+                'match_id': str(self.match.id), 'winner_id': str(self.user1.id),
+                'total_ticks': 100, 'final_state': {},
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_cleanup_wrong_secret_returns_403(self):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/game/cleanup/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+            data=json.dumps({'match_id': str(self.match.id)}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_get_user_wrong_secret_returns_403(self):
+        resp = self.client.get(
+            f'/api/v1/internal/users/{self.user1.id}/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_verify_player_wrong_secret_returns_403(self):
+        resp = self.client.get(
+            f'/api/v1/internal/matches/{self.match.id}/verify-player/{self.user1.id}/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_match_data_wrong_secret_returns_403(self):
+        resp = self.client.get(
+            f'/api/v1/internal/matches/{self.match.id}/data/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_anticheat_report_wrong_secret_returns_403(self):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/anticheat/report-violation/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+            data=json.dumps({
+                'match_id': str(self.match.id), 'player_id': str(self.user1.id),
+                'violation_kind': 'action_flood', 'severity': 'warn',
+                'detail': 'Too many actions', 'tick': 5,
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # --- Save snapshot ---
+
+    def test_save_snapshot_success(self):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/game/snapshot/',
+            headers=_auth(),
+            data=json.dumps({
+                'match_id': str(self.match.id),
+                'tick': 10,
+                'state_data': {'regions': {}, 'players': {}},
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+
+    def test_save_snapshot_persists_to_db(self):
+        import json
+        self.client.post(
+            '/api/v1/internal/game/snapshot/',
+            headers=_auth(),
+            data=json.dumps({
+                'match_id': str(self.match.id),
+                'tick': 20,
+                'state_data': {'tick': 20},
+            }),
+            content_type='application/json',
+        )
+        self.assertTrue(
+            GameStateSnapshot.objects.filter(match=self.match, tick=20).exists()
+        )
+
+    def test_save_snapshot_upserts_on_same_tick(self):
+        import json
+        payload = json.dumps({
+            'match_id': str(self.match.id),
+            'tick': 30,
+            'state_data': {'v': 1},
+        })
+        self.client.post(
+            '/api/v1/internal/game/snapshot/', headers=_auth(),
+            data=payload, content_type='application/json',
+        )
+        payload2 = json.dumps({
+            'match_id': str(self.match.id),
+            'tick': 30,
+            'state_data': {'v': 2},
+        })
+        self.client.post(
+            '/api/v1/internal/game/snapshot/', headers=_auth(),
+            data=payload2, content_type='application/json',
+        )
+        snaps = GameStateSnapshot.objects.filter(match=self.match, tick=30)
+        self.assertEqual(snaps.count(), 1)
+        self.assertEqual(snaps.first().state_data['v'], 2)
+
+    # --- Latest snapshot ---
+
+    def test_get_latest_snapshot_returns_none_when_empty(self):
+        resp = self.client.get(
+            f'/api/v1/internal/game/latest-snapshot/{self.match.id}/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIsNone(data['tick'])
+        self.assertIsNone(data['state_data'])
+
+    def test_get_latest_snapshot_returns_highest_tick(self):
+        GameStateSnapshot.objects.create(match=self.match, tick=5, state_data={'t': 5})
+        GameStateSnapshot.objects.create(match=self.match, tick=15, state_data={'t': 15})
+        resp = self.client.get(
+            f'/api/v1/internal/game/latest-snapshot/{self.match.id}/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data['tick'], 15)
+
+    def test_get_latest_snapshot_wrong_secret_returns_403(self):
+        resp = self.client.get(
+            f'/api/v1/internal/game/latest-snapshot/{self.match.id}/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # --- Finalize match ---
+
+    def _final_state(self):
+        return {
+            'players': {
+                str(self.user1.id): {
+                    'is_alive': True, 'total_regions_conquered': 10,
+                    'total_units_produced': 50, 'total_units_lost': 5,
+                    'total_buildings_built': 3, 'eliminated_reason': '', 'eliminated_tick': 0,
+                },
+                str(self.user2.id): {
+                    'is_alive': False, 'total_regions_conquered': 4,
+                    'total_units_produced': 20, 'total_units_lost': 15,
+                    'total_buildings_built': 1, 'eliminated_reason': '', 'eliminated_tick': 80,
+                },
+            },
+            'regions': {},
+        }
+
+    def test_finalize_match_success(self):
+        import json
+        with patch('apps.inventory.tasks.generate_match_drops', side_effect=Exception('skip')):
+            with patch('apps.developers.tasks.dispatch_webhook_event', side_effect=Exception('skip')):
+                resp = self.client.post(
+                    '/api/v1/internal/game/finalize/',
+                    headers=_auth(),
+                    data=json.dumps({
+                        'match_id': str(self.match.id),
+                        'winner_id': str(self.user1.id),
+                        'total_ticks': 100,
+                        'final_state': self._final_state(),
+                    }),
+                    content_type='application/json',
+                )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+
+    def test_finalize_match_creates_match_result(self):
+        import json
+        with patch('apps.inventory.tasks.generate_match_drops', side_effect=Exception('skip')):
+            with patch('apps.developers.tasks.dispatch_webhook_event', side_effect=Exception('skip')):
+                self.client.post(
+                    '/api/v1/internal/game/finalize/',
+                    headers=_auth(),
+                    data=json.dumps({
+                        'match_id': str(self.match.id),
+                        'winner_id': str(self.user1.id),
+                        'total_ticks': 100,
+                        'final_state': self._final_state(),
+                    }),
+                    content_type='application/json',
+                )
+        self.assertTrue(MatchResult.objects.filter(match=self.match).exists())
+
+    def test_finalize_match_updates_status_to_finished(self):
+        import json
+        with patch('apps.inventory.tasks.generate_match_drops', side_effect=Exception('skip')):
+            with patch('apps.developers.tasks.dispatch_webhook_event', side_effect=Exception('skip')):
+                self.client.post(
+                    '/api/v1/internal/game/finalize/',
+                    headers=_auth(),
+                    data=json.dumps({
+                        'match_id': str(self.match.id),
+                        'winner_id': str(self.user1.id),
+                        'total_ticks': 100,
+                        'final_state': self._final_state(),
+                    }),
+                    content_type='application/json',
+                )
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.Status.FINISHED)
+
+    def test_finalize_match_null_winner(self):
+        """Finalize with no winner (draw/timeout) should succeed."""
+        import json
+        with patch('apps.inventory.tasks.generate_match_drops', side_effect=Exception('skip')):
+            with patch('apps.developers.tasks.dispatch_webhook_event', side_effect=Exception('skip')):
+                resp = self.client.post(
+                    '/api/v1/internal/game/finalize/',
+                    headers=_auth(),
+                    data=json.dumps({
+                        'match_id': str(self.match.id),
+                        'winner_id': None,
+                        'total_ticks': 50,
+                        'final_state': self._final_state(),
+                    }),
+                    content_type='application/json',
+                )
+        self.assertEqual(resp.status_code, 200)
+
+    # --- Cleanup match ---
+
+    @patch('apps.game.tasks.cleanup_redis_game_state')
+    def test_cleanup_match_success(self, mock_cleanup):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/game/cleanup/',
+            headers=_auth(),
+            data=json.dumps({'match_id': str(self.match.id)}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+        mock_cleanup.delay.assert_called_once_with(str(self.match.id))
+
+    # --- Get user ---
+
+    def test_get_user_success(self):
+        resp = self.client.get(
+            f'/api/v1/internal/users/{self.user1.id}/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data['id'], str(self.user1.id))
+        self.assertEqual(data['username'], self.user1.username)
+        self.assertIn('elo_rating', data)
+        self.assertIn('is_active', data)
+
+    def test_get_user_not_found_returns_404(self):
+        import uuid
+        resp = self.client.get(
+            f'/api/v1/internal/users/{uuid.uuid4()}/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_get_user_banned_is_not_active(self):
+        self.user1.is_banned = True
+        self.user1.save()
+        resp = self.client.get(
+            f'/api/v1/internal/users/{self.user1.id}/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()['is_active'])
+
+    # --- Verify player ---
+
+    def test_verify_player_is_member_and_active(self):
+        resp = self.client.get(
+            f'/api/v1/internal/matches/{self.match.id}/verify-player/{self.user1.id}/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['is_member'])
+        self.assertTrue(data['is_active'])
+
+    def test_verify_player_not_member(self):
+        other = User.objects.create_user(
+            email='other@test.com', username='other', password='testpass123',
+        )
+        resp = self.client.get(
+            f'/api/v1/internal/matches/{self.match.id}/verify-player/{other.id}/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()['is_member'])
+
+    def test_verify_player_banned_user_not_active(self):
+        self.user1.is_banned = True
+        self.user1.save()
+        resp = self.client.get(
+            f'/api/v1/internal/matches/{self.match.id}/verify-player/{self.user1.id}/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['is_member'])
+        self.assertFalse(data['is_active'])
+
+    def test_verify_player_unknown_user_not_active(self):
+        import uuid
+        resp = self.client.get(
+            f'/api/v1/internal/matches/{self.match.id}/verify-player/{uuid.uuid4()}/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()['is_active'])
+
+    # --- Match data ---
+
+    def test_get_match_data_success(self):
+        resp = self.client.get(
+            f'/api/v1/internal/matches/{self.match.id}/data/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('max_players', data)
+        self.assertIn('players', data)
+        self.assertEqual(len(data['players']), 2)
+
+    def test_get_match_data_includes_deck_snapshot_keys(self):
+        resp = self.client.get(
+            f'/api/v1/internal/matches/{self.match.id}/data/',
+            headers=_auth(),
+        )
+        player = resp.json()['players'][0]
+        for key in ('unlocked_buildings', 'unlocked_units', 'ability_scrolls',
+                    'active_boosts', 'ability_levels', 'building_levels'):
+            self.assertIn(key, player)
+
+    def test_get_match_data_not_found_returns_404(self):
+        import uuid
+        resp = self.client.get(
+            f'/api/v1/internal/matches/{uuid.uuid4()}/data/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    # --- Update match status ---
+
+    def test_update_match_status_success(self):
+        import json
+        resp = self.client.patch(
+            f'/api/v1/internal/matches/{self.match.id}/status/',
+            headers=_auth(),
+            data=json.dumps({'status': 'in_progress'}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, 'in_progress')
+
+    def test_update_match_status_not_found_returns_404(self):
+        import json, uuid
+        resp = self.client.patch(
+            f'/api/v1/internal/matches/{uuid.uuid4()}/status/',
+            headers=_auth(),
+            data=json.dumps({'status': 'in_progress'}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_update_match_status_wrong_secret_returns_403(self):
+        import json
+        resp = self.client.patch(
+            f'/api/v1/internal/matches/{self.match.id}/status/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+            data=json.dumps({'status': 'in_progress'}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # --- Set player alive ---
+
+    def test_set_player_alive_false(self):
+        import json
+        from apps.matchmaking.models import MatchPlayer
+        resp = self.client.patch(
+            f'/api/v1/internal/matches/{self.match.id}/players/{self.user1.id}/alive/',
+            headers=_auth(),
+            data=json.dumps({'is_alive': False}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+        mp = MatchPlayer.objects.get(match=self.match, user=self.user1)
+        self.assertFalse(mp.is_alive)
+        self.assertIsNotNone(mp.eliminated_at)
+
+    def test_set_player_alive_true_clears_eliminated_at(self):
+        import json
+        from apps.matchmaking.models import MatchPlayer
+        mp = MatchPlayer.objects.get(match=self.match, user=self.user1)
+        mp.is_alive = False
+        mp.eliminated_at = timezone.now()
+        mp.save()
+        resp = self.client.patch(
+            f'/api/v1/internal/matches/{self.match.id}/players/{self.user1.id}/alive/',
+            headers=_auth(),
+            data=json.dumps({'is_alive': True}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        mp.refresh_from_db()
+        self.assertTrue(mp.is_alive)
+        self.assertIsNone(mp.eliminated_at)
+
+    def test_set_player_alive_not_found_returns_404(self):
+        import json, uuid
+        resp = self.client.patch(
+            f'/api/v1/internal/matches/{self.match.id}/players/{uuid.uuid4()}/alive/',
+            headers=_auth(),
+            data=json.dumps({'is_alive': False}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_set_player_alive_wrong_secret_returns_403(self):
+        import json
+        resp = self.client.patch(
+            f'/api/v1/internal/matches/{self.match.id}/players/{self.user1.id}/alive/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+            data=json.dumps({'is_alive': False}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # --- Active matches list ---
+
+    def test_list_active_matches_includes_selecting_and_in_progress(self):
+        m2 = Match.objects.create(status=Match.Status.SELECTING, max_players=2)
+        resp = self.client.get(
+            '/api/v1/internal/game/active-matches/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        ids = resp.json()['match_ids']
+        self.assertIn(str(self.match.id), ids)
+        self.assertIn(str(m2.id), ids)
+
+    def test_list_active_matches_excludes_finished(self):
+        finished = Match.objects.create(status=Match.Status.FINISHED, max_players=2)
+        resp = self.client.get(
+            '/api/v1/internal/game/active-matches/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        ids = resp.json()['match_ids']
+        self.assertNotIn(str(finished.id), ids)
+
+    def test_list_active_matches_wrong_secret_returns_403(self):
+        resp = self.client.get(
+            '/api/v1/internal/game/active-matches/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # --- Anticheat report violation ---
+
+    def test_report_violation_success(self):
+        import json
+        from apps.game.models import AnticheatViolation
+        resp = self.client.post(
+            '/api/v1/internal/anticheat/report-violation/',
+            headers=_auth(),
+            data=json.dumps({
+                'match_id': str(self.match.id),
+                'player_id': str(self.user1.id),
+                'violation_kind': 'action_flood',
+                'severity': 'warn',
+                'detail': 'Too many actions per tick',
+                'tick': 42,
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.json()['ok'])
+        self.assertTrue(
+            AnticheatViolation.objects.filter(
+                match=self.match, player=self.user1, violation_kind='action_flood'
+            ).exists()
+        )
+
+    def test_report_violation_persists_all_fields(self):
+        import json
+        from apps.game.models import AnticheatViolation
+        self.client.post(
+            '/api/v1/internal/anticheat/report-violation/',
+            headers=_auth(),
+            data=json.dumps({
+                'match_id': str(self.match.id),
+                'player_id': str(self.user1.id),
+                'violation_kind': 'impossible_timing',
+                'severity': 'flag',
+                'detail': 'Action arrived before tick start',
+                'tick': 77,
+            }),
+            content_type='application/json',
+        )
+        v = AnticheatViolation.objects.get(
+            match=self.match, player=self.user1, violation_kind='impossible_timing'
+        )
+        self.assertEqual(v.severity, 'flag')
+        self.assertEqual(v.tick, 77)
+
+    # --- Anticheat ban player ---
+
+    def test_ban_player_success(self):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/anticheat/ban-player/',
+            headers=_auth(),
+            data=json.dumps({
+                'player_id': str(self.user2.id),
+                'reason': 'Repeated action flooding',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+        self.user2.refresh_from_db()
+        self.assertTrue(self.user2.is_banned)
+        self.assertEqual(self.user2.banned_reason, 'Repeated action flooding')
+
+    def test_ban_player_not_found_returns_404(self):
+        import json, uuid
+        resp = self.client.post(
+            '/api/v1/internal/anticheat/ban-player/',
+            headers=_auth(),
+            data=json.dumps({
+                'player_id': str(uuid.uuid4()),
+                'reason': 'Cheating',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_ban_player_wrong_secret_returns_403(self):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/anticheat/ban-player/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+            data=json.dumps({
+                'player_id': str(self.user2.id),
+                'reason': 'Cheating',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # --- Anticheat compensate ---
+
+    def test_compensate_players_no_results_returns_not_found(self):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/anticheat/compensate/',
+            headers=_auth(),
+            data=json.dumps({
+                'match_id': str(self.match.id),
+                'player_ids': [str(self.user1.id)],
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertIn(str(self.user1.id), data['not_found'])
+
+    def test_compensate_reverses_elo_change(self):
+        import json
+        # finalize first so PlayerResult exists
+        with patch('apps.inventory.tasks.generate_match_drops', side_effect=Exception('skip')):
+            with patch('apps.developers.tasks.dispatch_webhook_event', side_effect=Exception('skip')):
+                finalize_match_results_sync(
+                    str(self.match.id), str(self.user1.id), 100, {
+                        'players': {
+                            str(self.user1.id): {
+                                'is_alive': True, 'total_regions_conquered': 10,
+                                'total_units_produced': 50, 'total_units_lost': 5,
+                                'total_buildings_built': 3,
+                                'eliminated_reason': '', 'eliminated_tick': 0,
+                            },
+                            str(self.user2.id): {
+                                'is_alive': False, 'total_regions_conquered': 4,
+                                'total_units_produced': 20, 'total_units_lost': 10,
+                                'total_buildings_built': 1,
+                                'eliminated_reason': '', 'eliminated_tick': 80,
+                            },
+                        },
+                        'regions': {},
+                    },
+                )
+        self.user2.refresh_from_db()
+        elo_after_loss = self.user2.elo_rating
+
+        resp = self.client.post(
+            '/api/v1/internal/anticheat/compensate/',
+            headers=_auth(),
+            data=json.dumps({
+                'match_id': str(self.match.id),
+                'player_ids': [str(self.user2.id)],
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn(str(self.user2.id), data['compensated'])
+        self.user2.refresh_from_db()
+        # ELO should be back to 1000 (the original)
+        self.assertEqual(self.user2.elo_rating, 1000)
+
+    def test_compensate_wrong_secret_returns_403(self):
+        import json
+        resp = self.client.post(
+            '/api/v1/internal/anticheat/compensate/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+            data=json.dumps({'match_id': str(self.match.id), 'player_ids': []}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # --- Neighbor map ---
+
+    @patch('apps.geo.models.Region.objects')
+    def test_neighbor_map_returns_dict(self, mock_qs_manager):
+        # Region uses PostGIS geometry which is unavailable in plain PG test backend.
+        # Patch the manager so the endpoint can run without a geometry column.
+        mock_qs_manager.prefetch_related.return_value.all.return_value = []
+        resp = self.client.get(
+            '/api/v1/internal/regions/neighbors/',
+            headers=_auth(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('neighbors', data)
+        self.assertIsInstance(data['neighbors'], dict)
+
+    def test_neighbor_map_wrong_secret_returns_403(self):
+        resp = self.client.get(
+            '/api/v1/internal/regions/neighbors/',
+            headers={'X-Internal-Secret': WRONG_SECRET},
+        )
+        self.assertEqual(resp.status_code, 403)
