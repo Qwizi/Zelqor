@@ -20,6 +20,7 @@ dependencies = [
     "requests>=2.32.5",
     "django-unfold>=0.84.0",
     "pywebpush>=2.3.0",
+    "gevent>=24.2.1",
 ]
 
 [dependency-groups]

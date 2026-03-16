@@ -178,7 +178,6 @@ impl GameStateManager {
 
     pub async fn get_tick_data(&self) -> redis::RedisResult<TickData> {
         let mut pipe = redis::pipe();
-        pipe.atomic();
 
         let meta_key = self.key("meta");
         let players_key = self.key("players");
@@ -289,32 +288,33 @@ impl GameStateManager {
             pipe.hset(&players_key, pid, packed).ignore();
         }
 
+        // Use variadic RPUSH to collapse N items into a single command per queue
         let buildings_key = self.key("buildings_queue");
         pipe.del(&buildings_key).ignore();
-        for b in buildings_queue {
-            let packed = rmp_serde::to_vec(b).unwrap();
-            pipe.rpush(&buildings_key, packed).ignore();
+        if !buildings_queue.is_empty() {
+            let packed: Vec<Vec<u8>> = buildings_queue.iter().map(|b| rmp_serde::to_vec(b).unwrap()).collect();
+            pipe.cmd("RPUSH").arg(&buildings_key).arg(packed).ignore();
         }
 
         let unit_key = self.key("unit_queue");
         pipe.del(&unit_key).ignore();
-        for item in unit_queue {
-            let packed = rmp_serde::to_vec(item).unwrap();
-            pipe.rpush(&unit_key, packed).ignore();
+        if !unit_queue.is_empty() {
+            let packed: Vec<Vec<u8>> = unit_queue.iter().map(|item| rmp_serde::to_vec(item).unwrap()).collect();
+            pipe.cmd("RPUSH").arg(&unit_key).arg(packed).ignore();
         }
 
         let transit_key = self.key("transit_queue");
         pipe.del(&transit_key).ignore();
-        for item in transit_queue {
-            let packed = rmp_serde::to_vec(item).unwrap();
-            pipe.rpush(&transit_key, packed).ignore();
+        if !transit_queue.is_empty() {
+            let packed: Vec<Vec<u8>> = transit_queue.iter().map(|item| rmp_serde::to_vec(item).unwrap()).collect();
+            pipe.cmd("RPUSH").arg(&transit_key).arg(packed).ignore();
         }
 
         let effects_key = self.key("active_effects");
         pipe.del(&effects_key).ignore();
-        for item in active_effects {
-            let packed = rmp_serde::to_vec(item).unwrap();
-            pipe.rpush(&effects_key, packed).ignore();
+        if !active_effects.is_empty() {
+            let packed: Vec<Vec<u8>> = active_effects.iter().map(|item| rmp_serde::to_vec(item).unwrap()).collect();
+            pipe.cmd("RPUSH").arg(&effects_key).arg(packed).ignore();
         }
 
         let mut conn = self.redis.clone();
@@ -384,10 +384,16 @@ impl GameStateManager {
     // --- State validation and recovery ---
 
     pub async fn validate_state(&self) -> redis::RedisResult<bool> {
-        let mut conn = self.redis.clone();
+        // Pipeline all three checks in a single round-trip
+        let mut pipe = redis::pipe();
+        pipe.hgetall(self.key("meta"));
+        pipe.hlen(self.key("players"));
+        pipe.hlen(self.key("regions"));
 
-        // Check meta hash exists and has a parseable current_tick
-        let meta: HashMap<String, String> = conn.hgetall(self.key("meta")).await?;
+        let mut conn = self.redis.clone();
+        let results: (HashMap<String, String>, i64, i64) = pipe.query_async(&mut conn).await?;
+
+        let meta = results.0;
         if meta.is_empty() {
             return Ok(false);
         }
@@ -398,16 +404,7 @@ impl GameStateManager {
         if !tick_valid {
             return Ok(false);
         }
-
-        // Check players hash is non-empty
-        let player_count: i64 = conn.hlen(self.key("players")).await?;
-        if player_count == 0 {
-            return Ok(false);
-        }
-
-        // Check regions hash is non-empty
-        let region_count: i64 = conn.hlen(self.key("regions")).await?;
-        if region_count == 0 {
+        if results.1 == 0 || results.2 == 0 {
             return Ok(false);
         }
 
@@ -521,10 +518,12 @@ impl GameStateManager {
     // --- Connection counter ---
 
     pub async fn incr_connection(&self, player_id: &str) -> redis::RedisResult<i64> {
-        let mut conn = self.redis.clone();
         let key = format!("game:{}:conn:{}", self.match_id, player_id);
-        let count: i64 = conn.incr(&key, 1).await?;
-        conn.expire::<_, ()>(&key, 3600).await?;
+        let mut pipe = redis::pipe();
+        pipe.incr(&key, 1);
+        pipe.expire(&key, 3600).ignore();
+        let mut conn = self.redis.clone();
+        let (count,): (i64,) = pipe.query_async(&mut conn).await?;
         Ok(count)
     }
 

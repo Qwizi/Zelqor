@@ -391,14 +391,15 @@ class MatchmakingInternalController(ControllerBase):
                 'order': bt.order,
                 'max_level': bt.max_level,
                 'level_stats': bt.level_stats or {},
-                'produced_unit_slug': (
-                    bt.unit_types.filter(is_active=True)
-                    .order_by('order')
-                    .values_list('slug', flat=True)
-                    .first()
+                'produced_unit_slug': next(
+                    (ut.slug for ut in sorted(
+                        (u for u in bt.unit_types.all() if u.is_active),
+                        key=lambda u: u.order,
+                    )),
+                    None,
                 ),
             }
-            for bt in BuildingType.objects.filter(is_active=True)
+            for bt in BuildingType.objects.filter(is_active=True).prefetch_related('unit_types')
         }
 
         unit_types = {
@@ -554,14 +555,15 @@ def _create_match_from_users(users, game_mode):
             'order': bt.order,
             'max_level': bt.max_level,
             'level_stats': bt.level_stats or {},
-            'produced_unit_slug': (
-                bt.unit_types.filter(is_active=True)
-                .order_by('order')
-                .values_list('slug', flat=True)
-                .first()
+            'produced_unit_slug': next(
+                (ut.slug for ut in sorted(
+                    (u for u in bt.unit_types.all() if u.is_active),
+                    key=lambda u: u.order,
+                )),
+                None,
             ),
         }
-        for bt in BuildingType.objects.filter(is_active=True)
+        for bt in BuildingType.objects.filter(is_active=True).prefetch_related('unit_types')
     }
 
     unit_types = {

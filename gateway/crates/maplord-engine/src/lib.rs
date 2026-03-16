@@ -1023,7 +1023,7 @@ impl GameEngine {
             }
 
             if active_effects[i].ticks_remaining <= 0 {
-                let expired = active_effects.remove(i);
+                let expired = active_effects.swap_remove(i);
 
                 // Nuke: apply damage on impact (when flight time expires)
                 if expired.effect_type == "ab_province_nuke" {

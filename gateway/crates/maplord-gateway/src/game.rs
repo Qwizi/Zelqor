@@ -16,9 +16,12 @@ use tokio::sync::mpsc;
 use maplord_anticheat::{AnticheatEngine, AnticheatVerdict};
 use tracing::{error, info, warn};
 
+/// Channel buffer size per WebSocket connection — provides backpressure for slow clients.
+const WS_CHANNEL_BUFFER: usize = 256;
+
 /// Per-match connection registry: match_id -> (player_id -> Vec<sender>)
 pub type GameConnections =
-    Arc<DashMap<String, DashMap<String, Vec<mpsc::UnboundedSender<Message>>>>>;
+    Arc<DashMap<String, DashMap<String, Vec<mpsc::Sender<Message>>>>>;
 
 pub fn new_game_connections() -> GameConnections {
     Arc::new(DashMap::new())
@@ -155,8 +158,8 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
         return;
     }
 
-    // Create channel for outgoing messages
-    let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
+    // Create channel for outgoing messages with backpressure
+    let (tx, mut rx) = mpsc::channel::<Message>(WS_CHANNEL_BUFFER);
 
     // Register connection
     state
@@ -183,7 +186,7 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
     // Send initial state
     if let Ok(full_state) = state_mgr.get_full_state().await {
         let msg = json!({"type": "game_state", "state": full_state});
-        let _ = tx.send(Message::Text(msg.to_string().into()));
+        let _ = tx.try_send(Message::Text(msg.to_string().into()));
     }
 
     // Send match chat history
@@ -194,7 +197,7 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
         tokio::spawn(async move {
             if let Ok(messages) = django.get_match_chat_messages(&mid, 50).await {
                 let msg = json!({"type": "chat_history", "messages": messages});
-                let _ = tx_hist.send(Message::Text(msg.to_string().into()));
+                let _ = tx_hist.try_send(Message::Text(msg.to_string().into()));
             }
         });
     }
@@ -317,7 +320,7 @@ async fn handle_game_message(
     user_id: &str,
     match_id: &str,
     state: &AppState,
-    tx: &mpsc::UnboundedSender<Message>,
+    tx: &mpsc::Sender<Message>,
 ) {
     let action = content.get("action").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -327,7 +330,7 @@ async fn handle_game_message(
         "attack" | "move" | "build" | "produce_unit" | "use_ability" | "select_capital"
     ) {
         if check_action_rate_limit(state, user_id) {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": "Too many actions, slow down"})
                     .to_string()
                     .into(),
@@ -342,10 +345,10 @@ async fn handle_game_message(
         }
         "leave_match" => {
             eliminate_player(state_mgr, user_id, "left_match", match_id, state).await;
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "match_left"}).to_string().into(),
             ));
-            let _ = tx.send(Message::Close(Some(axum::extract::ws::CloseFrame {
+            let _ = tx.try_send(Message::Close(Some(axum::extract::ws::CloseFrame {
                 code: 4000,
                 reason: "Left match".into(),
             })));
@@ -392,7 +395,7 @@ async fn handle_match_chat(
     user_id: &str,
     match_id: &str,
     state: &AppState,
-    tx: &mpsc::UnboundedSender<Message>,
+    tx: &mpsc::Sender<Message>,
 ) {
     let raw_content = content
         .get("content")
@@ -409,7 +412,7 @@ async fn handle_match_chat(
     let now = std::time::Instant::now();
     if let Some(last) = state.chat_rate_limits.get(user_id) {
         if now.duration_since(*last).as_secs_f64() < 1.0 {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": "Rate limited"})
                     .to_string()
                     .into(),
@@ -482,7 +485,7 @@ async fn handle_select_capital(
     user_id: &str,
     match_id: &str,
     state: &AppState,
-    tx: &mpsc::UnboundedSender<Message>,
+    tx: &mpsc::Sender<Message>,
 ) {
     let region_id = match content.get("region_id").and_then(|v| v.as_str()) {
         Some(id) => id.to_string(),
@@ -497,7 +500,7 @@ async fn handle_select_capital(
         _ => return,
     };
     if player.capital_region_id.is_some() {
-        let _ = tx.send(Message::Text(
+        let _ = tx.try_send(Message::Text(
             json!({"type": "error", "message": "Już wybrałeś stolicę"})
                 .to_string()
                 .into(),
@@ -510,7 +513,7 @@ async fn handle_select_capital(
     match state_mgr.try_lock(&lock_name, 5).await {
         Ok(true) => {}
         _ => {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": "Ten region jest już zajęty"})
                     .to_string()
                     .into(),
@@ -526,7 +529,7 @@ async fn handle_select_capital(
             None => return Ok(()),
         };
         if player.capital_region_id.is_some() {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": "Już wybrałeś stolicę"})
                     .to_string()
                     .into(),
@@ -537,7 +540,7 @@ async fn handle_select_capital(
         let region = match state_mgr.get_region(&region_id).await? {
             Some(r) => r,
             None => {
-                let _ = tx.send(Message::Text(
+                let _ = tx.try_send(Message::Text(
                     json!({"type": "error", "message": "Region nie istnieje"})
                         .to_string()
                         .into(),
@@ -547,7 +550,7 @@ async fn handle_select_capital(
         };
 
         if region.owner_id.is_some() {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": "Ten region jest już zajęty"})
                     .to_string()
                     .into(),
@@ -569,7 +572,7 @@ async fn handle_select_capital(
         let regions = state_mgr.get_all_regions().await?;
         let neighbor_map = state.django.get_neighbor_map().await.unwrap_or_default();
         if is_capital_too_close(&region_id, min_dist, &regions, &neighbor_map) {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": format!("Stolica musi być co najmniej {min_dist} regiony od stolicy innego gracza")})
                     .to_string()
                     .into(),
@@ -1061,7 +1064,7 @@ async fn game_loop(
                             .into(),
                         );
                         for sender in player_senders.iter() {
-                            let _ = sender.send(warn_msg.clone());
+                            let _ = sender.try_send(warn_msg.clone());
                         }
                     }
                 }
@@ -1368,15 +1371,19 @@ fn compute_changed_regions(
     let mut changed = HashMap::new();
     for (rid, region) in after {
         if before.get(rid) != Some(region) {
-            // Serialize region but strip sea_distances
-            let mut val = serde_json::to_value(region).unwrap_or_default();
-            if let Some(obj) = val.as_object_mut() {
-                obj.remove("sea_distances");
-            }
-            changed.insert(rid.clone(), val);
+            changed.insert(rid.clone(), region_to_json_no_sea(region));
         }
     }
     changed
+}
+
+/// Serialize region to JSON without sea_distances (large, immutable field).
+fn region_to_json_no_sea(region: &Region) -> serde_json::Value {
+    let mut val = serde_json::to_value(region).unwrap_or_default();
+    if let Some(obj) = val.as_object_mut() {
+        obj.remove("sea_distances");
+    }
+    val
 }
 
 fn resolve_disconnect_timeout_events(players: &mut HashMap<String, Player>) -> Vec<Event> {
@@ -2404,7 +2411,8 @@ pub fn broadcast_to_match(
         let text = msg.to_string();
         for entry in match_conns.iter() {
             for sender in entry.value().iter() {
-                let _ = sender.send(Message::Text(text.clone().into()));
+                // try_send: drop message for slow clients rather than blocking
+                let _ = sender.try_send(Message::Text(text.clone().into()));
             }
         }
     }

@@ -24,13 +24,20 @@ class GeoController:
         """Lightweight neighbor graph with centroids — no geometry.
         Used by frontend to build neighborMap and animation centroids.
         Pass match_id to filter by that match's map config (country_codes).
+        Cached for 24h — neighbor graph is immutable after data import.
         """
+        country_codes = self._country_codes_for_match(match_id) if match_id else []
+        codes_key = "|".join(sorted(country_codes)) if country_codes else "all"
+        cache_key = f"regions_graph:{codes_key}"
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         qs = Region.objects.prefetch_related('neighbors').all()
-        if match_id:
-            country_codes = self._country_codes_for_match(match_id)
-            if country_codes:
-                qs = qs.filter(country__code__in=country_codes)
-        return [
+        if country_codes:
+            qs = qs.filter(country__code__in=country_codes)
+        result = [
             {
                 "id": str(r.id),
                 "neighbor_ids": [str(n.id) for n in r.neighbors.all()],
@@ -38,6 +45,8 @@ class GeoController:
             }
             for r in qs
         ]
+        cache.set(cache_key, result, timeout=86400)
+        return result
 
     @route.get('/tiles/{z}/{x}/{y}/', auth=None)
     def get_tile(self, z: int, x: int, y: int, match_id: str = None):

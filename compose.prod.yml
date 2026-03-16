@@ -96,7 +96,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    command: uv run celery -A config worker -l warning --concurrency 2
+    command: uv run celery -A config worker -l warning --pool=gevent --concurrency 8
 
   celery-beat:
     image: ghcr.io/qwizi/maplord:${TAG:-latest}
