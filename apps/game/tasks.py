@@ -345,7 +345,7 @@ def cleanup_stale_matches():
 
     stale_matches = Match.objects.filter(
         Q(status=Match.Status.SELECTING, created_at__lt=selecting_cutoff) |
-        Q(status=Match.Status.IN_PROGRESS, created_at__lt=in_progress_cutoff)
+        Q(status=Match.Status.IN_PROGRESS, started_at__lt=in_progress_cutoff)
     )
 
     count = 0
