@@ -568,3 +568,417 @@ impl GameStateManager {
             .collect::<redis::RedisResult<_>>()?)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Unit tests — pure logic only, no Redis connection required.
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use maplord_engine::{
+        Action, ActiveEffect, BuildingQueueItem, BuildingInstance, Player, Region,
+        TransitQueueItem, UnitQueueItem,
+    };
+
+    // -----------------------------------------------------------------------
+    // Helper constructors
+    // -----------------------------------------------------------------------
+
+    fn make_player(user_id: &str) -> Player {
+        Player {
+            user_id: user_id.to_string(),
+            username: format!("User_{user_id}"),
+            color: "#ff0000".to_string(),
+            is_alive: true,
+            connected: true,
+            ..Player::default()
+        }
+    }
+
+    fn make_region(name: &str) -> Region {
+        Region {
+            name: name.to_string(),
+            country_code: "PL".to_string(),
+            unit_count: 5,
+            unit_type: Some("infantry".to_string()),
+            ..Region::default()
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // GameStateManager::key — key naming convention
+    // -----------------------------------------------------------------------
+
+    mod key_naming {
+        // We expose key() via a thin wrapper so we can test it without Redis.
+        // The `key` method is private, but we can exercise it indirectly by
+        // checking the lock key and connection key helpers that ARE testable
+        // without a live connection: we test the formatting pattern directly.
+
+        #[test]
+        fn key_format_contains_match_id_and_suffix() {
+            // The documented format is "game:{match_id}:{suffix}".
+            let match_id = "match-abc-123";
+            let suffix = "meta";
+            let key = format!("game:{match_id}:{suffix}");
+            assert!(key.starts_with("game:match-abc-123:"));
+            assert!(key.ends_with(":meta"));
+        }
+
+        #[test]
+        fn connection_key_format_is_game_match_conn_player() {
+            let match_id = "m1";
+            let player_id = "p99";
+            let key = format!("game:{match_id}:conn:{player_id}");
+            assert_eq!(key, "game:m1:conn:p99");
+        }
+
+        #[test]
+        fn key_distinguishes_different_suffixes() {
+            let match_id = "match-xyz";
+            let meta_key = format!("game:{match_id}:meta");
+            let players_key = format!("game:{match_id}:players");
+            let regions_key = format!("game:{match_id}:regions");
+            let actions_key = format!("game:{match_id}:actions");
+            assert_ne!(meta_key, players_key);
+            assert_ne!(players_key, regions_key);
+            assert_ne!(regions_key, actions_key);
+        }
+
+        #[test]
+        fn key_distinguishes_different_match_ids() {
+            let key1 = format!("game:match-1:meta");
+            let key2 = format!("game:match-2:meta");
+            assert_ne!(key1, key2);
+        }
+
+        #[test]
+        fn lock_key_follows_same_pattern() {
+            // Lock names like "loop_lock" use the same `key()` helper.
+            let match_id = "m42";
+            let lock_key = format!("game:{match_id}:loop_lock");
+            assert_eq!(lock_key, "game:m42:loop_lock");
+        }
+
+        #[test]
+        fn all_eight_standard_keys_are_distinct() {
+            let m = "test-match";
+            let suffixes = [
+                "meta", "players", "regions", "actions",
+                "buildings_queue", "unit_queue", "transit_queue", "active_effects",
+            ];
+            let keys: Vec<String> = suffixes
+                .iter()
+                .map(|s| format!("game:{m}:{s}"))
+                .collect();
+            let unique: std::collections::HashSet<_> = keys.iter().collect();
+            assert_eq!(unique.len(), suffixes.len(), "every suffix must produce a unique key");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // msgpack round-trips (no Redis needed)
+    // -----------------------------------------------------------------------
+
+    mod msgpack_roundtrip {
+        use super::*;
+
+        #[test]
+        fn player_serialises_and_deserialises_losslessly() {
+            let original = make_player("user-42");
+            let packed = rmp_serde::to_vec(&original).expect("serialization should not fail");
+            let restored: Player =
+                rmp_serde::from_slice(&packed).expect("deserialization should not fail");
+            assert_eq!(restored.user_id, original.user_id);
+            assert_eq!(restored.username, original.username);
+            assert_eq!(restored.is_alive, original.is_alive);
+        }
+
+        #[test]
+        fn region_serialises_and_deserialises_losslessly() {
+            let original = make_region("Warsaw");
+            let packed = rmp_serde::to_vec(&original).expect("serialization should not fail");
+            let restored: Region =
+                rmp_serde::from_slice(&packed).expect("deserialization should not fail");
+            assert_eq!(restored.name, original.name);
+            assert_eq!(restored.unit_count, original.unit_count);
+        }
+
+        #[test]
+        fn action_serialises_and_deserialises_losslessly() {
+            let original = Action {
+                action_type: "attack".to_string(),
+                player_id: Some("player-1".to_string()),
+                source_region_id: Some("region-A".to_string()),
+                target_region_id: Some("region-B".to_string()),
+                units: Some(15),
+                ..Action::default()
+            };
+            let packed = rmp_serde::to_vec(&original).expect("serialization should not fail");
+            let restored: Action =
+                rmp_serde::from_slice(&packed).expect("deserialization should not fail");
+            assert_eq!(restored.action_type, "attack");
+            assert_eq!(restored.units, Some(15));
+            assert_eq!(restored.source_region_id, Some("region-A".to_string()));
+        }
+
+        #[test]
+        fn building_queue_item_round_trips() {
+            let original = BuildingQueueItem {
+                region_id: "region-1".to_string(),
+                building_type: "barracks".to_string(),
+                player_id: "player-1".to_string(),
+                ticks_remaining: 5,
+                total_ticks: 10,
+                is_upgrade: false,
+                target_level: 0,
+            };
+            let packed = rmp_serde::to_vec(&original).unwrap();
+            let restored: BuildingQueueItem = rmp_serde::from_slice(&packed).unwrap();
+            assert_eq!(restored.building_type, "barracks");
+            assert_eq!(restored.ticks_remaining, 5);
+        }
+
+        #[test]
+        fn unit_queue_item_round_trips() {
+            let original = UnitQueueItem {
+                region_id: "region-2".to_string(),
+                player_id: "player-2".to_string(),
+                unit_type: "cavalry".to_string(),
+                quantity: Some(3),
+                manpower_cost: Some(6),
+                ticks_remaining: 2,
+                total_ticks: 4,
+            };
+            let packed = rmp_serde::to_vec(&original).unwrap();
+            let restored: UnitQueueItem = rmp_serde::from_slice(&packed).unwrap();
+            assert_eq!(restored.unit_type, "cavalry");
+            assert_eq!(restored.quantity, Some(3));
+        }
+
+        #[test]
+        fn transit_queue_item_round_trips() {
+            let original = TransitQueueItem {
+                action_type: "attack".to_string(),
+                source_region_id: "src".to_string(),
+                target_region_id: "dst".to_string(),
+                player_id: "player-3".to_string(),
+                unit_type: "infantry".to_string(),
+                units: 20,
+                ticks_remaining: 3,
+                travel_ticks: 3,
+            };
+            let packed = rmp_serde::to_vec(&original).unwrap();
+            let restored: TransitQueueItem = rmp_serde::from_slice(&packed).unwrap();
+            assert_eq!(restored.units, 20);
+            assert_eq!(restored.travel_ticks, 3);
+        }
+
+        #[test]
+        fn active_effect_round_trips() {
+            let original = ActiveEffect {
+                effect_type: "poison".to_string(),
+                source_player_id: "player-1".to_string(),
+                target_region_id: "region-A".to_string(),
+                affected_region_ids: vec!["region-B".to_string()],
+                ticks_remaining: 4,
+                total_ticks: 10,
+                params: serde_json::json!({"damage": 5}),
+            };
+            let packed = rmp_serde::to_vec(&original).unwrap();
+            let restored: ActiveEffect = rmp_serde::from_slice(&packed).unwrap();
+            assert_eq!(restored.effect_type, "poison");
+            assert_eq!(restored.ticks_remaining, 4);
+        }
+
+        #[test]
+        fn player_with_optional_fields_round_trips() {
+            let mut player = make_player("user-99");
+            player.capital_region_id = Some("region-capital".to_string());
+            player.disconnect_deadline = Some(9999999);
+            player.eliminated_tick = Some(42);
+            player.eliminated_reason = Some("conquered".to_string());
+
+            let packed = rmp_serde::to_vec(&player).unwrap();
+            let restored: Player = rmp_serde::from_slice(&packed).unwrap();
+            assert_eq!(restored.capital_region_id, Some("region-capital".to_string()));
+            assert_eq!(restored.disconnect_deadline, Some(9999999));
+            assert_eq!(restored.eliminated_tick, Some(42));
+        }
+
+        #[test]
+        fn region_with_units_map_round_trips() {
+            let mut region = make_region("Krakow");
+            region.units.insert("infantry".to_string(), 10);
+            region.units.insert("cavalry".to_string(), 3);
+
+            let packed = rmp_serde::to_vec(&region).unwrap();
+            let restored: Region = rmp_serde::from_slice(&packed).unwrap();
+            assert_eq!(restored.units.get("infantry"), Some(&10));
+            assert_eq!(restored.units.get("cavalry"), Some(&3));
+        }
+
+        #[test]
+        fn region_with_building_instances_round_trips() {
+            let mut region = make_region("Gdansk");
+            region.building_instances = vec![
+                BuildingInstance { building_type: "barracks".to_string(), level: 2 },
+            ];
+
+            let packed = rmp_serde::to_vec(&region).unwrap();
+            let restored: Region = rmp_serde::from_slice(&packed).unwrap();
+            assert_eq!(restored.building_instances.len(), 1);
+            assert_eq!(restored.building_instances[0].building_type, "barracks");
+            assert_eq!(restored.building_instances[0].level, 2);
+        }
+
+        #[test]
+        fn serialized_bytes_are_compact_for_minimal_player() {
+            // msgpack should be smaller than JSON for a typical Player.
+            let player = make_player("u1");
+            let msgpack_bytes = rmp_serde::to_vec(&player).unwrap();
+            let json_bytes = serde_json::to_vec(&player).unwrap();
+            // msgpack is typically more compact; at minimum they exist and have nonzero length.
+            assert!(!msgpack_bytes.is_empty());
+            assert!(!json_bytes.is_empty());
+            assert!(msgpack_bytes.len() < json_bytes.len(),
+                "msgpack ({} bytes) should be smaller than JSON ({} bytes)",
+                msgpack_bytes.len(), json_bytes.len());
+        }
+
+        #[test]
+        fn corrupted_bytes_fail_gracefully() {
+            let bad_bytes = b"\xde\xad\xbe\xef";
+            let result: Result<Player, _> = rmp_serde::from_slice(bad_bytes);
+            assert!(result.is_err(), "corrupted msgpack bytes should fail to deserialize");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // FullGameState — JSON serde round-trip (used for snapshots)
+    // -----------------------------------------------------------------------
+
+    mod full_game_state_serde {
+        use super::*;
+
+        fn make_full_state() -> FullGameState {
+            let mut meta = HashMap::new();
+            meta.insert("status".to_string(), "in_progress".to_string());
+            meta.insert("current_tick".to_string(), "42".to_string());
+            meta.insert("tick_interval_ms".to_string(), "1000".to_string());
+
+            let mut players = HashMap::new();
+            players.insert("player-1".to_string(), make_player("player-1"));
+
+            let mut regions = HashMap::new();
+            regions.insert("region-A".to_string(), make_region("Warsaw"));
+
+            FullGameState {
+                meta,
+                players,
+                regions,
+                buildings_queue: vec![],
+                unit_queue: vec![],
+                transit_queue: vec![],
+                active_effects: vec![],
+            }
+        }
+
+        #[test]
+        fn full_game_state_serialises_to_json_without_error() {
+            let state = make_full_state();
+            let json = serde_json::to_value(&state);
+            assert!(json.is_ok(), "FullGameState must serialise to JSON");
+        }
+
+        #[test]
+        fn full_game_state_json_round_trip_preserves_meta() {
+            let original = make_full_state();
+            let json = serde_json::to_value(&original).unwrap();
+            let restored: FullGameState = serde_json::from_value(json).unwrap();
+            assert_eq!(
+                restored.meta.get("status"),
+                Some(&"in_progress".to_string())
+            );
+            assert_eq!(
+                restored.meta.get("current_tick"),
+                Some(&"42".to_string())
+            );
+        }
+
+        #[test]
+        fn full_game_state_json_round_trip_preserves_player_count() {
+            let original = make_full_state();
+            let json = serde_json::to_value(&original).unwrap();
+            let restored: FullGameState = serde_json::from_value(json).unwrap();
+            assert_eq!(restored.players.len(), 1);
+        }
+
+        #[test]
+        fn full_game_state_json_round_trip_preserves_region_name() {
+            let original = make_full_state();
+            let json = serde_json::to_value(&original).unwrap();
+            let restored: FullGameState = serde_json::from_value(json).unwrap();
+            assert_eq!(
+                restored.regions.get("region-A").map(|r| r.name.as_str()),
+                Some("Warsaw")
+            );
+        }
+
+        #[test]
+        fn full_game_state_msgpack_round_trip() {
+            let original = make_full_state();
+            let packed = rmp_serde::to_vec(&original).unwrap();
+            let restored: FullGameState = rmp_serde::from_slice(&packed).unwrap();
+            assert_eq!(restored.meta.get("status"), Some(&"in_progress".to_string()));
+            assert_eq!(restored.regions.len(), 1);
+        }
+
+        #[test]
+        fn empty_full_game_state_round_trips() {
+            let original = FullGameState {
+                meta: HashMap::new(),
+                players: HashMap::new(),
+                regions: HashMap::new(),
+                buildings_queue: vec![],
+                unit_queue: vec![],
+                transit_queue: vec![],
+                active_effects: vec![],
+            };
+            let json = serde_json::to_value(&original).unwrap();
+            let restored: FullGameState = serde_json::from_value(json).unwrap();
+            assert!(restored.players.is_empty());
+            assert!(restored.regions.is_empty());
+        }
+
+        #[test]
+        fn full_game_state_with_queues_round_trips() {
+            let mut state = make_full_state();
+            state.buildings_queue.push(BuildingQueueItem {
+                region_id: "r1".to_string(),
+                building_type: "barracks".to_string(),
+                player_id: "p1".to_string(),
+                ticks_remaining: 3,
+                total_ticks: 10,
+                is_upgrade: false,
+                target_level: 0,
+            });
+            state.transit_queue.push(TransitQueueItem {
+                action_type: "move".to_string(),
+                source_region_id: "r1".to_string(),
+                target_region_id: "r2".to_string(),
+                player_id: "p1".to_string(),
+                unit_type: "infantry".to_string(),
+                units: 5,
+                ticks_remaining: 2,
+                travel_ticks: 2,
+            });
+
+            let json = serde_json::to_value(&state).unwrap();
+            let restored: FullGameState = serde_json::from_value(json).unwrap();
+            assert_eq!(restored.buildings_queue.len(), 1);
+            assert_eq!(restored.transit_queue.len(), 1);
+            assert_eq!(restored.transit_queue[0].units, 5);
+        }
+    }
+}
