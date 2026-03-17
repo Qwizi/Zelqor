@@ -1023,7 +1023,7 @@ impl GameEngine {
             }
 
             if active_effects[i].ticks_remaining <= 0 {
-                let expired = active_effects.remove(i);
+                let expired = active_effects.swap_remove(i);
 
                 // Nuke: apply damage on impact (when flight time expires)
                 if expired.effect_type == "ab_province_nuke" {
@@ -1214,14 +1214,6 @@ impl GameEngine {
 
         if units <= 0 || get_available_units(source, &unit_type, self) < units {
             return Vec::new();
-        }
-
-        if !can_station_unit(target, &unit_type, self) {
-            return vec![reject_action(
-                player_id,
-                "Ten region nie moze przyjac tego typu jednostki",
-                action,
-            )];
         }
 
         let unit_config = self.get_unit_config(&unit_type);
@@ -2436,5 +2428,1480 @@ fn move_rejection_message(unit_config: &UnitConfig) -> String {
         "sea" => "Statki moga poruszac sie tylko miedzy przybrzeznymi regionami".into(),
         "air" => "Lotnictwo moze przemieszczac sie tylko w swoim zasiegu".into(),
         _ => "Ta jednostka moze przemieszczac sie tylko w swoim zasiegu".into(),
+    }
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    // -------------------------------------------------------------------------
+    // Test fixture builders
+    // -------------------------------------------------------------------------
+
+    /// Minimal but complete GameSettings suitable for most tests.
+    fn test_settings() -> GameSettings {
+        let mut building_types = HashMap::new();
+        building_types.insert(
+            "barracks".into(),
+            BuildingConfig {
+                cost: 0,
+                energy_cost: 30,
+                build_time_ticks: 5,
+                max_per_region: 1,
+                defense_bonus: 0.2,
+                vision_range: 1,
+                unit_generation_bonus: 1.0,
+                energy_generation_bonus: 0.0,
+                requires_coastal: false,
+                icon: String::new(),
+                name: "Barracks".into(),
+                asset_key: String::new(),
+                order: 1,
+                produced_unit_slug: None,
+                max_level: 3,
+                level_stats: HashMap::new(),
+            },
+        );
+        building_types.insert(
+            "factory".into(),
+            BuildingConfig {
+                cost: 0,
+                energy_cost: 50,
+                build_time_ticks: 8,
+                max_per_region: 1,
+                defense_bonus: 0.0,
+                vision_range: 0,
+                unit_generation_bonus: 0.0,
+                energy_generation_bonus: 2.0,
+                requires_coastal: false,
+                icon: String::new(),
+                name: "Factory".into(),
+                asset_key: String::new(),
+                order: 2,
+                produced_unit_slug: Some("tank".into()),
+                max_level: 3,
+                level_stats: HashMap::new(),
+            },
+        );
+        building_types.insert(
+            "port".into(),
+            BuildingConfig {
+                cost: 0,
+                energy_cost: 40,
+                build_time_ticks: 6,
+                max_per_region: 1,
+                defense_bonus: 0.0,
+                vision_range: 0,
+                unit_generation_bonus: 0.0,
+                energy_generation_bonus: 0.0,
+                requires_coastal: true,
+                icon: String::new(),
+                name: "Port".into(),
+                asset_key: String::new(),
+                order: 3,
+                produced_unit_slug: Some("ship".into()),
+                max_level: 3,
+                level_stats: HashMap::new(),
+            },
+        );
+
+        let mut unit_types = HashMap::new();
+        unit_types.insert(
+            "infantry".into(),
+            UnitConfig {
+                attack: 1.0,
+                defense: 1.0,
+                speed: 1,
+                attack_range: 1,
+                sea_range: 0,
+                sea_hop_distance_km: 0,
+                movement_type: "land".into(),
+                production_cost: 0,
+                production_time_ticks: 0,
+                produced_by_slug: None,
+                manpower_cost: 1,
+                ..Default::default()
+            },
+        );
+        unit_types.insert(
+            "tank".into(),
+            UnitConfig {
+                attack: 3.0,
+                defense: 2.5,
+                speed: 1,
+                attack_range: 1,
+                sea_range: 0,
+                sea_hop_distance_km: 0,
+                movement_type: "land".into(),
+                production_cost: 15,
+                production_time_ticks: 8,
+                produced_by_slug: Some("factory".into()),
+                manpower_cost: 3,
+                ..Default::default()
+            },
+        );
+        unit_types.insert(
+            "ship".into(),
+            UnitConfig {
+                attack: 2.0,
+                defense: 2.0,
+                speed: 4,
+                attack_range: 4,
+                sea_range: 0,
+                sea_hop_distance_km: 2800,
+                movement_type: "sea".into(),
+                production_cost: 20,
+                production_time_ticks: 10,
+                produced_by_slug: Some("port".into()),
+                manpower_cost: 10,
+                ..Default::default()
+            },
+        );
+
+        GameSettings {
+            tick_interval_ms: 1000,
+            capital_selection_time_seconds: 30,
+            base_unit_generation_rate: 1.0,
+            capital_generation_bonus: 2.0,
+            starting_energy: 120,
+            base_energy_per_tick: 2.0,
+            region_energy_per_tick: 0.35,
+            attacker_advantage: 0.0,
+            defender_advantage: 0.1,
+            combat_randomness: 0.0, // deterministic for tests
+            starting_units: 10,
+            neutral_region_units: 3,
+            building_types,
+            unit_types,
+            ability_types: HashMap::new(),
+            default_unit_type_slug: Some("infantry".into()),
+            min_capital_distance: 3,
+            elo_k_factor: 32,
+            match_duration_limit_minutes: 0,
+        }
+    }
+
+    fn make_player(id: &str) -> Player {
+        Player {
+            user_id: id.into(),
+            username: id.into(),
+            color: "#ff0000".into(),
+            is_alive: true,
+            connected: true,
+            energy: 200,
+            energy_accum: 0.0,
+            capital_region_id: None,
+            ..Default::default()
+        }
+    }
+
+    fn make_region(id: &str, owner_id: Option<&str>, unit_count: i64) -> Region {
+        let mut units = HashMap::new();
+        if unit_count > 0 {
+            units.insert("infantry".into(), unit_count);
+        }
+        Region {
+            name: id.into(),
+            country_code: "XX".into(),
+            centroid: None,
+            owner_id: owner_id.map(str::to_owned),
+            unit_count,
+            unit_type: if unit_count > 0 { Some("infantry".into()) } else { None },
+            is_capital: false,
+            building_type: None,
+            building_instances: vec![],
+            defense_bonus: 0.0,
+            vision_range: 0,
+            unit_generation_bonus: 0.0,
+            energy_generation_bonus: 0.0,
+            is_coastal: false,
+            sea_distances: vec![],
+            units,
+            unit_accum: 0.0,
+        }
+    }
+
+    /// Build an engine with a linear chain of regions: A — B — C — D.
+    fn make_linear_engine() -> (GameEngine, HashMap<String, Region>, HashMap<String, Player>) {
+        let settings = test_settings();
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+        neighbor_map.insert("C".into(), vec!["B".into(), "D".into()]);
+        neighbor_map.insert("D".into(), vec!["C".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 20));
+        regions.insert("B".into(), make_region("B", Some("p1"), 15));
+        regions.insert("C".into(), make_region("C", Some("p2"), 15));
+        regions.insert("D".into(), make_region("D", Some("p2"), 20));
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        (engine, regions, players)
+    }
+
+    // Helper to find a specific event variant by matching on its type name
+    fn has_event<F: Fn(&Event) -> bool>(events: &[Event], predicate: F) -> bool {
+        events.iter().any(predicate)
+    }
+
+    // -------------------------------------------------------------------------
+    // 1. GameEngine construction and config lookups
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_engine_new_stores_settings() {
+        let settings = test_settings();
+        let engine = GameEngine::new(settings.clone(), HashMap::new());
+        assert_eq!(engine.settings.base_energy_per_tick, 2.0);
+        assert_eq!(engine.settings.base_unit_generation_rate, 1.0);
+    }
+
+    #[test]
+    fn test_get_unit_config_from_settings() {
+        let settings = test_settings();
+        let engine = GameEngine::new(settings, HashMap::new());
+        let cfg = engine.get_unit_config("infantry");
+        assert_eq!(cfg.attack, 1.0);
+        assert_eq!(cfg.defense, 1.0);
+        assert_eq!(cfg.manpower_cost, 1);
+    }
+
+    #[test]
+    fn test_get_unit_config_tank() {
+        let settings = test_settings();
+        let engine = GameEngine::new(settings, HashMap::new());
+        let cfg = engine.get_unit_config("tank");
+        assert_eq!(cfg.attack, 3.0);
+        assert_eq!(cfg.manpower_cost, 3);
+    }
+
+    #[test]
+    fn test_get_unit_config_unknown_falls_back_to_infantry() {
+        let settings = test_settings();
+        let engine = GameEngine::new(settings, HashMap::new());
+        let cfg = engine.get_unit_config("nonexistent_unit_type");
+        // Falls back to default infantry config
+        assert_eq!(cfg.attack, 1.0);
+        assert_eq!(cfg.manpower_cost, 1);
+    }
+
+    #[test]
+    fn test_get_unit_scale_infantry_is_one() {
+        let settings = test_settings();
+        let engine = GameEngine::new(settings, HashMap::new());
+        assert_eq!(engine.get_unit_scale("infantry"), 1);
+    }
+
+    #[test]
+    fn test_get_unit_scale_tank_is_three() {
+        let settings = test_settings();
+        let engine = GameEngine::new(settings, HashMap::new());
+        assert_eq!(engine.get_unit_scale("tank"), 3);
+    }
+
+    #[test]
+    fn test_get_travel_distance_adjacent() {
+        let (engine, regions, _) = make_linear_engine();
+        let infantry_cfg = engine.get_unit_config("infantry");
+        let dist = engine.get_travel_distance("A", "B", &regions, &infantry_cfg, 1, None);
+        assert_eq!(dist, Some(1));
+    }
+
+    #[test]
+    fn test_get_travel_distance_two_hops() {
+        let (engine, regions, _) = make_linear_engine();
+        let infantry_cfg = engine.get_unit_config("infantry");
+        let dist = engine.get_travel_distance("A", "C", &regions, &infantry_cfg, 2, None);
+        assert_eq!(dist, Some(2));
+    }
+
+    #[test]
+    fn test_get_travel_distance_out_of_range_returns_none() {
+        let (engine, regions, _) = make_linear_engine();
+        let infantry_cfg = engine.get_unit_config("infantry");
+        // Range 1 can only reach B from A; C is at depth 2
+        let dist = engine.get_travel_distance("A", "C", &regions, &infantry_cfg, 1, None);
+        assert_eq!(dist, None);
+    }
+
+    #[test]
+    fn test_get_travel_distance_same_region_returns_none() {
+        let (engine, regions, _) = make_linear_engine();
+        let infantry_cfg = engine.get_unit_config("infantry");
+        let dist = engine.get_travel_distance("A", "A", &regions, &infantry_cfg, 5, None);
+        assert_eq!(dist, None);
+    }
+
+    #[test]
+    fn test_count_buildings_empty() {
+        let instances: Vec<BuildingInstance> = vec![];
+        assert_eq!(GameEngine::count_buildings(&instances, "barracks"), 0);
+    }
+
+    #[test]
+    fn test_count_buildings_with_instances() {
+        let instances = vec![
+            BuildingInstance { building_type: "barracks".into(), level: 1 },
+            BuildingInstance { building_type: "factory".into(), level: 1 },
+            BuildingInstance { building_type: "barracks".into(), level: 2 },
+        ];
+        assert_eq!(GameEngine::count_buildings(&instances, "barracks"), 2);
+        assert_eq!(GameEngine::count_buildings(&instances, "factory"), 1);
+        assert_eq!(GameEngine::count_buildings(&instances, "port"), 0);
+    }
+
+    #[test]
+    fn test_get_building_instance() {
+        let instances = vec![
+            BuildingInstance { building_type: "barracks".into(), level: 1 },
+            BuildingInstance { building_type: "barracks".into(), level: 2 },
+        ];
+        let inst = GameEngine::get_building_instance(&instances, "barracks", 0);
+        assert!(inst.is_some());
+        assert_eq!(inst.unwrap().level, 1);
+
+        let inst2 = GameEngine::get_building_instance(&instances, "barracks", 1);
+        assert!(inst2.is_some());
+        assert_eq!(inst2.unwrap().level, 2);
+
+        let inst3 = GameEngine::get_building_instance(&instances, "barracks", 2);
+        assert!(inst3.is_none());
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. Energy generation
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_energy_generation_base_plus_region() {
+        let (engine, regions, mut players) = make_linear_engine();
+        // p1 owns A and B: base=2.0, 2 regions * 0.35 = 0.70, total = 2.70 per tick
+        // After 1 tick (accumulated into energy_accum then floored) p1 gets 2 energy.
+        let initial_energy = players["p1"].energy;
+        engine.generate_energy(&mut players, &regions);
+        // 2.0 + 2*0.35 = 2.70 accumulated
+        let p1 = &players["p1"];
+        assert!(p1.energy > initial_energy || p1.energy_accum > 0.0,
+            "Energy should increase after one tick");
+        // The accumulated amount should be exactly 2.70 (if integer part was added to energy)
+        let total = p1.energy as f64 + p1.energy_accum;
+        assert!((total - (initial_energy as f64 + 2.70)).abs() < 0.01,
+            "Total energy+accum should be initial + 2.70, got {}", total);
+    }
+
+    #[test]
+    fn test_energy_accumulates_fractional_parts() {
+        let (engine, regions, mut players) = make_linear_engine();
+        // Run 10 ticks; after 10 ticks p1 has accumulated 10 * 2.70 = 27 whole units
+        for _ in 0..10 {
+            engine.generate_energy(&mut players, &regions);
+        }
+        let p1 = &players["p1"];
+        let total = p1.energy as f64 + p1.energy_accum;
+        let expected = 200.0 + 10.0 * 2.70;
+        assert!((total - expected).abs() < 0.1,
+            "After 10 ticks total should be ~{:.1}, got {:.3}", expected, total);
+    }
+
+    #[test]
+    fn test_energy_generation_with_building_bonus() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Add a factory to region A (energy_generation_bonus = 2.0)
+        let region_a = regions.get_mut("A").unwrap();
+        region_a.building_instances.push(BuildingInstance {
+            building_type: "factory".into(),
+            level: 1,
+        });
+        region_a.energy_generation_bonus = 2.0;
+
+        let initial_energy = players["p1"].energy;
+        engine.generate_energy(&mut players, &regions);
+        let p1 = &players["p1"];
+        let total = p1.energy as f64 + p1.energy_accum;
+        // base 2.0 + 2 regions * 0.35 + 2.0 building bonus = 4.70
+        let expected_accum = 4.70;
+        assert!((total - (initial_energy as f64 + expected_accum)).abs() < 0.01,
+            "Expected total {}, got {}", initial_energy as f64 + expected_accum, total);
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. Unit generation
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_unit_generation_on_owned_region() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Run enough ticks so the accumulator crosses 1.0 for the non-capital regions.
+        // base_rate = 1.0, non-capital: rate = 1.0 per tick.
+        // After 1 tick unit_accum becomes 1.0, which floors to 1 unit added.
+        let initial_a = regions["A"].units.get("infantry").copied().unwrap_or(0);
+        let initial_b = regions["B"].units.get("infantry").copied().unwrap_or(0);
+
+        // Run one full generate cycle
+        engine.generate_units_with_effects(&mut players, &mut regions, &[]);
+
+        let after_a = regions["A"].units.get("infantry").copied().unwrap_or(0);
+        let after_b = regions["B"].units.get("infantry").copied().unwrap_or(0);
+
+        // Both owned by p1, same rate — units should have been added
+        assert!(after_a >= initial_a, "A should not lose units from generation");
+        assert!(after_b >= initial_b, "B should not lose units from generation");
+        assert!(after_a + after_b > initial_a + initial_b,
+            "Total units for p1 should increase after generation");
+    }
+
+    #[test]
+    fn test_capital_region_generates_more_units() {
+        let settings = test_settings(); // capital_generation_bonus = 2.0
+        let mut neighbor_map = HashMap::new();
+        neighbor_map.insert("cap".into(), vec!["reg".into()]);
+        neighbor_map.insert("reg".into(), vec!["cap".into()]);
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        let mut cap = make_region("cap", Some("p1"), 10);
+        cap.is_capital = true;
+        regions.insert("cap".into(), cap);
+        regions.insert("reg".into(), make_region("reg", Some("p1"), 10));
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+
+        // Multiple ticks so accumulator produces whole units
+        for _ in 0..10 {
+            engine.generate_units_with_effects(&mut players, &mut regions, &[]);
+        }
+
+        let cap_units = regions["cap"].units.get("infantry").copied().unwrap_or(0);
+        let reg_units = regions["reg"].units.get("infantry").copied().unwrap_or(0);
+
+        // Capital generates at rate 2.0 (base 1.0 * bonus 2.0), regular at 1.0.
+        // After 10 ticks, capital should have significantly more units added.
+        let cap_added = cap_units - 10;
+        let reg_added = reg_units - 10;
+        assert!(cap_added > reg_added,
+            "Capital should gain more units; capital added {}, regular added {}", cap_added, reg_added);
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. Building queue completion
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_building_queue_completes_after_ticks() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let buildings_queue = vec![BuildingQueueItem {
+            region_id: "A".into(),
+            building_type: "barracks".into(),
+            player_id: "p1".into(),
+            ticks_remaining: 1,
+            total_ticks: 5,
+            is_upgrade: false,
+            target_level: 0,
+        }];
+
+        let (remaining, events) = engine.process_buildings(&mut players, &mut regions, &buildings_queue);
+        // ticks_remaining decremented to 0, so should complete
+        assert!(remaining.is_empty(), "Queue should be empty after completion");
+        assert!(has_event(&events, |e| matches!(e, Event::BuildingComplete { region_id, building_type, .. }
+            if region_id == "A" && building_type == "barracks")),
+            "Should emit BuildingComplete");
+        assert_eq!(
+            GameEngine::count_buildings(&regions["A"].building_instances, "barracks"),
+            1
+        );
+    }
+
+    #[test]
+    fn test_building_queue_not_complete_while_ticks_remain() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let buildings_queue = vec![BuildingQueueItem {
+            region_id: "A".into(),
+            building_type: "barracks".into(),
+            player_id: "p1".into(),
+            ticks_remaining: 3,
+            total_ticks: 5,
+            is_upgrade: false,
+            target_level: 0,
+        }];
+
+        let (remaining, events) = engine.process_buildings(&mut players, &mut regions, &buildings_queue);
+        assert_eq!(remaining.len(), 1, "Item should remain in queue");
+        assert_eq!(remaining[0].ticks_remaining, 2);
+        assert!(!has_event(&events, |e| matches!(e, Event::BuildingComplete { .. })));
+        assert_eq!(
+            GameEngine::count_buildings(&regions["A"].building_instances, "barracks"),
+            0
+        );
+    }
+
+    #[test]
+    fn test_building_queue_increments_buildings_built_stat() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let buildings_queue = vec![BuildingQueueItem {
+            region_id: "A".into(),
+            building_type: "barracks".into(),
+            player_id: "p1".into(),
+            ticks_remaining: 1,
+            total_ticks: 5,
+            is_upgrade: false,
+            target_level: 0,
+        }];
+        engine.process_buildings(&mut players, &mut regions, &buildings_queue);
+        assert_eq!(players["p1"].total_buildings_built, 1);
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. Build action — energy cost deduction and queue creation
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_build_action_enqueues_item_and_deducts_energy() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let initial_energy = players["p1"].energy;
+        let events = engine.process_action(
+            &action,
+            &mut players,
+            &mut regions,
+            &mut buildings_queue,
+            &mut unit_queue,
+            &mut transit_queue,
+        );
+
+        assert_eq!(buildings_queue.len(), 1);
+        assert_eq!(buildings_queue[0].building_type, "barracks");
+        assert_eq!(buildings_queue[0].ticks_remaining, 5);
+        assert!(players["p1"].energy < initial_energy,
+            "Energy should be deducted for build");
+        assert_eq!(initial_energy - players["p1"].energy, 30); // energy_cost from config
+        assert!(has_event(&events, |e| matches!(e, Event::BuildStarted { .. })));
+    }
+
+    #[test]
+    fn test_build_action_rejected_insufficient_energy() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        players.get_mut("p1").unwrap().energy = 5; // way below 30 cost
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+        );
+        assert!(buildings_queue.is_empty());
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
+    }
+
+    #[test]
+    fn test_build_action_rejected_requires_coastal() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        // Port requires coastal but A is not coastal
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("port".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+        );
+        assert!(buildings_queue.is_empty());
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
+    }
+
+    #[test]
+    fn test_build_action_rejected_max_per_region() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Pre-place a barracks (max_per_region = 1)
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "barracks".into(), level: 1 }
+        );
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+        );
+        assert!(buildings_queue.is_empty());
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. Unit production action
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_produce_unit_action_enqueues_and_deducts_energy() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Add a factory to region A so tanks can be produced
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "factory".into(), level: 1 }
+        );
+        // Tank costs 15 energy, manpower_cost = 3, region A has 20 infantry
+        players.get_mut("p1").unwrap().energy = 100;
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+        );
+
+        assert_eq!(unit_queue.len(), 1);
+        assert_eq!(unit_queue[0].unit_type, "tank");
+        assert_eq!(players["p1"].energy, 85); // 100 - 15
+        assert!(has_event(&events, |e| matches!(e, Event::UnitProductionStarted { .. })));
+    }
+
+    #[test]
+    fn test_produce_unit_rejected_without_building() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // No factory in region A
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+        );
+        assert!(unit_queue.is_empty());
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
+    }
+
+    #[test]
+    fn test_unit_queue_completion_adds_units_to_region() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Add factory so tank can station there
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "factory".into(), level: 1 }
+        );
+        // Region A has 20 infantry which is enough to satisfy the manpower check (needs 3).
+        let unit_queue = vec![UnitQueueItem {
+            region_id: "A".into(),
+            player_id: "p1".into(),
+            unit_type: "tank".into(),
+            quantity: Some(1),
+            manpower_cost: Some(3),
+            ticks_remaining: 1,
+            total_ticks: 8,
+        }];
+
+        let (remaining, events) = engine.process_unit_queue(&mut players, &mut regions, &unit_queue);
+
+        assert!(remaining.is_empty(), "Queue item should be consumed on completion");
+        assert!(has_event(&events, |e| matches!(e, Event::UnitProductionComplete { unit_type, .. }
+            if unit_type == "tank")),
+            "Should emit UnitProductionComplete for tank");
+        // The tank is added directly via add_units — the manpower check only gates
+        // whether production succeeds, it does not deduct infantry at queue completion.
+        assert_eq!(regions["A"].units.get("tank").copied().unwrap_or(0), 1,
+            "Region A should now have 1 tank");
+        assert_eq!(players["p1"].total_units_produced, 1,
+            "Player's total_units_produced stat should be incremented");
+    }
+
+    #[test]
+    fn test_unit_queue_production_failed_not_enough_manpower() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Add factory, but deplete infantry
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "factory".into(), level: 1 }
+        );
+        regions.get_mut("A").unwrap().units.insert("infantry".into(), 1); // only 1, need 3
+
+        let unit_queue = vec![UnitQueueItem {
+            region_id: "A".into(),
+            player_id: "p1".into(),
+            unit_type: "tank".into(),
+            quantity: Some(1),
+            manpower_cost: Some(3),
+            ticks_remaining: 1,
+            total_ticks: 8,
+        }];
+
+        let (remaining, events) = engine.process_unit_queue(&mut players, &mut regions, &unit_queue);
+        assert!(remaining.is_empty()); // Item is consumed even on failure
+        assert!(has_event(&events, |e| matches!(e, Event::UnitProductionFailed { .. })));
+        assert_eq!(regions["A"].units.get("tank").copied().unwrap_or(0), 0);
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. Combat resolution
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_attack_attacker_wins_overwhelmingly() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // p1 sends 100 units to p2's region C which only has 1 unit
+        // With combat_randomness=0.0 the result is deterministic
+        let item = TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 100,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+        // Give C only 1 unit
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 1);
+        regions.get_mut("C").unwrap().unit_count = 1;
+
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+
+        assert!(has_event(&events, |e| matches!(e, Event::AttackSuccess { target_region_id, .. }
+            if target_region_id == "C")),
+            "Should emit AttackSuccess");
+        assert_eq!(regions["C"].owner_id.as_deref(), Some("p1"),
+            "C should now belong to p1");
+        assert!(players["p1"].total_regions_conquered > 0);
+    }
+
+    #[test]
+    fn test_attack_defender_wins_overwhelmingly() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // p1 sends 1 unit to p2's region C which has 100 units
+        let item = TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 1,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 100);
+        regions.get_mut("C").unwrap().unit_count = 100;
+
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+
+        assert!(has_event(&events, |e| matches!(e, Event::AttackFailed { target_region_id, .. }
+            if target_region_id == "C")),
+            "Should emit AttackFailed");
+        assert_eq!(regions["C"].owner_id.as_deref(), Some("p2"),
+            "C should remain p2's");
+        assert_eq!(players["p1"].total_units_lost, 1);
+    }
+
+    #[test]
+    fn test_attack_success_removes_previous_owner() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let item = TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 100,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 1);
+
+        engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+
+        // Defender's units_lost should be recorded
+        assert!(players["p2"].total_units_lost >= 1);
+    }
+
+    #[test]
+    fn test_attack_success_on_capital_emits_capital_captured() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Make C a capital belonging to p2
+        regions.get_mut("C").unwrap().is_capital = true;
+        players.get_mut("p2").unwrap().capital_region_id = Some("C".into());
+
+        let item = TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 100,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 1);
+
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+
+        assert!(has_event(&events, |e| matches!(e, Event::CapitalCaptured { region_id, lost_by, .. }
+            if region_id == "C" && lost_by == "p2")),
+            "Should emit CapitalCaptured");
+    }
+
+    #[test]
+    fn test_defense_bonus_from_buildings_matters() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Give C a strong defense bonus via building
+        regions.get_mut("C").unwrap().defense_bonus = 5.0; // very high
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 10);
+
+        let item = TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 10, // equal units but defender has 5.0 bonus
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+
+        // With randomness=0, the massive defense bonus ensures defender wins
+        assert!(has_event(&events, |e| matches!(e, Event::AttackFailed { .. })),
+            "Defender should win with extreme defense bonus");
+    }
+
+    #[test]
+    fn test_attack_with_tank_unit_type() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Add tanks to B (attacker) and factory so they can station
+        regions.get_mut("B").unwrap().building_instances.push(
+            BuildingInstance { building_type: "factory".into(), level: 1 }
+        );
+        regions.get_mut("B").unwrap().units.insert("tank".into(), 5);
+        regions.get_mut("B").unwrap().units.insert("infantry".into(), 35); // 5 tanks * 3 manpower = 15 reserved
+
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 2);
+
+        let item = TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "tank".into(),
+            units: 5,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+
+        // 5 tanks vs 2 infantry — tanks should overwhelm
+        assert!(has_event(&events, |e| matches!(e, Event::AttackSuccess { unit_type, .. }
+            if unit_type == "tank")),
+            "Tank attack should succeed");
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. Movement / transit
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_attack_action_creates_transit_item() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+        // B belongs to p1; change B to p2 so it's a valid attack target
+        regions.get_mut("B").unwrap().owner_id = Some("p2".into());
+
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+        );
+
+        assert_eq!(transit_queue.len(), 1);
+        assert_eq!(transit_queue[0].action_type, "attack");
+        assert_eq!(transit_queue[0].units, 5);
+        assert!(has_event(&events, |e| matches!(e, Event::TroopsSent { action_type, .. }
+            if action_type == "attack")));
+    }
+
+    #[test]
+    fn test_move_action_creates_transit_item() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        // Both A and B owned by p1
+        let action = Action {
+            action_type: "move".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+        );
+
+        assert_eq!(transit_queue.len(), 1);
+        assert_eq!(transit_queue[0].action_type, "move");
+        assert!(has_event(&events, |e| matches!(e, Event::TroopsSent { action_type, .. }
+            if action_type == "move")));
+    }
+
+    #[test]
+    fn test_transit_move_arrival_delivers_units() {
+        let (engine, mut regions, _players) = make_linear_engine();
+        let initial_b = regions["B"].units.get("infantry").copied().unwrap_or(0);
+
+        let item = TransitQueueItem {
+            action_type: "move".into(),
+            source_region_id: "A".into(),
+            target_region_id: "B".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 5,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+
+        let events = engine.resolve_move_arrival(&item, &mut regions);
+
+        assert!(has_event(&events, |e| matches!(e, Event::UnitsMoved { .. })));
+        assert_eq!(
+            regions["B"].units.get("infantry").copied().unwrap_or(0),
+            initial_b + 5
+        );
+    }
+
+    #[test]
+    fn test_transit_queue_tick_decrement() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let mut transit_queue = vec![TransitQueueItem {
+            action_type: "move".into(),
+            source_region_id: "A".into(),
+            target_region_id: "B".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 5,
+            ticks_remaining: 3,
+            travel_ticks: 3,
+        }];
+
+        let (remaining, _events) = engine.process_transit_queue_with_shield(
+            &mut players, &mut regions, &transit_queue, &[],
+        );
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].ticks_remaining, 2);
+        transit_queue = remaining;
+
+        // Two more ticks to arrival
+        for _ in 0..2 {
+            let (rem, _) = engine.process_transit_queue_with_shield(
+                &mut players, &mut regions, &transit_queue, &[],
+            );
+            transit_queue = rem;
+        }
+        assert!(transit_queue.is_empty(), "After 3 total ticks queue should be empty");
+    }
+
+    // -------------------------------------------------------------------------
+    // 9. Active effects — tick-down and expiry
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_active_effect_ticks_down() {
+        let (engine, mut regions, _) = make_linear_engine();
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_shield".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "A".into(),
+            affected_region_ids: vec![],
+            ticks_remaining: 3,
+            total_ticks: 3,
+            params: serde_json::json!({}),
+        }];
+
+        engine.process_active_effects(&mut regions, &mut active_effects);
+        assert_eq!(active_effects.len(), 1);
+        assert_eq!(active_effects[0].ticks_remaining, 2);
+    }
+
+    #[test]
+    fn test_active_effect_expires_and_emits_event() {
+        let (engine, mut regions, _) = make_linear_engine();
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_shield".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "A".into(),
+            affected_region_ids: vec![],
+            ticks_remaining: 1,
+            total_ticks: 3,
+            params: serde_json::json!({}),
+        }];
+
+        let events = engine.process_active_effects(&mut regions, &mut active_effects);
+        assert!(active_effects.is_empty(), "Expired effect should be removed");
+        assert!(has_event(&events, |e| matches!(e, Event::AbilityEffectExpired {
+            effect_type, target_region_id
+        } if effect_type == "ab_shield" && target_region_id == "A")));
+    }
+
+    #[test]
+    fn test_multiple_active_effects_only_expired_removed() {
+        let (engine, mut regions, _) = make_linear_engine();
+        let mut active_effects = vec![
+            ActiveEffect {
+                effect_type: "ab_shield".into(),
+                source_player_id: "p1".into(),
+                target_region_id: "A".into(),
+                affected_region_ids: vec![],
+                ticks_remaining: 1, // expires this tick
+                total_ticks: 3,
+                params: serde_json::json!({}),
+            },
+            ActiveEffect {
+                effect_type: "ab_shield".into(),
+                source_player_id: "p1".into(),
+                target_region_id: "B".into(),
+                affected_region_ids: vec![],
+                ticks_remaining: 5, // still alive
+                total_ticks: 5,
+                params: serde_json::json!({}),
+            },
+        ];
+
+        engine.process_active_effects(&mut regions, &mut active_effects);
+        assert_eq!(active_effects.len(), 1, "Only B's shield should remain");
+        assert_eq!(active_effects[0].target_region_id, "B");
+        assert_eq!(active_effects[0].ticks_remaining, 4);
+    }
+
+    #[test]
+    fn test_nuke_effect_applies_damage_on_expiry() {
+        let (engine, mut regions, _) = make_linear_engine();
+        // Place 100 infantry in C (owned by p2)
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 100);
+        regions.get_mut("C").unwrap().unit_count = 100;
+
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_province_nuke".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "C".into(),
+            affected_region_ids: vec![],
+            ticks_remaining: 1,
+            total_ticks: 8,
+            params: serde_json::json!({ "damage": 100 }), // 100% kill
+        }];
+
+        engine.process_active_effects(&mut regions, &mut active_effects);
+
+        // At 100 damage, 100% of units killed (but capital keeps 1 — C is not capital so can go to 0)
+        let remaining = regions["C"].units.get("infantry").copied().unwrap_or(0);
+        assert!(remaining < 100, "Nuke should kill units; remaining: {}", remaining);
+        assert!(active_effects.is_empty());
+    }
+
+    #[test]
+    fn test_shield_blocks_attack() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let active_effects = vec![ActiveEffect {
+            effect_type: "ab_shield".into(),
+            source_player_id: "p2".into(),
+            target_region_id: "C".into(),
+            affected_region_ids: vec![],
+            ticks_remaining: 5,
+            total_ticks: 5,
+            params: serde_json::json!({}),
+        }];
+
+        // Deploy units from A to B first, then attack C from transit queue
+        let transit_queue = vec![TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 10,
+            ticks_remaining: 1,
+            travel_ticks: 1,
+        }];
+
+        let (remaining, events) = engine.process_transit_queue_with_shield(
+            &mut players, &mut regions, &transit_queue, &active_effects,
+        );
+
+        assert!(remaining.is_empty());
+        assert!(has_event(&events, |e| matches!(e, Event::ShieldBlocked { target_region_id, .. }
+            if target_region_id == "C")),
+            "Attack should be blocked by shield");
+        // Units should be returned to source
+        assert_eq!(regions["C"].owner_id.as_deref(), Some("p2"), "C should still belong to p2");
+    }
+
+    // -------------------------------------------------------------------------
+    // 10. Player elimination via capital loss
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_player_eliminated_when_capital_lost() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Set C as p2's capital
+        regions.get_mut("C").unwrap().is_capital = true;
+        players.get_mut("p2").unwrap().capital_region_id = Some("C".into());
+
+        // Simulate p1 capturing C
+        regions.get_mut("C").unwrap().owner_id = Some("p1".into());
+
+        let events = engine.check_conditions(&mut players, &mut regions);
+
+        assert!(has_event(&events, |e| matches!(e, Event::PlayerEliminated { player_id, .. }
+            if player_id == "p2")),
+            "p2 should be eliminated after capital lost");
+        assert!(!players["p2"].is_alive);
+        assert_eq!(players["p2"].eliminated_reason.as_deref(), Some("capital_lost"));
+    }
+
+    #[test]
+    fn test_eliminated_player_regions_are_cleared() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        regions.get_mut("C").unwrap().is_capital = true;
+        players.get_mut("p2").unwrap().capital_region_id = Some("C".into());
+        regions.get_mut("C").unwrap().owner_id = Some("p1".into());
+
+        engine.check_conditions(&mut players, &mut regions);
+
+        // D was owned by p2; should now be unowned and empty
+        let region_d = &regions["D"];
+        assert!(region_d.owner_id.is_none(), "D should be unowned after p2 eliminated");
+        assert!(region_d.units.is_empty(), "D's units should be cleared");
+        assert_eq!(region_d.unit_count, 0);
+    }
+
+    #[test]
+    fn test_alive_players_not_eliminated_without_capital_loss() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        players.get_mut("p1").unwrap().capital_region_id = Some("A".into());
+        regions.get_mut("A").unwrap().is_capital = true;
+        // A still owned by p1
+
+        let events = engine.check_conditions(&mut players, &mut regions);
+
+        assert!(!has_event(&events, |e| matches!(e, Event::PlayerEliminated { .. })));
+        assert!(players["p1"].is_alive);
+    }
+
+    #[test]
+    fn test_game_over_when_one_player_remains() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Eliminate p2 by capturing their capital
+        regions.get_mut("C").unwrap().is_capital = true;
+        players.get_mut("p2").unwrap().capital_region_id = Some("C".into());
+        regions.get_mut("C").unwrap().owner_id = Some("p1".into());
+
+        let events = engine.check_conditions(&mut players, &mut regions);
+
+        assert!(has_event(&events, |e| matches!(e, Event::GameOver { winner_id: Some(w) }
+            if w == "p1")),
+            "GameOver should be emitted with p1 as winner");
+    }
+
+    // -------------------------------------------------------------------------
+    // 11. Full process_tick integration
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_process_tick_no_actions_returns_no_elimination_events() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+        let mut active_effects = vec![];
+
+        let events = engine.process_tick(
+            &mut players,
+            &mut regions,
+            &[],
+            &mut buildings_queue,
+            &mut unit_queue,
+            &mut transit_queue,
+            1,
+            &mut active_effects,
+        );
+
+        assert!(!has_event(&events, |e| matches!(e, Event::PlayerEliminated { .. })));
+    }
+
+    #[test]
+    fn test_process_tick_building_completes_in_tick() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let mut buildings_queue = vec![BuildingQueueItem {
+            region_id: "A".into(),
+            building_type: "barracks".into(),
+            player_id: "p1".into(),
+            ticks_remaining: 1,
+            total_ticks: 5,
+            is_upgrade: false,
+            target_level: 0,
+        }];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+        let mut active_effects = vec![];
+
+        let events = engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+            1, &mut active_effects,
+        );
+
+        assert!(buildings_queue.is_empty());
+        assert!(has_event(&events, |e| matches!(e, Event::BuildingComplete { .. })));
+        assert_eq!(GameEngine::count_buildings(&regions["A"].building_instances, "barracks"), 1);
+    }
+
+    #[test]
+    fn test_process_tick_with_attack_action_creates_transit() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+        let mut active_effects = vec![];
+
+        // Change B to p2 so p1 can attack it
+        regions.get_mut("B").unwrap().owner_id = Some("p2".into());
+
+        let actions = vec![Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            ..Default::default()
+        }];
+
+        let events = engine.process_tick(
+            &mut players, &mut regions, &actions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+            1, &mut active_effects,
+        );
+
+        assert_eq!(transit_queue.len(), 1);
+        assert!(has_event(&events, |e| matches!(e, Event::TroopsSent { .. })));
+    }
+
+    // -------------------------------------------------------------------------
+    // 12. Building upgrade
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_upgrade_building_queue_completes_bumps_level() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // Pre-place a level-1 barracks
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "barracks".into(), level: 1 }
+        );
+        // Set player deck max level = 3 so upgrade is allowed
+        players.get_mut("p1").unwrap().building_levels.insert("barracks".into(), 3);
+
+        let buildings_queue = vec![BuildingQueueItem {
+            region_id: "A".into(),
+            building_type: "barracks".into(),
+            player_id: "p1".into(),
+            ticks_remaining: 1,
+            total_ticks: 10,
+            is_upgrade: true,
+            target_level: 2,
+        }];
+
+        let (remaining, events) = engine.process_buildings(&mut players, &mut regions, &buildings_queue);
+        assert!(remaining.is_empty());
+        assert!(has_event(&events, |e| matches!(e, Event::BuildingUpgraded {
+            region_id, building_type, new_level, ..
+        } if region_id == "A" && building_type == "barracks" && *new_level == 2)));
+
+        let inst = GameEngine::get_building_instance(&regions["A"].building_instances, "barracks", 0);
+        assert_eq!(inst.unwrap().level, 2);
+    }
+
+    #[test]
+    fn test_upgrade_action_rejected_without_existing_building() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // No barracks exists
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        let action = Action {
+            action_type: "upgrade_building".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+        );
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
+        assert!(buildings_queue.is_empty());
+    }
+
+    // -------------------------------------------------------------------------
+    // 13. process_tick sync — unit_count updated at end of tick
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_unit_count_synced_after_tick() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+        let mut active_effects = vec![];
+
+        // Manually corrupt unit_count to verify it gets resynced
+        regions.get_mut("A").unwrap().unit_count = 999;
+
+        engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+            1, &mut active_effects,
+        );
+
+        // After tick, unit_count should reflect actual units in the map
+        let actual_infantry = regions["A"].units.get("infantry").copied().unwrap_or(0);
+        // unit_count should no longer be 999
+        assert_ne!(regions["A"].unit_count, 999,
+            "unit_count should be resynced; infantry in map = {}", actual_infantry);
+    }
+
+    // -------------------------------------------------------------------------
+    // 14. Move rejection — target not owned by same player
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_move_action_rejected_when_target_not_owned() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // C is owned by p2; p1 cannot move there
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        let action = Action {
+            action_type: "move".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("B".into()),
+            target_region_id: Some("C".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+        );
+
+        assert!(transit_queue.is_empty());
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
+    }
+
+    // -------------------------------------------------------------------------
+    // 15. Attack out-of-range rejection
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_attack_action_rejected_out_of_range() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // infantry has attack_range=1; A to C is 2 hops — should be out of range
+        // A→B→C, infantry range 1, so A can only reach B directly
+        regions.get_mut("B").unwrap().owner_id = Some("p2".into()); // B is enemy so BFS can't pass through
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("C".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+        );
+        assert!(transit_queue.is_empty(), "Should not create transit for out-of-range attack");
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
     }
 }

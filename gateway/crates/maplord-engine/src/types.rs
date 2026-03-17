@@ -293,7 +293,7 @@ pub struct Player {
 fn default_true() -> bool { true }
 
 /// Region state stored in Redis.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Region {
     #[serde(default)]
     pub name: String,

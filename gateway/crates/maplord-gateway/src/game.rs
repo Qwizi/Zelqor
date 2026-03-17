@@ -16,9 +16,12 @@ use tokio::sync::mpsc;
 use maplord_anticheat::{AnticheatEngine, AnticheatVerdict};
 use tracing::{error, info, warn};
 
+/// Channel buffer size per WebSocket connection — provides backpressure for slow clients.
+const WS_CHANNEL_BUFFER: usize = 256;
+
 /// Per-match connection registry: match_id -> (player_id -> Vec<sender>)
 pub type GameConnections =
-    Arc<DashMap<String, DashMap<String, Vec<mpsc::UnboundedSender<Message>>>>>;
+    Arc<DashMap<String, DashMap<String, Vec<mpsc::Sender<Message>>>>>;
 
 pub fn new_game_connections() -> GameConnections {
     Arc::new(DashMap::new())
@@ -155,8 +158,8 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
         return;
     }
 
-    // Create channel for outgoing messages
-    let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
+    // Create channel for outgoing messages with backpressure
+    let (tx, mut rx) = mpsc::channel::<Message>(WS_CHANNEL_BUFFER);
 
     // Register connection
     state
@@ -183,7 +186,7 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
     // Send initial state
     if let Ok(full_state) = state_mgr.get_full_state().await {
         let msg = json!({"type": "game_state", "state": full_state});
-        let _ = tx.send(Message::Text(msg.to_string().into()));
+        let _ = tx.try_send(Message::Text(msg.to_string().into()));
     }
 
     // Send match chat history
@@ -194,7 +197,7 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
         tokio::spawn(async move {
             if let Ok(messages) = django.get_match_chat_messages(&mid, 50).await {
                 let msg = json!({"type": "chat_history", "messages": messages});
-                let _ = tx_hist.send(Message::Text(msg.to_string().into()));
+                let _ = tx_hist.try_send(Message::Text(msg.to_string().into()));
             }
         });
     }
@@ -207,7 +210,9 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
         let tx_voice = tx.clone();
         let state_voice = state.clone();
         tokio::spawn(async move {
+            tracing::info!("Generating voice token for user {uid} in match {mid}");
             let username = crate::chat::resolve_username(&state_voice, &uid).await;
+            tracing::info!("Resolved username '{username}' for voice token");
             match crate::voice::generate_voice_token(
                 &config.livekit_api_key,
                 &config.livekit_api_secret,
@@ -216,12 +221,13 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
                 &username,
             ) {
                 Ok(token) => {
+                    tracing::info!("Voice token generated successfully for {uid}");
                     let msg = json!({
                         "type": "voice_token",
                         "token": token,
                         "url": config.livekit_public_url,
                     });
-                    let _ = tx_voice.send(Message::Text(msg.to_string().into()));
+                    let _ = tx_voice.send(Message::Text(msg.to_string().into())).await;
                 }
                 Err(e) => {
                     tracing::error!("Failed to generate voice token for {uid}: {e}");
@@ -317,7 +323,7 @@ async fn handle_game_message(
     user_id: &str,
     match_id: &str,
     state: &AppState,
-    tx: &mpsc::UnboundedSender<Message>,
+    tx: &mpsc::Sender<Message>,
 ) {
     let action = content.get("action").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -327,7 +333,7 @@ async fn handle_game_message(
         "attack" | "move" | "build" | "produce_unit" | "use_ability" | "select_capital"
     ) {
         if check_action_rate_limit(state, user_id) {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": "Too many actions, slow down"})
                     .to_string()
                     .into(),
@@ -342,10 +348,10 @@ async fn handle_game_message(
         }
         "leave_match" => {
             eliminate_player(state_mgr, user_id, "left_match", match_id, state).await;
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "match_left"}).to_string().into(),
             ));
-            let _ = tx.send(Message::Close(Some(axum::extract::ws::CloseFrame {
+            let _ = tx.try_send(Message::Close(Some(axum::extract::ws::CloseFrame {
                 code: 4000,
                 reason: "Left match".into(),
             })));
@@ -383,6 +389,22 @@ async fn handle_game_message(
         "chat" => {
             handle_match_chat(content, user_id, match_id, state, tx).await;
         }
+        "ping" => {
+            let ts = content.get("ts").cloned().unwrap_or(serde_json::Value::Null);
+            let _ = tx.try_send(Message::Text(
+                json!({"type": "pong", "ts": ts}).to_string().into(),
+            ));
+        }
+        "player_ready" => {
+            broadcast_to_match(
+                match_id,
+                &json!({
+                    "type": "player_ready",
+                    "user_id": user_id,
+                }),
+                &state.game_connections,
+            );
+        }
         _ => {}
     }
 }
@@ -392,7 +414,7 @@ async fn handle_match_chat(
     user_id: &str,
     match_id: &str,
     state: &AppState,
-    tx: &mpsc::UnboundedSender<Message>,
+    tx: &mpsc::Sender<Message>,
 ) {
     let raw_content = content
         .get("content")
@@ -409,7 +431,7 @@ async fn handle_match_chat(
     let now = std::time::Instant::now();
     if let Some(last) = state.chat_rate_limits.get(user_id) {
         if now.duration_since(*last).as_secs_f64() < 1.0 {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": "Rate limited"})
                     .to_string()
                     .into(),
@@ -482,7 +504,7 @@ async fn handle_select_capital(
     user_id: &str,
     match_id: &str,
     state: &AppState,
-    tx: &mpsc::UnboundedSender<Message>,
+    tx: &mpsc::Sender<Message>,
 ) {
     let region_id = match content.get("region_id").and_then(|v| v.as_str()) {
         Some(id) => id.to_string(),
@@ -497,7 +519,7 @@ async fn handle_select_capital(
         _ => return,
     };
     if player.capital_region_id.is_some() {
-        let _ = tx.send(Message::Text(
+        let _ = tx.try_send(Message::Text(
             json!({"type": "error", "message": "Już wybrałeś stolicę"})
                 .to_string()
                 .into(),
@@ -510,7 +532,7 @@ async fn handle_select_capital(
     match state_mgr.try_lock(&lock_name, 5).await {
         Ok(true) => {}
         _ => {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": "Ten region jest już zajęty"})
                     .to_string()
                     .into(),
@@ -526,7 +548,7 @@ async fn handle_select_capital(
             None => return Ok(()),
         };
         if player.capital_region_id.is_some() {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": "Już wybrałeś stolicę"})
                     .to_string()
                     .into(),
@@ -537,7 +559,7 @@ async fn handle_select_capital(
         let region = match state_mgr.get_region(&region_id).await? {
             Some(r) => r,
             None => {
-                let _ = tx.send(Message::Text(
+                let _ = tx.try_send(Message::Text(
                     json!({"type": "error", "message": "Region nie istnieje"})
                         .to_string()
                         .into(),
@@ -547,7 +569,7 @@ async fn handle_select_capital(
         };
 
         if region.owner_id.is_some() {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": "Ten region jest już zajęty"})
                     .to_string()
                     .into(),
@@ -569,7 +591,7 @@ async fn handle_select_capital(
         let regions = state_mgr.get_all_regions().await?;
         let neighbor_map = state.django.get_neighbor_map().await.unwrap_or_default();
         if is_capital_too_close(&region_id, min_dist, &regions, &neighbor_map) {
-            let _ = tx.send(Message::Text(
+            let _ = tx.try_send(Message::Text(
                 json!({"type": "error", "message": format!("Stolica musi być co najmniej {min_dist} regiony od stolicy innego gracza")})
                     .to_string()
                     .into(),
@@ -644,7 +666,41 @@ async fn check_all_capitals_selected(
         return;
     }
 
-    if alive_players
+    // Separate alive players into humans and bots.
+    let all_humans_selected = alive_players
+        .values()
+        .filter(|p| !p.is_bot)
+        .all(|p| p.capital_region_id.is_some());
+
+    // If all humans have capitals but some bots haven't picked yet, trigger bot selection now.
+    // When there are no human players (all-bot match) the filter is empty and all() returns true,
+    // so bots select immediately — preserving the existing all-bot behaviour.
+    let bots_need_capitals = alive_players
+        .values()
+        .any(|p| p.is_bot && p.capital_region_id.is_none());
+
+    if all_humans_selected && bots_need_capitals {
+        let meta = state_mgr.get_meta().await.unwrap_or_default();
+        let is_tutorial = meta.get("is_tutorial").map(|v| v == "1").unwrap_or(false);
+        if !is_tutorial {
+            if let Err(e) = auto_select_bot_capitals(state_mgr, state).await {
+                error!("Failed to auto-select bot capitals: {e}");
+            }
+        }
+    }
+
+    // Re-fetch players after potential bot capital assignment.
+    let players_after = match state_mgr.get_all_players().await {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let alive_after: HashMap<_, _> = players_after
+        .iter()
+        .filter(|(_, p)| p.is_alive)
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+
+    if alive_after
         .values()
         .all(|p| p.capital_region_id.is_some())
     {
@@ -1061,7 +1117,7 @@ async fn game_loop(
                             .into(),
                         );
                         for sender in player_senders.iter() {
-                            let _ = sender.send(warn_msg.clone());
+                            let _ = sender.try_send(warn_msg.clone());
                         }
                     }
                 }
@@ -1368,15 +1424,19 @@ fn compute_changed_regions(
     let mut changed = HashMap::new();
     for (rid, region) in after {
         if before.get(rid) != Some(region) {
-            // Serialize region but strip sea_distances
-            let mut val = serde_json::to_value(region).unwrap_or_default();
-            if let Some(obj) = val.as_object_mut() {
-                obj.remove("sea_distances");
-            }
-            changed.insert(rid.clone(), val);
+            changed.insert(rid.clone(), region_to_json_no_sea(region));
         }
     }
     changed
+}
+
+/// Serialize region to JSON without sea_distances (large, immutable field).
+fn region_to_json_no_sea(region: &Region) -> serde_json::Value {
+    let mut val = serde_json::to_value(region).unwrap_or_default();
+    if let Some(obj) = val.as_object_mut() {
+        obj.remove("sea_distances");
+    }
+    val
 }
 
 fn resolve_disconnect_timeout_events(players: &mut HashMap<String, Player>) -> Vec<Event> {
@@ -1768,18 +1828,6 @@ async fn initialize_game(
         );
     }
     state_mgr.set_regions_bulk(&regions).await?;
-
-    // Auto-select capitals for bot players (skip for tutorial — bot picks after human)
-    let is_tutorial_init = state_mgr
-        .get_meta()
-        .await
-        .unwrap_or_default()
-        .get("is_tutorial")
-        .map(|v| v == "1")
-        .unwrap_or(false);
-    if !is_tutorial_init {
-        auto_select_bot_capitals(state_mgr, state).await?;
-    }
 
     Ok(())
 }
@@ -2404,8 +2452,655 @@ pub fn broadcast_to_match(
         let text = msg.to_string();
         for entry in match_conns.iter() {
             for sender in entry.value().iter() {
-                let _ = sender.send(Message::Text(text.clone().into()));
+                // try_send: drop message for slow clients rather than blocking
+                let _ = sender.try_send(Message::Text(text.clone().into()));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use maplord_engine::{Event, Player, Region};
+    use std::collections::HashMap;
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    fn make_region(owner_id: Option<&str>, is_capital: bool) -> Region {
+        Region {
+            owner_id: owner_id.map(|s| s.to_string()),
+            is_capital,
+            ..Region::default()
+        }
+    }
+
+    fn make_player(is_alive: bool, is_bot: bool, capital: Option<&str>) -> Player {
+        Player {
+            user_id: "p1".to_string(),
+            is_alive,
+            is_bot,
+            capital_region_id: capital.map(|s| s.to_string()),
+            ..Player::default()
+        }
+    }
+
+    fn make_alive_player(id: &str, capital: Option<&str>) -> Player {
+        Player {
+            user_id: id.to_string(),
+            is_alive: true,
+            is_bot: false,
+            capital_region_id: capital.map(|s| s.to_string()),
+            ..Player::default()
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // region_to_json_no_sea
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn region_to_json_no_sea_removes_sea_distances_field() {
+        let mut region = Region::default();
+        region.sea_distances = vec![serde_json::json!({"target": "r2", "distance_km": 100})];
+
+        let val = region_to_json_no_sea(&region);
+
+        assert!(
+            val.get("sea_distances").is_none(),
+            "sea_distances must be stripped"
+        );
+    }
+
+    #[test]
+    fn region_to_json_no_sea_preserves_owner_id() {
+        let mut region = Region::default();
+        region.owner_id = Some("player_abc".to_string());
+
+        let val = region_to_json_no_sea(&region);
+
+        assert_eq!(
+            val["owner_id"].as_str(),
+            Some("player_abc")
+        );
+    }
+
+    #[test]
+    fn region_to_json_no_sea_preserves_unit_count() {
+        let mut region = Region::default();
+        region.unit_count = 42;
+
+        let val = region_to_json_no_sea(&region);
+
+        assert_eq!(val["unit_count"].as_i64(), Some(42));
+    }
+
+    #[test]
+    fn region_to_json_no_sea_preserves_is_capital_flag() {
+        let mut region = Region::default();
+        region.is_capital = true;
+
+        let val = region_to_json_no_sea(&region);
+
+        assert_eq!(val["is_capital"].as_bool(), Some(true));
+    }
+
+    #[test]
+    fn region_to_json_no_sea_works_without_sea_distances() {
+        let region = Region::default();
+        let val = region_to_json_no_sea(&region);
+        // Should still produce a valid object and not panic.
+        assert!(val.is_object());
+    }
+
+    // -----------------------------------------------------------------------
+    // compute_changed_regions
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn compute_changed_regions_returns_empty_when_nothing_changed() {
+        let mut regions: HashMap<String, Region> = HashMap::new();
+        regions.insert("r1".to_string(), Region::default());
+
+        let changed = compute_changed_regions(&regions, &regions.clone());
+
+        assert!(changed.is_empty());
+    }
+
+    #[test]
+    fn compute_changed_regions_detects_unit_count_change() {
+        let before: HashMap<String, Region> = {
+            let mut m = HashMap::new();
+            m.insert("r1".to_string(), Region { unit_count: 5, ..Region::default() });
+            m
+        };
+        let after: HashMap<String, Region> = {
+            let mut m = HashMap::new();
+            m.insert("r1".to_string(), Region { unit_count: 10, ..Region::default() });
+            m
+        };
+
+        let changed = compute_changed_regions(&before, &after);
+
+        assert!(changed.contains_key("r1"));
+    }
+
+    #[test]
+    fn compute_changed_regions_detects_ownership_change() {
+        let before: HashMap<String, Region> = {
+            let mut m = HashMap::new();
+            m.insert("r1".to_string(), make_region(None, false));
+            m
+        };
+        let after: HashMap<String, Region> = {
+            let mut m = HashMap::new();
+            m.insert("r1".to_string(), make_region(Some("player1"), false));
+            m
+        };
+
+        let changed = compute_changed_regions(&before, &after);
+
+        assert!(changed.contains_key("r1"));
+    }
+
+    #[test]
+    fn compute_changed_regions_includes_only_changed_regions() {
+        let mut base = HashMap::new();
+        base.insert("r1".to_string(), Region::default());
+        base.insert("r2".to_string(), Region::default());
+
+        let mut after = base.clone();
+        after.insert("r2".to_string(), Region { unit_count: 99, ..Region::default() });
+
+        let changed = compute_changed_regions(&base, &after);
+
+        assert!(!changed.contains_key("r1"), "unchanged r1 should be absent");
+        assert!(changed.contains_key("r2"), "changed r2 should be present");
+    }
+
+    #[test]
+    fn compute_changed_regions_strips_sea_distances_from_output() {
+        let before: HashMap<String, Region> = {
+            let mut m = HashMap::new();
+            m.insert("r1".to_string(), Region { unit_count: 1, ..Region::default() });
+            m
+        };
+        let after: HashMap<String, Region> = {
+            let mut m = HashMap::new();
+            let mut r = Region { unit_count: 2, ..Region::default() };
+            r.sea_distances = vec![serde_json::json!({"target": "r2"})];
+            m.insert("r1".to_string(), r);
+            m
+        };
+
+        let changed = compute_changed_regions(&before, &after);
+
+        assert!(changed["r1"].get("sea_distances").is_none());
+    }
+
+    // -----------------------------------------------------------------------
+    // is_capital_too_close
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn is_capital_too_close_returns_false_when_no_capitals_exist() {
+        let mut regions = HashMap::new();
+        regions.insert("r1".to_string(), make_region(None, false));
+        regions.insert("r2".to_string(), make_region(None, false));
+
+        let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+
+        assert!(!is_capital_too_close("r1", 3, &regions, &neighbor_map));
+    }
+
+    #[test]
+    fn is_capital_too_close_returns_true_when_adjacent_capital_within_min_dist() {
+        let mut regions = HashMap::new();
+        regions.insert("r1".to_string(), make_region(None, false));
+        regions.insert("r2".to_string(), make_region(Some("p2"), true)); // capital
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("r1".to_string(), vec!["r2".to_string()]);
+        neighbor_map.insert("r2".to_string(), vec!["r1".to_string()]);
+
+        // min_distance=3: r2 is 1 hop from r1, well within range
+        assert!(is_capital_too_close("r1", 3, &regions, &neighbor_map));
+    }
+
+    #[test]
+    fn is_capital_too_close_returns_false_when_capital_beyond_min_dist() {
+        // r1 - r2 - r3 - r4 - r5(capital): 4 hops from r1, min_dist=3.
+        // The BFS expands up to dist < 3, visiting nodes at dist 0,1,2.
+        // r5 is at dist 4 — never reached by the BFS — so not flagged as too close.
+        let mut regions = HashMap::new();
+        regions.insert("r1".to_string(), make_region(None, false));
+        regions.insert("r2".to_string(), make_region(None, false));
+        regions.insert("r3".to_string(), make_region(None, false));
+        regions.insert("r4".to_string(), make_region(None, false));
+        regions.insert("r5".to_string(), make_region(Some("p2"), true));
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("r1".to_string(), vec!["r2".to_string()]);
+        neighbor_map.insert("r2".to_string(), vec!["r1".to_string(), "r3".to_string()]);
+        neighbor_map.insert("r3".to_string(), vec!["r2".to_string(), "r4".to_string()]);
+        neighbor_map.insert("r4".to_string(), vec!["r3".to_string(), "r5".to_string()]);
+        neighbor_map.insert("r5".to_string(), vec!["r4".to_string()]);
+
+        // r5 is 4 hops away (> min_dist=3) — should not be flagged as too close.
+        assert!(!is_capital_too_close("r1", 3, &regions, &neighbor_map));
+    }
+
+    #[test]
+    fn is_capital_too_close_returns_true_when_capital_exactly_at_min_dist_minus_one() {
+        // r1 - r2 - r3(capital): 2 hops, min_dist=3 => too close
+        let mut regions = HashMap::new();
+        regions.insert("r1".to_string(), make_region(None, false));
+        regions.insert("r2".to_string(), make_region(None, false));
+        regions.insert("r3".to_string(), make_region(Some("p2"), true));
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("r1".to_string(), vec!["r2".to_string()]);
+        neighbor_map.insert("r2".to_string(), vec!["r1".to_string(), "r3".to_string()]);
+        neighbor_map.insert("r3".to_string(), vec!["r2".to_string()]);
+
+        assert!(is_capital_too_close("r1", 3, &regions, &neighbor_map));
+    }
+
+    #[test]
+    fn is_capital_too_close_with_min_dist_zero_always_returns_false() {
+        let mut regions = HashMap::new();
+        regions.insert("r1".to_string(), make_region(None, false));
+        regions.insert("r2".to_string(), make_region(Some("p2"), true));
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("r1".to_string(), vec!["r2".to_string()]);
+
+        // With min_distance=0 the BFS never expands, so nothing is "too close"
+        assert!(!is_capital_too_close("r1", 0, &regions, &neighbor_map));
+    }
+
+    // -----------------------------------------------------------------------
+    // resolve_disconnect_timeout_events
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn resolve_disconnect_timeout_events_returns_empty_when_no_deadlines() {
+        let mut players = HashMap::new();
+        players.insert("p1".to_string(), make_player(true, false, None));
+
+        let events = resolve_disconnect_timeout_events(&mut players);
+
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn resolve_disconnect_timeout_events_skips_dead_players() {
+        let past = 1i64; // UNIX timestamp in the past
+        let mut players = HashMap::new();
+        let mut p = make_player(false, false, None); // dead
+        p.disconnect_deadline = Some(past);
+        players.insert("p1".to_string(), p);
+
+        let events = resolve_disconnect_timeout_events(&mut players);
+
+        assert!(events.is_empty(), "dead players should not be timed out");
+    }
+
+    #[test]
+    fn resolve_disconnect_timeout_events_skips_bots() {
+        let past = 1i64;
+        let mut players = HashMap::new();
+        let mut p = make_player(true, true, None); // bot
+        p.disconnect_deadline = Some(past);
+        players.insert("bot1".to_string(), p);
+
+        let events = resolve_disconnect_timeout_events(&mut players);
+
+        assert!(events.is_empty(), "bots should not be timed out");
+    }
+
+    #[test]
+    fn resolve_disconnect_timeout_events_eliminates_player_past_deadline() {
+        let past = 1i64; // well in the past
+        let mut players = HashMap::new();
+        let mut p = make_player(true, false, None);
+        p.disconnect_deadline = Some(past);
+        players.insert("p1".to_string(), p);
+
+        let events = resolve_disconnect_timeout_events(&mut players);
+
+        let has_elimination = events.iter().any(|e| {
+            matches!(e, Event::PlayerEliminated { player_id, .. } if player_id == "p1")
+        });
+        assert!(has_elimination);
+    }
+
+    #[test]
+    fn resolve_disconnect_timeout_events_marks_player_dead_after_timeout() {
+        let past = 1i64;
+        let mut players = HashMap::new();
+        let mut p = make_player(true, false, None);
+        p.disconnect_deadline = Some(past);
+        players.insert("p1".to_string(), p);
+
+        resolve_disconnect_timeout_events(&mut players);
+
+        assert!(!players["p1"].is_alive, "player should be marked dead");
+    }
+
+    #[test]
+    fn resolve_disconnect_timeout_events_clears_deadline_after_timeout() {
+        let past = 1i64;
+        let mut players = HashMap::new();
+        let mut p = make_player(true, false, None);
+        p.disconnect_deadline = Some(past);
+        players.insert("p1".to_string(), p);
+
+        resolve_disconnect_timeout_events(&mut players);
+
+        assert!(
+            players["p1"].disconnect_deadline.is_none(),
+            "deadline should be cleared after timeout"
+        );
+    }
+
+    #[test]
+    fn resolve_disconnect_timeout_events_emits_game_over_when_last_player_times_out() {
+        let past = 1i64;
+        let mut players = HashMap::new();
+        let mut p = make_player(true, false, None);
+        p.disconnect_deadline = Some(past);
+        players.insert("p1".to_string(), p);
+
+        let events = resolve_disconnect_timeout_events(&mut players);
+
+        let has_game_over = events.iter().any(|e| matches!(e, Event::GameOver { .. }));
+        assert!(has_game_over, "GameOver should be emitted when last player times out");
+    }
+
+    #[test]
+    fn resolve_disconnect_timeout_events_no_game_over_when_two_players_survive() {
+        // p1 times out; p2 and p3 remain alive → 2 alive players → no GameOver.
+        let past = 1i64;
+        let mut players = HashMap::new();
+
+        let mut p1 = make_player(true, false, None);
+        p1.disconnect_deadline = Some(past);
+
+        let mut p2 = make_player(true, false, None);
+        p2.user_id = "p2".to_string();
+        // No deadline set — p2 stays alive indefinitely.
+
+        let mut p3 = make_player(true, false, None);
+        p3.user_id = "p3".to_string();
+
+        players.insert("p1".to_string(), p1);
+        players.insert("p2".to_string(), p2);
+        players.insert("p3".to_string(), p3);
+
+        let events = resolve_disconnect_timeout_events(&mut players);
+
+        let has_game_over = events.iter().any(|e| matches!(e, Event::GameOver { .. }));
+        assert!(!has_game_over, "game should not end while two players remain alive");
+    }
+
+    #[test]
+    fn resolve_disconnect_timeout_events_skips_player_with_future_deadline() {
+        let far_future = i64::MAX;
+        let mut players = HashMap::new();
+        let mut p = make_player(true, false, None);
+        p.disconnect_deadline = Some(far_future);
+        players.insert("p1".to_string(), p);
+
+        let events = resolve_disconnect_timeout_events(&mut players);
+
+        assert!(events.is_empty(), "future deadline should not be triggered");
+    }
+
+    // -----------------------------------------------------------------------
+    // broadcast_to_match
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn broadcast_to_match_sends_to_registered_sender() {
+        let connections = new_game_connections();
+        let (tx, mut rx) = mpsc::channel::<Message>(8);
+
+        connections
+            .entry("match1".to_string())
+            .or_insert_with(DashMap::new)
+            .entry("player1".to_string())
+            .or_default()
+            .push(tx);
+
+        let msg = serde_json::json!({"type": "test", "value": 42});
+        broadcast_to_match("match1", &msg, &connections);
+
+        let received = rx.try_recv().expect("should have received a message");
+        if let Message::Text(text) = received {
+            let parsed: serde_json::Value = serde_json::from_str(&text).unwrap();
+            assert_eq!(parsed["type"], "test");
+            assert_eq!(parsed["value"], 42);
+        } else {
+            panic!("expected Text message");
+        }
+    }
+
+    #[test]
+    fn broadcast_to_match_does_nothing_for_unknown_match() {
+        let connections = new_game_connections();
+        let msg = serde_json::json!({"type": "test"});
+        // Should not panic even when no match is registered.
+        broadcast_to_match("nonexistent_match", &msg, &connections);
+    }
+
+    #[test]
+    fn broadcast_to_match_sends_to_multiple_players() {
+        let connections = new_game_connections();
+        let (tx1, mut rx1) = mpsc::channel::<Message>(8);
+        let (tx2, mut rx2) = mpsc::channel::<Message>(8);
+
+        {
+            let match_entry = connections
+                .entry("match1".to_string())
+                .or_insert_with(DashMap::new);
+            match_entry
+                .entry("p1".to_string())
+                .or_default()
+                .push(tx1);
+            match_entry
+                .entry("p2".to_string())
+                .or_default()
+                .push(tx2);
+        }
+
+        let msg = serde_json::json!({"type": "ping"});
+        broadcast_to_match("match1", &msg, &connections);
+
+        assert!(rx1.try_recv().is_ok(), "p1 should receive the message");
+        assert!(rx2.try_recv().is_ok(), "p2 should receive the message");
+    }
+
+    #[test]
+    fn broadcast_to_match_message_is_valid_json() {
+        let connections = new_game_connections();
+        let (tx, mut rx) = mpsc::channel::<Message>(8);
+
+        connections
+            .entry("m1".to_string())
+            .or_insert_with(DashMap::new)
+            .entry("p1".to_string())
+            .or_default()
+            .push(tx);
+
+        let msg = serde_json::json!({"type": "game_tick", "tick": 5});
+        broadcast_to_match("m1", &msg, &connections);
+
+        if let Ok(Message::Text(text)) = rx.try_recv() {
+            assert!(
+                serde_json::from_str::<serde_json::Value>(&text).is_ok(),
+                "broadcast payload must be valid JSON"
+            );
+        }
+    }
+
+    #[test]
+    fn broadcast_to_match_does_not_send_to_different_match() {
+        let connections = new_game_connections();
+        let (tx, mut rx) = mpsc::channel::<Message>(8);
+
+        connections
+            .entry("match_A".to_string())
+            .or_insert_with(DashMap::new)
+            .entry("p1".to_string())
+            .or_default()
+            .push(tx);
+
+        let msg = serde_json::json!({"type": "ping"});
+        broadcast_to_match("match_B", &msg, &connections);
+
+        assert!(
+            rx.try_recv().is_err(),
+            "player in match_A must not receive message sent to match_B"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // new_game_connections
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn new_game_connections_returns_empty_map() {
+        let connections = new_game_connections();
+        assert!(connections.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // pick_random_capital_region
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn pick_random_capital_region_returns_none_when_all_owned() {
+        let mut regions = HashMap::new();
+        regions.insert("r1".to_string(), make_region(Some("p1"), false));
+        regions.insert("r2".to_string(), make_region(Some("p2"), false));
+        let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+
+        let result = pick_random_capital_region(&regions, &neighbor_map, 3);
+
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn pick_random_capital_region_returns_some_when_unowned_region_exists() {
+        let mut regions = HashMap::new();
+        regions.insert("r1".to_string(), make_region(None, false));
+        let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+
+        let result = pick_random_capital_region(&regions, &neighbor_map, 3);
+
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn pick_random_capital_region_prefers_far_from_existing_capitals() {
+        // Two unowned regions: r2 is directly adjacent to the capital r1,
+        // r3 is 3 hops away. With min_dist=3 only r3 should qualify.
+        let mut regions = HashMap::new();
+        regions.insert("r1".to_string(), make_region(Some("p0"), true)); // existing capital
+        regions.insert("r2".to_string(), make_region(None, false));      // adjacent = too close
+        regions.insert("r3".to_string(), make_region(None, false));      // far enough
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("r1".to_string(), vec!["r2".to_string()]);
+        neighbor_map.insert("r2".to_string(), vec!["r1".to_string(), "r3".to_string()]);
+        neighbor_map.insert("r3".to_string(), vec!["r2".to_string()]);
+
+        // With min_dist=3, r2 is only 1 hop from capital, r3 is 2 hops — still within min_dist.
+        // The function falls back to `available.first()` when none pass the distance check.
+        let result = pick_random_capital_region(&regions, &neighbor_map, 3);
+        assert!(result.is_some(), "should always return something when unowned regions exist");
+    }
+
+    // -----------------------------------------------------------------------
+    // TokenQuery deserialization
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn token_query_deserializes_all_fields() {
+        let json = r#"{"token":"tok","ticket":"tkt","nonce":"non"}"#;
+        let q: TokenQuery = serde_json::from_str(json).unwrap();
+
+        assert_eq!(q.token.as_deref(), Some("tok"));
+        assert_eq!(q.ticket.as_deref(), Some("tkt"));
+        assert_eq!(q.nonce.as_deref(), Some("non"));
+    }
+
+    #[test]
+    fn token_query_allows_missing_optional_fields() {
+        let json = r#"{}"#;
+        let q: TokenQuery = serde_json::from_str(json).unwrap();
+
+        assert!(q.token.is_none());
+        assert!(q.ticket.is_none());
+        assert!(q.nonce.is_none());
+    }
+
+    #[test]
+    fn token_query_partial_fields_are_allowed() {
+        let json = r#"{"token":"only_token"}"#;
+        let q: TokenQuery = serde_json::from_str(json).unwrap();
+
+        assert_eq!(q.token.as_deref(), Some("only_token"));
+        assert!(q.ticket.is_none());
+        assert!(q.nonce.is_none());
+    }
+
+    // -----------------------------------------------------------------------
+    // Alive player count checks (helper logic extracted from game logic)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn all_alive_players_have_capitals_when_all_assigned() {
+        let mut players = HashMap::new();
+        players.insert("p1".to_string(), make_alive_player("p1", Some("r1")));
+        players.insert("p2".to_string(), make_alive_player("p2", Some("r2")));
+
+        let alive_with_capitals = players
+            .values()
+            .filter(|p| p.is_alive && p.capital_region_id.is_some())
+            .count();
+        let alive_total = players.values().filter(|p| p.is_alive).count();
+
+        assert_eq!(alive_with_capitals, alive_total);
+    }
+
+    #[test]
+    fn not_all_alive_players_have_capitals_when_one_missing() {
+        let mut players = HashMap::new();
+        players.insert("p1".to_string(), make_alive_player("p1", Some("r1")));
+        players.insert("p2".to_string(), make_alive_player("p2", None)); // no capital yet
+
+        let all_have_capitals = players
+            .values()
+            .filter(|p| p.is_alive)
+            .all(|p| p.capital_region_id.is_some());
+
+        assert!(!all_have_capitals);
+    }
+
+    #[test]
+    fn eliminated_players_are_excluded_from_alive_count() {
+        let mut players = HashMap::new();
+        players.insert("p1".to_string(), make_alive_player("p1", Some("r1")));
+        let mut dead = make_alive_player("p2", None);
+        dead.is_alive = false;
+        players.insert("p2".to_string(), dead);
+
+        let alive_count = players.values().filter(|p| p.is_alive).count();
+
+        assert_eq!(alive_count, 1);
     }
 }

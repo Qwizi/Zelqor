@@ -360,8 +360,16 @@ class GameInternalController(ControllerBase):
         if not check_internal_secret(request):
             return self.create_response({'error': 'Unauthorized'}, status_code=403)
 
+        from django.core.cache import cache
+        cache_key = "internal:neighbor_map"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         from apps.geo.models import Region
         neighbor_map = {}
         for region in Region.objects.prefetch_related('neighbors').all():
             neighbor_map[str(region.id)] = [str(n.id) for n in region.neighbors.all()]
-        return {'neighbors': neighbor_map}
+        result = {'neighbors': neighbor_map}
+        cache.set(cache_key, result, timeout=86400)  # 24h — immutable after import
+        return result

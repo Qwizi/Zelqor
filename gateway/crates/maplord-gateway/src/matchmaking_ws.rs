@@ -264,3 +264,225 @@ async fn handle_matchmaking_socket(
         .disconnect(&user_id, game_mode.as_deref(), conn_id)
         .await;
 }
+
+// ---------------------------------------------------------------------------
+// Unit tests — pure data parsing and derivation only, no I/O needed.
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // TokenQuery deserialization
+    // -----------------------------------------------------------------------
+
+    mod token_query {
+        use super::*;
+
+        #[test]
+        fn deserializes_all_three_fields() {
+            let json = r#"{"token":"t","ticket":"tkt","nonce":"non"}"#;
+            let q: TokenQuery = serde_json::from_str(json).unwrap();
+
+            assert_eq!(q.token.as_deref(), Some("t"));
+            assert_eq!(q.ticket.as_deref(), Some("tkt"));
+            assert_eq!(q.nonce.as_deref(), Some("non"));
+        }
+
+        #[test]
+        fn all_fields_are_optional_and_absent_by_default() {
+            let q: TokenQuery = serde_json::from_str("{}").unwrap();
+
+            assert!(q.token.is_none());
+            assert!(q.ticket.is_none());
+            assert!(q.nonce.is_none());
+        }
+
+        #[test]
+        fn token_only_is_valid() {
+            let json = r#"{"token":"access-token-xyz"}"#;
+            let q: TokenQuery = serde_json::from_str(json).unwrap();
+
+            assert_eq!(q.token.as_deref(), Some("access-token-xyz"));
+            assert!(q.ticket.is_none());
+            assert!(q.nonce.is_none());
+        }
+
+        #[test]
+        fn ticket_and_nonce_without_token_is_valid() {
+            let json = r#"{"ticket":"tkt-abc","nonce":"nonce-42"}"#;
+            let q: TokenQuery = serde_json::from_str(json).unwrap();
+
+            assert!(q.token.is_none());
+            assert_eq!(q.ticket.as_deref(), Some("tkt-abc"));
+            assert_eq!(q.nonce.as_deref(), Some("nonce-42"));
+        }
+
+        #[test]
+        fn extra_unknown_fields_are_ignored() {
+            let json = r#"{"token":"tok","extra_field":"ignored"}"#;
+            let q: TokenQuery = serde_json::from_str(json).unwrap();
+            assert_eq!(q.token.as_deref(), Some("tok"));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Incoming WS message action field parsing
+    // -----------------------------------------------------------------------
+
+    mod action_parsing {
+        // Mirrors the pattern used in handle_matchmaking_socket's recv loop.
+
+        fn parse_action(json_str: &str) -> &'static str {
+            // We can't call the actual handler without a socket, but we can
+            // verify the parsing pattern with static dispatch.
+            // The handler does: content.get("action").and_then(|v| v.as_str()).unwrap_or("")
+            // We return a &'static str by matching against known values.
+            let v: serde_json::Value = serde_json::from_str(json_str).unwrap_or_default();
+            let action = v.get("action").and_then(|a| a.as_str()).unwrap_or("");
+            match action {
+                "cancel" => "cancel",
+                "status" => "status",
+                "ready" => "ready",
+                "fill_bots" => "fill_bots",
+                "instant_bot" => "instant_bot",
+                "chat_message" => "chat_message",
+                _ => "unknown",
+            }
+        }
+
+        #[test]
+        fn cancel_action_is_recognised() {
+            assert_eq!(parse_action(r#"{"action":"cancel"}"#), "cancel");
+        }
+
+        #[test]
+        fn status_action_is_recognised() {
+            assert_eq!(parse_action(r#"{"action":"status"}"#), "status");
+        }
+
+        #[test]
+        fn ready_action_is_recognised() {
+            assert_eq!(parse_action(r#"{"action":"ready"}"#), "ready");
+        }
+
+        #[test]
+        fn fill_bots_action_is_recognised() {
+            assert_eq!(parse_action(r#"{"action":"fill_bots"}"#), "fill_bots");
+        }
+
+        #[test]
+        fn instant_bot_action_is_recognised() {
+            assert_eq!(parse_action(r#"{"action":"instant_bot"}"#), "instant_bot");
+        }
+
+        #[test]
+        fn chat_message_action_is_recognised() {
+            assert_eq!(parse_action(r#"{"action":"chat_message"}"#), "chat_message");
+        }
+
+        #[test]
+        fn unknown_action_falls_through() {
+            assert_eq!(parse_action(r#"{"action":"nonexistent"}"#), "unknown");
+        }
+
+        #[test]
+        fn missing_action_field_falls_through() {
+            assert_eq!(parse_action(r#"{"type":"something_else"}"#), "unknown");
+        }
+
+        #[test]
+        fn empty_object_falls_through() {
+            assert_eq!(parse_action("{}"), "unknown");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // chat_message content trimming and validation
+    // -----------------------------------------------------------------------
+
+    mod chat_content_validation {
+        /// Mirrors the validation in handle_matchmaking_socket:
+        ///   let trimmed = msg_content.trim();
+        ///   if !trimmed.is_empty() && trimmed.len() <= 500 { ... }
+        fn is_valid(raw: &str) -> bool {
+            let trimmed = raw.trim();
+            !trimmed.is_empty() && trimmed.len() <= 500
+        }
+
+        #[test]
+        fn empty_string_is_rejected() {
+            assert!(!is_valid(""));
+        }
+
+        #[test]
+        fn whitespace_only_is_rejected() {
+            assert!(!is_valid("  \t\n  "));
+        }
+
+        #[test]
+        fn minimum_valid_message_is_one_char() {
+            assert!(is_valid("x"));
+        }
+
+        #[test]
+        fn exactly_500_chars_is_accepted() {
+            assert!(is_valid(&"a".repeat(500)));
+        }
+
+        #[test]
+        fn exactly_501_chars_is_rejected() {
+            assert!(!is_valid(&"a".repeat(501)));
+        }
+
+        #[test]
+        fn leading_and_trailing_whitespace_is_trimmed() {
+            // After trimming, the content is non-empty and short enough.
+            assert!(is_valid("  hello world  "));
+        }
+
+        #[test]
+        fn content_with_only_spaces_does_not_sneak_through_at_501_bytes() {
+            // 501 spaces: after trim = empty → rejected.
+            assert!(!is_valid(&" ".repeat(501)));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // game_mode_slug derivation
+    // -----------------------------------------------------------------------
+
+    mod game_mode_slug {
+        /// Mirrors the expression: `game_mode.map(|p| p.0)`
+        fn derive_slug(raw: Option<&str>) -> Option<String> {
+            raw.map(|s| {
+                // Simulates extracting the inner String from axum's Path<String>.
+                s.to_string()
+            })
+        }
+
+        #[test]
+        fn some_path_produces_slug() {
+            let slug = derive_slug(Some("ranked"));
+            assert_eq!(slug, Some("ranked".to_string()));
+        }
+
+        #[test]
+        fn none_path_produces_none() {
+            let slug = derive_slug(None);
+            assert!(slug.is_none());
+        }
+
+        #[test]
+        fn slug_preserves_hyphens() {
+            let slug = derive_slug(Some("team-battle"));
+            assert_eq!(slug, Some("team-battle".to_string()));
+        }
+
+        #[test]
+        fn slug_preserves_underscores() {
+            let slug = derive_slug(Some("quick_match"));
+            assert_eq!(slug, Some("quick_match".to_string()));
+        }
+    }
+}

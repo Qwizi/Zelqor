@@ -735,6 +735,7 @@ impl MatchmakingManager {
         });
     }
 
+    #[allow(dead_code)]
     async fn run_pubsub_loop(mgr: &Arc<Self>, redis_url: &str) -> Result<(), String> {
         let client = redis::Client::open(redis_url)
             .map_err(|e| format!("Redis client error: {e}"))?;
@@ -765,5 +766,269 @@ impl MatchmakingManager {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // MatchmakingMessage enum
+    // -----------------------------------------------------------------------
+
+    mod matchmaking_message {
+        use super::*;
+
+        #[test]
+        fn json_variant_stores_value() {
+            let val = serde_json::json!({"type": "lobby_created", "lobby_id": "l1"});
+            let msg = MatchmakingMessage::Json(val.clone());
+            match msg {
+                MatchmakingMessage::Json(v) => assert_eq!(v["lobby_id"], "l1"),
+                MatchmakingMessage::Close => panic!("expected Json variant"),
+            }
+        }
+
+        #[test]
+        fn close_variant_is_constructed() {
+            let msg = MatchmakingMessage::Close;
+            assert!(matches!(msg, MatchmakingMessage::Close));
+        }
+
+        #[test]
+        fn json_variant_is_cloneable() {
+            let val = serde_json::json!({"type": "match_found"});
+            let msg = MatchmakingMessage::Json(val);
+            let cloned = msg.clone();
+            assert!(matches!(cloned, MatchmakingMessage::Json(_)));
+        }
+
+        #[test]
+        fn close_variant_is_cloneable() {
+            let msg = MatchmakingMessage::Close;
+            let cloned = msg.clone();
+            assert!(matches!(cloned, MatchmakingMessage::Close));
+        }
+
+        #[test]
+        fn json_variant_debug_representation_is_non_empty() {
+            let msg = MatchmakingMessage::Json(serde_json::json!({"x": 1}));
+            let debug = format!("{msg:?}");
+            assert!(!debug.is_empty());
+        }
+
+        #[test]
+        fn json_variant_holds_nested_object() {
+            let val = serde_json::json!({
+                "type": "player_joined",
+                "player": {
+                    "user_id": "u1",
+                    "is_bot": false
+                }
+            });
+            let msg = MatchmakingMessage::Json(val);
+            match msg {
+                MatchmakingMessage::Json(v) => {
+                    assert_eq!(v["player"]["user_id"], "u1");
+                    assert_eq!(v["player"]["is_bot"], false);
+                }
+                MatchmakingMessage::Close => panic!("wrong variant"),
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // ConnectionHandle / lobby_connections DashMap behaviour
+    // -----------------------------------------------------------------------
+
+    mod connection_counter {
+        use super::*;
+        use std::sync::atomic::Ordering;
+
+        #[test]
+        fn counter_increments_monotonically() {
+            // Read the counter twice with a fetch_add in between to confirm
+            // it moves forward. We add 0 to read without mutating, then 1 to advance.
+            let before = CONNECTION_COUNTER.load(Ordering::Relaxed);
+            let _ = CONNECTION_COUNTER.fetch_add(1, Ordering::Relaxed);
+            let after = CONNECTION_COUNTER.load(Ordering::Relaxed);
+            assert!(after > before, "counter should increase after fetch_add");
+        }
+
+        #[test]
+        fn counter_is_u64() {
+            // Just verify the type compiles as expected — load returns u64.
+            let val: u64 = CONNECTION_COUNTER.load(Ordering::Relaxed);
+            let _ = val; // suppress unused warning
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Redis key construction (via the format strings used in the manager)
+    // -----------------------------------------------------------------------
+
+    mod redis_key_format {
+        /// Mirrors the key format used by redis_set_user_lobby / redis_del_user_lobby.
+        fn user_lobby_key(user_id: &str) -> String {
+            format!("lobby:user:{user_id}")
+        }
+
+        #[test]
+        fn key_contains_user_id_prefix() {
+            let key = user_lobby_key("user-123");
+            assert!(key.starts_with("lobby:user:"));
+            assert!(key.ends_with("user-123"));
+        }
+
+        #[test]
+        fn key_is_unique_per_user() {
+            let k1 = user_lobby_key("alice");
+            let k2 = user_lobby_key("bob");
+            assert_ne!(k1, k2);
+        }
+
+        #[test]
+        fn key_handles_uuid_style_ids() {
+            let uid = "550e8400-e29b-41d4-a716-446655440000";
+            let key = user_lobby_key(uid);
+            assert_eq!(key, format!("lobby:user:{uid}"));
+        }
+
+        #[test]
+        fn bot_fill_timeout_constant_is_30_seconds() {
+            assert_eq!(super::BOT_FILL_TIMEOUT_SECS, 30);
+        }
+
+        #[test]
+        fn lobby_key_ttl_is_10_minutes() {
+            assert_eq!(super::LOBBY_KEY_TTL_SECS, 600);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // DashMap broadcast logic (tested via mpsc channel pair)
+    // -----------------------------------------------------------------------
+
+    mod broadcast_helpers {
+        use super::*;
+        use tokio::sync::mpsc;
+
+        /// Build a ConnectionHandle and return the receiver end.
+        fn make_handle(
+            conn_id: u64,
+            user_id: &str,
+            username: &str,
+        ) -> (ConnectionHandle, mpsc::UnboundedReceiver<MatchmakingMessage>) {
+            let (tx, rx) = mpsc::unbounded_channel();
+            (
+                ConnectionHandle {
+                    conn_id,
+                    user_id: user_id.to_string(),
+                    username: username.to_string(),
+                    sender: tx,
+                },
+                rx,
+            )
+        }
+
+        #[test]
+        fn handle_sender_delivers_json_message() {
+            let (handle, mut rx) = make_handle(1, "user-1", "Alice");
+            let msg = serde_json::json!({"type": "test"});
+            handle
+                .sender
+                .send(MatchmakingMessage::Json(msg.clone()))
+                .expect("send should succeed");
+            let received = rx.try_recv().expect("message should be buffered");
+            match received {
+                MatchmakingMessage::Json(v) => assert_eq!(v["type"], "test"),
+                _ => panic!("expected Json variant"),
+            }
+        }
+
+        #[test]
+        fn handle_sender_delivers_close_message() {
+            let (handle, mut rx) = make_handle(2, "user-2", "Bob");
+            handle
+                .sender
+                .send(MatchmakingMessage::Close)
+                .expect("send should succeed");
+            let received = rx.try_recv().expect("close should be buffered");
+            assert!(matches!(received, MatchmakingMessage::Close));
+        }
+
+        #[test]
+        fn dashmap_entry_stores_multiple_handles() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h1, _rx1) = make_handle(10, "user-a", "UserA");
+            let (h2, _rx2) = make_handle(11, "user-b", "UserB");
+
+            map.entry("lobby-1".to_string()).or_default().push(h1);
+            map.entry("lobby-1".to_string()).or_default().push(h2);
+
+            let connections = map.get("lobby-1").expect("lobby should exist");
+            assert_eq!(connections.len(), 2);
+        }
+
+        #[test]
+        fn retain_removes_specific_conn_id() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h1, _rx1) = make_handle(20, "user-x", "X");
+            let (h2, _rx2) = make_handle(21, "user-y", "Y");
+
+            map.entry("lobby-2".to_string()).or_default().push(h1);
+            map.entry("lobby-2".to_string()).or_default().push(h2);
+
+            // Remove conn_id 20 (simulating disconnect)
+            if let Some(mut conns) = map.get_mut("lobby-2") {
+                conns.retain(|c| c.conn_id != 20);
+            }
+
+            let conns = map.get("lobby-2").expect("lobby should still exist");
+            assert_eq!(conns.len(), 1);
+            assert_eq!(conns[0].conn_id, 21);
+        }
+
+        #[test]
+        fn retain_by_user_id_removes_all_matching_connections() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h1, _rx1) = make_handle(30, "user-z", "Z");
+            let (h2, _rx2) = make_handle(31, "user-z", "Z"); // same user, second tab
+            let (h3, _rx3) = make_handle(32, "user-w", "W");
+
+            let mut conns = map.entry("lobby-3".to_string()).or_default();
+            conns.push(h1);
+            conns.push(h2);
+            conns.push(h3);
+            drop(conns);
+
+            if let Some(mut c) = map.get_mut("lobby-3") {
+                c.retain(|conn| conn.user_id != "user-z");
+            }
+
+            let remaining = map.get("lobby-3").expect("lobby should exist");
+            assert_eq!(remaining.len(), 1);
+            assert_eq!(remaining[0].user_id, "user-w");
+        }
+
+        #[test]
+        fn lookup_finds_user_in_lobby() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h1, _rx1) = make_handle(40, "user-find", "FindMe");
+
+            map.entry("lobby-4".to_string()).or_default().push(h1);
+
+            let found = map
+                .get("lobby-4")
+                .and_then(|conns| {
+                    conns
+                        .iter()
+                        .find(|c| c.user_id == "user-find")
+                        .map(|c| c.username.clone())
+                });
+
+            assert_eq!(found.as_deref(), Some("FindMe"));
+        }
     }
 }

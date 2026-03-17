@@ -7,21 +7,12 @@ import type { GameRegion, ActiveEffect } from "@/hooks/useGameSocket";
 import type { UnitType } from "@/lib/api";
 import { getPlayerBuildingAsset, getPlayerUnitAsset, getUnitAsset } from "@/lib/gameAssets";
 import { resolveAnimConfig, type CosmeticValue } from "@/lib/animationConfig";
+import type { TroopAnimation } from "@/lib/gameTypes";
 
 // ── Types ────────────────────────────────────────────────────
 
-export interface TroopAnimation {
-  id: string;
-  sourceId: string;
-  targetId: string;
-  color: string;
-  units: number;
-  unitType?: string | null;
-  type: "attack" | "move";
-  startTime: number;
-  durationMs?: number;
-  playerId?: string;
-}
+// Re-export for backwards compatibility
+export type { TroopAnimation } from "@/lib/gameTypes";
 
 interface InternalAnim {
   id: string;
@@ -1092,12 +1083,16 @@ export default memo(function GameMap({
         properties: { units_text: labelText },
       });
     }
-    try {
-      (map.getSource("region-labels") as maplibregl.GeoJSONSource).setData({
-        type: "FeatureCollection",
-        features: labelFeatures,
-      } as unknown as GeoJSON.FeatureCollection);
-    } catch { /* source not ready */ }
+    // Throttle to next animation frame to avoid redundant label redraws
+    const rafId = requestAnimationFrame(() => {
+      try {
+        (map.getSource("region-labels") as maplibregl.GeoJSONSource).setData({
+          type: "FeatureCollection",
+          features: labelFeatures,
+        } as unknown as GeoJSON.FeatureCollection);
+      } catch { /* source not ready */ }
+    });
+    return () => cancelAnimationFrame(rafId);
   }, [regions, players, myUserId, animations, centroids, activeEffects, layersReady]);
 
   // ── Effect A2: selection + target markers ──

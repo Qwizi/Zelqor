@@ -1,5 +1,6 @@
 from typing import List
 from ninja_extra import api_controller, route
+from django.shortcuts import get_object_or_404
 
 from apps.game_config.models import GameSettings, BuildingType, UnitType, MapConfig, GameMode, AbilityType
 from apps.game_config.schemas import FullConfigOutSchema, GameModeOutSchema, GameModeListSchema
@@ -34,4 +35,4 @@ class ConfigController:
     @route.get('/game-modes/{slug}/', response=GameModeOutSchema, auth=None)
     def get_game_mode(self, slug: str):
         """Get full details of a game mode."""
-        return GameMode.objects.get(slug=slug, is_active=True)
+        return get_object_or_404(GameMode, slug=slug, is_active=True)

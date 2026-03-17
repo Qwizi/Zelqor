@@ -35,6 +35,9 @@ class Match(models.Model):
     class Meta:
         verbose_name_plural = 'matches'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at'], name='match_status_created_idx'),
+        ]
 
     def __str__(self):
         return f"Match {self.id} ({self.get_status_display()})"
@@ -64,6 +67,9 @@ class MatchPlayer(models.Model):
     class Meta:
         unique_together = ('match', 'user')
         ordering = ['joined_at']
+        indexes = [
+            models.Index(fields=['match', 'user', 'is_alive'], name='mp_match_user_alive_idx'),
+        ]
 
     def __str__(self):
         return f"{self.user.username} in {self.match_id}"

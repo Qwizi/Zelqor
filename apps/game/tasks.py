@@ -203,6 +203,8 @@ def finalize_match_results_sync(
 
         elo_changes = _balanced_round_elo_changes(raw_changes)
 
+        users_to_update = []
+        player_results_to_create = []
         for row, elo_change in zip(player_rows, elo_changes, strict=True):
             # Bots and unranked matches always get 0
             if row["is_bot"] or not is_ranked:
@@ -211,9 +213,10 @@ def finalize_match_results_sync(
             user = row["match_player"].user
             if elo_change != 0:
                 user.elo_rating = int(user.elo_rating) + int(elo_change)
-                user.save(update_fields=["elo_rating"])
+                users_to_update.append(user)
 
-            PlayerResult.objects.create(
+            row["final_elo_change"] = int(elo_change)
+            player_results_to_create.append(PlayerResult(
                 match_result=result,
                 user=user,
                 placement=row["placement"],
@@ -222,7 +225,13 @@ def finalize_match_results_sync(
                 units_lost=row.get("units_lost", 0),
                 buildings_built=row["buildings_built"],
                 elo_change=int(elo_change),
-            )
+            ))
+
+        # Bulk operations: 2 queries instead of up to 16
+        if users_to_update:
+            from apps.accounts.models import User
+            User.objects.bulk_update(users_to_update, ['elo_rating'])
+        PlayerResult.objects.bulk_create(player_results_to_create)
 
     logger.info(
         "Match %s finalized immediately: winner=%s, ticks=%d",
@@ -247,13 +256,14 @@ def finalize_match_results_sync(
             'winner_id': str(winner_id) if winner_id else None,
         })
 
-        for player_result in PlayerResult.objects.filter(match_result=result).select_related('user'):
-            if not player_result.user.is_bot and player_result.elo_change != 0:
+        for row in player_rows:
+            if not row["is_bot"] and row.get("final_elo_change", 0) != 0:
+                user = row["match_player"].user
                 dispatch_webhook_event('player.elo_changed', {
-                    'user_id': str(player_result.user.id),
-                    'username': player_result.user.username,
-                    'elo_change': player_result.elo_change,
-                    'new_elo': player_result.user.elo_rating,
+                    'user_id': str(user.id),
+                    'username': user.username,
+                    'elo_change': row["final_elo_change"],
+                    'new_elo': user.elo_rating,
                     'match_id': str(match_id),
                 })
     except Exception as e:
@@ -286,15 +296,21 @@ def finalize_match_results(
 
 @shared_task
 def cleanup_redis_game_state(match_id: str):
-    """Remove all Redis keys for a finished match."""
+    """Remove all Redis keys for a finished match using known suffixes."""
     r = redis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
         db=settings.REDIS_GAME_DB,
     )
-    pattern = f"game:{match_id}:*"
-    keys = list(r.scan_iter(match=pattern))
-    deleted = r.delete(*keys) if keys else 0
+    known_suffixes = [
+        "meta", "players", "regions", "actions",
+        "buildings_queue", "unit_queue", "transit_queue",
+        "active_effects", "loop_lock", "init_lock",
+        "capital_timer_lock", "capital_finalize_lock",
+        "cancel_requested",
+    ]
+    keys = [f"game:{match_id}:{suffix}" for suffix in known_suffixes]
+    deleted = r.delete(*keys)
     r.close()
     logger.info("Cleaned up %d Redis keys for match %s", deleted, match_id)
 
@@ -321,20 +337,19 @@ def cleanup_stale_matches():
         else timedelta(hours=2)
     )
 
+    # Push time filter to DB — only fetch matches that are actually stale
+    selecting_cutoff = now - selecting_timeout
+    in_progress_cutoff = now - in_progress_timeout
+
+    from django.db.models import Q, F, functions as db_fn
+
     stale_matches = Match.objects.filter(
-        status__in=[Match.Status.SELECTING, Match.Status.IN_PROGRESS]
-    ).prefetch_related("players")
+        Q(status=Match.Status.SELECTING, created_at__lt=selecting_cutoff) |
+        Q(status=Match.Status.IN_PROGRESS, started_at__lt=in_progress_cutoff)
+    )
 
     count = 0
     for match in stale_matches:
-        age = now - (match.started_at or match.created_at)
-        is_stale_selecting = match.status == Match.Status.SELECTING and age >= selecting_timeout
-        is_stale_in_progress = match.status == Match.Status.IN_PROGRESS and age >= in_progress_timeout
-        has_alive_players = any(player.is_alive for player in match.players.all())
-
-        if not is_stale_selecting and not is_stale_in_progress and has_alive_players:
-            continue
-
         match.status = Match.Status.CANCELLED
         match.finished_at = now
         match.winner_id = None

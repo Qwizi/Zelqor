@@ -510,4 +510,571 @@ mod tests {
         let actions = brain.decide(&players, &regions, &neighbor_map, &settings, 1);
         assert!(actions.is_empty());
     }
+
+    // -----------------------------------------------------------------------
+    // Shared helpers for expanded tests
+    // -----------------------------------------------------------------------
+
+    fn make_player(id: &str, is_alive: bool, energy: i64, capital: Option<&str>) -> Player {
+        Player {
+            user_id: id.to_string(),
+            username: id.to_string(),
+            color: "#FF0000".to_string(),
+            is_alive,
+            connected: true,
+            is_bot: true,
+            capital_region_id: capital.map(str::to_string),
+            energy,
+            ..Default::default()
+        }
+    }
+
+    fn default_settings() -> GameSettings {
+        GameSettings {
+            tick_interval_ms: 1000,
+            capital_selection_time_seconds: 30,
+            base_unit_generation_rate: 1.0,
+            capital_generation_bonus: 2.0,
+            starting_energy: 100,
+            base_energy_per_tick: 2.0,
+            region_energy_per_tick: 0.35,
+            attacker_advantage: 0.0,
+            defender_advantage: 0.1,
+            combat_randomness: 0.2,
+            starting_units: 10,
+            neutral_region_units: 3,
+            building_types: HashMap::new(),
+            unit_types: HashMap::new(),
+            ability_types: HashMap::new(),
+            default_unit_type_slug: Some("infantry".into()),
+            min_capital_distance: 3,
+            elo_k_factor: 32,
+            match_duration_limit_minutes: 0,
+        }
+    }
+
+    fn brain_always_acts(id: &str) -> BotBrain {
+        BotBrain {
+            player_id: id.to_string(),
+            action_interval: 1,
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // pick_capital — edge cases
+    // -----------------------------------------------------------------------
+
+    mod pick_capital {
+        use super::*;
+
+        #[test]
+        fn returns_none_when_all_regions_are_owned() {
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some("other"), 5, true));
+            regions.insert("B".into(), make_region(Some("other"), 5, false));
+
+            let neighbor_map = HashMap::new();
+            let brain = BotBrain::new("bot1".into());
+
+            let result = brain.pick_capital(&regions, &neighbor_map, 3);
+
+            // All owned — no unowned candidate. Fallback also finds none.
+            assert!(result.is_none(), "should return None when no unowned regions exist");
+        }
+
+        #[test]
+        fn returns_some_when_single_unowned_region_exists() {
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(None, 3, false));
+
+            let neighbor_map = HashMap::new();
+            let brain = BotBrain::new("bot1".into());
+
+            let result = brain.pick_capital(&regions, &neighbor_map, 3);
+
+            assert_eq!(result.as_deref(), Some("A"), "the only unowned region should be chosen");
+        }
+
+        #[test]
+        fn respects_min_distance_from_existing_capitals() {
+            // Layout: cap — A — B — C — D
+            // min_distance=3 means a candidate's BFS from itself must not reach a capital
+            // within 3 hops. D is 4 hops from cap so it qualifies (cap never visited before
+            // depth=3 cutoff from D's BFS), while A(1), B(2), C(3) are all too close.
+            let mut regions = HashMap::new();
+            regions.insert("cap".into(), make_region(Some("player1"), 5, true));
+            regions.insert("A".into(), make_region(None, 3, false)); // 1 hop from cap
+            regions.insert("B".into(), make_region(None, 3, false)); // 2 hops from cap
+            regions.insert("C".into(), make_region(None, 3, false)); // 3 hops from cap
+            regions.insert("D".into(), make_region(None, 3, false)); // 4 hops from cap
+
+            let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            neighbor_map.insert("cap".into(), vec!["A".into()]);
+            neighbor_map.insert("A".into(), vec!["cap".into(), "B".into()]);
+            neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+            neighbor_map.insert("C".into(), vec!["B".into(), "D".into()]);
+            neighbor_map.insert("D".into(), vec!["C".into()]);
+
+            let brain = BotBrain::new("bot2".into());
+            let choice = brain.pick_capital(&regions, &neighbor_map, 3);
+
+            // D is the only region that is >3 hops from the existing capital
+            assert_eq!(
+                choice.as_deref(),
+                Some("D"),
+                "should pick the only candidate far enough from the existing capital"
+            );
+        }
+
+        #[test]
+        fn falls_back_to_any_unowned_when_all_too_close() {
+            // All unowned regions are within min_distance of an existing capital
+            let mut regions = HashMap::new();
+            regions.insert("cap".into(), make_region(Some("player1"), 5, true));
+            regions.insert("A".into(), make_region(None, 3, false)); // 1 hop
+            regions.insert("B".into(), make_region(None, 3, false)); // 2 hops
+
+            let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            neighbor_map.insert("cap".into(), vec!["A".into()]);
+            neighbor_map.insert("A".into(), vec!["cap".into(), "B".into()]);
+            neighbor_map.insert("B".into(), vec!["A".into()]);
+
+            let brain = BotBrain::new("bot3".into());
+            // min_distance=5 — no unowned region is far enough. Fallback should trigger.
+            let choice = brain.pick_capital(&regions, &neighbor_map, 5);
+
+            assert!(
+                choice.is_some(),
+                "fallback should pick any unowned region when all are too close"
+            );
+        }
+
+        #[test]
+        fn works_with_empty_map() {
+            let regions: HashMap<String, Region> = HashMap::new();
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let brain = BotBrain::new("bot1".into());
+
+            let result = brain.pick_capital(&regions, &neighbor_map, 3);
+
+            assert!(result.is_none(), "empty map should return None");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // decide — early game (few regions, low tick)
+    // -----------------------------------------------------------------------
+
+    mod decide_early_game {
+        use super::*;
+
+        #[test]
+        fn returns_empty_when_no_owned_regions() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 50, None));
+
+            // No owned regions
+            let regions: HashMap<String, Region> = HashMap::new();
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let settings = default_settings();
+            let brain = brain_always_acts(bot_id);
+
+            let actions = brain.decide(&players, &regions, &neighbor_map, &settings, 1);
+
+            assert!(actions.is_empty(), "bot with no regions should produce no actions");
+        }
+
+        #[test]
+        fn skips_turn_when_action_interval_not_reached() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 100, Some("A")));
+
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 20, true));
+            regions.insert("B".into(), make_region(None, 3, false));
+
+            let mut neighbor_map = HashMap::new();
+            neighbor_map.insert("A".into(), vec!["B".into()]);
+            neighbor_map.insert("B".into(), vec!["A".into()]);
+
+            let settings = default_settings();
+            // action_interval = 10: tick 7 should be skipped
+            let brain = BotBrain {
+                player_id: bot_id.into(),
+                action_interval: 10,
+            };
+
+            let actions = brain.decide(&players, &regions, &neighbor_map, &settings, 7);
+
+            assert!(actions.is_empty(), "bot should skip ticks that don't align with action_interval");
+        }
+
+        #[test]
+        fn does_not_attack_neutral_without_sufficient_advantage() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 50, Some("A")));
+
+            // Bot has 10 units, neutral has 5 — 10 <= 5+8=13, so can_attack is false
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 10, true));
+            regions.insert("B".into(), make_region(None, 5, false));
+
+            let mut neighbor_map = HashMap::new();
+            neighbor_map.insert("A".into(), vec!["B".into()]);
+            neighbor_map.insert("B".into(), vec!["A".into()]);
+
+            let settings = default_settings();
+            let brain = brain_always_acts(bot_id);
+
+            // Run many ticks — bot should never attack (insufficient advantage)
+            for tick in 1..=100 {
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let attacks: Vec<_> = actions.iter().filter(|a| a.action_type == "attack").collect();
+                assert!(
+                    attacks.is_empty(),
+                    "bot should not attack when unit advantage is insufficient (tick {tick})"
+                );
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // decide — mid game (multiple regions, expansion in progress)
+    // -----------------------------------------------------------------------
+
+    mod decide_mid_game {
+        use super::*;
+
+        #[test]
+        fn attacks_at_most_one_target_per_decision() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 50, Some("A")));
+
+            // Bot owns A with 30 units. Three weak neighbors: B, C, D.
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 30, true));
+            regions.insert("B".into(), make_region(None, 2, false));
+            regions.insert("C".into(), make_region(None, 2, false));
+            regions.insert("D".into(), make_region(None, 2, false));
+
+            let mut neighbor_map = HashMap::new();
+            neighbor_map.insert("A".into(), vec!["B".into(), "C".into(), "D".into()]);
+            neighbor_map.insert("B".into(), vec!["A".into()]);
+            neighbor_map.insert("C".into(), vec!["A".into()]);
+            neighbor_map.insert("D".into(), vec!["A".into()]);
+
+            let settings = default_settings();
+            let brain = brain_always_acts(bot_id);
+
+            // Over many ticks, never more than one attack per decision
+            for tick in 1..=100 {
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let attack_count = actions.iter().filter(|a| a.action_type == "attack").count();
+                assert!(
+                    attack_count <= 1,
+                    "bot should attack at most 1 target per decision (tick {tick}, got {attack_count})"
+                );
+            }
+        }
+
+        #[test]
+        fn consolidation_move_does_not_exceed_available_units() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 50, Some("A")));
+
+            // Interior region A (5 units) → border region B
+            // A has no non-owned neighbors (C is owned), so B is the border
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 5, false)); // interior
+            regions.insert("B".into(), make_region(Some(bot_id), 3, true));  // border (has neighbor C)
+            regions.insert("C".into(), make_region(None, 2, false));          // neutral — makes B a border
+
+            let mut neighbor_map = HashMap::new();
+            neighbor_map.insert("A".into(), vec!["B".into()]);
+            neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+            neighbor_map.insert("C".into(), vec!["B".into()]);
+
+            let settings = default_settings();
+            let brain = brain_always_acts(bot_id);
+
+            // Find a consolidation move
+            let mut found_move = false;
+            for tick in 1..=100 {
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                for action in actions.iter().filter(|a| a.action_type == "move") {
+                    let units_moved = action.units.unwrap_or(0);
+                    let source_units = regions
+                        .get(action.source_region_id.as_deref().unwrap_or(""))
+                        .map(|r| r.unit_count)
+                        .unwrap_or(0);
+                    assert!(
+                        units_moved < source_units,
+                        "move should not exceed available units minus reserve (moved {units_moved}, source has {source_units})"
+                    );
+                    found_move = true;
+                }
+                if found_move {
+                    break;
+                }
+            }
+            // If no move was generated in 100 ticks that's ok (30% probability per tick)
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // decide — building and unit production
+    // -----------------------------------------------------------------------
+
+    mod decide_building_and_production {
+        use super::*;
+        use maplord_engine::{BuildingConfig, UnitConfig};
+
+        fn settings_with_factory(factory_energy_cost: i64) -> GameSettings {
+            let mut s = default_settings();
+            s.building_types.insert(
+                "factory".into(),
+                BuildingConfig {
+                    energy_cost: factory_energy_cost,
+                    cost: 0,
+                    build_time_ticks: 10,
+                    max_per_region: 1,
+                    defense_bonus: 0.0,
+                    vision_range: 0,
+                    unit_generation_bonus: 0.0,
+                    energy_generation_bonus: 0.0,
+                    requires_coastal: false,
+                    icon: String::new(),
+                    name: "Factory".into(),
+                    asset_key: String::new(),
+                    order: 0,
+                    produced_unit_slug: None,
+                    max_level: 3,
+                    level_stats: HashMap::new(),
+                },
+            );
+            s
+        }
+
+        fn settings_with_unit(production_cost: i64) -> GameSettings {
+            let mut s = default_settings();
+            s.unit_types.insert(
+                "infantry".into(),
+                UnitConfig {
+                    produced_by_slug: Some("factory".into()),
+                    production_cost,
+                    production_time_ticks: 5,
+                    ..Default::default()
+                },
+            );
+            s
+        }
+
+        #[test]
+        fn does_not_build_factory_when_energy_is_insufficient() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            // Energy 50, factory costs 200 — cannot afford
+            players.insert(
+                bot_id.into(),
+                make_player(bot_id, true, 50, Some("A")),
+            );
+
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 5, true));
+
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let settings = settings_with_factory(200);
+            let brain = brain_always_acts(bot_id);
+
+            for tick in 1..=200 {
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let builds: Vec<_> = actions.iter().filter(|a| a.action_type == "build").collect();
+                assert!(
+                    builds.is_empty(),
+                    "should not build when energy is insufficient (tick {tick})"
+                );
+            }
+        }
+
+        #[test]
+        fn does_not_produce_units_without_factory() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 500, Some("A")));
+
+            // Region A has no factory buildings
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 5, true));
+
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let settings = settings_with_unit(10);
+            let brain = brain_always_acts(bot_id);
+
+            for tick in 1..=200 {
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let productions: Vec<_> = actions
+                    .iter()
+                    .filter(|a| a.action_type == "produce_unit")
+                    .collect();
+                assert!(
+                    productions.is_empty(),
+                    "should not produce units without a factory (tick {tick})"
+                );
+            }
+        }
+
+        #[test]
+        fn can_build_factory_when_conditions_are_met() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            // High energy, affordable factory
+            players.insert(bot_id.into(), make_player(bot_id, true, 500, Some("A")));
+
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 5, true));
+
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let settings = settings_with_factory(50);
+            let brain = brain_always_acts(bot_id);
+
+            // Build action has 20% probability per tick; expect it within 200 tries
+            let mut found_build = false;
+            for tick in 1..=200 {
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                if actions.iter().any(|a| a.action_type == "build") {
+                    found_build = true;
+                    break;
+                }
+            }
+
+            assert!(
+                found_build,
+                "bot should eventually build a factory when it can afford one"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // decide — late game (consolidation with interior units)
+    // -----------------------------------------------------------------------
+
+    mod decide_late_game {
+        use super::*;
+
+        #[test]
+        fn consolidates_interior_units_toward_border() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 50, Some("A")));
+
+            // Interior: A (10 units, only neighbor is B)
+            // Border: B (5 units, has neutral neighbor C)
+            // Neutral: C
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 10, false));
+            regions.insert("B".into(), make_region(Some(bot_id), 5, false));
+            regions.insert("C".into(), make_region(None, 2, false));
+
+            let mut neighbor_map = HashMap::new();
+            neighbor_map.insert("A".into(), vec!["B".into()]);
+            neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+            neighbor_map.insert("C".into(), vec!["B".into()]);
+
+            let settings = default_settings();
+            let brain = brain_always_acts(bot_id);
+
+            // Consolidation has 30% probability; should trigger within 200 ticks
+            let mut found_consolidation = false;
+            for tick in 1..=200 {
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                for action in &actions {
+                    if action.action_type == "move"
+                        && action.source_region_id.as_deref() == Some("A")
+                        && action.target_region_id.as_deref() == Some("B")
+                    {
+                        found_consolidation = true;
+                        break;
+                    }
+                }
+                if found_consolidation {
+                    break;
+                }
+            }
+
+            assert!(
+                found_consolidation,
+                "bot should eventually consolidate interior units to border region"
+            );
+        }
+
+        #[test]
+        fn skips_consolidation_when_interior_region_has_too_few_units() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 50, Some("A")));
+
+            // Interior A has only 2 units — below the threshold of 3 needed to move
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 2, false)); // <=3 units
+            regions.insert("B".into(), make_region(Some(bot_id), 5, false));
+            regions.insert("C".into(), make_region(None, 2, false));
+
+            let mut neighbor_map = HashMap::new();
+            neighbor_map.insert("A".into(), vec!["B".into()]);
+            neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+            neighbor_map.insert("C".into(), vec!["B".into()]);
+
+            let settings = default_settings();
+            let brain = brain_always_acts(bot_id);
+
+            for tick in 1..=200 {
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let moves_from_a: Vec<_> = actions
+                    .iter()
+                    .filter(|a| a.action_type == "move" && a.source_region_id.as_deref() == Some("A"))
+                    .collect();
+                assert!(
+                    moves_from_a.is_empty(),
+                    "bot should not move from A when it has only 2 units (tick {tick})"
+                );
+            }
+        }
+
+        #[test]
+        fn produces_at_most_one_move_per_decision() {
+            let bot_id = "bot1";
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 50, Some("Border1")));
+
+            // Multiple interior regions each with enough units
+            let mut regions = HashMap::new();
+            regions.insert("Interior1".into(), make_region(Some(bot_id), 10, false));
+            regions.insert("Interior2".into(), make_region(Some(bot_id), 10, false));
+            regions.insert("Border1".into(), make_region(Some(bot_id), 5, false));
+            regions.insert("Neutral".into(), make_region(None, 2, false));
+
+            let mut neighbor_map = HashMap::new();
+            neighbor_map.insert("Interior1".into(), vec!["Border1".into()]);
+            neighbor_map.insert("Interior2".into(), vec!["Border1".into()]);
+            neighbor_map.insert("Border1".into(), vec!["Interior1".into(), "Interior2".into(), "Neutral".into()]);
+            neighbor_map.insert("Neutral".into(), vec!["Border1".into()]);
+
+            let settings = default_settings();
+            let brain = brain_always_acts(bot_id);
+
+            for tick in 1..=100 {
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let move_count = actions.iter().filter(|a| a.action_type == "move").count();
+                assert!(
+                    move_count <= 1,
+                    "bot should produce at most one move per decision (tick {tick}, got {move_count})"
+                );
+            }
+        }
+    }
 }

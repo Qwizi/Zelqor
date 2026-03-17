@@ -142,6 +142,7 @@ interface UseGameSocketReturn {
   voiceToken: string | null;
   voiceUrl: string | null;
   bannedReason: string | null;
+  ping: number | undefined;
   selectCapital: (regionId: string) => void;
   attack: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
   move: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
@@ -162,8 +163,10 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
   const [voiceToken, setVoiceToken] = useState<string | null>(null);
   const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
   const [bannedReason, setBannedReason] = useState<string | null>(null);
+  const [ping, setPing] = useState<number | undefined>(undefined);
   const wsRef = useRef<WebSocket | null>(null);
   const leaveResolverRef = useRef<((value: boolean) => void) | null>(null);
+  const pingTimestampRef = useRef<number | null>(null);
 
   const handleMessage = useCallback((msg: WSMessage) => {
     switch (msg.type) {
@@ -228,10 +231,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
         break;
       }
       case "capital_selected":
-        setGameState((prev) => {
-          if (!prev) return prev;
-          return { ...prev };
-        });
+        // No state change needed — next game_tick will contain the updated region
         break;
       case "game_starting":
         setGameState((prev) => {
@@ -282,6 +282,12 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
         setVoiceToken(msg.token as string);
         setVoiceUrl(msg.url as string);
         break;
+      case "pong":
+        if (pingTimestampRef.current !== null) {
+          setPing(Date.now() - pingTimestampRef.current);
+          pingTimestampRef.current = null;
+        }
+        break;
     }
   }, []);
 
@@ -294,6 +300,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
 
     let disposed = false;
     let isPageUnload = false;
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
 
     const handleBeforeUnload = () => {
       isPageUnload = true;
@@ -310,11 +317,14 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
       } catch {
         // Fallback: connect without ticket/pow
       }
+      // After async work, check if effect was cleaned up (React Strict Mode double-mount)
+      if (disposed) return;
       const ws = createSocket(
         `/game/${matchId}/`,
         token,
         handleMessage,
         (event: CloseEvent) => {
+          if (!disposed) console.warn("[Game WS] closed", { code: event.code, reason: event.reason });
           if (leaveResolverRef.current) {
             leaveResolverRef.current(false);
             leaveResolverRef.current = null;
@@ -364,6 +374,14 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
         // Reset backoff on successful connection.
         backoffDelayRef.current = 1000;
         setConnected(true);
+
+        // Periodic ping for latency measurement
+        pingInterval = setInterval(() => {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            pingTimestampRef.current = Date.now();
+            wsRef.current.send(JSON.stringify({ action: "ping", ts: pingTimestampRef.current }));
+          }
+        }, 5000);
       };
 
       wsRef.current = ws;
@@ -380,6 +398,9 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
       }
+
+      // Clear ping interval
+      if (pingInterval) clearInterval(pingInterval);
 
       const ws = wsRef.current;
       wsRef.current = null;
@@ -487,6 +508,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     voiceToken,
     voiceUrl,
     bannedReason,
+    ping,
     selectCapital,
     attack,
     move,

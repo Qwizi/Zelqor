@@ -288,3 +288,232 @@ async fn handle_chat_message(
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Unit tests — pure logic only, no WebSocket or Django connections needed.
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // new_chat_connections
+    // -----------------------------------------------------------------------
+
+    mod new_chat_connections_tests {
+        use super::*;
+
+        #[test]
+        fn creates_empty_registry() {
+            let conns = new_chat_connections();
+            assert!(conns.is_empty(), "new registry must be empty");
+        }
+
+        #[test]
+        fn can_insert_and_retrieve_a_sender() {
+            let conns = new_chat_connections();
+            let (tx, _rx) = mpsc::unbounded_channel::<Message>();
+
+            conns
+                .entry("user-1".to_string())
+                .or_default()
+                .push(tx);
+
+            assert!(conns.contains_key("user-1"));
+        }
+
+        #[test]
+        fn supports_multiple_senders_per_user() {
+            let conns = new_chat_connections();
+            let (tx1, _rx1) = mpsc::unbounded_channel::<Message>();
+            let (tx2, _rx2) = mpsc::unbounded_channel::<Message>();
+
+            {
+                let mut entry = conns.entry("user-1".to_string()).or_default();
+                entry.push(tx1);
+                entry.push(tx2);
+            }
+
+            let count = conns.get("user-1").map(|v| v.len()).unwrap_or(0);
+            assert_eq!(count, 2, "should store two senders for the same user");
+        }
+
+        #[test]
+        fn multiple_users_are_stored_independently() {
+            let conns = new_chat_connections();
+            let (tx1, _) = mpsc::unbounded_channel::<Message>();
+            let (tx2, _) = mpsc::unbounded_channel::<Message>();
+
+            conns.entry("user-1".to_string()).or_default().push(tx1);
+            conns.entry("user-2".to_string()).or_default().push(tx2);
+
+            assert_eq!(conns.len(), 2);
+            assert!(conns.contains_key("user-1"));
+            assert!(conns.contains_key("user-2"));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // TokenQuery deserialization
+    // -----------------------------------------------------------------------
+
+    mod token_query {
+        use super::*;
+
+        #[test]
+        fn deserializes_all_fields() {
+            let json = r#"{"token":"tok","ticket":"tkt","nonce":"non"}"#;
+            let q: TokenQuery = serde_json::from_str(json).unwrap();
+
+            assert_eq!(q.token.as_deref(), Some("tok"));
+            assert_eq!(q.ticket.as_deref(), Some("tkt"));
+            assert_eq!(q.nonce.as_deref(), Some("non"));
+        }
+
+        #[test]
+        fn all_fields_optional_when_absent() {
+            let q: TokenQuery = serde_json::from_str("{}").unwrap();
+
+            assert!(q.token.is_none());
+            assert!(q.ticket.is_none());
+            assert!(q.nonce.is_none());
+        }
+
+        #[test]
+        fn token_only_parses_correctly() {
+            let json = r#"{"token":"access-token-abc"}"#;
+            let q: TokenQuery = serde_json::from_str(json).unwrap();
+
+            assert_eq!(q.token.as_deref(), Some("access-token-abc"));
+            assert!(q.ticket.is_none());
+            assert!(q.nonce.is_none());
+        }
+
+        #[test]
+        fn ticket_and_nonce_without_token_is_valid() {
+            let json = r#"{"ticket":"t1","nonce":"n1"}"#;
+            let q: TokenQuery = serde_json::from_str(json).unwrap();
+
+            assert!(q.token.is_none());
+            assert_eq!(q.ticket.as_deref(), Some("t1"));
+            assert_eq!(q.nonce.as_deref(), Some("n1"));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // chat broadcast payload structure
+    // -----------------------------------------------------------------------
+
+    mod broadcast_payload {
+        use super::*;
+
+        /// Builds the broadcast payload the same way handle_chat_message does.
+        fn make_broadcast_payload(
+            user_id: &str,
+            username: &str,
+            content: &str,
+            timestamp: u64,
+        ) -> serde_json::Value {
+            json!({
+                "type": "chat_message",
+                "user_id": user_id,
+                "username": username,
+                "content": content,
+                "timestamp": timestamp,
+            })
+        }
+
+        #[test]
+        fn payload_has_correct_type_field() {
+            let v = make_broadcast_payload("u1", "Alice", "Hello", 0);
+            assert_eq!(v["type"], "chat_message");
+        }
+
+        #[test]
+        fn payload_includes_user_id() {
+            let v = make_broadcast_payload("user-42", "Bob", "Hi", 0);
+            assert_eq!(v["user_id"], "user-42");
+        }
+
+        #[test]
+        fn payload_includes_username() {
+            let v = make_broadcast_payload("u1", "Charlie", "Hey", 0);
+            assert_eq!(v["username"], "Charlie");
+        }
+
+        #[test]
+        fn payload_includes_content() {
+            let v = make_broadcast_payload("u1", "Dave", "World", 0);
+            assert_eq!(v["content"], "World");
+        }
+
+        #[test]
+        fn payload_includes_timestamp() {
+            let ts = 1_700_000_000u64;
+            let v = make_broadcast_payload("u1", "Eve", "Msg", ts);
+            assert_eq!(v["timestamp"], ts);
+        }
+
+        #[test]
+        fn payload_serialises_to_valid_json_string() {
+            let v = make_broadcast_payload("u1", "Frank", "Test", 12345);
+            let text = v.to_string();
+            let reparsed: serde_json::Value = serde_json::from_str(&text)
+                .expect("broadcast payload must be valid JSON when serialised to string");
+            assert_eq!(reparsed["type"], "chat_message");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Content validation rules (replicated from handle_chat_message logic)
+    // -----------------------------------------------------------------------
+
+    mod content_validation {
+        /// Mirrors the validation logic from handle_chat_message.
+        fn is_valid_content(raw: &str) -> bool {
+            let trimmed = raw.trim();
+            !trimmed.is_empty() && trimmed.len() <= 500
+        }
+
+        #[test]
+        fn empty_string_is_rejected() {
+            assert!(!is_valid_content(""), "empty content must be rejected");
+        }
+
+        #[test]
+        fn whitespace_only_string_is_rejected() {
+            assert!(!is_valid_content("   "), "whitespace-only content must be rejected");
+        }
+
+        #[test]
+        fn single_character_is_accepted() {
+            assert!(is_valid_content("a"), "single char must be accepted");
+        }
+
+        #[test]
+        fn exactly_500_chars_is_accepted() {
+            let msg = "x".repeat(500);
+            assert!(is_valid_content(&msg), "500-char message must be accepted");
+        }
+
+        #[test]
+        fn exactly_501_chars_is_rejected() {
+            let msg = "x".repeat(501);
+            assert!(!is_valid_content(&msg), "501-char message must be rejected");
+        }
+
+        #[test]
+        fn unicode_content_is_accepted_when_within_byte_limit() {
+            // A short Polish phrase well within 500 bytes.
+            let msg = "Dzień dobry!";
+            assert!(is_valid_content(msg));
+        }
+
+        #[test]
+        fn leading_whitespace_is_trimmed_for_validation() {
+            // Content that is non-empty after trimming should pass.
+            let msg = "  hello  ";
+            assert!(is_valid_content(msg));
+        }
+    }
+}
