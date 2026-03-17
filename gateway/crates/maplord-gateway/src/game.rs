@@ -210,7 +210,9 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
         let tx_voice = tx.clone();
         let state_voice = state.clone();
         tokio::spawn(async move {
+            tracing::info!("Generating voice token for user {uid} in match {mid}");
             let username = crate::chat::resolve_username(&state_voice, &uid).await;
+            tracing::info!("Resolved username '{username}' for voice token");
             match crate::voice::generate_voice_token(
                 &config.livekit_api_key,
                 &config.livekit_api_secret,
@@ -219,12 +221,13 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
                 &username,
             ) {
                 Ok(token) => {
+                    tracing::info!("Voice token generated successfully for {uid}");
                     let msg = json!({
                         "type": "voice_token",
                         "token": token,
                         "url": config.livekit_public_url,
                     });
-                    let _ = tx_voice.send(Message::Text(msg.to_string().into()));
+                    let _ = tx_voice.send(Message::Text(msg.to_string().into())).await;
                 }
                 Err(e) => {
                     tracing::error!("Failed to generate voice token for {uid}: {e}");
@@ -385,6 +388,22 @@ async fn handle_game_message(
         }
         "chat" => {
             handle_match_chat(content, user_id, match_id, state, tx).await;
+        }
+        "ping" => {
+            let ts = content.get("ts").cloned().unwrap_or(serde_json::Value::Null);
+            let _ = tx.try_send(Message::Text(
+                json!({"type": "pong", "ts": ts}).to_string().into(),
+            ));
+        }
+        "player_ready" => {
+            broadcast_to_match(
+                match_id,
+                &json!({
+                    "type": "player_ready",
+                    "user_id": user_id,
+                }),
+                &state.game_connections,
+            );
         }
         _ => {}
     }
@@ -647,7 +666,41 @@ async fn check_all_capitals_selected(
         return;
     }
 
-    if alive_players
+    // Separate alive players into humans and bots.
+    let all_humans_selected = alive_players
+        .values()
+        .filter(|p| !p.is_bot)
+        .all(|p| p.capital_region_id.is_some());
+
+    // If all humans have capitals but some bots haven't picked yet, trigger bot selection now.
+    // When there are no human players (all-bot match) the filter is empty and all() returns true,
+    // so bots select immediately — preserving the existing all-bot behaviour.
+    let bots_need_capitals = alive_players
+        .values()
+        .any(|p| p.is_bot && p.capital_region_id.is_none());
+
+    if all_humans_selected && bots_need_capitals {
+        let meta = state_mgr.get_meta().await.unwrap_or_default();
+        let is_tutorial = meta.get("is_tutorial").map(|v| v == "1").unwrap_or(false);
+        if !is_tutorial {
+            if let Err(e) = auto_select_bot_capitals(state_mgr, state).await {
+                error!("Failed to auto-select bot capitals: {e}");
+            }
+        }
+    }
+
+    // Re-fetch players after potential bot capital assignment.
+    let players_after = match state_mgr.get_all_players().await {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let alive_after: HashMap<_, _> = players_after
+        .iter()
+        .filter(|(_, p)| p.is_alive)
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+
+    if alive_after
         .values()
         .all(|p| p.capital_region_id.is_some())
     {
@@ -1775,18 +1828,6 @@ async fn initialize_game(
         );
     }
     state_mgr.set_regions_bulk(&regions).await?;
-
-    // Auto-select capitals for bot players (skip for tutorial — bot picks after human)
-    let is_tutorial_init = state_mgr
-        .get_meta()
-        .await
-        .unwrap_or_default()
-        .get("is_tutorial")
-        .map(|v| v == "1")
-        .unwrap_or(false);
-    if !is_tutorial_init {
-        auto_select_bot_capitals(state_mgr, state).await?;
-    }
 
     Ok(())
 }

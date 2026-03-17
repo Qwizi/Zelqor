@@ -7,7 +7,7 @@ import type { GameRegion, ActiveEffect } from "@/hooks/useGameSocket";
 import type { TroopAnimation } from "@/lib/gameTypes";
 import { PixiAnimationManager } from "@/lib/pixiAnimations";
 import type { CosmeticValue } from "@/lib/animationConfig";
-import { getBuildingAsset } from "@/lib/gameAssets";
+import { getBuildingAsset, getUnitAsset } from "@/lib/gameAssets";
 
 // ── Shape data types ──────────────────────────────────────────
 
@@ -58,6 +58,7 @@ export interface GameCanvasProps {
   highlightedNeighbors: string[];
   dimmedRegions: string[];
   onRegionClick: (regionId: string) => void;
+  onDoubleTap?: (regionId: string) => void;
   myUserId: string;
   animations: TroopAnimation[];
   buildingIcons: Record<string, string>;
@@ -188,6 +189,7 @@ export default function GameCanvas({
   highlightedNeighbors,
   dimmedRegions,
   onRegionClick,
+  onDoubleTap,
   myUserId,
   animations,
   buildingIcons: _buildingIcons,
@@ -222,6 +224,11 @@ export default function GameCanvas({
   const onRegionClickRef = useRef(onRegionClick);
   onRegionClickRef.current = onRegionClick;
 
+  const onDoubleTapRef = useRef(onDoubleTap);
+  onDoubleTapRef.current = onDoubleTap;
+
+  const lastTapRef = useRef<{ regionId: string; time: number } | null>(null);
+
   const regionsRef = useRef(regions);
   regionsRef.current = regions;
 
@@ -240,8 +247,6 @@ export default function GameCanvas({
   const dimmedRegionsRef = useRef(dimmedRegions);
   dimmedRegionsRef.current = dimmedRegions;
 
-  const myUserIdRef = useRef(myUserId);
-  myUserIdRef.current = myUserId;
 
   // Stable refs for animations and activeEffects — used inside drawProvince
   // without causing the callback to rebuild on every render.
@@ -274,8 +279,13 @@ export default function GameCanvas({
       if (player) {
         baseFill = hexStringToNumber(player.color);
       }
-      if (isNeighbor && !player) {
-        baseFill = NEIGHBOR_TINT;
+      if (isNeighbor) {
+        if (!player) {
+          baseFill = NEIGHBOR_TINT;
+        } else {
+          // Slightly lighten enemy/owned territories to indicate reachability
+          baseFill = lighten(baseFill, 0.08);
+        }
       }
       if (isHovered) {
         baseFill = lighten(baseFill, 0.15);
@@ -291,6 +301,9 @@ export default function GameCanvas({
       } else if (isTarget) {
         strokeColor = TARGET_STROKE;
         strokeWidth = STROKE_WIDTH_TARGET;
+      } else if (isNeighbor) {
+        strokeColor = 0x22d3ee; // cyan highlight for reachable regions
+        strokeWidth = 2;
       } else if (isCapital) {
         strokeColor = CAPITAL_FILL; // golden outline
         strokeWidth = 2;
@@ -321,7 +334,7 @@ export default function GameCanvas({
       // show short username for other owned regions.
       const label = state.label;
       if (region) {
-        const isOwner = ownerId === myUserIdRef.current;
+        const isOwner = ownerId === myUserId;
 
         // Reveal unit count only when actively being attacked (animation in flight),
         // NOT when merely selected as a target — player shouldn't know before attacking
@@ -460,7 +473,17 @@ export default function GameCanvas({
 
       // Interaction
       gfx.on("pointerdown", () => {
-        onRegionClickRef.current(shape.id);
+        const now = Date.now();
+        const last = lastTapRef.current;
+
+        if (last && last.regionId === shape.id && now - last.time < 350) {
+          // Double-tap detected
+          onDoubleTapRef.current?.(shape.id);
+          lastTapRef.current = null;
+        } else {
+          lastTapRef.current = { regionId: shape.id, time: now };
+          onRegionClickRef.current(shape.id);
+        }
       });
 
       gfx.on("pointerover", () => {
@@ -1096,6 +1119,9 @@ export default function GameCanvas({
 
       viewportRef.current = viewport;
 
+      // ── Drag-to-attack/move: viewport-level pointer handlers ──────────────
+
+      // Long-press anywhere on the map → find nearest own province with units → start drag
       // Animation manager — its container lives above provinces, below labels
       const animManager = new PixiAnimationManager();
       animManagerRef.current = animManager;

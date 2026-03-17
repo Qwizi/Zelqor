@@ -104,7 +104,7 @@ export default memo(function BuildQueue({
                 className="absolute bottom-0 left-0 h-1 rounded-b-xl bg-gradient-to-r from-amber-500 to-amber-300"
                 style={{ width: `${percent}%` }}
               />
-              <span className="absolute -bottom-1 -right-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-card px-0.5 text-[8px] font-bold text-accent">
+              <span className="absolute -bottom-1 -right-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-card px-0.5 font-display text-[10px] font-bold tabular-nums text-accent">
                 {percent}
               </span>
             </div>
@@ -163,14 +163,14 @@ const QueueSection = memo(function QueueSection({
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate font-display text-sm text-foreground">
+                <div className="truncate font-display text-sm font-semibold tracking-wide text-foreground">
                   {item.name}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs font-medium text-muted-foreground">
                   {item.remaining > 0 ? `${item.remaining} tur do końca` : "Ukończono!"}
                 </div>
               </div>
-              <span className="text-xs font-mono font-bold text-accent">
+              <span className="font-display text-xs font-bold tabular-nums text-accent">
                 {percent}%
               </span>
             </div>

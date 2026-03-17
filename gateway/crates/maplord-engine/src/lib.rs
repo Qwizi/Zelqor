@@ -1216,14 +1216,6 @@ impl GameEngine {
             return Vec::new();
         }
 
-        if !can_station_unit(target, &unit_type, self) {
-            return vec![reject_action(
-                player_id,
-                "Ten region nie moze przyjac tego typu jednostki",
-                action,
-            )];
-        }
-
         let unit_config = self.get_unit_config(&unit_type);
         let speed = unit_config.speed.max(1);
         let move_range = speed.max(unit_config.attack_range) as usize;

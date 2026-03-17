@@ -130,8 +130,11 @@ const FLOOD_THRESHOLD: u32 = 20;
 const FLOOD_WINDOW: usize = 5;
 /// Minimum inter-action time (ms) — below this consistently = inhuman.
 const MIN_ACTION_INTERVAL_MS: u64 = 50;
+/// Assumed tick window (ms) used to spread artificial timestamps when real
+/// per-action timestamps are unavailable. Matches the engine's ~1 s tick rate.
+const TICK_WINDOW_MS: u64 = 1000;
 /// How many consecutive fast actions trigger timing violation.
-const TIMING_WINDOW: usize = 10;
+const TIMING_WINDOW: usize = 15;
 /// Length of action signature sequence to check for repetition.
 const REPETITION_SEQ_LEN: usize = 8;
 /// How many times the same sequence must repeat to flag.
@@ -139,9 +142,9 @@ const REPETITION_MIN_REPEATS: usize = 3;
 /// Score threshold for Warn verdict.
 const WARN_THRESHOLD: u32 = 30;
 /// Score threshold for FlagPlayer verdict.
-const FLAG_THRESHOLD: u32 = 70;
+const FLAG_THRESHOLD: u32 = 100;
 /// Score threshold for CancelMatch verdict.
-const CANCEL_THRESHOLD: u32 = 100;
+const CANCEL_THRESHOLD: u32 = 150;
 /// Max number of action log entries kept per match in Redis.
 const MAX_ACTION_LOG_SIZE: i64 = 10_000;
 
@@ -215,8 +218,19 @@ impl Detectors {
 
         let profile = self.profile(player_id);
 
+        // Spread artificial timestamps evenly across the tick window so that
+        // actions legitimately batched in a single tick are not treated as if
+        // they arrived 1 ms apart (which always triggers the timing detector).
+        // With action_count == 1 the interval is irrelevant; for N > 1 we use
+        // TICK_WINDOW_MS / N so the inferred interval reflects a realistic
+        // human clicking rate within that tick.
+        let interval_ms = if action_count > 1 {
+            TICK_WINDOW_MS / action_count as u64
+        } else {
+            TICK_WINDOW_MS
+        };
         for i in 0..action_count {
-            let ts = now_ms.saturating_sub((action_count - 1 - i) as u64);
+            let ts = now_ms.saturating_sub((action_count - 1 - i) as u64 * interval_ms);
             profile.action_timestamps_ms.push(ts);
         }
 
@@ -239,12 +253,12 @@ impl Detectors {
             }
         }
 
-        if fast_count >= (TIMING_WINDOW as u32 * 8 / 10) {
+        if fast_count >= (TIMING_WINDOW as u32 * 9 / 10) {
             Some(Violation {
                 kind: ViolationKind::ImpossibleTiming,
                 player_id: player_id.to_string(),
                 tick,
-                severity: 20,
+                severity: 5,
                 detail: format!(
                     "{fast_count}/{TIMING_WINDOW} action intervals below {MIN_ACTION_INTERVAL_MS}ms"
                 ),

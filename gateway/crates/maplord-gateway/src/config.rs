@@ -46,7 +46,7 @@ impl AppConfig {
             livekit_api_key: std::env::var("LIVEKIT_API_KEY")
                 .unwrap_or_else(|_| "devkey".into()),
             livekit_api_secret: std::env::var("LIVEKIT_API_SECRET")
-                .unwrap_or_else(|_| "secret".into()),
+                .unwrap_or_else(|_| "devsecret-maplord-at-least-32-chars-long".into()),
             allowed_ws_origins: std::env::var("CORS_ALLOWED_ORIGINS")
                 .unwrap_or_default()
                 .split(',')
@@ -91,7 +91,7 @@ mod tests {
                 livekit_url: "ws://livekit:7880".to_string(),
                 livekit_public_url: "ws://localhost:7880".to_string(),
                 livekit_api_key: "key".to_string(),
-                livekit_api_secret: "secret".to_string(),
+                livekit_api_secret: "devsecret-maplord-at-least-32-chars-long".to_string(),
                 allowed_ws_origins: vec![],
             }
         }

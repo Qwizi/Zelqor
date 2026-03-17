@@ -5,7 +5,7 @@
 // GameMap.tsx. Add `manager.container` to your Pixi Viewport and call
 // `manager.update(Date.now())` from your Ticker.
 
-import { Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Container, Graphics, Text, TextStyle, Assets, Sprite, Texture } from "pixi.js";
 import type { TroopAnimation } from "@/lib/gameTypes";
 import {
   resolveAnimConfig,
@@ -50,6 +50,7 @@ interface InternalAnim {
   trailGfx: Graphics;
   dotsGfx: Graphics;
   iconGfx: Graphics;
+  iconSprite: Sprite | null;
   labelText: Text;
 }
 
@@ -208,6 +209,15 @@ export function lerpPath(
 }
 
 // ── AnimKind resolution (mirrors GameMap.tsx resolveAnimationKind) ────────────
+
+// Unit icon sprite URLs per animation kind
+const UNIT_ICON_MAP: Record<string, string> = {
+  fighter: "/assets/units/planes/bomber_h300.webp",
+  ship: "/assets/units/ships/ship1.png",
+  tank: "/assets/units/ground_unit_sphere_h300.png",
+  infantry: "/assets/units/ground_unit.webp",
+  nuke_rocket: "/assets/units/nuke_icon.png",
+};
 
 // Minimal asset path constants — only needed for unit kind disambiguation.
 const AIR_ASSET = "/assets/units/planes/bomber_h300.webp";
@@ -376,10 +386,25 @@ export class PixiAnimationManager {
       trailGfx,
       dotsGfx,
       iconGfx,
+      iconSprite: null,
       labelText,
     };
 
     this.anims.set(anim.id, internal);
+
+    // Load unit sprite asynchronously
+    const spriteUrl = UNIT_ICON_MAP[anim.unitType ?? ""] ?? UNIT_ICON_MAP[animKind];
+    if (spriteUrl) {
+      Assets.load(spriteUrl).then((texture: Texture) => {
+        if (!this.anims.has(anim.id)) return; // animation already removed
+        const sprite = new Sprite(texture);
+        sprite.anchor.set(0.5, 0.5);
+        sprite.eventMode = "none";
+        sprite.visible = false;
+        this.container.addChild(sprite);
+        internal.iconSprite = sprite;
+      }).catch(() => {});
+    }
   }
 
   /**
@@ -708,6 +733,7 @@ export class PixiAnimationManager {
 
     if (alpha <= 0 || finalScale <= 0) {
       a.labelText.visible = false;
+      if (a.iconSprite) a.iconSprite.visible = false;
       return;
     }
 
@@ -731,13 +757,28 @@ export class PixiAnimationManager {
       );
     }
 
-    // Colored circle representing the unit icon
-    g.circle(0, 0, scaledRadius)
-      .fill({ color: a.colorNum, alpha })
-      .stroke({ color: 0x000000, alpha: alpha * 0.6, width: 1.5 });
+    if (a.iconSprite) {
+      // Use loaded sprite texture instead of plain circle
+      const sprite = a.iconSprite;
+      sprite.visible = true;
+      sprite.width = scaledRadius * 2;
+      sprite.height = scaledRadius * 2;
+      sprite.position.set(currentPoint[0], currentPoint[1]);
+      sprite.rotation = rotation;
+      sprite.alpha = alpha;
+      // Small colored circle behind sprite for player color
+      g.circle(0, 0, scaledRadius)
+        .fill({ color: a.colorNum, alpha: alpha * 0.3 })
+        .stroke({ color: a.colorNum, alpha: alpha * 0.6, width: 1.5 });
+    } else {
+      // Fallback: colored circle while sprite loads
+      g.circle(0, 0, scaledRadius)
+        .fill({ color: a.colorNum, alpha })
+        .stroke({ color: 0x000000, alpha: alpha * 0.6, width: 1.5 });
+    }
 
     g.position.set(currentPoint[0], currentPoint[1]);
-    g.rotation = rotation;
+    g.rotation = a.iconSprite ? 0 : rotation;
 
     // Unit count label positioned just above the icon
     const label = a.labelText;
@@ -909,5 +950,10 @@ export class PixiAnimationManager {
       a.iconGfx,
       a.labelText
     );
+    if (a.iconSprite) {
+      this.container.removeChild(a.iconSprite);
+      a.iconSprite.destroy();
+      a.iconSprite = null;
+    }
   }
 }

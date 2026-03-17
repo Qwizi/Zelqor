@@ -22,8 +22,7 @@ import { useShapesData } from "@/hooks/useShapesData";
 const ANIMATION_DURATION_MS = 2200;
 const GameCanvas = dynamic(() => import("@/components/map/GameCanvas"), { ssr: false });
 import GameHUD from "@/components/game/GameHUD";
-import RegionPanel from "@/components/game/RegionPanel";
-import ActionBar, { type TargetEntry } from "@/components/game/ActionBar";
+import QuickActionBar from "@/components/game/QuickActionBar";
 import BuildQueue from "@/components/game/BuildQueue";
 import MobileBuildSheet from "@/components/game/MobileBuildSheet";
 import AbilityBar from "@/components/game/AbilityBar";
@@ -103,6 +102,7 @@ export default function GamePage({
     voiceToken,
     voiceUrl,
     bannedReason,
+    ping,
     selectCapital,
     attack,
     move,
@@ -142,14 +142,23 @@ export default function GamePage({
   const [abilitiesConfig, setAbilitiesConfig] = useState<AbilityType[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [selectedActionUnitType, setSelectedActionUnitType] = useState<string | null>(null);
-  const [actionTargets, setActionTargets] = useState<string[]>([]);
+  const [unitPercent, setUnitPercent] = useState<number>(100);
   const [selectedAbility, setSelectedAbility] = useState<string | null>(null);
   const [animations, setAnimations] = useState<TroopAnimation[]>([]);
   const [nukeBlackout, setNukeBlackout] = useState<Array<{ rid: string; startTime: number }>>([]);
   const [mapReady, setMapReady] = useState(false);
+  const mapReadyRef = useRef(false);
   const [showIntro, setShowIntro] = useState(true);
+  const showIntroRef = useRef(true);
+  const handleIntroComplete = useCallback(() => {
+    showIntroRef.current = false;
+    setShowIntro(false);
+    // Signal to gateway that this player is ready
+    send({ action: "player_ready" });
+  }, [send]);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [gameEndCountdown, setGameEndCountdown] = useState(10);
+  const [fps, setFps] = useState(0);
   const myUserId = user?.id || "";
   const status = gameState?.meta?.status || "loading";
 
@@ -165,6 +174,25 @@ export default function GamePage({
   const processedAnimKeysRef = useRef(new Set<string>());
   const processedAudioKeysRef = useRef(new Set<string>());
   const localDispatchKeysRef = useRef(new Map<string, number>());
+
+  // FPS counter via requestAnimationFrame
+  useEffect(() => {
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let rafId: number;
+    const measure = () => {
+      frameCount++;
+      const now = performance.now();
+      if (now - lastTime >= 1000) {
+        setFps(frameCount);
+        frameCount = 0;
+        lastTime = now;
+      }
+      rafId = requestAnimationFrame(measure);
+    };
+    rafId = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -458,7 +486,6 @@ export default function GamePage({
     availableSourceUnitTypes.some(([unitType]) => unitType === selectedActionUnitType)
       ? selectedActionUnitType
       : null) ||
-    (actionTargets.length > 0 ? getPreferredReachableUnitType(actionTargets[0]) : null) ||
     availableSourceUnitTypes[0]?.[0] ||
     sourceRegionData?.unit_type ||
     null;
@@ -638,7 +665,6 @@ export default function GamePage({
       stats.unitCount += intOrZero(region.unit_count);
     }
     return Object.values(players)
-      .filter((player) => player.is_alive)
       .map((player) => {
         const stats = statsMap.get(player.user_id);
         return {
@@ -761,15 +787,66 @@ export default function GamePage({
     }
   }, [events, myUserId, unitsConfig]);
 
+  // ── Instant dispatch helper (used by both drag and click-click) ────
+
+  const dispatchTroops = useCallback(
+    (sourceId: string, targetId: string, unitType: string, unitCount: number) => {
+      if (!gameState) return;
+      const target = gameState.regions[targetId];
+      if (!target) return;
+      const reachability = reachabilityByUnitType[unitType];
+      const isAttackTarget = target.owner_id !== myUserId;
+      const distance = isAttackTarget
+        ? (reachability?.attackDistanceByTarget.get(targetId) ?? null)
+        : (reachability?.moveDistanceByTarget.get(targetId) ?? null);
+      if (distance === null) return;
+
+      const rules = unitConfigBySlug[unitType] ?? getUnitRules(unitsConfig, unitType);
+      const tickMs = parseInt(gameState.meta?.tick_interval_ms || "1000", 10);
+      const travelTicks = Math.max(1, Math.ceil(Math.max(1, distance) / Math.max(1, rules.speed || 1)));
+      const actionType = isAttackTarget ? "attack" : "move";
+
+      const dispatchKey = [actionType, myUserId, sourceId, targetId, unitType, unitCount].join(":");
+      localDispatchKeysRef.current.set(dispatchKey, Date.now());
+      if (localDispatchKeysRef.current.size > 50) {
+        const now = Date.now();
+        for (const [k, t] of localDispatchKeysRef.current) {
+          if (now - t > 5000) localDispatchKeysRef.current.delete(k);
+        }
+      }
+
+      setAnimations((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          sourceId,
+          targetId,
+          color: gameState.players[myUserId]?.color ?? "#3b82f6",
+          units: getAnimationPower(unitsConfig, unitType, unitCount),
+          unitType,
+          type: actionType,
+          startTime: Date.now(),
+          durationMs: travelTicks * tickMs,
+          playerId: myUserId,
+        },
+      ]);
+
+      if (isAttackTarget) attack(sourceId, targetId, unitCount, unitType);
+      else move(sourceId, targetId, unitCount, unitType);
+    },
+    [gameState, myUserId, attack, move, reachabilityByUnitType, unitConfigBySlug, unitsConfig]
+  );
+
   // ── Click handler ──────────────────────────────────────────
 
   const handleRegionClick = useCallback(
     (regionId: string) => {
-      if (!mapReady) return;
+      if (showIntroRef.current) return;
+      if (!mapReadyRef.current) return;
 
       // Capital selection phase
       if (status === "selecting") {
-        if (hasSelectedCapital) return; // already selected, waiting for server confirmation
+        if (hasSelectedCapital) return;
         const region = gameState?.regions[regionId];
         // Region not part of this match — silently ignore (player may have clicked
         // on a neighbouring country rendered in the tiles but not in the game)
@@ -814,7 +891,7 @@ export default function GamePage({
         }
       }
 
-      // If we have a source and clicked a valid neighbor → set as target
+      // If we have a source and clicked a valid neighbor → INSTANT SEND
       if (
         selectedRegion &&
         selectedRegion !== regionId &&
@@ -822,48 +899,39 @@ export default function GamePage({
         highlightedNeighbors.includes(regionId)
       ) {
         const sourceRegion = gameState?.regions[selectedRegion];
-        const preferredUnitType = sourceRegion ? getPreferredReachableUnitType(regionId) : null;
+        if (!sourceRegion) return;
 
-        const effectiveUnitType = selectedActionUnitType || preferredUnitType;
-        if (
-          sourceRegion &&
-          effectiveUnitType &&
-          !isTargetReachableForUnitType(regionId, effectiveUnitType)
-        ) {
-          toast.error("Ten cel nie jest osiągalny dla wybranego typu jednostki");
-          return;
+        const unitType = selectedActionUnitType
+          ?? getPreferredReachableUnitType(regionId)
+          ?? Object.entries(sourceRegion.units ?? {}).find(([, c]) => c > 0)?.[0]
+          ?? "infantry";
+
+        if (!isTargetReachableForUnitType(regionId, unitType)) return;
+
+        const available = sourceRegion.units?.[unitType] ?? 0;
+        const unitsToSend = Math.max(1, Math.floor(available * (unitPercent / 100)));
+        if (unitsToSend < 1) return;
+
+        if (!selectedActionUnitType) {
+          setSelectedActionUnitType(unitType);
         }
 
-        if (!selectedActionUnitType && preferredUnitType) {
-          setSelectedActionUnitType(preferredUnitType);
-        }
-
-        // Toggle target in/out of selection
-        setActionTargets((prev) => {
-          if (prev.includes(regionId)) {
-            return prev.filter((id) => id !== regionId);
-          }
-          if (prev.length >= 3) {
-            toast.error("Mozesz wybrac maksymalnie 3 cele");
-            return prev;
-          }
-          return [...prev, regionId];
-        });
+        dispatchTroops(selectedRegion, regionId, unitType, unitsToSend);
+        setSelectedRegion(null);
+        setSelectedActionUnitType(null);
         return;
       }
 
-      // Click same region → deselect everything
+      // Click same region → deselect
       if (regionId === selectedRegion) {
         setSelectedRegion(null);
         setSelectedActionUnitType(null);
-        setActionTargets([]);
         return;
       }
 
-      // Select new region (switch source or info-only)
+      // Select new region (keep last unitPercent choice)
       setSelectedRegion(regionId);
       setSelectedActionUnitType(null);
-      setActionTargets([]);
     },
     [
       status,
@@ -874,83 +942,60 @@ export default function GamePage({
       highlightedNeighbors,
       dimmedRegions,
       selectCapital,
-      mapReady,
       hasSelectedCapital,
       getPreferredReachableUnitType,
       isTargetReachableForUnitType,
       selectedActionUnitType,
+      unitPercent,
       selectedAbility,
       effectiveAbilities,
       castAbility,
+      dispatchTroops,
+    ]
+  );
+
+  // ── Double-tap handler — send MAX units immediately ─────────
+
+  const handleDoubleTap = useCallback(
+    (regionId: string) => {
+      if (status !== "in_progress" || !gameState || !selectedRegion) return;
+      if (selectedRegion === regionId) return;
+
+      const source = gameState.regions[selectedRegion];
+      if (!source || source.owner_id !== myUserId) return;
+
+      // Check if target is a highlighted neighbor
+      if (!highlightedNeighbors.includes(regionId)) return;
+
+      const unitType = selectedActionUnitType
+        ?? getPreferredReachableUnitType(regionId)
+        ?? Object.entries(source.units ?? {}).find(([, c]) => c > 0)?.[0]
+        ?? "infantry";
+
+      if (!isTargetReachableForUnitType(regionId, unitType)) return;
+
+      const units = source.units?.[unitType] ?? 0;
+      if (units < 1) return;
+
+      // Send ALL units (MAX)
+      dispatchTroops(selectedRegion, regionId, unitType, units);
+      setSelectedRegion(null);
+      setSelectedActionUnitType(null);
+    },
+    [
+      status,
+      gameState,
+      selectedRegion,
+      myUserId,
+      highlightedNeighbors,
+      selectedActionUnitType,
+      getPreferredReachableUnitType,
+      isTargetReachableForUnitType,
+      dispatchTroops,
     ]
   );
 
   // ── Action handlers ────────────────────────────────────────
-
-  // Confirm from ActionBar
-  const handleConfirmAction = useCallback(
-    ({ allocations, unitType }: { allocations: { regionId: string; units: number }[]; unitType: string }) => {
-      if (!selectedRegion || !gameState) return;
-      const localAnims: TroopAnimation[] = [];
-      const tickMs = parseInt(gameState.meta?.tick_interval_ms || "1000", 10);
-      for (const { regionId, units } of allocations) {
-        const target = gameState.regions[regionId];
-        if (!target) continue;
-        const reachability = reachabilityByUnitType[unitType];
-        const isAttackTarget = target.owner_id !== myUserId;
-        const distance = isAttackTarget
-          ? (reachability?.attackDistanceByTarget.get(regionId) ?? null)
-          : (reachability?.moveDistanceByTarget.get(regionId) ?? null);
-        if (distance === null) {
-          toast.error("Wybrany typ jednostki nie moze dosiegnac tego celu");
-          continue;
-        }
-        const rules = unitConfigBySlug[unitType] ?? getUnitRules(unitsConfig, unitType);
-        const travelTicks = Math.max(1, Math.ceil(Math.max(1, distance) / Math.max(1, rules.speed || 1)));
-        const actionType = isAttackTarget ? "attack" : "move";
-        const dispatchKey = [
-          actionType,
-          myUserId,
-          selectedRegion,
-          regionId,
-          unitType,
-          units,
-        ].join(":");
-        localDispatchKeysRef.current.set(dispatchKey, Date.now());
-        // Prune stale dispatch keys
-        if (localDispatchKeysRef.current.size > 50) {
-          const now = Date.now();
-          for (const [k, t] of localDispatchKeysRef.current) {
-            if (now - t > 5000) localDispatchKeysRef.current.delete(k);
-          }
-        }
-        localAnims.push({
-          id: crypto.randomUUID(),
-          sourceId: selectedRegion,
-          targetId: regionId,
-          color: gameState.players[myUserId]?.color ?? "#3b82f6",
-          units: getAnimationPower(unitsConfig, unitType, units),
-          unitType,
-          type: actionType,
-          startTime: Date.now(),
-          durationMs: travelTicks * tickMs,
-          playerId: myUserId,
-        });
-        if (target.owner_id !== myUserId) {
-          attack(selectedRegion, regionId, units, unitType);
-        } else {
-          move(selectedRegion, regionId, units, unitType);
-        }
-      }
-      if (localAnims.length > 0) {
-        setAnimations((prev) => [...prev, ...localAnims]);
-      }
-      setSelectedRegion(null);
-      setSelectedActionUnitType(null);
-      setActionTargets([]);
-    },
-    [selectedRegion, gameState, myUserId, attack, move, reachabilityByUnitType, unitConfigBySlug, unitsConfig]
-  );
 
   const handleBuild = useCallback(
     (buildingType: string) => {
@@ -972,25 +1017,83 @@ export default function GamePage({
 
   const handleSelectedActionUnitTypeChange = useCallback((unitType: string) => {
     setSelectedActionUnitType(unitType);
-    setActionTargets((prev) => prev.filter((targetId) => isTargetReachableForUnitType(targetId, unitType)));
-  }, [isTargetReachableForUnitType]);
+  }, []);
 
-  const handleMapReady = useCallback(() => setMapReady(true), []);
+  const handleMapReady = useCallback(() => {
+    mapReadyRef.current = true;
+    setMapReady(true);
+  }, []);
 
   const handleCancelAction = useCallback(() => {
     setSelectedRegion(null);
     setSelectedActionUnitType(null);
-    setActionTargets([]);
     setSelectedAbility(null);
   }, []);
+
+  // ── Keyboard shortcuts ──────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle if typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (status !== "in_progress") return;
+
+      switch (e.key) {
+        // 1-4: unit percentage presets
+        case "1": setUnitPercent(25); break;
+        case "2": setUnitPercent(50); break;
+        case "3": setUnitPercent(75); break;
+        case "4": setUnitPercent(100); break;
+
+        // Q/W/E/R: switch unit type (1st, 2nd, 3rd, 4th available)
+        case "q": case "Q":
+        case "w": case "W":
+        case "e": case "E":
+        case "r": case "R": {
+          if (!selectedRegion || !gameState) break;
+          const source = gameState.regions[selectedRegion];
+          if (!source || source.owner_id !== myUserId) break;
+          const availableTypes = Object.entries(source.units ?? {})
+            .filter(([, count]) => count > 0)
+            .map(([type]) => type);
+          const idx = ({ q: 0, Q: 0, w: 1, W: 1, e: 2, E: 2, r: 3, R: 3 } as Record<string, number>)[e.key] ?? 0;
+          if (idx < availableTypes.length) {
+            handleSelectedActionUnitTypeChange(availableTypes[idx]);
+          }
+          break;
+        }
+
+        // Escape: deselect / cancel
+        case "Escape":
+          handleCancelAction();
+          break;
+
+        // Tab: cycle through own provinces
+        case "Tab": {
+          e.preventDefault();
+          if (!gameState) break;
+          const ownRegions = Object.entries(gameState.regions)
+            .filter(([, r]) => r.owner_id === myUserId)
+            .map(([id]) => id)
+            .sort();
+          if (ownRegions.length === 0) break;
+          const currentIdx = selectedRegion ? ownRegions.indexOf(selectedRegion) : -1;
+          const nextIdx = (currentIdx + 1) % ownRegions.length;
+          setSelectedRegion(ownRegions[nextIdx]);
+          setSelectedActionUnitType(null);
+          break;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [status, selectedRegion, gameState, myUserId, handleCancelAction, handleSelectedActionUnitTypeChange]);
 
   const handleSelectAbility = useCallback((slug: string | null) => {
     setSelectedAbility(slug);
     if (slug) {
-      // Clear normal action state when entering ability mode
       setSelectedRegion(null);
       setSelectedActionUnitType(null);
-      setActionTargets([]);
     }
   }, []);
 
@@ -1001,10 +1104,6 @@ export default function GamePage({
     },
     [castAbility]
   );
-
-  const handleRemoveTarget = useCallback((rid: string) => {
-    setActionTargets((prev) => prev.filter((id) => id !== rid));
-  }, []);
 
   const buildingsQueue = useMemo(() => gameState?.buildings_queue || [], [gameState?.buildings_queue]);
   const unitQueue = useMemo(() => gameState?.unit_queue || [], [gameState?.unit_queue]);
@@ -1077,6 +1176,10 @@ export default function GamePage({
           toast.error("Twoja stolica zostala zdobyta");
         }
         playSound("buzzer");
+      }
+      if (e.type === "player_eliminated" && e.player_id !== myUserId) {
+        const eliminatedPlayer = gameStateRef.current?.players[String(e.player_id)];
+        toast.info(`${eliminatedPlayer?.username || "Gracz"} został wyeliminowany`);
       }
       if (e.type === "player_disconnected" && e.player_id !== myUserId) {
         const disconnectedPlayer = gameStateRef.current?.players[String(e.player_id)];
@@ -1201,30 +1304,25 @@ export default function GamePage({
     }
   }, [events, myUserId, neighborMap, gameState?.players, playSound]);
 
-  const targets = useMemo<TargetEntry[]>(() => {
-    const visible = actionTargets.filter((rid) => highlightedNeighbors.includes(rid));
-    return visible
-      .map((rid) => {
-        const r = regions[rid];
-        if (!r) return null;
-        return { regionId: rid, region: r, name: r.name, isAttack: r.owner_id !== myUserId } satisfies TargetEntry;
-      })
-      .filter(Boolean) as TargetEntry[];
-  }, [actionTargets, highlightedNeighbors, regions, myUserId]);
-  const visibleActionTargets = useMemo(() => targets.map((t) => t.regionId), [targets]);
   const capitalSelectionEndsAt = Number(gameState?.meta?.capital_selection_ends_at || 0);
+  const capitalSelectionRemaining = status === "selecting" && capitalSelectionEndsAt > 0
+    ? Math.max(0, capitalSelectionEndsAt - Math.floor(nowMs / 1000))
+    : 0;
 
-  // Capital selection toast
+  // Capital selection toast — only after overlay dismissed
   useEffect(() => {
-    if (status === "selecting") {
-      toast.info("Wybierz region startowy", {
+    if (status === "selecting" && !showIntro && !hasSelectedCapital) {
+      const msg = capitalSelectionRemaining > 0
+        ? `Wybierz stolice! Pozostalo: ${capitalSelectionRemaining}s`
+        : "Wybierz stolice!";
+      toast.info(msg, {
         id: "capital-selection",
         duration: Infinity,
       });
-    } else {
+    } else if (status !== "selecting" || hasSelectedCapital) {
       toast.dismiss("capital-selection");
     }
-  }, [status]);
+  }, [status, showIntro, capitalSelectionRemaining, hasSelectedCapital]);
 
   // ── Render ─────────────────────────────────────────────────
 
@@ -1235,9 +1333,6 @@ export default function GamePage({
       </div>
     );
   }
-  const capitalSelectionRemaining = status === "selecting" && capitalSelectionEndsAt > 0
-    ? Math.max(0, capitalSelectionEndsAt - Math.floor(nowMs / 1000))
-    : 0;
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#050b14]">
@@ -1394,12 +1489,14 @@ export default function GamePage({
       )}
 
       {/* Match intro overlay — shows players VS while map loads */}
-      {showIntro && Object.keys(players).length > 0 && (
+      {showIntro && (
         <MatchIntroOverlay
           players={players}
           myUserId={myUserId}
-          mapReady={mapReady && connected}
-          onComplete={() => setShowIntro(false)}
+          connected={connected}
+          gameStateLoaded={!!gameState}
+          mapReady={mapReady}
+          onComplete={handleIntroComplete}
         />
       )}
 
@@ -1517,9 +1614,10 @@ export default function GamePage({
           regions={regions}
           players={players}
           selectedRegion={selectedRegion}
-          targetRegions={actionTargets}
+          targetRegions={[]}
           highlightedNeighbors={selectedAbility ? abilityTargets : highlightedNeighbors}
           onRegionClick={handleRegionClick}
+          onDoubleTap={handleDoubleTap}
           myUserId={myUserId}
           animations={animations}
           buildingIcons={buildingIcons}
@@ -1539,6 +1637,9 @@ export default function GamePage({
         myRegionCount={myRegionCount}
         myUnitCount={myUnitCount}
         myEnergy={myEnergy}
+        fps={fps}
+        ping={ping}
+        connected={connected}
       />
 
       {/* Desktop: chat + voice in bottom-left, separate from HUD to avoid re-render perf issues */}
@@ -1569,46 +1670,28 @@ export default function GamePage({
         myCosmetics={gameState?.players[myUserId]?.cosmetics}
       />
 
-      {/* Action Bar (multi-target) */}
-      {sourceRegionData && selectedRegion && isSource && (visibleActionTargets.length > 0 || Boolean(selectedUnitTypeForAction)) && (
-        <ActionBar
-          key={`${selectedRegion}:${selectedUnitTypeForAction ?? sourceRegionData.unit_type ?? "infantry"}`}
-          sourceRegion={sourceRegionData}
-          sourceName={sourceRegionData.name}
-          targets={targets}
+      {/* Quick Action Bar — region info + unit actions + build/produce */}
+      {sourceRegionData && selectedRegion && status === "in_progress" && (
+        <QuickActionBar
+          regionId={selectedRegion}
+          region={sourceRegionData}
+          players={players}
+          myUserId={myUserId}
+          myEnergy={myEnergy}
+          unitPercent={unitPercent}
           selectedUnitType={selectedUnitTypeForAction ?? sourceRegionData.unit_type ?? "infantry"}
-          selectedUnitScale={
-            unitsConfig.find((unit) => unit.slug === (selectedUnitTypeForAction ?? sourceRegionData.unit_type ?? "infantry"))?.manpower_cost ?? 1
-          }
-          unitsConfig={unitsConfig}
-          myCosmetics={gameState?.players[myUserId]?.cosmetics}
-          onSelectedUnitTypeChange={handleSelectedActionUnitTypeChange}
-          onConfirm={handleConfirmAction}
-          onRemoveTarget={handleRemoveTarget}
+          onPercentChange={setUnitPercent}
+          onUnitTypeChange={handleSelectedActionUnitTypeChange}
           onCancel={handleCancelAction}
+          buildings={effectiveBuildings}
+          buildingQueue={buildingsQueue}
+          units={unitsConfig}
+          onBuild={handleBuild}
+          onProduceUnit={handleProduceUnit}
+          unlockedBuildings={gameState?.players[myUserId]?.unlocked_buildings}
+          unlockedUnits={gameState?.players[myUserId]?.unlocked_units}
+          buildingLevels={gameState?.players[myUserId]?.building_levels}
         />
-      )}
-
-      {/* Region panel – desktop only */}
-      {sourceRegionData && selectedRegion && actionTargets.length === 0 && (
-        <div className="hidden sm:block" data-tutorial="region-panel">
-          <RegionPanel
-            regionId={selectedRegion}
-            region={sourceRegionData}
-            players={players}
-            myUserId={myUserId}
-            myEnergy={myEnergy}
-            buildings={effectiveBuildings}
-            buildingQueue={buildingsQueue}
-            units={unitsConfig}
-            onBuild={handleBuild}
-            onProduceUnit={handleProduceUnit}
-            onClose={handleCancelAction}
-            unlockedBuildings={gameState?.players[myUserId]?.unlocked_buildings}
-            unlockedUnits={gameState?.players[myUserId]?.unlocked_units}
-            buildingLevels={gameState?.players[myUserId]?.building_levels}
-          />
-        </div>
       )}
 
       {/* Ability Bar */}
@@ -1645,9 +1728,9 @@ export default function GamePage({
         </div>
       )}
 
-      {/* Mobile: voice + chat FABs, bottom-right above action bar */}
+      {/* Mobile: voice + chat FABs, top-right */}
       {status !== "finished" && status !== "cancelled" && connected && (
-        <div className="absolute bottom-14 right-2 z-20 flex flex-col items-end gap-2 sm:hidden">
+        <div className="absolute right-2 top-2 z-20 flex flex-col items-end gap-2 sm:hidden">
           <VoicePanel
             token={voiceToken}
             url={effectiveVoiceUrl}

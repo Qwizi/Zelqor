@@ -46,7 +46,7 @@ export default memo(function AbilityBar({
     const s = abilityScrolls;
     const base = [...abilities].sort((a, b) => a.order - b.order);
     if (!s) return { sortedAbilities: [], sortedBoosts: [] };
-    const visible = base.filter((a) => (s[a.slug] ?? 0) > 0);
+    const visible = base.filter((a) => isBoostSlug(a.slug) || (s[a.slug] ?? 0) > 0);
     return {
       sortedAbilities: visible.filter((a) => !isBoostSlug(a.slug)),
       sortedBoosts: visible.filter((a) => isBoostSlug(a.slug)),
@@ -227,7 +227,7 @@ function AbilityButton({
       <button
         onClick={() => onClick(ability.slug)}
         disabled={isDisabled}
-        title={`${ability.name}${isBoost ? " (Boost — aktywuje globalnie)" : ""} (${levelEnergyCost}⚡)${isOnCooldown ? ` - ${cooldownRemaining}s` : ""}${remainingUses !== undefined ? ` · Pozostalo: ${remainingUses}` : ""}`}
+        title={`${ability.name}${isBoost ? " (Boost — aktywuje globalnie)" : ""} (${levelEnergyCost}⚡)${isOnCooldown ? ` - ${cooldownRemaining}s` : ""}${remainingUses !== undefined ? ` · Pozostało: ${remainingUses}` : ""}`}
         className={`relative flex items-center justify-center border-2 transition-colors ${btnSize} ${
           isSelected
             ? selectedStyle
@@ -275,7 +275,7 @@ function AbilityButton({
               )}
             </svg>
             <span
-              className={`relative z-10 font-extrabold tabular-nums text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)] ${
+              className={`relative z-10 font-display font-extrabold tabular-nums text-accent drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)] ${
                 size === "lg" ? "text-base" : "text-xs"
               }`}
             >
@@ -287,9 +287,7 @@ function AbilityButton({
         {/* Remaining uses badge — top-right corner (hidden when unlimited / ≥100) */}
         {remainingUses !== undefined && remainingUses < 100 && (
           <span
-            className={`absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-secondary font-bold tabular-nums leading-none ${badgeColor} ${
-              size === "lg" ? "text-[10px]" : "text-[8px]"
-            }`}
+            className={`absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-secondary font-display font-bold tabular-nums leading-none ${badgeColor} text-[10px]`}
           >
             {remainingUses}
           </span>
@@ -298,9 +296,7 @@ function AbilityButton({
         {/* Boost indicator chip — bottom-left corner */}
         {isBoost && !isOnCooldown && (
           <span
-            className={`absolute -bottom-1 -left-1 rounded-sm border border-accent/40 bg-card/90 font-bold uppercase leading-none tracking-tight text-accent ${
-              size === "lg" ? "px-1 py-px text-[8px]" : "px-0.5 py-px text-[7px]"
-            }`}
+            className="absolute -bottom-1 -left-1 rounded-sm border border-accent/40 bg-card/90 px-1 py-px font-bold uppercase leading-none tracking-widest text-accent text-[10px]"
           >
             BOOST
           </span>
@@ -309,9 +305,9 @@ function AbilityButton({
 
       {/* Cost badge — below button, always visible */}
       <div
-        className={`mt-0.5 text-center font-bold tabular-nums ${
+        className={`mt-0.5 text-center font-display font-bold tabular-nums text-[10px] sm:text-xs ${
           canAfford ? "text-accent" : "text-destructive"
-        } ${size === "lg" ? "text-[10px]" : "text-[8px]"}`}
+        }`}
       >
         {levelEnergyCost}⚡
       </div>
@@ -319,13 +315,13 @@ function AbilityButton({
       {/* Level badge — shown when ability level is known */}
       {abilityLevel !== undefined && (
         <div
-          className={`text-center font-bold tabular-nums leading-none ${
+          className={`text-center font-display font-bold tabular-nums leading-none text-[10px] sm:text-xs ${
             abilityLevel >= 3
               ? "text-accent"
               : abilityLevel === 2
                 ? "text-primary"
                 : "text-muted-foreground"
-          } ${size === "lg" ? "text-[9px]" : "text-[7px]"}`}
+          }`}
         >
           Lvl {abilityLevel}
         </div>

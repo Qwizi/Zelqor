@@ -41,17 +41,16 @@ export default function DesktopChatVoice({
   return (
     <div className="hidden sm:flex absolute left-3 bottom-4 z-10 flex-col items-start gap-2 max-w-[240px]">
       {/* Voice pill */}
-      {hasVoice && (
-        <VoicePill
-          connected={voiceConnected}
-          micEnabled={voiceMicEnabled}
-          isSpeaking={voiceIsSpeaking}
-          peers={voicePeers}
-          onJoin={onVoiceJoin}
-          onLeave={onVoiceLeave}
-          onToggleMic={onVoiceToggleMic}
-        />
-      )}
+      <VoicePill
+        connected={voiceConnected}
+        micEnabled={voiceMicEnabled}
+        isSpeaking={voiceIsSpeaking}
+        peers={voicePeers}
+        onJoin={hasVoice ? onVoiceJoin : () => {}}
+        onLeave={onVoiceLeave}
+        onToggleMic={onVoiceToggleMic}
+        disabled={!hasVoice}
+      />
 
       {/* Chat panel */}
       <div className="w-full rounded-xl border border-border bg-card/80 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl">
@@ -61,9 +60,9 @@ export default function DesktopChatVoice({
         >
           <div className="flex items-center gap-1.5">
             <MessageSquare className="h-3 w-3 text-primary" />
-            <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Czat</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Czat</span>
             {!chatOpen && chatMessages.length > 0 && (
-              <span className="text-[9px] tabular-nums text-muted-foreground">{chatMessages.length}</span>
+              <span className="font-display text-xs tabular-nums text-muted-foreground">{chatMessages.length}</span>
             )}
           </div>
           {chatOpen ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
@@ -83,7 +82,7 @@ export default function DesktopChatVoice({
 
 function VoicePill({
   connected, micEnabled, isSpeaking, peers,
-  onJoin, onLeave, onToggleMic,
+  onJoin, onLeave, onToggleMic, disabled = false,
 }: {
   connected: boolean;
   micEnabled: boolean;
@@ -92,15 +91,17 @@ function VoicePill({
   onJoin: () => void;
   onLeave: () => void;
   onToggleMic: () => void;
+  disabled?: boolean;
 }) {
   if (!connected) {
     return (
       <button
         onClick={onJoin}
-        className="flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-muted/30"
+        disabled={disabled}
+        className={`flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors ${disabled ? "opacity-40" : "hover:bg-muted/30"}`}
       >
         <Phone className="h-3 w-3 text-emerald-400" />
-        <span className="text-[10px] font-medium text-muted-foreground">Dolacz</span>
+        <span className="text-xs font-semibold text-muted-foreground">{disabled ? "Voice..." : "Dołącz"}</span>
       </button>
     );
   }
@@ -114,14 +115,14 @@ function VoicePill({
             ? isSpeaking ? "text-emerald-300" : "text-foreground/60 hover:text-foreground"
             : "text-red-400"
         }`}
-        title={micEnabled ? "Wycisz" : "Wlacz mikrofon"}
+        title={micEnabled ? "Wycisz" : "Włącz mikrofon"}
       >
         {micEnabled ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
       </button>
       {peers.length > 0 && (
         <span className="text-[10px] tabular-nums text-muted-foreground">{peers.length}</span>
       )}
-      <button onClick={onLeave} className="rounded-full p-1 text-red-400 transition-colors hover:bg-red-500/20" title="Rozlacz">
+      <button onClick={onLeave} className="rounded-full p-1 text-red-400 transition-colors hover:bg-red-500/20" title="Rozłącz">
         <PhoneOff className="h-3.5 w-3.5" />
       </button>
     </div>
