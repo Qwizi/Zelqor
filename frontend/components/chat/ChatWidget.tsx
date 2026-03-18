@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useChat } from "@/hooks/useChat";
+import { useSystemModules } from "@/hooks/useSystemModules";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import { MessageSquare, X, Minus } from "lucide-react";
@@ -10,12 +11,13 @@ import { MessageSquare, X, Minus } from "lucide-react";
 export default function ChatWidget() {
   const { user } = useAuth();
   const { messages, connected, sendMessage, unreadCount, resetUnread, chatOpen, setChatOpen } = useChat();
+  const { isEnabled } = useSystemModules();
   const pathname = usePathname();
 
   // Hide in game pages — game has its own match chat panel
   const isGamePage = pathname.startsWith("/game/");
 
-  if (!user || isGamePage) return null;
+  if (!user || isGamePage || !isEnabled("chat")) return null;
 
   const handleToggle = () => {
     const willOpen = !chatOpen;

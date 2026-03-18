@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
 import {
   getMyInventory,
   getEquippedCosmetics,
@@ -182,6 +184,12 @@ function CosmeticCard({
 
 
 export default function CosmeticsPage() {
+  const { enabled } = useModuleConfig("cosmetics");
+  if (!enabled) return <ModuleDisabledPage slug="cosmetics" />;
+  return <CosmeticsContent />;
+}
+
+function CosmeticsContent() {
   const { user, loading: authLoading, token } = useAuth();
   const router = useRouter();
 

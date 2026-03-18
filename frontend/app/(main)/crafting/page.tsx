@@ -20,6 +20,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
 import {
   craftItem,
   getMyInventory,
@@ -170,6 +172,12 @@ function RecipeRow({ recipe, craftable, active, rarity, owned, onSelect }: {
 }
 
 export default function CraftingPage() {
+  const { enabled } = useModuleConfig("crafting");
+  if (!enabled) return <ModuleDisabledPage slug="crafting" />;
+  return <CraftingContent />;
+}
+
+function CraftingContent() {
   const { user, loading: authLoading, token } = useAuth();
   const router = useRouter();
   const [recipes, setRecipes] = useState<RecipeOut[]>([]);

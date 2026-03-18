@@ -25,6 +25,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
 import {
   cancelListing,
   getItemCategories,
@@ -530,6 +532,9 @@ function HistoryTab({ history, currentUsername }: HistoryTabProps) {
 // ─── Main Page ─────────────────────────────────────────────────────────────
 
 export default function MarketplacePage() {
+  const { enabled } = useModuleConfig("marketplace");
+  if (!enabled) return <ModuleDisabledPage slug="marketplace" />;
+
   return (
     <Suspense>
       <MarketplaceContent />

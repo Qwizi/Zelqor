@@ -25,6 +25,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
 import {
   getMyInventory,
   getMyWallet,
@@ -487,6 +489,12 @@ function timeAgo(dateStr: string): string {
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function InventoryPage() {
+  const { enabled } = useModuleConfig("inventory");
+  if (!enabled) return <ModuleDisabledPage slug="inventory" />;
+  return <InventoryContent />;
+}
+
+function InventoryContent() {
   const { user, loading: authLoading, token } = useAuth();
   const router = useRouter();
 

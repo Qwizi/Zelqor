@@ -1,6 +1,70 @@
-"""Helper functions for the game module system."""
-from apps.game_config.models import GameModule
+"""Helper functions for the game module and system module systems."""
+from __future__ import annotations
 
+from typing import Any, TypeVar, overload
+
+from apps.game_config.models import GameModule, SystemModule
+
+T = TypeVar('T')
+
+
+# ---------------------------------------------------------------------------
+# System module helpers
+# ---------------------------------------------------------------------------
+
+def is_module_enabled(slug: str) -> bool:
+    """Check if a system module is enabled. Shortcut for SystemModule.is_enabled()."""
+    return SystemModule.is_enabled(slug)
+
+
+@overload
+def get_module_config(slug: str, key: str, default: T) -> T: ...
+@overload
+def get_module_config(slug: str, key: str) -> Any: ...
+
+def get_module_config(slug: str, key: str, default: Any = None) -> Any:
+    """
+    Get a config value from a system module.
+
+    Usage:
+        auto_ban = get_module_config('anticheat', 'auto_ban_enabled', False)
+        max_violations = get_module_config('anticheat', 'max_violations_before_flag', 5)
+    """
+    from django.core.cache import cache
+    cache_key = f'sysmodule_cfg:{slug}'
+    config = cache.get(cache_key)
+    if config is None:
+        try:
+            module = SystemModule.objects.get(slug=slug)
+            config = module.config or {}
+        except SystemModule.DoesNotExist:
+            config = {}
+        cache.set(cache_key, config, 60)
+    return config.get(key, default)
+
+
+def get_all_module_configs() -> dict[str, dict]:
+    """
+    Get all system module states and configs in one call.
+    Returns: {slug: {'enabled': bool, 'config': dict}}
+    """
+    from django.core.cache import cache
+    cache_key = 'sysmodules:full'
+    result = cache.get(cache_key)
+    if result is None:
+        result = {}
+        for m in SystemModule.objects.all():
+            result[m.slug] = {
+                'enabled': m.enabled,
+                'config': m.config or {},
+            }
+        cache.set(cache_key, result, 60)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Game module (match settings) helpers
+# ---------------------------------------------------------------------------
 
 def get_modules_snapshot(source):
     """

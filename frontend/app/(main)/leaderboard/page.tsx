@@ -7,6 +7,8 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { Trophy, Medal, ChevronLeft, ChevronRight, Loader2, Target, Swords, Crown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
 import { getLeaderboard, type LeaderboardEntry } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +26,12 @@ import {
 const PAGE_SIZE = 20;
 
 export default function LeaderboardPage() {
+  const { enabled } = useModuleConfig("leaderboard");
+  if (!enabled) return <ModuleDisabledPage slug="leaderboard" />;
+  return <LeaderboardContent />;
+}
+
+function LeaderboardContent() {
   const { user, loading, token } = useAuth();
   const router = useRouter();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);

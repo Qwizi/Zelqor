@@ -31,12 +31,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import { MatchmakingProvider, useMatchmaking } from "@/hooks/useMatchmaking";
-import {
-  SystemModulesContext,
-  buildSystemModulesValue,
-  useSystemModules,
-} from "@/hooks/useSystemModules";
-import { getConfig, getMyWallet, type WalletOut } from "@/lib/api";
+import { useSystemModules } from "@/hooks/useSystemModules";
+import { getMyWallet, type WalletOut } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 // ---------------------------------------------------------------------------
@@ -684,31 +680,9 @@ function QueueBannerInline() {
 
 export default function MainLayout({ children }: { children: ReactNode }) {
   return (
-    <SystemModulesWrapper>
-      <MatchmakingProvider>
-        <MainLayoutInner>{children}</MainLayoutInner>
-      </MatchmakingProvider>
-    </SystemModulesWrapper>
-  );
-}
-
-function SystemModulesWrapper({ children }: { children: ReactNode }) {
-  const [contextValue, setContextValue] = useState(() =>
-    buildSystemModulesValue([])
-  );
-
-  useEffect(() => {
-    getConfig().then((cfg) => {
-      if (cfg.system_modules) {
-        setContextValue(buildSystemModulesValue(cfg.system_modules));
-      }
-    }).catch(() => {});
-  }, []);
-
-  return (
-    <SystemModulesContext.Provider value={contextValue}>
-      {children}
-    </SystemModulesContext.Provider>
+    <MatchmakingProvider>
+      <MainLayoutInner>{children}</MainLayoutInner>
+    </MatchmakingProvider>
   );
 }
 

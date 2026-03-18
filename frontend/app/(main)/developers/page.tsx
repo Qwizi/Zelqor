@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { Plus, Code, Copy, ArrowRight, KeyRound, CheckCheck, BookOpen } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
 import {
   getDeveloperApps,
   createDeveloperApp,
@@ -351,6 +353,12 @@ function CreateAppDialog({
 // ── Page ─────────────────────────────────────────────────────
 
 export default function DevelopersPage() {
+  const { enabled } = useModuleConfig("developers");
+  if (!enabled) return <ModuleDisabledPage slug="developers" />;
+  return <DevelopersContent />;
+}
+
+function DevelopersContent() {
   const { user, loading: authLoading, token } = useAuth();
   const router = useRouter();
 

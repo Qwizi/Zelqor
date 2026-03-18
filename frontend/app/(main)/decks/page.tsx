@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
 import {
   createDeck,
   deleteDeck,
@@ -30,6 +32,12 @@ import {
 } from "@/lib/api";
 
 export default function DecksPage() {
+  const { enabled } = useModuleConfig("cosmetics");
+  if (!enabled) return <ModuleDisabledPage slug="cosmetics" />;
+  return <DecksContent />;
+}
+
+function DecksContent() {
   const { user, loading: authLoading, token } = useAuth();
   const router = useRouter();
 

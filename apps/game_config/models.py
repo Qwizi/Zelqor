@@ -482,7 +482,9 @@ class SystemModule(models.Model):
         from django.core.cache import cache
         for slug in cls.objects.values_list('slug', flat=True):
             cache.delete(f'sysmodule:{slug}')
+            cache.delete(f'sysmodule_cfg:{slug}')
         cache.delete('sysmodules:all')
+        cache.delete('sysmodules:full')
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -596,7 +598,9 @@ class SystemModule(models.Model):
         from django.core.cache import cache
         for slug in cls.objects.values_list('slug', flat=True):
             cache.delete(f'sysmodule:{slug}')
+            cache.delete(f'sysmodule_cfg:{slug}')
         cache.delete('sysmodules:all')
+        cache.delete('sysmodules:full')
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
