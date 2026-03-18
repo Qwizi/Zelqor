@@ -6,6 +6,7 @@ from django.db.models import Q
 from django.utils import timezone
 from ninja_extra import api_controller, route
 from apps.accounts.auth import ActiveUserJWTAuth
+from apps.game_config.decorators import require_module_controller
 from apps.pagination import paginate_qs
 
 from apps.inventory.models import Item, UserInventory, Wallet
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 @api_controller('/marketplace', tags=['Marketplace'])
+@require_module_controller('marketplace')
 class MarketplaceController:
 
     @route.get('/config/', response=MarketConfigOutSchema, auth=None)

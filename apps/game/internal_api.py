@@ -373,3 +373,18 @@ class GameInternalController(ControllerBase):
         result = {'neighbors': neighbor_map}
         cache.set(cache_key, result, timeout=86400)  # 24h — immutable after import
         return result
+
+    @route.get('/system-modules/')
+    def get_system_modules(self, request):
+        """Return system module states for the gateway. Cached 60s."""
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from apps.game_config.models import SystemModule
+        modules = {}
+        for m in SystemModule.objects.filter(affects_gateway=True):
+            modules[m.slug] = {
+                'enabled': m.enabled,
+                'config': m.config,
+            }
+        return modules

@@ -239,6 +239,25 @@ class GameModuleOutSchema(Schema):
         from_attributes = True
 
 
+class SystemModuleOutSchema(Schema):
+    id: uuid.UUID
+    slug: str
+    name: str
+    description: str
+    icon: str
+    enabled: bool
+    config: dict
+    config_schema: list
+    affects_backend: bool
+    affects_frontend: bool
+    affects_gateway: bool
+    is_core: bool
+    order: int
+
+    class Config:
+        from_attributes = True
+
+
 class FullConfigOutSchema(Schema):
     settings: GameSettingsOutSchema
     buildings: List[BuildingTypeOutSchema]
@@ -247,3 +266,4 @@ class FullConfigOutSchema(Schema):
     maps: List[MapConfigOutSchema]
     game_modes: List[GameModeListSchema]
     modules: List[GameModuleOutSchema]
+    system_modules: List[SystemModuleOutSchema]

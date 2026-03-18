@@ -4,6 +4,7 @@ from ninja_extra import api_controller, route
 from ninja_extra.permissions import IsAuthenticated
 from apps.accounts.auth import ActiveUserJWTAuth
 from django.shortcuts import get_object_or_404
+from apps.game_config.decorators import require_module_controller
 
 from apps.game.models import GameStateSnapshot, MatchResult, ShareLink
 from apps.game.schemas import (
@@ -18,6 +19,7 @@ from apps.game.schemas import (
 
 
 @api_controller('/game', tags=['Game'])
+@require_module_controller('matchmaking')
 class GameController:
 
     @route.get('/results/{match_id}/', response=MatchResultOutSchema, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
@@ -43,6 +45,7 @@ class GameController:
 
 
 @api_controller('/share', tags=['Share'])
+@require_module_controller('replay')
 class ShareController:
 
     @route.post('/create/', response=ShareLinkOutSchema, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])

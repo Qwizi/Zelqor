@@ -2,6 +2,7 @@ import logging
 import random
 from ninja_extra import api_controller, route
 from apps.accounts.auth import ActiveUserJWTAuth
+from apps.game_config.decorators import require_module_controller
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from apps.pagination import paginate_qs
@@ -121,6 +122,7 @@ def remove_item_from_inventory(user, item, quantity=1):
 
 
 @api_controller('/inventory', tags=['Inventory'])
+@require_module_controller('inventory')
 class InventoryController:
 
     @route.get('/items/', response=list[ItemCategoryOutSchema], auth=None)
@@ -360,6 +362,7 @@ def _cleanup_stale_deck_items(user, deck):
 
 
 @api_controller('/inventory/decks', tags=['Decks'])
+@require_module_controller('cosmetics')
 class DeckController:
 
     @route.get('/', response=dict, auth=ActiveUserJWTAuth())

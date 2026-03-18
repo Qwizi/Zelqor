@@ -4,6 +4,7 @@ from unfold.decorators import display
 from apps.game_config.models import (
     GameSettings, BuildingType, UnitType, MapConfig, GameMode, AbilityType,
     GameModule, GameSettingsModuleOverride, GameModeModuleOverride,
+    SystemModule,
 )
 
 
@@ -200,3 +201,55 @@ class GameModuleAdmin(ModelAdmin):
     @display(description="Active", label=True)
     def display_active(self, obj):
         return "ACTIVE" if obj.is_active else "INACTIVE"
+
+
+@admin.register(SystemModule)
+class SystemModuleAdmin(ModelAdmin):
+    list_display = ('icon', 'name', 'slug', 'display_enabled', 'display_layers', 'display_core', 'order')
+    list_filter = ('enabled', 'is_core', 'affects_backend', 'affects_frontend', 'affects_gateway')
+    list_filter_submit = True
+    list_fullwidth = True
+    list_editable = ('enabled', 'order')
+    search_fields = ('name', 'slug')
+    prepopulated_fields = {'slug': ('name',)}
+    warn_unsaved_form = True
+    fieldsets = (
+        (None, {'fields': ('name', 'slug', 'description', 'icon', 'order')}),
+        ('State', {'fields': ('enabled', 'is_core')}),
+        ('Affected Layers', {'fields': ('affects_backend', 'affects_frontend', 'affects_gateway')}),
+        ('Configuration', {
+            'fields': ('config', 'config_schema'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    @display(
+        description="Status",
+        label={
+            'ON': 'success',
+            'OFF': 'danger',
+        },
+    )
+    def display_enabled(self, obj):
+        return 'ON' if obj.enabled else 'OFF'
+
+    @display(description="Layers")
+    def display_layers(self, obj):
+        layers = []
+        if obj.affects_backend:
+            layers.append('BE')
+        if obj.affects_frontend:
+            layers.append('FE')
+        if obj.affects_gateway:
+            layers.append('GW')
+        return ', '.join(layers) or '-'
+
+    @display(
+        description="Core",
+        label={
+            'CORE': 'warning',
+            '-': 'info',
+        },
+    )
+    def display_core(self, obj):
+        return 'CORE' if obj.is_core else '-'

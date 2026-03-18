@@ -5,6 +5,7 @@ from ninja_extra import ControllerBase, api_controller, route
 from pydantic import Field
 
 from apps.internal_auth import check_internal_secret
+from apps.game_config.decorators import require_module_controller
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class MessageListResponse(Schema):
 
 
 @api_controller('/internal', tags=['internal'])
+@require_module_controller('chat')
 class ChatInternalController(ControllerBase):
     """Internal API for the Rust gateway — chat-related endpoints."""
 

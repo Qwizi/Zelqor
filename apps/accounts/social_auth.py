@@ -14,6 +14,7 @@ from ninja_extra.permissions import IsAuthenticated
 from apps.accounts.auth import ActiveUserJWTAuth
 from apps.accounts.models import SocialAccount
 from apps.accounts.schemas import SocialAccountOutSchema
+from apps.game_config.decorators import require_module_controller
 
 User = get_user_model()
 
@@ -166,6 +167,7 @@ def _get_or_create_user(
 # ---------------------------------------------------------------------------
 
 @api_controller('/auth/social', tags=['Social Auth'])
+@require_module_controller('social-auth')
 class SocialAuthController:
 
     @route.get('/google/authorize', response=SocialAuthURLOut, auth=None)

@@ -1,6 +1,7 @@
 from ninja_extra import api_controller, route
 from ninja_extra.permissions import IsAuthenticated
 from apps.accounts.auth import ActiveUserJWTAuth
+from apps.game_config.decorators import require_module_controller
 
 from django.shortcuts import get_object_or_404
 from apps.matchmaking.models import Match
@@ -9,6 +10,7 @@ from apps.pagination import paginate_qs
 
 
 @api_controller('/matches', tags=['Matches'])
+@require_module_controller('matchmaking')
 class MatchController:
 
     @route.get('/', response=dict, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
@@ -39,6 +41,7 @@ class MatchController:
 
 
 @api_controller('/matches/tutorial', tags=['Tutorial'])
+@require_module_controller('tutorial')
 class TutorialController:
 
     @route.post('/start/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])

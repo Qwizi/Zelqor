@@ -31,7 +31,12 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import { MatchmakingProvider, useMatchmaking } from "@/hooks/useMatchmaking";
-import { getMyWallet, type WalletOut } from "@/lib/api";
+import {
+  SystemModulesContext,
+  buildSystemModulesValue,
+  useSystemModules,
+} from "@/hooks/useSystemModules";
+import { getConfig, getMyWallet, type WalletOut } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 // ---------------------------------------------------------------------------
@@ -45,25 +50,54 @@ interface NavItem {
   matchExact?: boolean;
 }
 
-const PLAY_ITEMS: NavItem[] = [
+/** Maps nav href prefixes to system module slugs. */
+const NAV_MODULE_MAP: Record<string, string> = {
+  "/leaderboard": "leaderboard",
+  "/inventory": "inventory",
+  "/decks": "cosmetics",
+  "/cosmetics": "cosmetics",
+  "/marketplace": "marketplace",
+  "/crafting": "crafting",
+  "/developers": "developers",
+};
+
+const ALL_PLAY_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Graj", icon: <LayoutDashboard size={20} />, matchExact: true },
   { href: "/leaderboard", label: "Ranking", icon: <Medal size={20} />, matchExact: true },
 ];
 
-const LOADOUT_ITEMS: NavItem[] = [
+const ALL_LOADOUT_ITEMS: NavItem[] = [
   { href: "/inventory", label: "Ekwipunek", icon: <Backpack size={20} /> },
   { href: "/decks", label: "Talie", icon: <Layers size={20} /> },
   { href: "/cosmetics", label: "Skórki", icon: <Shirt size={20} /> },
 ];
 
-const ECONOMY_ITEMS: NavItem[] = [
+const ALL_ECONOMY_ITEMS: NavItem[] = [
   { href: "/marketplace", label: "Rynek", icon: <Store size={20} /> },
   { href: "/crafting", label: "Kuźnia", icon: <Hammer size={20} /> },
 ];
 
-const OTHER_ITEMS: NavItem[] = [
+const ALL_OTHER_ITEMS: NavItem[] = [
   { href: "/developers", label: "API", icon: <Code size={20} /> },
 ];
+
+/** Filter nav items based on system module state. */
+function useFilteredNavItems() {
+  const { isEnabled } = useSystemModules();
+
+  const filterItems = (items: NavItem[]) =>
+    items.filter((item) => {
+      const slug = NAV_MODULE_MAP[item.href];
+      return !slug || isEnabled(slug);
+    });
+
+  return {
+    PLAY_ITEMS: filterItems(ALL_PLAY_ITEMS),
+    LOADOUT_ITEMS: filterItems(ALL_LOADOUT_ITEMS),
+    ECONOMY_ITEMS: filterItems(ALL_ECONOMY_ITEMS),
+    OTHER_ITEMS: filterItems(ALL_OTHER_ITEMS),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Profile popover (click on avatar → submenu with profile/settings/logout)
@@ -219,7 +253,7 @@ function Breadcrumbs({ pathname }: { pathname: string }) {
 }
 
 // Bottom bar items shown on mobile (primary 4 + "więcej" trigger)
-const BOTTOM_PRIMARY: NavItem[] = [
+const ALL_BOTTOM_PRIMARY: NavItem[] = [
   {
     href: "/dashboard",
     label: "Panel",
@@ -318,12 +352,13 @@ function DesktopSidebarContent({
   pathname: string;
   collapsed: boolean;
 }) {
+  const { PLAY_ITEMS, LOADOUT_ITEMS, ECONOMY_ITEMS, OTHER_ITEMS } = useFilteredNavItems();
   const groups = [
     { label: "GRA", items: PLAY_ITEMS },
     { label: "WYPOSAŻENIE", items: LOADOUT_ITEMS },
     { label: "HANDEL", items: ECONOMY_ITEMS },
     { label: "WIĘCEJ", items: OTHER_ITEMS },
-  ];
+  ].filter((g) => g.items.length > 0);
 
   if (collapsed) {
     return (
@@ -365,6 +400,7 @@ function MobileSidebarContent({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  const { PLAY_ITEMS, LOADOUT_ITEMS, ECONOMY_ITEMS, OTHER_ITEMS } = useFilteredNavItems();
   const groups = [
     { label: "GRA", items: PLAY_ITEMS },
     { label: "WYPOSAŻENIE", items: LOADOUT_ITEMS },
@@ -648,9 +684,31 @@ function QueueBannerInline() {
 
 export default function MainLayout({ children }: { children: ReactNode }) {
   return (
-    <MatchmakingProvider>
-      <MainLayoutInner>{children}</MainLayoutInner>
-    </MatchmakingProvider>
+    <SystemModulesWrapper>
+      <MatchmakingProvider>
+        <MainLayoutInner>{children}</MainLayoutInner>
+      </MatchmakingProvider>
+    </SystemModulesWrapper>
+  );
+}
+
+function SystemModulesWrapper({ children }: { children: ReactNode }) {
+  const [contextValue, setContextValue] = useState(() =>
+    buildSystemModulesValue([])
+  );
+
+  useEffect(() => {
+    getConfig().then((cfg) => {
+      if (cfg.system_modules) {
+        setContextValue(buildSystemModulesValue(cfg.system_modules));
+      }
+    }).catch(() => {});
+  }, []);
+
+  return (
+    <SystemModulesContext.Provider value={contextValue}>
+      {children}
+    </SystemModulesContext.Provider>
   );
 }
 
@@ -808,41 +866,61 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
       {/* ------------------------------------------------------------------ */}
       {/* Mobile bottom bar                                                   */}
       {/* ------------------------------------------------------------------ */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-14 items-stretch border-t border-border bg-card/90 backdrop-blur-xl md:hidden">
-        {BOTTOM_PRIMARY.map((item) => (
-          <BottomBarItem key={item.href} item={item} pathname={pathname} />
-        ))}
-
-        {/* "Więcej" sheet trigger */}
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetTrigger
-            render={
-              <button
-                className={cn(
-                  "flex flex-1 flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium transition-colors",
-                  "text-slate-400 hover:text-slate-300"
-                )}
-                aria-label="Więcej opcji"
-              />
-            }
-          >
-            <MoreHorizontal size={20} />
-            <span>Więcej</span>
-          </SheetTrigger>
-          <SheetContent
-            side="bottom"
-            className="rounded-t-2xl border-t border-border bg-card px-0 pb-8 pt-4"
-          >
-            <div className="mb-2 px-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
-              NAWIGACJA
-            </div>
-            <MobileSidebarContent
-              pathname={pathname}
-              onNavigate={() => setSheetOpen(false)}
-            />
-          </SheetContent>
-        </Sheet>
-      </nav>
+      <MobileBottomBar pathname={pathname} sheetOpen={sheetOpen} setSheetOpen={setSheetOpen} />
     </div>
+  );
+}
+
+function MobileBottomBar({
+  pathname,
+  sheetOpen,
+  setSheetOpen,
+}: {
+  pathname: string;
+  sheetOpen: boolean;
+  setSheetOpen: (open: boolean) => void;
+}) {
+  const { isEnabled } = useSystemModules();
+  const bottomItems = ALL_BOTTOM_PRIMARY.filter((item) => {
+    const slug = NAV_MODULE_MAP[item.href];
+    return !slug || isEnabled(slug);
+  });
+
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 flex h-14 items-stretch border-t border-border bg-card/90 backdrop-blur-xl md:hidden">
+      {bottomItems.map((item) => (
+        <BottomBarItem key={item.href} item={item} pathname={pathname} />
+      ))}
+
+      {/* "Więcej" sheet trigger */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetTrigger
+          render={
+            <button
+              className={cn(
+                "flex flex-1 flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium transition-colors",
+                "text-slate-400 hover:text-slate-300"
+              )}
+              aria-label="Więcej opcji"
+            />
+          }
+        >
+          <MoreHorizontal size={20} />
+          <span>Więcej</span>
+        </SheetTrigger>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl border-t border-border bg-card px-0 pb-8 pt-4"
+        >
+          <div className="mb-2 px-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
+            NAWIGACJA
+          </div>
+          <MobileSidebarContent
+            pathname={pathname}
+            onNavigate={() => setSheetOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
+    </nav>
   );
 }

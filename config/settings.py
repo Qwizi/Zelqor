@@ -266,6 +266,16 @@ UNFOLD = {
                         "icon": "public",
                         "link": "/admin/game_config/mapconfig/",
                     },
+                    {
+                        "title": "Game Modules",
+                        "icon": "extension",
+                        "link": "/admin/game_config/gamemodule/",
+                    },
+                    {
+                        "title": "System Modules",
+                        "icon": "toggle_on",
+                        "link": "/admin/game_config/systemmodule/",
+                    },
                 ],
             },
             {

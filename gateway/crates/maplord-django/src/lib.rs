@@ -860,6 +860,21 @@ impl DjangoClient {
         let result: ActiveLobbyResult = self.get(&path).await?;
         Ok(result.lobby_id)
     }
+
+    /// Fetch system module states from Django.
+    pub async fn get_system_modules(
+        &self,
+    ) -> Result<HashMap<String, SystemModuleState>, DjangoError> {
+        self.get("/api/v1/internal/game/system-modules/").await
+    }
+}
+
+/// State of a system module as returned by Django.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemModuleState {
+    pub enabled: bool,
+    #[serde(default)]
+    pub config: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug)]

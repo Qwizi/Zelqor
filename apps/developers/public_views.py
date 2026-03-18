@@ -5,6 +5,7 @@ from django.db.models import Avg, Count, Q
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from ninja_extra import api_controller, route
+from apps.game_config.decorators import require_module_controller
 
 from apps.developers.auth import APIKeyAuth, check_scope
 from apps.developers.schemas import (
@@ -23,6 +24,7 @@ User = get_user_model()
 
 
 @api_controller('/public', tags=['Public API'], auth=APIKeyAuth())
+@require_module_controller('developers')
 class PublicAPIController:
 
     @route.get('/leaderboard/', response=dict)

@@ -7,6 +7,7 @@ from ninja.errors import HttpError
 from ninja_extra import api_controller, route
 from ninja_extra.permissions import IsAuthenticated
 from apps.accounts.auth import ActiveUserJWTAuth
+from apps.game_config.decorators import require_module_controller
 from apps.pagination import paginate_qs
 
 from apps.developers.models import (
@@ -37,6 +38,7 @@ from apps.developers.schemas import (
 
 
 @api_controller('/developers', tags=['Developers'], permissions=[IsAuthenticated], auth=ActiveUserJWTAuth())
+@require_module_controller('developers')
 class DeveloperController:
 
     def _get_app(self, request, app_id: uuid.UUID) -> DeveloperApp:

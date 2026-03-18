@@ -2,6 +2,7 @@ import logging
 from django.db import transaction
 from ninja_extra import api_controller, route
 from apps.accounts.auth import ActiveUserJWTAuth
+from apps.game_config.decorators import require_module_controller
 from apps.pagination import paginate_qs
 
 from apps.crafting.models import CraftingLog, Recipe
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @api_controller('/crafting', tags=['Crafting'])
+@require_module_controller('crafting')
 class CraftingController:
 
     @route.get('/recipes/', response=list[RecipeOutSchema], auth=None)

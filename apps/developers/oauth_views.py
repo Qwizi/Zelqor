@@ -5,6 +5,7 @@ from ninja.errors import HttpError
 from ninja_extra import api_controller, route
 from ninja_extra.permissions import IsAuthenticated
 from apps.accounts.auth import ActiveUserJWTAuth
+from apps.game_config.decorators import require_module_controller
 
 from apps.developers.models import (
     VALID_SCOPES,
@@ -41,6 +42,7 @@ def _get_bearer_token(request) -> str | None:
 
 
 @api_controller('/oauth', tags=['OAuth'])
+@require_module_controller('developers')
 class OAuthController:
 
     # -------------------------------------------------------------------------

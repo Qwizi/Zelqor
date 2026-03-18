@@ -370,6 +370,49 @@ export interface AbilityType {
   level_stats: Record<string, Record<string, number>>;
 }
 
+export interface GameModuleItem {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+  default_enabled: boolean;
+  default_config: Record<string, unknown>;
+  config_schema: Array<{
+    key: string;
+    label: string;
+    type: string;
+    default: unknown;
+    min?: number;
+    max?: number;
+  }>;
+  is_active: boolean;
+  order: number;
+}
+
+export interface SystemModule {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  config_schema: Array<{
+    key: string;
+    label: string;
+    type: string;
+    default: unknown;
+    min?: number;
+    max?: number;
+  }>;
+  affects_backend: boolean;
+  affects_frontend: boolean;
+  affects_gateway: boolean;
+  is_core: boolean;
+  order: number;
+}
+
 export interface FullConfig {
   settings: GameSettings;
   buildings: BuildingType[];
@@ -377,6 +420,8 @@ export interface FullConfig {
   abilities: AbilityType[];
   maps: MapConfigItem[];
   game_modes: GameModeListItem[];
+  modules: GameModuleItem[];
+  system_modules: SystemModule[];
 }
 
 let _configCache: FullConfig | null = null;
