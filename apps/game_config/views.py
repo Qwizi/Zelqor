@@ -2,7 +2,7 @@ from typing import List
 from ninja_extra import api_controller, route
 from django.shortcuts import get_object_or_404
 
-from apps.game_config.models import GameSettings, BuildingType, UnitType, MapConfig, GameMode, AbilityType
+from apps.game_config.models import GameSettings, BuildingType, UnitType, MapConfig, GameMode, AbilityType, GameModule
 from apps.game_config.schemas import FullConfigOutSchema, GameModeOutSchema, GameModeListSchema
 
 
@@ -18,6 +18,7 @@ class ConfigController:
         abilities = list(AbilityType.objects.filter(is_active=True))
         maps = list(MapConfig.objects.filter(is_active=True))
         game_modes = list(GameMode.objects.filter(is_active=True))
+        modules = list(GameModule.objects.filter(is_active=True))
         return {
             'settings': settings,
             'buildings': buildings,
@@ -25,6 +26,7 @@ class ConfigController:
             'abilities': abilities,
             'maps': maps,
             'game_modes': game_modes,
+            'modules': modules,
         }
 
     @route.get('/game-modes/', response=List[GameModeListSchema], auth=None)

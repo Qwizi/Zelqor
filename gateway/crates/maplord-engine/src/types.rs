@@ -78,6 +78,19 @@ pub struct GameSettings {
     pub casualty_factor: f64,
     #[serde(default = "default_snapshot_interval_ticks")]
     pub snapshot_interval_ticks: u64,
+
+    // Module system
+    #[serde(default)]
+    pub modules: HashMap<String, ModuleConfig>,
+}
+
+/// Configuration for a single game module.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub config: HashMap<String, serde_json::Value>,
 }
 
 fn default_true() -> bool { true }
@@ -147,6 +160,7 @@ impl Default for GameSettings {
             max_unit_queue_per_region: default_max_unit_queue_per_region(),
             casualty_factor: default_casualty_factor(),
             snapshot_interval_ticks: default_snapshot_interval_ticks(),
+            modules: HashMap::new(),
         }
     }
 }

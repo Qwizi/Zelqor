@@ -223,6 +223,22 @@ class AbilityTypeOutSchema(Schema):
         from_attributes = True
 
 
+class GameModuleOutSchema(Schema):
+    id: uuid.UUID
+    slug: str
+    name: str
+    description: str
+    icon: str
+    default_enabled: bool
+    default_config: dict
+    config_schema: list
+    is_active: bool
+    order: int
+
+    class Config:
+        from_attributes = True
+
+
 class FullConfigOutSchema(Schema):
     settings: GameSettingsOutSchema
     buildings: List[BuildingTypeOutSchema]
@@ -230,3 +246,4 @@ class FullConfigOutSchema(Schema):
     abilities: List[AbilityTypeOutSchema]
     maps: List[MapConfigOutSchema]
     game_modes: List[GameModeListSchema]
+    modules: List[GameModuleOutSchema]

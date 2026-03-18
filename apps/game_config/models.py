@@ -344,3 +344,84 @@ class MapConfig(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class GameModule(models.Model):
+    """Defines a configurable game module/system (e.g. weather, day/night, combat)."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    slug = models.SlugField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    icon = models.CharField(max_length=50, blank=True, default='')
+
+    default_enabled = models.BooleanField(default=True, help_text='Default enabled state for new matches')
+    default_config = models.JSONField(
+        default=dict, blank=True,
+        help_text='Default configuration parameters as JSON (e.g. {"night_defense_modifier": 1.15})'
+    )
+    config_schema = models.JSONField(
+        default=list, blank=True,
+        help_text='Describes available fields: [{"key": "...", "label": "...", "type": "float", "default": 1.0, "min": 0, "max": 5}]'
+    )
+    # Maps module enabled state and config keys to flat settings_snapshot fields
+    field_mapping = models.JSONField(
+        default=dict, blank=True,
+        help_text='Maps module to flat settings fields: {"enabled_field": "weather_enabled", "config_fields": {"key": "snapshot_field"}}'
+    )
+
+    is_active = models.BooleanField(default=True, help_text='Whether this module is available in the system')
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class GameSettingsModuleOverride(models.Model):
+    """Per-module override for global GameSettings."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    game_settings = models.ForeignKey(
+        GameSettings, on_delete=models.CASCADE, related_name='module_overrides'
+    )
+    module = models.ForeignKey(
+        GameModule, on_delete=models.CASCADE, related_name='settings_overrides'
+    )
+    enabled = models.BooleanField(default=True)
+    config = models.JSONField(
+        default=dict, blank=True,
+        help_text='Override config values (merged with module defaults)'
+    )
+
+    class Meta:
+        unique_together = ('game_settings', 'module')
+        ordering = ['module__order']
+
+    def __str__(self):
+        status = 'ON' if self.enabled else 'OFF'
+        return f'{self.module.name} [{status}]'
+
+
+class GameModeModuleOverride(models.Model):
+    """Per-module override for a GameMode."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    game_mode = models.ForeignKey(
+        GameMode, on_delete=models.CASCADE, related_name='module_overrides'
+    )
+    module = models.ForeignKey(
+        GameModule, on_delete=models.CASCADE, related_name='mode_overrides'
+    )
+    enabled = models.BooleanField(default=True)
+    config = models.JSONField(
+        default=dict, blank=True,
+        help_text='Override config values (merged with module defaults)'
+    )
+
+    class Meta:
+        unique_together = ('game_mode', 'module')
+        ordering = ['module__order']
+
+    def __str__(self):
+        status = 'ON' if self.enabled else 'OFF'
+        return f'{self.module.name} [{status}]'

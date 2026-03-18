@@ -1,13 +1,31 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
-from apps.game_config.models import GameSettings, BuildingType, UnitType, MapConfig, GameMode, AbilityType
+from apps.game_config.models import (
+    GameSettings, BuildingType, UnitType, MapConfig, GameMode, AbilityType,
+    GameModule, GameSettingsModuleOverride, GameModeModuleOverride,
+)
+
+
+class GameSettingsModuleOverrideInline(TabularInline):
+    model = GameSettingsModuleOverride
+    extra = 0
+    fields = ('module', 'enabled', 'config')
+    autocomplete_fields = ('module',)
+
+
+class GameModeModuleOverrideInline(TabularInline):
+    model = GameModeModuleOverride
+    extra = 0
+    fields = ('module', 'enabled', 'config')
+    autocomplete_fields = ('module',)
 
 
 @admin.register(GameSettings)
 class GameSettingsAdmin(ModelAdmin):
     warn_unsaved_form = True
     compressed_fields = True
+    inlines = [GameSettingsModuleOverrideInline]
     fieldsets = (
         ('Match Settings', {'fields': ('max_players', 'min_players')}),
         ('Timing', {'fields': ('tick_interval_ms', 'capital_selection_time_seconds', 'match_duration_limit_minutes')}),
@@ -46,6 +64,7 @@ class GameModeAdmin(ModelAdmin):
     prepopulated_fields = {'slug': ('name',)}
     warn_unsaved_form = True
     compressed_fields = True
+    inlines = [GameModeModuleOverrideInline]
     fieldsets = (
         (None, {'fields': ('name', 'slug', 'description', 'map_config', 'is_active', 'is_default', 'order')}),
         ('Match Settings', {'fields': ('max_players', 'min_players')}),
@@ -153,6 +172,30 @@ class MapConfigAdmin(ModelAdmin):
     list_fullwidth = True
     search_fields = ('name',)
     warn_unsaved_form = True
+
+    @display(description="Active", label=True)
+    def display_active(self, obj):
+        return "ACTIVE" if obj.is_active else "INACTIVE"
+
+
+@admin.register(GameModule)
+class GameModuleAdmin(ModelAdmin):
+    list_display = ('icon', 'name', 'slug', 'default_enabled', 'display_active', 'order')
+    list_filter = ('is_active', 'default_enabled')
+    list_filter_submit = True
+    list_fullwidth = True
+    list_editable = ('default_enabled', 'order')
+    search_fields = ('name', 'slug')
+    prepopulated_fields = {'slug': ('name',)}
+    warn_unsaved_form = True
+    fieldsets = (
+        (None, {'fields': ('name', 'slug', 'description', 'icon', 'is_active', 'order')}),
+        ('Defaults', {'fields': ('default_enabled', 'default_config')}),
+        ('Schema & Mapping', {
+            'fields': ('config_schema', 'field_mapping'),
+            'classes': ('collapse',),
+        }),
+    )
 
     @display(description="Active", label=True)
     def display_active(self, obj):
