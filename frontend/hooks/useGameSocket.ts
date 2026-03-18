@@ -85,6 +85,18 @@ export interface ActiveEffect {
   params: Record<string, number>;
 }
 
+export interface WeatherState {
+  time_of_day: number;
+  phase: string;
+  cloud_coverage: number;
+  visibility: number;
+  condition: string;
+  defense_modifier: number;
+  randomness_modifier: number;
+  energy_modifier: number;
+  unit_gen_modifier: number;
+}
+
 export interface BuildingQueueItem {
   region_id: string;
   building_type: string;
@@ -119,6 +131,7 @@ export interface GameState {
   unit_queue: UnitQueueItem[];
   transit_queue?: Array<Record<string, unknown>>;
   active_effects?: ActiveEffect[];
+  weather?: WeatherState;
 }
 
 export interface GameEvent {
@@ -170,9 +183,14 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
 
   const handleMessage = useCallback((msg: WSMessage) => {
     switch (msg.type) {
-      case "game_state":
-        setGameState(msg.state as GameState);
+      case "game_state": {
+        const initialState = msg.state as GameState;
+        if (msg.weather) {
+          initialState.weather = msg.weather as WeatherState;
+        }
+        setGameState(initialState);
         break;
+      }
       case "game_tick": {
         const tickBase = String(msg.tick ?? "0");
         const rawTickEvents = (msg.events as GameEvent[]) || [];
@@ -223,6 +241,9 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
             active_effects: shallowEqualEffects(prev.active_effects, msg.active_effects as ActiveEffect[] | undefined)
               ? prev.active_effects
               : (msg.active_effects as ActiveEffect[]) ?? prev.active_effects,
+            weather: msg.weather !== undefined
+              ? (msg.weather as WeatherState)
+              : prev.weather,
           };
         });
         if (tickEvents.length > 0) {

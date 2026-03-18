@@ -82,11 +82,111 @@ fn default_unit_types() -> HashMap<String, UnitConfig> {
     m
 }
 
+/// Compute the current weather state from a UTC Unix timestamp.
+///
+/// Day/night cycle: based on UTC hour (06:00–18:00 = day).
+/// Weather conditions: deterministic cycle using day-of-year and hour
+/// to produce predictable but varied conditions.
+pub fn compute_weather(timestamp_secs: i64) -> WeatherState {
+    // Time of day: 0.0 = midnight, 0.5 = noon
+    let secs_in_day = ((timestamp_secs % 86400) + 86400) % 86400;
+    let time_of_day = secs_in_day as f64 / 86400.0;
+
+    // Phase
+    let phase = match time_of_day {
+        t if t < 0.21 => "night",    // 00:00–05:00
+        t if t < 0.29 => "dawn",     // 05:00–07:00
+        t if t < 0.75 => "day",      // 07:00–18:00
+        t if t < 0.83 => "dusk",     // 18:00–20:00
+        _ => "night",                 // 20:00–00:00
+    };
+
+    // Deterministic weather condition from day-of-year + hour
+    // Creates a slowly changing cycle that repeats every ~7 days
+    let day_of_year = (timestamp_secs / 86400) % 365;
+    let hour = secs_in_day / 3600;
+    let weather_seed = ((day_of_year * 7 + hour * 3) % 20) as f64;
+
+    let (condition, cloud_coverage) = if weather_seed < 8.0 {
+        ("clear", weather_seed * 0.05)             // 40% clear
+    } else if weather_seed < 13.0 {
+        ("cloudy", 0.4 + (weather_seed - 8.0) * 0.08) // 25% cloudy
+    } else if weather_seed < 16.0 {
+        ("rain", 0.7 + (weather_seed - 13.0) * 0.05)  // 15% rain
+    } else if weather_seed < 18.0 {
+        ("fog", 0.5 + (weather_seed - 16.0) * 0.1)    // 10% fog
+    } else {
+        ("storm", 0.9 + (weather_seed - 18.0) * 0.05) // 10% storm
+    };
+
+    // Visibility: day=high, night=lower, fog/storm=lower
+    let base_visibility = match phase {
+        "day" => 1.0,
+        "dawn" | "dusk" => 0.7,
+        _ => 0.5, // night
+    };
+    let weather_visibility = match condition {
+        "clear" => 1.0,
+        "cloudy" => 0.9,
+        "rain" => 0.75,
+        "fog" => 0.5,
+        "storm" => 0.6,
+        _ => 1.0,
+    };
+    let visibility = base_visibility * weather_visibility;
+
+    // Gameplay modifiers
+    let defense_modifier = match phase {
+        "night" => 1.15,   // defenders get +15% bonus at night
+        "dawn" | "dusk" => 1.05,
+        _ => 1.0,
+    };
+
+    let randomness_modifier = match condition {
+        "storm" => 1.4,    // storms add +40% combat chaos
+        "fog" => 1.25,     // fog adds +25%
+        "rain" => 1.1,     // rain adds +10%
+        _ => 1.0,
+    };
+
+    let energy_modifier = match condition {
+        "storm" => 0.85,   // storms reduce energy by 15%
+        "rain" => 0.95,    // rain reduces by 5%
+        _ => 1.0,
+    };
+
+    let unit_gen_modifier = match condition {
+        "storm" => 0.90,   // storms reduce unit gen by 10%
+        "rain" => 0.95,    // rain by 5%
+        _ => 1.0,
+    };
+
+    WeatherState {
+        time_of_day,
+        phase: phase.to_string(),
+        cloud_coverage,
+        visibility,
+        condition: condition.to_string(),
+        defense_modifier,
+        randomness_modifier,
+        energy_modifier,
+        unit_gen_modifier,
+    }
+}
+
 /// Pure game logic engine — no I/O, no state management.
 pub struct GameEngine {
     pub settings: GameSettings,
     pub neighbor_map: HashMap<String, Vec<String>>,
     default_units: HashMap<String, UnitConfig>,
+    /// Weather modifier for defender advantage (1.0 = no change).
+    weather_defense_modifier: f64,
+    /// Weather modifier for combat randomness (1.0 = no change).
+    weather_randomness_modifier: f64,
+    /// Weather modifier for energy generation (1.0 = no change).
+    weather_energy_modifier: f64,
+    /// Weather modifier for unit generation (1.0 = no change).
+    weather_unit_gen_modifier: f64,
 }
 
 impl GameEngine {
@@ -95,7 +195,20 @@ impl GameEngine {
             settings,
             neighbor_map,
             default_units: default_unit_types(),
+            weather_defense_modifier: 1.0,
+            weather_randomness_modifier: 1.0,
+            weather_energy_modifier: 1.0,
+            weather_unit_gen_modifier: 1.0,
         }
+    }
+
+    /// Update weather modifiers from the current weather state.
+    /// Call this once per tick before process_tick.
+    pub fn set_weather(&mut self, weather: &WeatherState) {
+        self.weather_defense_modifier = weather.defense_modifier;
+        self.weather_randomness_modifier = weather.randomness_modifier;
+        self.weather_energy_modifier = weather.energy_modifier;
+        self.weather_unit_gen_modifier = weather.unit_gen_modifier;
     }
 
     pub fn process_tick(
@@ -238,6 +351,9 @@ impl GameEngine {
                     income *= 1.0 + boost.value;
                 }
             }
+
+            // Apply weather modifier to energy generation.
+            income *= self.weather_energy_modifier;
 
             player.energy_accum += income;
             let whole = player.energy_accum as i64;
@@ -445,6 +561,9 @@ impl GameEngine {
             if let Some(&boost_mult) = unit_boost_by_player.get(owner.as_str()) {
                 rate *= boost_mult;
             }
+
+            // Apply weather modifier to unit generation.
+            rate *= self.weather_unit_gen_modifier;
 
             let rate_key = (rate * 10000.0).round() as u64;
             let group_key = (owner, rate_key);
@@ -1661,13 +1780,13 @@ impl GameEngine {
         let unit_config = self.get_unit_config(&item.unit_type);
         let attacker_bonus = self.settings.attacker_advantage;
         let defense_building = target.defense_bonus;
-        let randomness = self.settings.combat_randomness;
+        let randomness = self.settings.combat_randomness * self.weather_randomness_modifier;
 
         // Snapshot defending unit total and owner before any mutation.
         let defender_total_before: i64 = target.units.values().sum();
         let old_owner_id: Option<String> = target.owner_id.clone();
 
-        let mut defender_bonus = self.settings.defender_advantage;
+        let mut defender_bonus = self.settings.defender_advantage * self.weather_defense_modifier;
         // Apply defense_bonus boosts for the defending player: both deck boosts
         // (active_boosts) and temporary in-match boosts (active_match_boosts).
         if let Some(ref defender_player_id) = old_owner_id {

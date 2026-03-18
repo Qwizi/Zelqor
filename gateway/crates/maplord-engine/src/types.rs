@@ -401,6 +401,29 @@ pub struct TransitQueueItem {
     pub travel_ticks: i64,
 }
 
+/// Weather/day-night state computed from UTC time.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WeatherState {
+    /// 0.0 = midnight, 0.5 = noon, 1.0 = midnight again
+    pub time_of_day: f64,
+    /// "day", "night", "dawn", "dusk"
+    pub phase: String,
+    /// 0.0 = clear, 1.0 = heavy overcast
+    pub cloud_coverage: f64,
+    /// Overall visibility: 1.0 = full, 0.0 = zero (never actually zero)
+    pub visibility: f64,
+    /// Current weather condition: "clear", "cloudy", "rain", "fog", "storm"
+    pub condition: String,
+    /// Multiplier applied to defender_advantage (night = stronger defense)
+    pub defense_modifier: f64,
+    /// Multiplier applied to combat_randomness (fog/storm = more chaos)
+    pub randomness_modifier: f64,
+    /// Multiplier applied to energy generation (storm = reduced)
+    pub energy_modifier: f64,
+    /// Multiplier applied to unit generation rate (rain = slightly reduced)
+    pub unit_gen_modifier: f64,
+}
+
 /// Events produced by the engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]

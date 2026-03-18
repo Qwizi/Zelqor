@@ -34,6 +34,7 @@ import TutorialOverlay from "@/components/game/TutorialOverlay";
 import MatchChatPanel from "@/components/chat/MatchChatPanel";
 import VoicePanel from "@/components/chat/VoicePanel";
 import DesktopChatVoice from "@/components/game/DesktopChatVoice";
+import WeatherIndicator from "@/components/game/WeatherIndicator";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
 
 const BOOST_EFFECT_LABELS: Record<string, string> = {
@@ -1624,6 +1625,7 @@ export default function GamePage({
           activeEffects={gameState?.active_effects}
           nukeBlackout={nukeBlackout}
           onMapReady={handleMapReady}
+          weather={gameState?.weather}
         />
 
       {/* HUD */}
@@ -1641,6 +1643,13 @@ export default function GamePage({
         ping={ping}
         connected={connected}
       />
+
+      {/* Weather indicator — top-right HUD */}
+      {gameState?.weather && (
+        <div className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3">
+          <WeatherIndicator weather={gameState.weather} />
+        </div>
+      )}
 
       {/* Desktop: chat + voice in bottom-left, separate from HUD to avoid re-render perf issues */}
       {status !== "finished" && status !== "cancelled" && connected && (

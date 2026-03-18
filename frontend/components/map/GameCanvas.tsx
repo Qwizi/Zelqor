@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Application, Graphics, Text, Container, TextStyle, Assets, Sprite, Texture } from "pixi.js";
 import { Viewport } from "pixi-viewport";
-import type { GameRegion, ActiveEffect } from "@/hooks/useGameSocket";
+import type { GameRegion, ActiveEffect, WeatherState } from "@/hooks/useGameSocket";
 import type { TroopAnimation } from "@/lib/gameTypes";
 import { PixiAnimationManager } from "@/lib/pixiAnimations";
 import type { CosmeticValue } from "@/lib/animationConfig";
@@ -66,6 +66,7 @@ export interface GameCanvasProps {
   nukeBlackout?: Array<{ rid: string; startTime: number }>;
   onMapReady?: () => void;
   initialZoom?: number;
+  weather?: WeatherState;
 }
 
 // ── Internal render state ─────────────────────────────────────
@@ -197,6 +198,7 @@ export default function GameCanvas({
   nukeBlackout,
   onMapReady,
   initialZoom = 1,
+  weather,
 }: GameCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
@@ -208,6 +210,7 @@ export default function GameCanvas({
   const effectLayerRef = useRef<Container | null>(null);
   const nukeLayerRef = useRef<Container | null>(null);
   const unitChangeLayerRef = useRef<Container | null>(null);
+  const weatherOverlayRef = useRef<Graphics | null>(null);
   const animManagerRef = useRef<PixiAnimationManager | null>(null);
 
   /** Per-province render state — Graphics, Text, cached owner/fill */
@@ -1056,6 +1059,52 @@ export default function GameCanvas({
     };
   }, [nukeBlackout, shapesData]);
 
+  // ── Weather overlay ────────────────────────────────────────────
+
+  useEffect(() => {
+    const overlay = weatherOverlayRef.current;
+    if (!overlay || !shapesData) return;
+
+    overlay.clear();
+
+    if (!weather) return;
+
+    const { min_x, min_y, max_x, max_y } = shapesData.bounds;
+
+    let color = 0x000000;
+    let alpha = 0;
+
+    const phase = weather.phase;
+    const condition = weather.condition;
+
+    if (phase === "night") {
+      color = 0x0a0a2e;
+      alpha = 0.25 + (1 - weather.visibility) * 0.15;
+    } else if (phase === "dawn") {
+      color = 0xff8c42;
+      alpha = 0.06;
+    } else if (phase === "dusk") {
+      color = 0xff6b35;
+      alpha = 0.08;
+    }
+
+    if (condition === "fog") {
+      color = 0xc0c0c0;
+      alpha = Math.max(alpha, 0.12);
+    } else if (condition === "storm") {
+      color = 0x2d3748;
+      alpha = Math.max(alpha, 0.15);
+    } else if (condition === "rain") {
+      color = 0x4a5568;
+      alpha = Math.max(alpha, 0.06);
+    }
+
+    if (alpha > 0) {
+      overlay.rect(min_x, min_y, max_x - min_x, max_y - min_y);
+      overlay.fill({ color, alpha });
+    }
+  }, [weather, shapesData]);
+
   // ── Pixi Application lifecycle ────────────────────────────────
 
   useEffect(() => {
@@ -1126,8 +1175,13 @@ export default function GameCanvas({
       const animManager = new PixiAnimationManager();
       animManagerRef.current = animManager;
 
+      const weatherOverlay = new Graphics();
+      weatherOverlay.eventMode = "none";
+      weatherOverlayRef.current = weatherOverlay;
+
       viewport.addChild(provinceLayer);
       viewport.addChild(capitalLayer);
+      viewport.addChild(weatherOverlay);
       viewport.addChild(effectLayer);
       viewport.addChild(nukeLayer);
       viewport.addChild(animManager.container);
@@ -1192,6 +1246,7 @@ export default function GameCanvas({
         effectLayerRef.current = null;
         nukeLayerRef.current = null;
         unitChangeLayerRef.current = null;
+        weatherOverlayRef.current = null;
       }
     };
     // Only run once on mount
