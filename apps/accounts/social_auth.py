@@ -9,7 +9,11 @@ from ninja.errors import HttpError
 from ninja_extra import api_controller, route
 from ninja_jwt.tokens import RefreshToken
 
+from ninja_extra.permissions import IsAuthenticated
+
+from apps.accounts.auth import ActiveUserJWTAuth
 from apps.accounts.models import SocialAccount
+from apps.accounts.schemas import SocialAccountOutSchema
 
 User = get_user_model()
 
@@ -233,6 +237,134 @@ class SocialAuthController:
 
         tokens = _get_jwt_tokens(user)
         return {**tokens, 'is_new_user': is_new}
+
+    # ------------------------------------------------------------------
+    # Manage linked accounts (authenticated)
+    # ------------------------------------------------------------------
+
+    @route.get('/accounts', response=list[SocialAccountOutSchema], auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def list_accounts(self, request):
+        """List all social accounts linked to the current user."""
+        return list(request.auth.social_accounts.all())
+
+    @route.post('/google/link', response=SocialAccountOutSchema, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def google_link(self, request, payload: SocialCallbackIn):
+        """Link a Google account to the current user (exchange code first)."""
+        token_resp = requests.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                'client_id': settings.GOOGLE_CLIENT_ID,
+                'client_secret': settings.GOOGLE_CLIENT_SECRET,
+                'code': payload.code,
+                'grant_type': 'authorization_code',
+                'redirect_uri': payload.redirect_uri,
+            },
+            timeout=10,
+        )
+        if token_resp.status_code != 200:
+            raise HttpError(400, 'Nie udało się uzyskać tokenu od Google.')
+
+        access_token = token_resp.json().get('access_token')
+        if not access_token:
+            raise HttpError(400, 'Brak tokenu dostępu od Google.')
+
+        userinfo_resp = requests.get(
+            GOOGLE_USERINFO_URL,
+            headers={'Authorization': f'Bearer {access_token}'},
+            timeout=10,
+        )
+        if userinfo_resp.status_code != 200:
+            raise HttpError(400, 'Nie udało się pobrać danych użytkownika z Google.')
+
+        userinfo = userinfo_resp.json()
+        google_id = userinfo.get('id')
+        if not google_id:
+            raise HttpError(400, 'Brak identyfikatora użytkownika Google.')
+
+        existing = SocialAccount.objects.filter(
+            provider=SocialAccount.Provider.GOOGLE, provider_user_id=google_id,
+        ).first()
+        if existing:
+            if existing.user_id == request.auth.id:
+                raise HttpError(400, 'To konto Google jest już podłączone.')
+            raise HttpError(400, 'To konto Google jest podłączone do innego użytkownika.')
+
+        return SocialAccount.objects.create(
+            user=request.auth,
+            provider=SocialAccount.Provider.GOOGLE,
+            provider_user_id=google_id,
+            email=userinfo.get('email', ''),
+            display_name=userinfo.get('name', ''),
+            avatar_url=userinfo.get('picture', ''),
+        )
+
+    @route.post('/discord/link', response=SocialAccountOutSchema, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def discord_link(self, request, payload: SocialCallbackIn):
+        """Link a Discord account to the current user (exchange code first)."""
+        token_resp = requests.post(
+            DISCORD_TOKEN_URL,
+            data={
+                'client_id': settings.DISCORD_CLIENT_ID,
+                'client_secret': settings.DISCORD_CLIENT_SECRET,
+                'code': payload.code,
+                'grant_type': 'authorization_code',
+                'redirect_uri': payload.redirect_uri,
+            },
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            timeout=10,
+        )
+        if token_resp.status_code != 200:
+            raise HttpError(400, 'Nie udało się uzyskać tokenu od Discord.')
+
+        access_token = token_resp.json().get('access_token')
+        if not access_token:
+            raise HttpError(400, 'Brak tokenu dostępu od Discord.')
+
+        userinfo_resp = requests.get(
+            DISCORD_USERINFO_URL,
+            headers={'Authorization': f'Bearer {access_token}'},
+            timeout=10,
+        )
+        if userinfo_resp.status_code != 200:
+            raise HttpError(400, 'Nie udało się pobrać danych użytkownika z Discord.')
+
+        userinfo = userinfo_resp.json()
+        discord_id = userinfo.get('id')
+        if not discord_id:
+            raise HttpError(400, 'Brak identyfikatora użytkownika Discord.')
+
+        existing = SocialAccount.objects.filter(
+            provider=SocialAccount.Provider.DISCORD, provider_user_id=discord_id,
+        ).first()
+        if existing:
+            if existing.user_id == request.auth.id:
+                raise HttpError(400, 'To konto Discord jest już podłączone.')
+            raise HttpError(400, 'To konto Discord jest podłączone do innego użytkownika.')
+
+        avatar_hash = userinfo.get('avatar', '')
+        avatar_url = (
+            f'https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png'
+            if avatar_hash else ''
+        )
+        display_name = userinfo.get('global_name') or userinfo.get('username', '')
+
+        return SocialAccount.objects.create(
+            user=request.auth,
+            provider=SocialAccount.Provider.DISCORD,
+            provider_user_id=discord_id,
+            email=userinfo.get('email', ''),
+            display_name=display_name,
+            avatar_url=avatar_url,
+        )
+
+    @route.delete('/{account_id}/unlink', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def unlink_account(self, request, account_id: str):
+        """Unlink a social account from the current user."""
+        social = SocialAccount.objects.filter(id=account_id, user=request.auth).first()
+        if not social:
+            raise HttpError(404, 'Nie znaleziono podłączonego konta.')
+        social.delete()
+        return {'ok': True}
 
     @route.get('/discord/authorize', response=SocialAuthURLOut, auth=None)
     def discord_authorize(self, request, redirect_uri: str):

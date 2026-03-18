@@ -30,6 +30,18 @@ class UserOutSchema(Schema):
         from_attributes = True
 
 
+class SocialAccountOutSchema(Schema):
+    id: uuid.UUID
+    provider: str
+    display_name: str
+    email: str
+    avatar_url: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class LeaderboardEntrySchema(Schema):
     id: uuid.UUID
     username: str

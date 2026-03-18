@@ -155,6 +155,45 @@ export async function socialAuthCallback(
   });
 }
 
+export interface SocialAccountOut {
+  id: string;
+  provider: string;
+  display_name: string;
+  email: string;
+  avatar_url: string;
+  created_at: string;
+}
+
+export async function getLinkedSocialAccounts(
+  token: string
+): Promise<SocialAccountOut[]> {
+  return fetchAPI<SocialAccountOut[]>('/auth/social/accounts', { token });
+}
+
+export async function linkSocialAccount(
+  token: string,
+  provider: 'google' | 'discord',
+  code: string,
+  redirectUri: string,
+  state?: string | null
+): Promise<SocialAccountOut> {
+  return fetchAPI<SocialAccountOut>(`/auth/social/${provider}/link`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ code, redirect_uri: redirectUri, state }),
+  });
+}
+
+export async function unlinkSocialAccount(
+  token: string,
+  accountId: string
+): Promise<void> {
+  await fetchAPI(`/auth/social/${accountId}/unlink`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
 // --- Push Notifications ---
 
 export async function getVapidKey(): Promise<string> {

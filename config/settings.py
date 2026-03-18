@@ -225,6 +225,11 @@ UNFOLD = {
                         "icon": "person",
                         "link": "/admin/accounts/user/",
                     },
+                    {
+                        "title": "Social Accounts",
+                        "icon": "link",
+                        "link": "/admin/accounts/socialaccount/",
+                    },
                 ],
             },
             {
