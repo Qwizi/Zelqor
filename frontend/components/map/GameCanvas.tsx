@@ -361,7 +361,27 @@ export default function GameCanvas({
         const showUnitCount = isOwner || isAnimTarget || isSubRevealed;
 
         if (showUnitCount) {
-          label.text = region.unit_count > 0 ? String(region.unit_count) : "";
+          // Calculate air units separately (fighter, bomber)
+          const airSlugs = ["fighter", "bomber"];
+          const units = region.units ?? {};
+          let airCount = 0;
+          let airManpower = 0;
+          for (const slug of airSlugs) {
+            const count = units[slug] ?? 0;
+            if (count > 0) {
+              airCount += count;
+              // manpower: fighter=1, bomber=4 (hardcoded for display)
+              airManpower += count * (slug === "bomber" ? 4 : 1);
+            }
+          }
+          const groundCount = region.unit_count - airManpower;
+          if (groundCount > 0 && airCount > 0) {
+            label.text = `${groundCount}  ${airCount}✈(${airManpower})`;
+          } else if (airCount > 0) {
+            label.text = `${airCount}✈(${airManpower})`;
+          } else {
+            label.text = region.unit_count > 0 ? String(region.unit_count) : "";
+          }
         } else if (ownerId && player) {
           // Show short username for enemies
           label.text = player.username.slice(0, 8);
