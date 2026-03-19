@@ -269,6 +269,13 @@ def finalize_match_results_sync(
     except Exception as e:
         logger.error(f"Failed to dispatch webhook events: {e}")
 
+    # Process engagement rewards
+    try:
+        from apps.engagement.tasks import process_match_engagement
+        process_match_engagement.delay(str(match_id))
+    except Exception as e:
+        logger.error("Failed to process engagement for %s: %s", match_id, e)
+
 
 @shared_task
 def save_game_snapshot(match_id: str, tick: int, state_data: dict):

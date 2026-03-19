@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'apps.crafting',
     'apps.developers',
     'apps.assets',
+    'apps.engagement',
 ]
 
 MIDDLEWARE = [
@@ -138,6 +139,14 @@ CELERY_BEAT_SCHEDULE = {
     'cleanup-stale-lobbies': {
         'task': 'apps.matchmaking.tasks.cleanup_stale_lobbies',
         'schedule': 30,  # every 30 seconds
+    },
+    'assign-daily-quests': {
+        'task': 'apps.engagement.tasks.assign_daily_quests',
+        'schedule': 3600,  # every hour
+    },
+    'assign-weekly-quests': {
+        'task': 'apps.engagement.tasks.assign_weekly_quests',
+        'schedule': 3600 * 6,  # every 6 hours
     },
 }
 
@@ -443,6 +452,16 @@ UNFOLD = {
                         "icon": "image",
                         "link": "/admin/assets/gameasset/",
                     },
+                ],
+            },
+            {
+                "title": "Engagement",
+                "separator": True,
+                "items": [
+                    {"title": "Daily Rewards", "icon": "calendar_today", "link": "/admin/engagement/dailyreward/"},
+                    {"title": "Quests", "icon": "task_alt", "link": "/admin/engagement/quest/"},
+                    {"title": "Achievements", "icon": "emoji_events", "link": "/admin/engagement/achievement/"},
+                    {"title": "Player Profiles", "icon": "person", "link": "/admin/engagement/playerprofile/"},
                 ],
             },
         ],

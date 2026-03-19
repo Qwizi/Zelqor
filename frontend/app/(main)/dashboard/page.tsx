@@ -16,10 +16,19 @@ import {
   getConfig,
   getMyDecks,
   startTutorial,
+  getEngagementSummary,
+  claimDailyReward,
+  claimQuestReward,
   type Match,
   type GameModeListItem,
   type DeckOut,
+  type EngagementSummaryOut,
+  type ClaimDailyOut,
+  type ClaimQuestOut,
 } from "@/lib/api";
+import { DailyRewardWidget } from "@/components/engagement/DailyRewardWidget";
+import { QuestList } from "@/components/engagement/QuestList";
+import { PlayerLevelBar } from "@/components/engagement/PlayerLevelBar";
 import { loadAssetOverrides } from "@/lib/assetOverrides";
 import {
   Swords,
@@ -67,6 +76,7 @@ export default function DashboardPage() {
   const [decks, setDecks] = useState<DeckOut[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [tutorialLoading, setTutorialLoading] = useState(false);
+  const [engagement, setEngagement] = useState<EngagementSummaryOut | null>(null);
 
   const activeMatch = recentMatches.find(
     (m) =>
@@ -83,6 +93,7 @@ export default function DashboardPage() {
     const load = () => {
       refreshUser().catch(() => {});
       getMyMatches(token, 5).then((r) => setRecentMatches(r.items)).catch(() => {});
+      getEngagementSummary(token).then(setEngagement).catch(() => {});
     };
     load();
     const id = setInterval(load, 10_000);
@@ -118,6 +129,20 @@ export default function DashboardPage() {
       const r = await startTutorial(token);
       router.push(`/game/${r.match_id}`);
     } catch { setTutorialLoading(false); }
+  };
+
+  const handleClaimDaily = async (): Promise<ClaimDailyOut> => {
+    if (!token) throw new Error("No token");
+    const result = await claimDailyReward(token);
+    getEngagementSummary(token).then(setEngagement).catch(() => {});
+    return result;
+  };
+
+  const handleClaimQuest = async (questId: string): Promise<ClaimQuestOut> => {
+    if (!token) throw new Error("No token");
+    const result = await claimQuestReward(token, questId);
+    getEngagementSummary(token).then(setEngagement).catch(() => {});
+    return result;
   };
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -233,6 +258,17 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* ═══ ENGAGEMENT ═══ */}
+      {engagement && (
+        <div className="space-y-3 px-4 md:px-0">
+          <PlayerLevelBar profile={engagement.profile} />
+          <DailyRewardWidget dailyStatus={engagement.daily} onClaim={handleClaimDaily} />
+          {engagement.active_quests.length > 0 && (
+            <QuestList quests={engagement.active_quests} onClaimQuest={handleClaimQuest} />
+          )}
+        </div>
+      )}
 
       {/* ═══ ACTIVE MATCH ═══ */}
       {activeMatch && (

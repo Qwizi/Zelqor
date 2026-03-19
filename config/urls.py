@@ -21,6 +21,7 @@ from apps.developers.views import DeveloperController
 from apps.developers.public_views import PublicAPIController
 from apps.developers.oauth_views import OAuthController
 from apps.assets.api import AssetController
+from apps.engagement.views import EngagementController
 
 api = NinjaExtraAPI(title='MapLord API', version='1.0.0')
 api.register_controllers(
@@ -45,6 +46,7 @@ api.register_controllers(
     PublicAPIController,
     OAuthController,
     AssetController,
+    EngagementController,
 )
 
 def health_check(request):

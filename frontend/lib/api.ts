@@ -1168,3 +1168,102 @@ export async function oauthAuthorize(
     token,
   });
 }
+
+// --- Engagement ---
+
+export interface PlayerProfileOut {
+  xp: number;
+  level: number;
+  xp_for_next_level: number;
+  xp_progress: number;
+  login_streak: number;
+  best_streak: number;
+  last_daily_claimed_at: string | null;
+  total_matches: number;
+  total_wins: number;
+  total_playtime_seconds: number;
+}
+
+export interface DailyRewardOut {
+  day: number;
+  gold_reward: number;
+  xp_reward: number;
+  bonus_description: string;
+  is_today: boolean;
+}
+
+export interface DailyStatusOut {
+  can_claim: boolean;
+  current_streak: number;
+  next_reward: DailyRewardOut | null;
+  rewards: DailyRewardOut[];
+  last_claimed_at: string | null;
+}
+
+export interface ClaimDailyOut {
+  gold_earned: number;
+  xp_earned: number;
+  new_streak: number;
+  levels_gained: number;
+  new_level: number;
+}
+
+export interface QuestOut {
+  id: string;
+  title: string;
+  description: string;
+  objective_type: string;
+  objective_count: number;
+  progress: number;
+  gold_reward: number;
+  xp_reward: number;
+  is_completed: boolean;
+  is_claimed: boolean;
+  quest_type: string;
+  expires_at: string | null;
+}
+
+export interface ClaimQuestOut {
+  gold_earned: number;
+  xp_earned: number;
+  levels_gained: number;
+  new_level: number;
+}
+
+export interface AchievementOut {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  icon: string;
+  objective_type: string;
+  objective_count: number;
+  gold_reward: number;
+  xp_reward: number;
+  rarity: string;
+  is_unlocked: boolean;
+  unlocked_at: string | null;
+}
+
+export interface EngagementSummaryOut {
+  profile: PlayerProfileOut;
+  daily: DailyStatusOut;
+  active_quests: QuestOut[];
+  recent_achievements: AchievementOut[];
+}
+
+export async function getEngagementSummary(token: string): Promise<EngagementSummaryOut> {
+  return fetchAPI<EngagementSummaryOut>("/engagement/summary/", { token });
+}
+
+export async function claimDailyReward(token: string): Promise<ClaimDailyOut> {
+  return fetchAPI<ClaimDailyOut>("/engagement/daily/claim/", { method: "POST", token });
+}
+
+export async function claimQuestReward(token: string, questId: string): Promise<ClaimQuestOut> {
+  return fetchAPI<ClaimQuestOut>(`/engagement/quests/${questId}/claim/`, { method: "POST", token });
+}
+
+export async function getAchievements(token: string): Promise<AchievementOut[]> {
+  return fetchAPI<AchievementOut[]>("/engagement/achievements/", { token });
+}
