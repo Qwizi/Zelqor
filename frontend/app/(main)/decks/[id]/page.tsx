@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Check,
+  Loader2,
   Plus,
   Star,
   StarOff,
@@ -17,6 +18,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import {
   getDeck,
@@ -71,12 +79,36 @@ const RARITY_LEFT_BORDER: Record<string, string> = {
   legendary: "border-l-amber-500/50",
 };
 
-const RARITY_BG: Record<string, string> = {
+const RARITY_SLOT_BG: Record<string, string> = {
   common: "bg-slate-500/[0.07]",
   uncommon: "bg-green-500/[0.07]",
   rare: "bg-blue-500/[0.07]",
   epic: "bg-purple-500/[0.07]",
   legendary: "bg-amber-500/[0.07]",
+};
+
+const RARITY_BORDER_COLOR: Record<string, string> = {
+  common: "border-slate-500/50",
+  uncommon: "border-green-500/60",
+  rare: "border-blue-500/60",
+  epic: "border-purple-500/60",
+  legendary: "border-amber-500/60",
+};
+
+const RARITY_BADGE_CLASS: Record<string, string> = {
+  common: "bg-slate-500/15 text-slate-300 border-slate-500/20",
+  uncommon: "bg-green-500/15 text-green-300 border-green-500/20",
+  rare: "bg-blue-500/15 text-blue-300 border-blue-500/20",
+  epic: "bg-purple-500/15 text-purple-300 border-purple-500/20",
+  legendary: "bg-amber-500/15 text-amber-300 border-amber-500/20",
+};
+
+const RARITY_TEXT: Record<string, string> = {
+  common: "text-slate-300",
+  uncommon: "text-green-300",
+  rare: "text-blue-300",
+  epic: "text-purple-300",
+  legendary: "text-amber-300",
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -103,45 +135,324 @@ function sectionForType(type: string) {
   return SECTION_CONFIG.find((s) => s.type === type);
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Filled slot card ─────────────────────────────────────────────────────────
 
-interface FilledSlotProps {
+function FilledSlotCard({
+  item,
+  index,
+  onRemove,
+  isLocked,
+}: {
   item: SlotItem;
+  index: number;
   onRemove: () => void;
-}
-
-function FilledSlot({ item, onRemove }: FilledSlotProps) {
+  isLocked: boolean;
+}) {
   const [hovered, setHovered] = useState(false);
   const rarity = item.rarity || "common";
 
   return (
-    <div
-      className={`group relative aspect-square rounded-lg border border-l-2 ${RARITY_LEFT_BORDER[rarity]} ${RARITY_BG[rarity]} border-border bg-muted/40 flex flex-col items-center justify-center cursor-pointer transition-all duration-150 hover:border-border/60 hover:bg-muted hover:scale-[1.03]`}
+    <button
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={onRemove}
-      title={`${item.item_name} — kliknij aby usunąć`}
+      onClick={isLocked ? undefined : onRemove}
+      className={[
+        "group relative flex flex-col items-center gap-1.5 rounded-xl border-2 p-2 text-left transition-all duration-150",
+        isLocked
+          ? "cursor-default opacity-70"
+          : "hover:brightness-110 active:scale-[0.97] cursor-pointer",
+        RARITY_BORDER_COLOR[rarity] ?? "border-slate-500/50",
+        RARITY_SLOT_BG[rarity] ?? "bg-slate-500/[0.07]",
+      ].join(" ")}
+      title={isLocked ? item.item_name : `${item.item_name} — kliknij aby usunąć`}
     >
-      {hovered && (
-        <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive/80 text-destructive-foreground z-10">
-          <X className="h-3 w-3" />
+      {/* Remove overlay on hover */}
+      {!isLocked && hovered && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-destructive/20 z-10">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-destructive/80 text-destructive-foreground">
+            <X className="h-3.5 w-3.5" />
+          </div>
         </div>
       )}
-      <div
-        className={`absolute left-1 top-1 text-xs font-bold leading-none ${levelBadgeClass(item.level)}`}
-      >
+
+      {/* Slot number badge */}
+      <div className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-background/80 border border-border/60">
+        <span className="text-[8px] text-muted-foreground font-bold leading-none">{index + 1}</span>
+      </div>
+
+      {/* Level badge */}
+      <div className={`absolute top-1 right-1.5 text-[9px] font-bold leading-none ${levelBadgeClass(item.level)}`}>
         {item.level}
       </div>
-      <span className="text-2xl leading-none select-none">
-        {item.icon || "📦"}
-      </span>
-      <p className="mt-1 max-w-full truncate px-1 text-center text-xs leading-none text-foreground">
+
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-background/40 mt-1">
+        <span className="text-xl leading-none select-none">{item.icon || "📦"}</span>
+      </div>
+      <p className="w-full truncate text-center text-[10px] font-medium text-foreground leading-tight">
         {item.item_name}
       </p>
+      <span className={`text-[9px] font-semibold ${levelBadgeClass(item.level)}`}>
+        Lvl {item.level}
+      </span>
+    </button>
+  );
+}
+
+// ─── Empty slot card ──────────────────────────────────────────────────────────
+
+function EmptySlotCard({
+  index,
+  sectionIcon,
+  onClick,
+  isLocked,
+}: {
+  index: number;
+  sectionIcon: string;
+  onClick: () => void;
+  isLocked: boolean;
+}) {
+  return (
+    <button
+      onClick={isLocked ? undefined : onClick}
+      className={[
+        "group flex flex-col items-center gap-1.5 rounded-xl border-2 border-dashed p-2 text-left transition-all duration-150",
+        isLocked
+          ? "border-border/20 cursor-default opacity-40"
+          : "border-border/50 hover:border-border hover:bg-muted/30 active:scale-[0.97] cursor-pointer",
+      ].join(" ")}
+      title={isLocked ? `Slot ${index + 1}` : `Slot ${index + 1} — kliknij aby dodać`}
+    >
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/30">
+        <span className={`text-xl leading-none select-none transition-colors ${isLocked ? "text-muted-foreground/30" : "text-muted-foreground/40 group-hover:text-muted-foreground"}`}>
+          {sectionIcon}
+        </span>
+      </div>
+      <p className="w-full truncate text-center text-[10px] text-muted-foreground/50 leading-tight">
+        Slot {index + 1}
+      </p>
+      {!isLocked && (
+        <span className="text-[9px] text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors">
+          <Plus className="h-2.5 w-2.5 inline" />
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ─── Section card ─────────────────────────────────────────────────────────────
+
+function DeckSectionCard({
+  section,
+  slots,
+  onSlotClick,
+  onRemoveItem,
+  isLocked,
+}: {
+  section: (typeof SECTION_CONFIG)[number];
+  slots: SlotItem[];
+  onSlotClick: () => void;
+  onRemoveItem: (index: number) => void;
+  isLocked: boolean;
+}) {
+  const totalSlots = section.slots;
+  const filledCount = slots.length;
+
+  // Build display: filled slots first, then empty placeholders
+  const displaySlots: Array<{ filled: true; item: SlotItem; index: number } | { filled: false; index: number }> = [
+    ...slots.map((item, i) => ({ filled: true as const, item, index: i })),
+    ...Array.from({ length: totalSlots - filledCount }, (_, i) => ({
+      filled: false as const,
+      index: filledCount + i,
+    })),
+  ];
+
+  return (
+    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+      {/* Section header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/20">
+        <div className="flex items-center gap-2">
+          <span className="text-lg leading-none">{section.icon}</span>
+          <span className={`text-sm font-semibold ${section.colorClass}`}>{section.label}</span>
+        </div>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {filledCount}/{totalSlots}
+        </span>
+      </div>
+
+      {/* Slot grid */}
+      <div className="p-3">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          {displaySlots.map((slot) =>
+            slot.filled ? (
+              <FilledSlotCard
+                key={`filled-${slot.index}`}
+                item={slot.item}
+                index={slot.index}
+                onRemove={() => onRemoveItem(slot.index)}
+                isLocked={isLocked}
+              />
+            ) : (
+              <EmptySlotCard
+                key={`empty-${slot.index}`}
+                index={slot.index}
+                sectionIcon={section.icon}
+                onClick={onSlotClick}
+                isLocked={isLocked}
+              />
+            )
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
+// ─── Picker item row ──────────────────────────────────────────────────────────
+
+function PickerItem({
+  inv,
+  disabled,
+  disabledReason,
+  onAdd,
+}: {
+  inv: InventoryItemOut;
+  disabled: boolean;
+  disabledReason: string;
+  onAdd: () => void;
+}) {
+  const rarity = inv.item.rarity || "common";
+
+  return (
+    <button
+      onClick={disabled ? undefined : onAdd}
+      disabled={disabled}
+      className={[
+        "w-full flex items-center gap-3 rounded-xl border border-l-2 px-3 py-2.5 text-left transition-all duration-150",
+        RARITY_LEFT_BORDER[rarity] ?? "border-l-slate-500/50",
+        RARITY_SLOT_BG[rarity] ?? "bg-slate-500/[0.07]",
+        disabled
+          ? "opacity-30 cursor-not-allowed"
+          : "hover:bg-muted/50 hover:border-border/60 active:scale-[0.99] cursor-pointer",
+      ].join(" ")}
+    >
+      <span className="text-2xl leading-none select-none shrink-0">{inv.item.icon || "📦"}</span>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-sm font-medium truncate ${RARITY_TEXT[rarity] ?? "text-foreground"}`}>
+            {inv.item.name}
+          </span>
+          <Badge
+            className={`text-[10px] px-1.5 py-0 shrink-0 ${RARITY_BADGE_CLASS[rarity] ?? ""}`}
+            variant="outline"
+          >
+            Lvl {inv.item.level ?? 1}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+          <span>Posiadasz: {inv.quantity} szt.</span>
+          {disabled && disabledReason && (
+            <span className="text-amber-400/70">{disabledReason}</span>
+          )}
+        </div>
+      </div>
+
+      {!disabled && (
+        <Plus className="h-4 w-4 text-primary shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" />
+      )}
+    </button>
+  );
+}
+
+// ─── Section picker sheet ─────────────────────────────────────────────────────
+
+interface SectionPickerSheetProps {
+  open: boolean;
+  onClose: () => void;
+  section: (typeof SECTION_CONFIG)[number] | null;
+  inventory: InventoryItemOut[];
+  draftSlots: Record<SectionType, SlotItem[]>;
+  onAdd: (inv: InventoryItemOut) => void;
+}
+
+function SectionPickerSheet({
+  open,
+  onClose,
+  section,
+  inventory,
+  draftSlots,
+  onAdd,
+}: SectionPickerSheetProps) {
+  if (!section) return null;
+
+  const sectionType = section.type;
+  const availableItems = inventory.filter((i) => i.item.item_type === sectionType);
+  const currentSlots = draftSlots[sectionType];
+  const sectionFull = currentSlots.length >= section.slots;
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col gap-0 p-0">
+        <SheetHeader className="px-4 pt-4 pb-3 border-b border-border">
+          <SheetTitle className="flex items-center gap-2 text-base">
+            <span className="text-xl">{section.icon}</span>
+            {section.label}
+          </SheetTitle>
+          <SheetDescription className="text-xs">
+            {sectionFull
+              ? `Sekcja pełna (${section.slots}/${section.slots})`
+              : availableItems.length > 0
+                ? `${availableItems.length} przedmiot${availableItems.length === 1 ? "" : availableItems.length < 5 ? "y" : "ów"} dostępnych — ${currentSlots.length}/${section.slots} slotów zajętych`
+                : "Brak przedmiotów w ekwipunku dla tej sekcji"}
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          {availableItems.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-12 text-center">
+              <span className="text-4xl opacity-30">{section.icon}</span>
+              <p className="text-sm text-muted-foreground">Brak przedmiotów dla tej sekcji.</p>
+              <p className="text-xs text-muted-foreground/60">Zdobywaj je przez grę lub kup na rynku.</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {availableItems.map((inv) => {
+                const inDraftCount = currentSlots.filter((s) => s.item_slug === inv.item.slug).length;
+                const ownedQty = inv.quantity ?? 0;
+                const alreadyInDeck = !inv.item.is_consumable && inDraftCount >= 1;
+                const refTaken = !!(inv.item.blueprint_ref && currentSlots.some(
+                  (s) => s.blueprint_ref === inv.item.blueprint_ref
+                ));
+                const exhausted = inv.item.is_consumable && inDraftCount >= ownedQty;
+                const disabled = sectionFull || alreadyInDeck || refTaken || exhausted;
+
+                let disabledReason = "";
+                if (sectionFull) disabledReason = "Sekcja pełna";
+                else if (alreadyInDeck) disabledReason = "Już w talii";
+                else if (refTaken) disabledReason = "Inny poziom już dodany";
+                else if (exhausted) disabledReason = "Wyczerpano ilość";
+
+                return (
+                  <PickerItem
+                    key={inv.id}
+                    inv={inv}
+                    disabled={disabled}
+                    disabledReason={disabledReason}
+                    onAdd={() => {
+                      onAdd(inv);
+                      // Close sheet only if section is now full after adding
+                      // (leave open so user can keep adding)
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -159,16 +470,16 @@ export default function DeckEditorPage() {
   // Editor state
   const [editName, setEditName] = useState("");
   const [isDefault, setIsDefault] = useState(false);
-  const [draftSlots, setDraftSlots] = useState<Record<SectionType, SlotItem[]>>(
-    {
-      tactical_package: [],
-      blueprint_building: [],
-      blueprint_unit: [],
-      boost: [],
-    }
-  );
-  const [availableTab, setAvailableTab] =
-    useState<SectionType>("tactical_package");
+  const [draftSlots, setDraftSlots] = useState<Record<SectionType, SlotItem[]>>({
+    tactical_package: [],
+    blueprint_building: [],
+    blueprint_unit: [],
+    boost: [],
+  });
+
+  // Sheet state
+  const [activeSection, setActiveSection] = useState<(typeof SECTION_CONFIG)[number] | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -187,7 +498,6 @@ export default function DeckEditorPage() {
         invRes.items.filter((i) => DECK_ITEM_TYPES.includes(i.item.item_type))
       );
 
-      // Populate editor state
       setEditName(deckRes.name);
       setIsDefault(deckRes.is_default);
 
@@ -239,11 +549,9 @@ export default function DeckEditorPage() {
     setDraftSlots((prev) => {
       const current = prev[type];
       if (current.length >= section.slots) return prev;
-      // Non-consumable items can only appear once per deck
       if (!invItem.item.is_consumable && current.some((s) => s.item_slug === invItem.item.slug)) {
         return prev;
       }
-      // Only one level per blueprint_ref (e.g. barracks lvl 1 OR lvl 2, not both)
       const ref = invItem.item.blueprint_ref;
       if (ref && current.some((s) => s.blueprint_ref === ref)) {
         return prev;
@@ -300,7 +608,6 @@ export default function DeckEditorPage() {
         items,
       });
 
-      // Handle default toggle
       if (isDefault && !deck?.is_default) {
         await setDefaultDeck(token, deckId);
       }
@@ -314,18 +621,6 @@ export default function DeckEditorPage() {
     }
   };
 
-  // ─── Available items helpers ──────────────────────────────────────────────────
-
-  const countInDraft = (slug: string, type: SectionType): number =>
-    draftSlots[type].filter((s) => s.item_slug === slug).length;
-
-  const ownedQty = (slug: string): number =>
-    inventory.find((i) => i.item.slug === slug)?.quantity ?? 0;
-
-  const availableItems = inventory.filter(
-    (i) => i.item.item_type === availableTab
-  );
-
   const totalDraftItems = Object.values(draftSlots).reduce(
     (acc, arr) => acc + arr.length,
     0
@@ -337,16 +632,22 @@ export default function DeckEditorPage() {
 
   if (loading) {
     return (
-      <div className="space-y-5">
-        <div className="h-8 w-24 animate-pulse rounded-lg bg-muted/40" />
-        <div className="h-16 animate-pulse rounded-2xl border border-border bg-muted/20" />
-        <div className="h-64 animate-pulse rounded-2xl border border-border bg-muted/20" />
+      <div className="space-y-4 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+        <div className="px-4 md:px-0">
+          <div className="h-8 w-48 animate-pulse rounded-lg bg-muted/40" />
+        </div>
+        <div className="px-4 md:px-0 h-16 animate-pulse rounded-2xl border border-border bg-muted/20" />
+        <div className="px-4 md:px-0 grid grid-cols-1 gap-3 md:gap-4 sm:grid-cols-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-48 animate-pulse rounded-2xl border border-border bg-muted/20" />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="space-y-4 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* Locked deck banner */}
       {isLocked && (
         <div className="mx-4 md:mx-0 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
@@ -354,22 +655,33 @@ export default function DeckEditorPage() {
         </div>
       )}
 
-      {/* Back + title */}
-      <div className="flex items-center gap-2 px-4 md:px-0">
+      {/* Header */}
+      <div className="px-4 md:px-0 flex items-center gap-3">
         <Link
           href="/decks"
-          className="inline-flex items-center justify-center h-9 w-9 md:h-auto md:w-auto md:gap-1.5 rounded-full md:rounded-lg md:px-2 md:py-1.5 text-muted-foreground transition-all hover:text-foreground hover:bg-muted active:scale-[0.95]"
+          className="inline-flex items-center justify-center h-9 w-9 md:h-auto md:w-auto md:gap-1.5 rounded-full md:rounded-lg md:px-2 md:py-1.5 text-muted-foreground transition-all hover:text-foreground hover:bg-muted active:scale-[0.95] shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span className="hidden md:inline text-base">Powrót do talii</span>
+          <span className="hidden md:inline text-sm">Powrót</span>
         </Link>
-        <h1 className="font-display text-lg md:hidden text-foreground truncate flex-1">{editName || "Edytor talii"}</h1>
-        <span className="text-xs text-muted-foreground md:hidden tabular-nums">{totalDraftItems} szt.</span>
+        <div className="min-w-0 flex-1">
+          <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">
+            Edytor talii
+          </p>
+          <h1 className="font-display text-xl md:text-3xl text-foreground truncate">
+            {editName || "Edytor talii"}
+          </h1>
+        </div>
+        {!loading && (
+          <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+            {totalDraftItems} szt.
+          </span>
+        )}
       </div>
 
-      {/* Editor top bar — compact on mobile */}
+      {/* Controls bar */}
       <div className="px-4 md:px-0">
-        {/* Mobile: name input + save row */}
+        {/* Mobile controls */}
         <div className="flex items-center gap-2 md:hidden">
           <Input
             type="text"
@@ -377,10 +689,12 @@ export default function DeckEditorPage() {
             onChange={(e) => setEditName(e.target.value)}
             className="min-w-0 flex-1 h-10 text-sm"
             placeholder="Nazwa talii..."
+            disabled={isLocked}
           />
           <button
             onClick={() => setIsDefault((v) => !v)}
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
+            disabled={isLocked}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40 ${
               isDefault ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
             }`}
           >
@@ -391,12 +705,12 @@ export default function DeckEditorPage() {
             disabled={saving || isLocked}
             className="flex h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 active:scale-[0.95] transition-all"
           >
-            <Check className="h-4 w-4" />
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             Zapisz
           </button>
         </div>
 
-        {/* Desktop: full bar */}
+        {/* Desktop controls */}
         <Card className="hidden md:block rounded-2xl backdrop-blur-xl">
           <CardContent className="flex flex-wrap items-center gap-3 px-5 py-4">
             <span className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
@@ -407,11 +721,12 @@ export default function DeckEditorPage() {
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
               className="min-w-0 flex-1 h-11"
+              disabled={isLocked}
             />
-
             <button
               onClick={() => setIsDefault((v) => !v)}
-              className={`flex h-11 items-center gap-1.5 rounded-lg border px-4 text-sm font-medium transition-colors ${
+              disabled={isLocked}
+              className={`flex h-11 items-center gap-1.5 rounded-lg border px-4 text-sm font-medium transition-colors disabled:opacity-40 ${
                 isDefault
                   ? "border-accent/25 bg-accent/10 text-accent"
                   : "border-border bg-muted/40 text-muted-foreground hover:border-accent/20 hover:text-accent"
@@ -420,14 +735,13 @@ export default function DeckEditorPage() {
               {isDefault ? <Star className="h-4 w-4" /> : <StarOff className="h-4 w-4" />}
               {isDefault ? "Domyślna" : "Ustaw domyślną"}
             </button>
-
             <Button
               size="sm"
               onClick={handleSave}
               disabled={saving || isLocked}
               className="h-11 gap-1.5 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20 px-5 text-base"
             >
-              <Check className="h-4 w-4" />
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               Zapisz
             </Button>
             <Link href="/decks">
@@ -440,7 +754,6 @@ export default function DeckEditorPage() {
                 Anuluj
               </Button>
             </Link>
-
             <span className="ml-auto text-sm text-muted-foreground">
               {totalDraftItems} przedmiot
               {totalDraftItems === 1 ? "" : totalDraftItems < 5 ? "y" : "ów"}
@@ -449,133 +762,34 @@ export default function DeckEditorPage() {
         </Card>
       </div>
 
-      {/* Two-column layout: deck slots (left) + available items (right) */}
-      <div className="flex flex-col gap-3 md:gap-6 lg:flex-row px-4 md:px-0" style={{ minHeight: "calc(100vh - 16rem)" }}>
-        {/* ── Left: Deck slots ── */}
-        <div className="md:rounded-2xl md:border md:border-border md:bg-card flex-1 min-w-0 overflow-y-auto">
-          <div className="md:p-6 space-y-4 md:space-y-6">
-            {SECTION_CONFIG.map((section) => {
-              const slots = draftSlots[section.type];
-              const filled = slots.length;
-
-              return (
-                <div key={section.type}>
-                  <div className="mb-2 md:mb-3 flex items-center gap-1.5 md:gap-2">
-                    <span className="text-base md:text-xl leading-none">{section.icon}</span>
-                    <span className={`text-[11px] md:text-sm font-semibold uppercase tracking-[0.15em] md:tracking-[0.2em] ${section.colorClass}`}>
-                      {section.label}
-                    </span>
-                    <span className="text-[11px] md:text-sm text-muted-foreground">
-                      {filled}/{section.slots}
-                    </span>
-                    <div className="h-px flex-1 bg-border/40" />
-                  </div>
-
-                  {filled === 0 ? (
-                    <p className="text-xs md:text-base text-muted-foreground/50 py-2 md:py-3"><span className="hidden lg:inline">Brak — dodaj z prawej strony</span><span className="lg:hidden">Brak — dodaj poniżej</span></p>
-                  ) : (
-                    <div className="space-y-1 md:space-y-1.5">
-                      {slots.map((slot, i) => (
-                        <div
-                          key={`${slot.item_slug}-${i}`}
-                          className="flex items-center gap-2.5 md:gap-3 rounded-xl border border-border bg-secondary/50 px-3 py-2.5 md:px-4 md:py-3 transition-all hover:border-destructive/30 hover:bg-destructive/5 cursor-pointer group active:scale-[0.98]"
-                          onClick={() => removeSlotItem(section.type, i)}
-                          title="Kliknij aby usunąć"
-                        >
-                          <span className="text-xl md:text-2xl">{slot.icon || "📦"}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm md:text-base font-medium text-foreground truncate">{slot.item_name}</p>
-                          </div>
-                          <span className={`text-xs md:text-sm font-bold ${levelBadgeClass(slot.level)}`}>
-                            Lvl {slot.level}
-                          </span>
-                          <X className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:text-destructive transition-opacity" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ── Right: Available items ── */}
-        <div className="md:rounded-2xl md:border md:border-border md:bg-card w-full lg:w-96 lg:shrink-0 overflow-y-auto">
-          <div className="md:p-5">
-            <p className="text-[11px] md:text-sm font-semibold uppercase tracking-[0.15em] md:tracking-[0.2em] text-muted-foreground mb-2.5 md:mb-4">
-              Dodaj do talii
-            </p>
-
-            {/* Tab pills */}
-            <div className="mb-3 md:mb-4 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
-              {SECTION_CONFIG.map((s) => (
-                <button
-                  key={s.type}
-                  onClick={() => setAvailableTab(s.type)}
-                  className={`flex shrink-0 items-center gap-1 md:gap-1.5 rounded-full border px-2.5 py-1.5 md:px-3 text-xs md:text-sm font-medium transition-colors ${
-                    availableTab === s.type
-                      ? "border-primary/40 bg-primary/15 text-primary"
-                      : "border-border text-muted-foreground hover:border-border/50 hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <span className="text-xs md:text-sm leading-none">{s.icon}</span>
-                  <span className="hidden md:inline">{s.label}</span>
-                  <span className={`text-[10px] md:text-xs font-bold ${availableTab === s.type ? "text-primary/70" : "text-muted-foreground/50"}`}>
-                    {inventory.filter((i) => i.item.item_type === s.type).length}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <Separator className="mb-3 md:mb-4" />
-
-            {/* Items list */}
-            {availableItems.length === 0 ? (
-              <p className="py-6 md:py-8 text-center text-sm md:text-base text-muted-foreground">
-                Brak przedmiotów
-              </p>
-            ) : (
-              <div className="space-y-1 md:space-y-1.5">
-                {availableItems.map((inv) => {
-                  const currentSection = sectionForType(availableTab);
-                  const inDraftCount = countInDraft(inv.item.slug, availableTab);
-                  const owned = ownedQty(inv.item.slug);
-                  const sectionFull = draftSlots[availableTab].length >= (currentSection?.slots ?? 0);
-                  const alreadyInDeck = !inv.item.is_consumable && inDraftCount >= 1;
-                  const refTaken = !!(inv.item.blueprint_ref && draftSlots[availableTab].some(
-                    (s) => s.blueprint_ref === inv.item.blueprint_ref
-                  ));
-                  const exhausted = inv.item.is_consumable && inDraftCount >= owned;
-                  const disabled = sectionFull || alreadyInDeck || refTaken || exhausted;
-
-                  return (
-                    <button
-                      key={inv.id}
-                      onClick={() => !disabled && addItemToSection(inv)}
-                      disabled={disabled}
-                      className={`w-full flex items-center gap-2.5 md:gap-3 rounded-xl border px-2.5 py-2 md:px-3 md:py-2.5 text-left transition-all active:scale-[0.98] ${
-                        disabled
-                          ? "border-border/20 opacity-30 cursor-not-allowed"
-                          : "border-border hover:border-primary/30 hover:bg-primary/5 cursor-pointer"
-                      }`}
-                    >
-                      <span className="text-lg md:text-xl shrink-0">{inv.item.icon || "📦"}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs md:text-sm font-medium text-foreground truncate">{inv.item.name}</p>
-                        <p className="text-[10px] md:text-xs text-muted-foreground">
-                          Lvl {inv.item.level ?? 1} · {owned - inDraftCount} szt.
-                        </p>
-                      </div>
-                      {!disabled && <Plus className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Section grid */}
+      <div className="px-4 md:px-0 grid grid-cols-1 gap-3 md:gap-4 sm:grid-cols-2">
+        {SECTION_CONFIG.map((section) => (
+          <DeckSectionCard
+            key={section.type}
+            section={section}
+            slots={draftSlots[section.type]}
+            onSlotClick={() => {
+              setActiveSection(section);
+              setSheetOpen(true);
+            }}
+            onRemoveItem={(index) => removeSlotItem(section.type, index)}
+            isLocked={isLocked}
+          />
+        ))}
       </div>
+
+      {/* Section picker sheet */}
+      <SectionPickerSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        section={activeSection}
+        inventory={inventory}
+        draftSlots={draftSlots}
+        onAdd={(inv) => {
+          addItemToSection(inv);
+        }}
+      />
     </div>
   );
 }
