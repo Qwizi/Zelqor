@@ -255,7 +255,7 @@ export const ANIMATION_DEFAULTS: Record<string, AnimationConfig> = {
       particle_scale_decay: 0,
     },
     icon: {
-      size: 0.42,
+      size: 0.3,
       rotate: true,
       ...SHARED_ICON_BASE,
     },
@@ -393,6 +393,89 @@ export const ANIMATION_DEFAULTS: Record<string, AnimationConfig> = {
     impact_move: structuredClone(SHARED_IMPACT_MOVE),
   },
 
+  bomber: {
+    trail: {
+      color: "#78716c",
+      opacity: 0.7,
+      width: 6,
+      blur: 1.5,
+      length: 0.5,
+      line_style: "solid",
+      dash_pattern: [4, 3],
+      glow: true,
+      glow_color: "#44403c",
+      glow_width: 12,
+      particles: "circle",
+      particle_count: 6,
+      particle_spacing: 0.04,
+      particle_head_size: 5,
+      particle_decay: 0.35,
+      particle_decay_base: 4.5,
+      particle_min_size: 2.2,
+      particle_color: null,
+      particle_scale_decay: 0.82,
+    },
+    icon: {
+      size: 0.55,
+      rotate: true,
+      breathe_amplitude: 0.04,
+      breathe_speed: Math.PI * 4,
+      fade_start: 0.92,
+      fade_blend_min: 0.6,
+    },
+    pulse: {
+      enabled: true,
+      color: "#f97316",
+      rings: 3,
+      radius_base: 8,
+      radius_expand: 44,
+      start_at: 0.58,
+      opacity: 0.75,
+    },
+    impact_attack: {
+      duration: 1200,
+      layers: [
+        {
+          type: "ring",
+          color: "#f97316",
+          radius: [10, 40],
+          opacity_start: 0.9,
+          opacity_curve: 2.5,
+          duration_pct: 1.0,
+        },
+        {
+          type: "fill",
+          color: "#ef4444",
+          radius: [6, 30],
+          opacity_start: 0.6,
+          opacity_curve: 2.0,
+          duration_pct: 0.8,
+        },
+        {
+          type: "fill",
+          color: "#fbbf24",
+          radius: [4, 18],
+          opacity_start: 0.8,
+          opacity_curve: 1.5,
+          duration_pct: 0.6,
+        },
+      ],
+    },
+    impact_move: {
+      duration: 400,
+      layers: [
+        {
+          type: "ring",
+          color: "#78716c",
+          radius: [6, 18],
+          opacity_start: 0.5,
+          opacity_curve: 2.0,
+          duration_pct: 1.0,
+        },
+      ],
+    },
+  },
+
   nuke: {
     trail: {
       color: null, // player color
@@ -435,6 +518,15 @@ export const ANIMATION_DEFAULTS: Record<string, AnimationConfig> = {
     impact_move: structuredClone(NUKE_IMPACT_ATTACK),
   },
 };
+
+/**
+ * Set of unit type strings (and kind names) that have an explicit entry in
+ * `ANIMATION_DEFAULTS`. Consumers can use this to prefer a unit-type-specific
+ * config over the generic animKind fallback.
+ */
+export const ANIMATION_DEFAULTS_KEYS: Set<string> = new Set(
+  Object.keys(ANIMATION_DEFAULTS)
+);
 
 // ── Cosmetic slot helpers ─────────────────────────────────────────────────────
 //

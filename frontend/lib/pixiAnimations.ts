@@ -9,6 +9,7 @@ import { Container, Graphics, Text, TextStyle, Assets, Sprite, Texture } from "p
 import type { TroopAnimation } from "@/lib/gameTypes";
 import {
   resolveAnimConfig,
+  ANIMATION_DEFAULTS_KEYS,
   type AnimationConfig,
   type CosmeticValue,
   type ImpactConfig,
@@ -29,7 +30,7 @@ const DURATION_MAP: Record<AnimKind, number> = {
 };
 
 const EXTRA_DURATION_MAP: Record<string, number> = {
-  bomber: 1300,
+  bomber: 6000,
   submarine: 3500,
   artillery: 2000,
   commando: 1500,
@@ -60,6 +61,9 @@ interface InternalAnim {
   iconGfx: Graphics;
   iconSprite: Sprite | null;
   labelText: Text;
+
+  // Bomber bomb-drop tracking: which spawn checkpoints have already fired
+  spawnedBombs: Set<number>;
 }
 
 interface ImpactFlash {
@@ -77,6 +81,26 @@ interface PulseRing {
   startTime: number;
   config: PulseConfig;
   gfx: Graphics;
+}
+
+interface BombDrop {
+  /** World-space x position where the bomb was released. */
+  x: number;
+  /** World-space y position where the bomb was released. */
+  y: number;
+  startTime: number;
+  /** Total fall duration in ms. */
+  duration: number;
+  startY: number;
+  /** Y position after fully falling (falls ~40px downward in world space). */
+  endY: number;
+  /** Main bomb circle + trail. */
+  gfx: Graphics;
+  /** Expanding explosion circle rendered at impact point. */
+  impactGfx: Graphics;
+  /** Whether the impact explosion has been triggered. */
+  impacted: boolean;
+  impactStartTime: number;
 }
 
 // ── Colour helper ────────────────────────────────────────────────────────────
@@ -168,23 +192,92 @@ export function computeMarchPath(
 
 /**
  * Select path shape and resolution for a given animation kind / unit type.
+ * Pass `actionType` to enable fighter circling on attack animations.
  */
 export function buildAnimationPath(
   kind: AnimKind,
   from: [number, number],
   to: [number, number],
-  unitType?: string | null
+  unitType?: string | null,
+  actionType?: "attack" | "move"
 ): [number, number][] {
   if (unitType === "nuke_rocket") return computeCurvePath(from, to, 0.35, 200);
-  if (unitType === "bomber") return computeCurvePath(from, to, 0.28, 40);
+  if (unitType === "bomber") return computeCurvePath(from, to, 0.28, 60);
   if (unitType === "submarine") return computeCurvePath(from, to, 0.04, 34);
   if (unitType === "artillery") return computeCurvePath(from, to, 0.35, 30);
   if (unitType === "commando") return computeMarchPath(from, to, 26);
   if (unitType === "sam") return computeMarchPath(from, to, 26);
-  if (kind === "fighter") return computeCurvePath(from, to, 0.24, 52);
+  if (kind === "fighter") {
+    if (actionType === "attack") return computeFighterAttackPath(from, to);
+    return computeCurvePath(from, to, 0.24, 52);
+  }
   if (kind === "ship") return computeCurvePath(from, to, 0.04, 34);
   if (kind === "tank") return computeCurvePath(from, to, 0.08, 26);
   return computeMarchPath(from, to, 26);
+}
+
+/**
+ * Compute a fighter attack path with three phases:
+ *   Phase 1 (0–40%):  curved approach toward target vicinity
+ *   Phase 2 (40–80%): tight orbiting circles around the target
+ *   Phase 3 (80–100%): straight dive to target
+ */
+export function computeFighterAttackPath(
+  from: [number, number],
+  to: [number, number]
+): [number, number][] {
+  const points: [number, number][] = [];
+  const totalPoints = 80;
+  const dx = to[0] - from[0];
+  const dy = to[1] - from[1];
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 0.001) return [from, to];
+
+  const perpX = -dy / dist;
+  const perpY = dx / dist;
+  const circleRadius = Math.max(dist * 0.12, 8);
+  const centerX = to[0] - dx * 0.1;
+  const centerY = to[1] - dy * 0.1;
+
+  // The starting angle of the circle phase matches where the approach arc ends,
+  // so we compute that once and reuse it in both phase 2 and the dive start.
+  // We place the approach endpoint on the circle at angle 0 (positive-x side).
+  const circleStartAngle = 0;
+
+  for (let i = 0; i <= totalPoints; i++) {
+    const t = i / totalPoints;
+    let x: number, y: number;
+
+    if (t < 0.4) {
+      // Phase 1: approach — smooth curve from source to circle entry point
+      const st = t / 0.4;
+      const entryX = centerX + Math.cos(circleStartAngle) * circleRadius;
+      const entryY = centerY + Math.sin(circleStartAngle) * circleRadius;
+      // Quadratic Bézier: from → (mid + perp curve) → entry
+      const midX = (from[0] + entryX) / 2 + perpX * dist * 0.15;
+      const midY = (from[1] + entryY) / 2 + perpY * dist * 0.15;
+      const u = 1 - st;
+      x = u * u * from[0] + 2 * u * st * midX + st * st * entryX;
+      y = u * u * from[1] + 2 * u * st * midY + st * st * entryY;
+    } else if (t < 0.8) {
+      // Phase 2: 2 full orbits around the target center
+      const ct = (t - 0.4) / 0.4;
+      const angle = circleStartAngle + ct * Math.PI * 4;
+      x = centerX + Math.cos(angle) * circleRadius;
+      y = centerY + Math.sin(angle) * circleRadius;
+    } else {
+      // Phase 3: dive straight to target from orbit exit point
+      const dt = (t - 0.8) / 0.2;
+      const exitAngle = circleStartAngle + Math.PI * 4; // same as end of phase 2
+      const exitX = centerX + Math.cos(exitAngle) * circleRadius;
+      const exitY = centerY + Math.sin(exitAngle) * circleRadius;
+      x = exitX + (to[0] - exitX) * dt;
+      y = exitY + (to[1] - exitY) * dt;
+    }
+
+    points.push([x, y]);
+  }
+  return points;
 }
 
 /**
@@ -305,6 +398,9 @@ export class PixiAnimationManager {
   private readonly impacts: Map<string, ImpactFlash> = new Map();
   private readonly pulseRings: Map<string, PulseRing> = new Map();
 
+  // Active bomb drops spawned by bomber animations
+  private readonly _bombs: BombDrop[] = [];
+
   // Track which anim IDs have already triggered their arrival flash.
   private readonly arrived: Set<string> = new Set();
 
@@ -348,13 +444,20 @@ export class PixiAnimationManager {
       animKind,
       sourceCentroid,
       targetCentroid,
-      anim.unitType
+      anim.unitType,
+      anim.type
     );
     const duration =
       anim.durationMs ??
       (isNuke ? 8000 : (EXTRA_DURATION_MAP[anim.unitType ?? ""] ?? DURATION_MAP[animKind] ?? DURATION_MAP.infantry));
+    // For unit types with their own config entry (e.g. "bomber"), prefer that
+    // entry over the generic animKind default so distinct configs take effect.
+    const configKey =
+      anim.unitType && ANIMATION_DEFAULTS_KEYS.has(anim.unitType)
+        ? anim.unitType
+        : animKind;
     const config = resolveAnimConfig(
-      animKind,
+      configKey,
       anim.type,
       isNuke,
       playerCosmetics
@@ -401,6 +504,7 @@ export class PixiAnimationManager {
       iconGfx,
       iconSprite: null,
       labelText,
+      spawnedBombs: new Set<number>(),
     };
 
     this.anims.set(anim.id, internal);
@@ -427,6 +531,7 @@ export class PixiAnimationManager {
    */
   update(now: number): void {
     this._updateAnims(now);
+    this._updateBombs(now);
     this._updateImpacts(now);
     this._gc(now);
   }
@@ -447,6 +552,14 @@ export class PixiAnimationManager {
       this.container.removeChild(p.gfx);
     }
     this.pulseRings.clear();
+
+    for (const bomb of this._bombs) {
+      bomb.gfx.destroy();
+      bomb.impactGfx.destroy();
+      this.container.removeChild(bomb.gfx);
+      this.container.removeChild(bomb.impactGfx);
+    }
+    this._bombs.length = 0;
 
     this.arrived.clear();
     this.container.destroy({ children: true });
@@ -530,6 +643,18 @@ export class PixiAnimationManager {
       if (rawLinear >= 1 && !this.arrived.has(a.id)) {
         this.arrived.add(a.id);
         this._triggerImpact(a, now);
+      }
+
+      // ── Bomber bomb drops ─────────────────────────────────────────────────
+      if (a.unitType === "bomber" && rawLinear < 1) {
+        const BOMB_CHECKPOINTS = [0.2, 0.35, 0.5, 0.65, 0.8];
+        for (const checkpoint of BOMB_CHECKPOINTS) {
+          if (rawLinear >= checkpoint && !a.spawnedBombs.has(checkpoint)) {
+            a.spawnedBombs.add(checkpoint);
+            const dropPos = lerpPath(a.path, progress);
+            this._spawnBomb(dropPos[0], dropPos[1], now);
+          }
+        }
       }
     }
   }
@@ -852,6 +977,122 @@ export class PixiAnimationManager {
     this.pulseRings.delete(animId);
   }
 
+  // ── Bomb drops (bomber unit) ───────────────────────────────────────────────
+
+  private _spawnBomb(x: number, y: number, now: number): void {
+    const gfx = new Graphics();
+    const impactGfx = new Graphics();
+    this.container.addChild(gfx);
+    this.container.addChild(impactGfx);
+
+    this._bombs.push({
+      x,
+      y,
+      startTime: now,
+      duration: 800,
+      startY: y,
+      endY: y + 40,
+      gfx,
+      impactGfx,
+      impacted: false,
+      impactStartTime: 0,
+    });
+  }
+
+  private _updateBombs(now: number): void {
+    for (let i = this._bombs.length - 1; i >= 0; i--) {
+      const bomb = this._bombs[i];
+      const elapsed = now - bomb.startTime;
+      const rawProgress = elapsed / bomb.duration;
+
+      // Gravity-accelerated fall (eased quadratic)
+      const fallProgress = Math.min(rawProgress, 1);
+      const easedFall = fallProgress * fallProgress;
+      const currentY = bomb.startY + (bomb.endY - bomb.startY) * easedFall;
+
+      // Draw bomb body and trail
+      const g = bomb.gfx;
+      g.clear();
+
+      if (rawProgress < 1) {
+        // Trail: 4 fading dots above the bomb
+        for (let t = 3; t >= 1; t--) {
+          const trailFrac = (t / 4) * 0.5;
+          const trailY = bomb.startY + (bomb.endY - bomb.startY) * Math.max(0, easedFall - trailFrac);
+          const trailAlpha = (1 - t / 4) * 0.55 * (1 - fallProgress * 0.5);
+          const trailRadius = Math.max(0.5, 2 - t * 0.4);
+          g.circle(bomb.x, trailY, trailRadius).fill({ color: 0x555555, alpha: trailAlpha });
+        }
+
+        // Bomb body: dark gray circle
+        g.circle(bomb.x, currentY, 3).fill({ color: 0x222222, alpha: 0.95 });
+        g.circle(bomb.x, currentY, 3).stroke({ color: 0x888888, alpha: 0.6, width: 1 });
+      }
+
+      // Trigger impact when fall completes
+      if (!bomb.impacted && rawProgress >= 1) {
+        bomb.impacted = true;
+        bomb.impactStartTime = now;
+      }
+
+      // Draw expanding explosion at impact point
+      if (bomb.impacted) {
+        const impactElapsed = now - bomb.impactStartTime;
+        const impactDuration = 400;
+        const ip = impactElapsed / impactDuration;
+        const ig = bomb.impactGfx;
+        ig.clear();
+
+        if (ip < 1) {
+          // Outer orange ring expanding outward
+          const ringRadius = 5 + ip * 20;
+          const ringAlpha = Math.pow(1 - ip, 1.5) * 0.85;
+          ig.circle(bomb.x, bomb.endY, ringRadius).stroke({ color: 0xf97316, alpha: ringAlpha, width: 2.5 });
+
+          // Inner red fill shrinking and fading
+          if (ip < 0.6) {
+            const fillProgress = ip / 0.6;
+            const fillRadius = 5 + fillProgress * 12;
+            const fillAlpha = Math.pow(1 - fillProgress, 1.8) * 0.65;
+            ig.circle(bomb.x, bomb.endY, fillRadius).fill({ color: 0xef4444, alpha: fillAlpha });
+          }
+
+          // Bright yellow core flash (very early)
+          if (ip < 0.25) {
+            const coreProgress = ip / 0.25;
+            const coreRadius = 3 + coreProgress * 6;
+            const coreAlpha = Math.pow(1 - coreProgress, 2) * 0.9;
+            ig.circle(bomb.x, bomb.endY, coreRadius).fill({ color: 0xfbbf24, alpha: coreAlpha });
+          }
+
+          // 4 small debris particles radiating outward
+          const particleAngles = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+          for (const angle of particleAngles) {
+            const pDist = ip * 18;
+            const px = bomb.x + Math.cos(angle) * pDist;
+            const py = bomb.endY + Math.sin(angle) * pDist;
+            const pAlpha = Math.pow(1 - ip, 2) * 0.6;
+            ig.circle(px, py, 1.5).fill({ color: 0xff8c00, alpha: pAlpha });
+          }
+        } else if (impactElapsed > impactDuration + 200) {
+          // Fully complete — remove this bomb
+          bomb.gfx.destroy();
+          bomb.impactGfx.destroy();
+          this.container.removeChild(bomb.gfx);
+          this.container.removeChild(bomb.impactGfx);
+          this._bombs.splice(i, 1);
+        }
+      } else if (rawProgress > 3.0) {
+        // Safety cleanup for bombs that never impacted (shouldn't happen)
+        bomb.gfx.destroy();
+        bomb.impactGfx.destroy();
+        this.container.removeChild(bomb.gfx);
+        this.container.removeChild(bomb.impactGfx);
+        this._bombs.splice(i, 1);
+      }
+    }
+  }
+
   // ── Impact flash ───────────────────────────────────────────────────────────
 
   private _triggerImpact(a: InternalAnim, now: number): void {
@@ -947,6 +1188,18 @@ export class PixiAnimationManager {
     // Bound the arrived set to prevent unbounded memory growth
     if (this.arrived.size > 500) {
       this.arrived.clear();
+    }
+
+    // Bound active bomb array — safety cap (each bomber flight spawns at most 5)
+    if (this._bombs.length > 50) {
+      // Too many active bombs; remove the oldest half
+      const toRemove = this._bombs.splice(0, 25);
+      for (const bomb of toRemove) {
+        bomb.gfx.destroy();
+        bomb.impactGfx.destroy();
+        this.container.removeChild(bomb.gfx);
+        this.container.removeChild(bomb.impactGfx);
+      }
     }
   }
 
