@@ -1,42 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
-  <defs>
-    <linearGradient id="ng" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#5a5a5a"/>
-      <stop offset="100%" stop-color="#2a2a2a"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.3" r="0.5">
-      <stop offset="0%" stop-color="#ef4444" stop-opacity="0.4"/>
-      <stop offset="100%" stop-color="#ef4444" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill-opacity="0.85">
   <!-- Danger glow -->
-  <ellipse cx="150" cy="120" rx="50" ry="80" fill="url(#glow)"/>
+  <ellipse cx="150" cy="120" rx="50" ry="80" fill="#ffffff"/>
   <!-- Missile body -->
-  <rect x="135" y="80" width="30" height="160" rx="8" fill="url(#ng)" stroke="#7a7a7a" stroke-width="2"/>
+  <rect x="135" y="80" width="30" height="160" rx="8" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Nose cone -->
-  <polygon points="140,80 160,80 155,40 145,40" fill="#4a4a4a" stroke="#7a7a7a" stroke-width="1.5"/>
-  <polygon points="147,40 153,40 150,22" fill="#ef4444" stroke="#7a7a7a" stroke-width="1"/>
+  <polygon points="140,80 160,80 155,40 145,40" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <polygon points="147,40 153,40 150,22" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Warhead section (red band) -->
-  <rect x="135" y="80" width="30" height="25" rx="4" fill="#8b1a1a" stroke="#ef4444" stroke-width="1" stroke-opacity="0.5"/>
+  <rect x="135" y="80" width="30" height="25" rx="4" fill="#ffffff" stroke="#ffffff" stroke-width="1" stroke-opacity="0.5"/>
   <!-- Hazard stripes -->
-  <line x1="137" y1="85" x2="163" y2="85" stroke="#fbbf24" stroke-width="1.5" opacity="0.6"/>
-  <line x1="137" y1="92" x2="163" y2="92" stroke="#fbbf24" stroke-width="1.5" opacity="0.6"/>
-  <line x1="137" y1="99" x2="163" y2="99" stroke="#fbbf24" stroke-width="1.5" opacity="0.6"/>
+  <line x1="137" y1="85" x2="163" y2="85" stroke="#ffffff" stroke-width="1.5" opacity="0.6"/>
+  <line x1="137" y1="92" x2="163" y2="92" stroke="#ffffff" stroke-width="1.5" opacity="0.6"/>
+  <line x1="137" y1="99" x2="163" y2="99" stroke="#ffffff" stroke-width="1.5" opacity="0.6"/>
   <!-- Body panels -->
-  <line x1="150" y1="105" x2="150" y2="230" stroke="#6a6a6a" stroke-width="0.8" opacity="0.5"/>
-  <rect x="138" y="140" width="24" height="8" rx="2" fill="#3a3a3a" stroke="#5a5a5a" stroke-width="0.8"/>
-  <rect x="138" y="170" width="24" height="8" rx="2" fill="#3a3a3a" stroke="#5a5a5a" stroke-width="0.8"/>
+  <line x1="150" y1="105" x2="150" y2="230" stroke="#ffffff" stroke-width="0.8" opacity="0.5"/>
+  <rect x="138" y="140" width="24" height="8" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="0.8"/>
+  <rect x="138" y="170" width="24" height="8" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="0.8"/>
   <!-- Fins -->
-  <polygon points="135,220 135,240 105,260 115,240" fill="#3a3a3a" stroke="#5a5a5a" stroke-width="1.5"/>
-  <polygon points="165,220 165,240 195,260 185,240" fill="#3a3a3a" stroke="#5a5a5a" stroke-width="1.5"/>
-  <polygon points="145,225 145,240 130,260 138,240" fill="#3a3a3a" stroke="#5a5a5a" stroke-width="1"/>
-  <polygon points="155,225 155,240 170,260 162,240" fill="#3a3a3a" stroke="#5a5a5a" stroke-width="1"/>
+  <polygon points="135,220 135,240 105,260 115,240" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <polygon points="165,220 165,240 195,260 185,240" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <polygon points="145,225 145,240 130,260 138,240" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <polygon points="155,225 155,240 170,260 162,240" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Engine nozzle -->
-  <rect x="140" y="240" width="20" height="12" rx="3" fill="#2a2a2a" stroke="#5a5a5a" stroke-width="1.5"/>
+  <rect x="140" y="240" width="20" height="12" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Exhaust glow -->
-  <ellipse cx="150" cy="258" rx="12" ry="15" fill="#ef4444" opacity="0.3"/>
-  <ellipse cx="150" cy="262" rx="8" ry="10" fill="#fbbf24" opacity="0.25"/>
+  <ellipse cx="150" cy="258" rx="12" ry="15" fill="#ffffff" opacity="0.3"/>
+  <ellipse cx="150" cy="262" rx="8" ry="10" fill="#ffffff" opacity="0.25"/>
   <!-- Radiation symbol -->
-  <circle cx="150" cy="155" r="6" fill="none" stroke="#fbbf24" stroke-width="1.5" opacity="0.5"/>
-  <circle cx="150" cy="155" r="2" fill="#fbbf24" opacity="0.5"/>
+  <circle cx="150" cy="155" r="6" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.5"/>
+  <circle cx="150" cy="155" r="2" fill="#ffffff" opacity="0.5"/>
 </svg>

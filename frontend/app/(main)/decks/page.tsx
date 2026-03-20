@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
+import ItemIcon from "@/components/ui/ItemIcon";
 import {
   createDeck,
   deleteDeck,
@@ -300,7 +301,7 @@ function DecksContent() {
                               key={`${di.item.slug}-${i}`}
                               className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-secondary/50 px-3 py-2"
                             >
-                              <span className="text-xl">{di.item.icon || "📦"}</span>
+                              <ItemIcon slug={di.item.slug} icon={di.item.icon} size={24} />
                               <span className="text-base text-foreground font-medium whitespace-nowrap">
                                 {di.item.name.replace(/^(Pakiet|Blueprint|Bonus): ?/, "")}
                               </span>

@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import ItemIcon from "@/components/ui/ItemIcon";
 import type { ItemOut } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -199,9 +200,9 @@ function StripCard({ item, highlighted }: { item: StripItem; highlighted: boolea
           />
         </>
       )}
-      <span style={{ fontSize: "40px", lineHeight: 1, userSelect: "none", filter: highlighted ? `drop-shadow(0 0 12px ${color})` : "none" }}>
-        {item.icon}
-      </span>
+      <div style={{ filter: highlighted ? `drop-shadow(0 0 12px ${color})` : "none", lineHeight: 1, userSelect: "none" }}>
+        <ItemIcon slug={item.item_slug} icon={item.icon} size={40} />
+      </div>
       <span
         style={{
           fontSize: "12px",
@@ -636,13 +637,12 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
             <div className="flex flex-col items-center gap-3">
               {/* Spinning crate icon */}
               <div
-                className="text-4xl"
                 style={{
                   animation: "spin 2s linear infinite",
                   filter: "drop-shadow(0 0 12px rgba(34,211,238,0.4))",
                 }}
               >
-                {crateItem?.icon ?? "📦"}
+                <ItemIcon slug={crateItem?.slug} icon={crateItem?.icon} size={48} />
               </div>
               <p
                 className="text-sm font-display uppercase tracking-[0.2em]"

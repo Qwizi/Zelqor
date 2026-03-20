@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
+import ItemIcon from "@/components/ui/ItemIcon";
 import {
   getMyInventory,
   getEquippedCosmetics,
@@ -271,7 +272,7 @@ function PickerItem({
         loading ? "cursor-not-allowed" : "",
       ].join(" ")}
     >
-      <span className="text-2xl leading-none select-none shrink-0">{item.icon || "🎨"}</span>
+      <ItemIcon slug={item.slug} icon={item.icon} size={28} className="shrink-0" />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">

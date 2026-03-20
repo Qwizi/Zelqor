@@ -1,38 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
-  <defs>
-    <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3a4a5a"/>
-      <stop offset="100%" stop-color="#1a2a3a"/>
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill-opacity="0.85">
   <!-- Water -->
-  <rect x="0" y="220" width="300" height="80" fill="#0a1a2a"/>
-  <path d="M0,230 Q50,225 100,230 Q150,235 200,230 Q250,225 300,230" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.3"/>
-  <path d="M0,245 Q75,240 150,245 Q225,250 300,245" fill="none" stroke="#38bdf8" stroke-width="0.8" opacity="0.2"/>
+  <rect x="0" y="220" width="300" height="80" fill="#ffffff"/>
+  <path d="M0,230 Q50,225 100,230 Q150,235 200,230 Q250,225 300,230" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.3"/>
+  <path d="M0,245 Q75,240 150,245 Q225,250 300,245" fill="none" stroke="#ffffff" stroke-width="0.8" opacity="0.2"/>
   <!-- Dock platform -->
-  <rect x="20" y="200" width="260" height="25" rx="3" fill="#3a3a3a" stroke="#5a5a5a" stroke-width="2"/>
+  <rect x="20" y="200" width="260" height="25" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Dock supports -->
-  <rect x="40" y="215" width="8" height="30" fill="#2a2a2a" stroke="#4a4a4a" stroke-width="1"/>
-  <rect x="120" y="215" width="8" height="30" fill="#2a2a2a" stroke="#4a4a4a" stroke-width="1"/>
-  <rect x="200" y="215" width="8" height="30" fill="#2a2a2a" stroke="#4a4a4a" stroke-width="1"/>
+  <rect x="40" y="215" width="8" height="30" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <rect x="120" y="215" width="8" height="30" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <rect x="200" y="215" width="8" height="30" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Warehouse -->
-  <rect x="30" y="130" width="120" height="72" rx="4" fill="url(#pg)" stroke="#5a6a7a" stroke-width="2"/>
+  <rect x="30" y="130" width="120" height="72" rx="4" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Warehouse roof -->
-  <polygon points="25,130 155,130 150,110 30,110" fill="#2a3a4a" stroke="#5a6a7a" stroke-width="1.5"/>
+  <polygon points="25,130 155,130 150,110 30,110" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Warehouse door -->
-  <rect x="65" y="160" width="50" height="42" rx="3" fill="#1a2a3a" stroke="#4a5a6a" stroke-width="1.5"/>
+  <rect x="65" y="160" width="50" height="42" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Crane -->
-  <rect x="200" y="100" width="12" height="102" fill="#4a4a4a" stroke="#6a6a6a" stroke-width="2"/>
-  <line x1="190" y1="105" x2="260" y2="105" stroke="#5a5a5a" stroke-width="3"/>
-  <line x1="206" y1="105" x2="206" y2="85" stroke="#5a5a5a" stroke-width="2"/>
-  <line x1="240" y1="105" x2="240" y2="160" stroke="#4a4a4a" stroke-width="1.5"/>
+  <rect x="200" y="100" width="12" height="102" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
+  <line x1="190" y1="105" x2="260" y2="105" stroke="#ffffff" stroke-width="3"/>
+  <line x1="206" y1="105" x2="206" y2="85" stroke="#ffffff" stroke-width="2"/>
+  <line x1="240" y1="105" x2="240" y2="160" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Crane hook -->
-  <path d="M236,160 Q240,168 244,160" fill="none" stroke="#6a6a6a" stroke-width="2"/>
+  <path d="M236,160 Q240,168 244,160" fill="none" stroke="#ffffff" stroke-width="2"/>
   <!-- Anchor emblem -->
-  <line x1="90" y1="138" x2="90" y2="155" stroke="#fbbf24" stroke-width="2" opacity="0.4"/>
-  <path d="M80,152 Q90,160 100,152" fill="none" stroke="#fbbf24" stroke-width="2" opacity="0.4"/>
-  <circle cx="90" cy="136" r="3" fill="#fbbf24" opacity="0.4"/>
+  <line x1="90" y1="138" x2="90" y2="155" stroke="#ffffff" stroke-width="2" opacity="0.4"/>
+  <path d="M80,152 Q90,160 100,152" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.4"/>
+  <circle cx="90" cy="136" r="3" fill="#ffffff" opacity="0.4"/>
   <!-- Bollards -->
-  <rect x="55" y="196" width="8" height="10" rx="2" fill="#5a5a5a" stroke="#7a7a7a" stroke-width="1"/>
-  <rect x="160" y="196" width="8" height="10" rx="2" fill="#5a5a5a" stroke="#7a7a7a" stroke-width="1"/>
+  <rect x="55" y="196" width="8" height="10" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <rect x="160" y="196" width="8" height="10" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
 </svg>

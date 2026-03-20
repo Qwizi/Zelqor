@@ -1,30 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
-  <defs>
-    <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#4a6a3a"/>
-      <stop offset="100%" stop-color="#2d3a1f"/>
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill-opacity="0.85">
   <!-- Tracks -->
-  <rect x="50" y="195" width="180" height="45" rx="22" fill="#1a2610" stroke="#3a4a2a" stroke-width="2.5"/>
-  <rect x="57" y="201" width="166" height="33" rx="16" fill="none" stroke="#4a5a3a" stroke-width="1" stroke-dasharray="6 3"/>
+  <rect x="50" y="195" width="180" height="45" rx="22" fill="#ffffff" stroke="#ffffff" stroke-width="2.5"/>
+  <rect x="57" y="201" width="166" height="33" rx="16" fill="none" stroke="#ffffff" stroke-width="1" stroke-dasharray="6 3"/>
   <!-- Wheels -->
-  <circle cx="85" cy="217" r="15" fill="#2a3a1a" stroke="#4a5a3a" stroke-width="1.5"/>
-  <circle cx="140" cy="217" r="15" fill="#2a3a1a" stroke="#4a5a3a" stroke-width="1.5"/>
-  <circle cx="195" cy="217" r="15" fill="#2a3a1a" stroke="#4a5a3a" stroke-width="1.5"/>
+  <circle cx="85" cy="217" r="15" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="140" cy="217" r="15" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="195" cy="217" r="15" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Hull -->
-  <polygon points="60,195 220,195 230,165 200,140 80,140 50,165" fill="url(#ag)" stroke="#5a7a4a" stroke-width="2"/>
+  <polygon points="60,195 220,195 230,165 200,140 80,140 50,165" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Turret -->
-  <rect x="110" y="120" width="80" height="35" rx="6" fill="#3d5a2d" stroke="#5a7a4a" stroke-width="2"/>
+  <rect x="110" y="120" width="80" height="35" rx="6" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Gun barrel - elevated angle -->
-  <rect x="175" y="95" width="90" height="10" rx="3" fill="#3a4a2a" stroke="#5a7a4a" stroke-width="1.5" transform="rotate(-25, 175, 100)"/>
+  <rect x="175" y="95" width="90" height="10" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1.5" transform="rotate(-25, 175, 100)"/>
   <!-- Muzzle brake -->
-  <rect x="258" y="72" width="14" height="16" rx="2" fill="#2d3a1f" stroke="#5a7a4a" stroke-width="1" transform="rotate(-25, 258, 80)"/>
+  <rect x="258" y="72" width="14" height="16" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1" transform="rotate(-25, 258, 80)"/>
   <!-- Recoil mechanism -->
-  <rect x="170" y="125" width="30" height="8" rx="2" fill="#2a401a" stroke="#4a5a3a" stroke-width="1"/>
+  <rect x="170" y="125" width="30" height="8" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Ammo hatch -->
-  <rect x="120" y="145" width="25" height="12" rx="3" fill="#2a401a" stroke="#4a5a3a" stroke-width="1"/>
+  <rect x="120" y="145" width="25" height="12" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Antenna -->
-  <line x1="195" y1="120" x2="200" y2="85" stroke="#5a7a4a" stroke-width="1.5"/>
-  <circle cx="200" cy="83" r="2.5" fill="#ef4444" opacity="0.6"/>
+  <line x1="195" y1="120" x2="200" y2="85" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="200" cy="83" r="2.5" fill="#ffffff" opacity="0.6"/>
 </svg>

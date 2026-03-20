@@ -28,6 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
 import { CrateOpenModal } from "@/components/inventory/CrateOpenModal";
+import ItemIcon from "@/components/ui/ItemIcon";
 import {
   getMyInventory,
   getMyWallet,
@@ -234,7 +235,7 @@ function FilledSlot({ entry, isSelected, onClick }: SlotProps) {
       )}
 
       {/* Icon */}
-      <span className="text-3xl leading-none select-none">{entry.item.icon || "📦"}</span>
+      <ItemIcon slug={entry.item.slug} icon={entry.item.icon} size={32} />
 
       {/* Name / nametag */}
       <p className="mt-1 max-w-full truncate px-1 text-center text-xs leading-none text-muted-foreground">
@@ -349,21 +350,19 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
   const rarity = item.rarity;
   const inst = entry.instance;
 
-  const displayIcon = item.icon || TYPE_LETTER[item.item_type] || "?";
-
   return (
     <div className="rounded-xl p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         {/* Left: icon */}
         <div
           className={[
-            "flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-l-[3px] text-4xl",
+            "flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-l-[3px]",
             "border-border",
             RARITY_BORDER[rarity] ?? "border-l-slate-400",
             "bg-muted/30",
           ].join(" ")}
         >
-          {displayIcon}
+          <ItemIcon slug={item.slug} icon={item.icon} size={48} />
         </div>
 
         {/* Center: info */}
@@ -783,12 +782,12 @@ function InventoryContent() {
                             {/* Icon */}
                             <div
                               className={[
-                                "flex h-9 w-9 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-lg md:rounded-md border border-l-[2px] text-base md:text-lg",
+                                "flex h-9 w-9 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-lg md:rounded-md border border-l-[2px]",
                                 "border-border bg-muted/20",
                                 RARITY_BORDER[rarity] ?? "border-l-slate-400",
                               ].join(" ")}
                             >
-                              {drop.item.icon || TYPE_LETTER[drop.item.item_type] || "?"}
+                              <ItemIcon slug={drop.item.slug} icon={drop.item.icon} size={28} />
                             </div>
 
                             {/* Name + qty */}
@@ -816,7 +815,7 @@ function InventoryContent() {
                       />
                       <HoverCardContent side="left" sideOffset={8} className="w-[min(320px,calc(100vw-2rem))] p-4">
                         <div className="flex items-center gap-3 mb-2">
-                          <span className="text-2xl">{drop.item.icon || "📦"}</span>
+                          <ItemIcon slug={drop.item.slug} icon={drop.item.icon} size={32} />
                           <div>
                             <p className={`text-base font-semibold ${RARITY_TEXT[rarity]}`}>{drop.item.name}</p>
                             <Badge className={`text-xs ${RARITY_BG_BADGE[rarity]}`} variant="outline">

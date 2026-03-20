@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuth";
+import ItemIcon from "@/components/ui/ItemIcon";
 import {
   buyFromListing,
   createListing,
@@ -218,8 +219,8 @@ export default function MarketplaceItemPage() {
       {representativeItem ? (
         <Card className="rounded-2xl">
           <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:gap-5 sm:p-6">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/30 text-4xl">
-              {representativeItem.icon || "📦"}
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/30">
+              <ItemIcon slug={representativeItem.slug} icon={representativeItem.icon} size={48} />
             </div>
             <div className="min-w-0">
               <h1 className="font-display text-3xl text-foreground">

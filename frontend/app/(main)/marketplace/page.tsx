@@ -40,6 +40,7 @@ import {
   type MarketTransactionOut,
   type WalletOut,
 } from "@/lib/api";
+import ItemIcon from "@/components/ui/ItemIcon";
 
 // ─── Rarity styling maps ────────────────────────────────────────────────────
 
@@ -215,8 +216,8 @@ function BrowseList({
                   className="group flex items-center gap-3 md:gap-4 rounded-xl md:border md:border-border px-1 md:px-4 py-2.5 md:py-3.5 transition-all hover:bg-muted active:bg-muted/50"
                 >
                   {/* Item icon */}
-                  <div className={`flex h-10 w-10 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-lg border border-l-2 border-border/60 text-lg md:text-2xl ${RARITY_LEFT_BORDER_SLOT[rarity]} ${RARITY_SLOT_BG[rarity]}`}>
-                    {agg.item.icon || "📦"}
+                  <div className={`flex h-10 w-10 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-lg border border-l-2 border-border/60 ${RARITY_LEFT_BORDER_SLOT[rarity]} ${RARITY_SLOT_BG[rarity]}`}>
+                    <ItemIcon slug={agg.item.slug} icon={agg.item.icon} size={28} />
                   </div>
 
                   {/* Name + badges */}
@@ -247,7 +248,7 @@ function BrowseList({
                 </HoverCardTrigger>
                 <HoverCardContent side="right" sideOffset={8} className="hidden md:block w-80 p-5">
                   <div className="flex items-center gap-3 mb-3">
-                    <span className="text-3xl">{agg.item.icon || "📦"}</span>
+                    <ItemIcon slug={agg.item.slug} icon={agg.item.icon} size={32} />
                     <div>
                       <p className={`text-lg font-semibold ${RARITY_TEXT[rarity]}`}>{agg.item.name}</p>
                       <div className="flex gap-1.5 mt-0.5">

@@ -1,41 +1,35 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
-  <defs>
-    <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3a3a3a"/>
-      <stop offset="100%" stop-color="#1a1a1a"/>
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill-opacity="0.85">
   <!-- Shadow -->
-  <ellipse cx="150" cy="270" rx="35" ry="8" fill="#000" opacity="0.2"/>
+  <ellipse cx="150" cy="270" rx="35" ry="8" fill="#ffffff" opacity="0.2"/>
   <!-- Legs -->
-  <rect x="128" y="210" width="14" height="50" rx="4" fill="#2a2a2a" stroke="#4a4a4a" stroke-width="1.5"/>
-  <rect x="158" y="210" width="14" height="50" rx="4" fill="#2a2a2a" stroke="#4a4a4a" stroke-width="1.5"/>
+  <rect x="128" y="210" width="14" height="50" rx="4" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <rect x="158" y="210" width="14" height="50" rx="4" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Boots -->
-  <rect x="125" y="250" width="20" height="12" rx="3" fill="#1a1a1a" stroke="#3a3a3a" stroke-width="1"/>
-  <rect x="155" y="250" width="20" height="12" rx="3" fill="#1a1a1a" stroke="#3a3a3a" stroke-width="1"/>
+  <rect x="125" y="250" width="20" height="12" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <rect x="155" y="250" width="20" height="12" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Body/vest -->
-  <polygon points="125,130 175,130 182,210 118,210" fill="url(#cg)" stroke="#4a4a4a" stroke-width="2"/>
+  <polygon points="125,130 175,130 182,210 118,210" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Tactical vest pouches -->
-  <rect x="128" y="150" width="15" height="12" rx="2" fill="#2a3a2a" stroke="#4a5a4a" stroke-width="1"/>
-  <rect x="157" y="150" width="15" height="12" rx="2" fill="#2a3a2a" stroke="#4a5a4a" stroke-width="1"/>
-  <rect x="128" y="168" width="15" height="12" rx="2" fill="#2a3a2a" stroke="#4a5a4a" stroke-width="1"/>
+  <rect x="128" y="150" width="15" height="12" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <rect x="157" y="150" width="15" height="12" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <rect x="128" y="168" width="15" height="12" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Arms -->
-  <rect x="108" y="135" width="16" height="55" rx="5" fill="#2a2a2a" stroke="#4a4a4a" stroke-width="1.5" transform="rotate(10, 116, 135)"/>
-  <rect x="176" y="135" width="16" height="55" rx="5" fill="#2a2a2a" stroke="#4a4a4a" stroke-width="1.5" transform="rotate(-5, 184, 135)"/>
+  <rect x="108" y="135" width="16" height="55" rx="5" fill="#ffffff" stroke="#ffffff" stroke-width="1.5" transform="rotate(10, 116, 135)"/>
+  <rect x="176" y="135" width="16" height="55" rx="5" fill="#ffffff" stroke="#ffffff" stroke-width="1.5" transform="rotate(-5, 184, 135)"/>
   <!-- Rifle -->
-  <rect x="185" y="110" width="6" height="80" rx="2" fill="#3a3a3a" stroke="#5a5a5a" stroke-width="1" transform="rotate(-15, 188, 150)"/>
-  <rect x="180" y="105" width="12" height="6" rx="1" fill="#2a2a2a" stroke="#4a4a4a" stroke-width="0.8" transform="rotate(-15, 186, 108)"/>
+  <rect x="185" y="110" width="6" height="80" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1" transform="rotate(-15, 188, 150)"/>
+  <rect x="180" y="105" width="12" height="6" rx="1" fill="#ffffff" stroke="#ffffff" stroke-width="0.8" transform="rotate(-15, 186, 108)"/>
   <!-- Suppressor -->
-  <rect x="186" y="90" width="5" height="22" rx="2" fill="#1a1a1a" stroke="#3a3a3a" stroke-width="0.8" transform="rotate(-15, 188, 101)"/>
+  <rect x="186" y="90" width="5" height="22" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="0.8" transform="rotate(-15, 188, 101)"/>
   <!-- Head -->
-  <circle cx="150" cy="110" r="22" fill="#2a2a2a" stroke="#4a4a4a" stroke-width="2"/>
+  <circle cx="150" cy="110" r="22" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Balaclava/mask -->
-  <rect x="137" y="105" width="26" height="12" rx="4" fill="#1a1a1a"/>
+  <rect x="137" y="105" width="26" height="12" rx="4" fill="#ffffff"/>
   <!-- Night vision goggles -->
-  <rect x="135" y="95" width="12" height="10" rx="3" fill="#1a2a1a" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.5"/>
-  <rect x="153" y="95" width="12" height="10" rx="3" fill="#1a2a1a" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.5"/>
-  <circle cx="141" cy="100" r="4" fill="#22d3ee" opacity="0.4"/>
-  <circle cx="159" cy="100" r="4" fill="#22d3ee" opacity="0.4"/>
+  <rect x="135" y="95" width="12" height="10" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1" stroke-opacity="0.5"/>
+  <rect x="153" y="95" width="12" height="10" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1" stroke-opacity="0.5"/>
+  <circle cx="141" cy="100" r="4" fill="#ffffff" opacity="0.4"/>
+  <circle cx="159" cy="100" r="4" fill="#ffffff" opacity="0.4"/>
   <!-- NVG mount -->
-  <rect x="145" y="88" width="10" height="8" rx="2" fill="#2a2a2a" stroke="#4a4a4a" stroke-width="1"/>
+  <rect x="145" y="88" width="10" height="8" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
 </svg>

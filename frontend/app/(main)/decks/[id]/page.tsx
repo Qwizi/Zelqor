@@ -25,6 +25,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import ItemIcon from "@/components/ui/ItemIcon";
 import { useAuth } from "@/hooks/useAuth";
 import {
   getDeck,
@@ -188,7 +189,7 @@ function FilledSlotCard({
       </div>
 
       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-background/40 mt-1">
-        <span className="text-xl leading-none select-none">{item.icon || "📦"}</span>
+        <ItemIcon slug={item.item_slug} icon={item.icon} size={28} />
       </div>
       <p className="w-full truncate text-center text-[10px] font-medium text-foreground leading-tight">
         {item.item_name}
@@ -340,7 +341,7 @@ function PickerItem({
           : "hover:bg-muted/50 hover:border-border/60 active:scale-[0.99] cursor-pointer",
       ].join(" ")}
     >
-      <span className="text-2xl leading-none select-none shrink-0">{inv.item.icon || "📦"}</span>
+      <ItemIcon slug={inv.item.slug} icon={inv.item.icon} size={28} className="shrink-0" />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">

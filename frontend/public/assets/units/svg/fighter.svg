@@ -1,38 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
-  <defs>
-    <linearGradient id="fg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#8a8a9a"/>
-      <stop offset="100%" stop-color="#4a4a5a"/>
-    </linearGradient>
-    <radialGradient id="feg" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.9"/>
-      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill-opacity="0.85">
   <!-- Delta wings -->
-  <polygon points="150,50 40,200 80,210 150,160 220,210 260,200" fill="url(#fg)" stroke="#a0a0b0" stroke-width="2"/>
+  <polygon points="150,50 40,200 80,210 150,160 220,210 260,200" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Fuselage -->
-  <ellipse cx="150" cy="140" rx="16" ry="70" fill="#6a6a7a" stroke="#a0a0b0" stroke-width="2"/>
+  <ellipse cx="150" cy="140" rx="16" ry="70" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Nose cone -->
-  <polygon points="142,70 158,70 152,40 148,40" fill="#7a7a8a" stroke="#a0a0b0" stroke-width="1.5"/>
-  <ellipse cx="150" cy="42" rx="5" ry="8" fill="#8a8a9a"/>
+  <polygon points="142,70 158,70 152,40 148,40" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <ellipse cx="150" cy="42" rx="5" ry="8" fill="#ffffff"/>
   <!-- Cockpit -->
   <ellipse cx="150" cy="85" rx="7" ry="15" fill="#22d3ee" opacity="0.5" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="0.7"/>
   <!-- Intake -->
-  <rect x="140" y="110" width="20" height="8" rx="2" fill="#3a3a4a" stroke="#6a6a7a" stroke-width="1"/>
+  <rect x="140" y="110" width="20" height="8" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Tail fins -->
-  <polygon points="145,200 138,240 145,235" fill="#5a5a6a" stroke="#8a8a9a" stroke-width="1.5"/>
-  <polygon points="155,200 162,240 155,235" fill="#5a5a6a" stroke="#8a8a9a" stroke-width="1.5"/>
+  <polygon points="145,200 138,240 145,235" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <polygon points="155,200 162,240 155,235" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Horizontal stabilizers -->
-  <polygon points="140,215 100,240 108,245 145,225" fill="#5a5a6a" stroke="#8a8a9a" stroke-width="1.5"/>
-  <polygon points="160,215 200,240 192,245 155,225" fill="#5a5a6a" stroke="#8a8a9a" stroke-width="1.5"/>
+  <polygon points="140,215 100,240 108,245 145,225" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <polygon points="160,215 200,240 192,245 155,225" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Engine exhaust -->
-  <ellipse cx="150" cy="245" rx="10" ry="6" fill="#3a3a4a" stroke="#6a6a7a" stroke-width="1"/>
-  <ellipse cx="150" cy="252" rx="8" ry="10" fill="url(#feg)"/>
+  <ellipse cx="150" cy="245" rx="10" ry="6" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <ellipse cx="150" cy="252" rx="8" ry="10" fill="#ffffff"/>
   <!-- Missiles under wings -->
-  <rect x="75" y="195" width="5" height="18" rx="2" fill="#5a5a6a" stroke="#8a8a9a" stroke-width="0.8"/>
-  <rect x="220" y="195" width="5" height="18" rx="2" fill="#5a5a6a" stroke="#8a8a9a" stroke-width="0.8"/>
+  <rect x="75" y="195" width="5" height="18" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="0.8"/>
+  <rect x="220" y="195" width="5" height="18" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="0.8"/>
   <!-- Wing stripes -->
-  <line x1="80" y1="190" x2="130" y2="165" stroke="#22d3ee" stroke-width="1" opacity="0.2"/>
-  <line x1="220" y1="190" x2="170" y2="165" stroke="#22d3ee" stroke-width="1" opacity="0.2"/>
+  <line x1="80" y1="190" x2="130" y2="165" stroke="#ffffff" stroke-width="1" opacity="0.2"/>
+  <line x1="220" y1="190" x2="170" y2="165" stroke="#ffffff" stroke-width="1" opacity="0.2"/>
 </svg>

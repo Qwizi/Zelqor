@@ -1,30 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
-  <defs>
-    <linearGradient id="brg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#4a5a3a"/>
-      <stop offset="100%" stop-color="#2a3a1f"/>
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill-opacity="0.85">
   <!-- Base/ground -->
-  <rect x="40" y="240" width="220" height="15" rx="3" fill="#1a2a1a" stroke="#3a4a3a" stroke-width="1"/>
+  <rect x="40" y="240" width="220" height="15" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Main building -->
-  <rect x="50" y="140" width="200" height="100" rx="4" fill="url(#brg)" stroke="#5a7a4a" stroke-width="2"/>
+  <rect x="50" y="140" width="200" height="100" rx="4" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Roof -->
-  <polygon points="40,140 260,140 250,115 50,115" fill="#3a4a2a" stroke="#5a7a4a" stroke-width="2"/>
+  <polygon points="40,140 260,140 250,115 50,115" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Windows -->
-  <rect x="70" y="160" width="20" height="25" rx="2" fill="#1a2a1a" stroke="#4a5a3a" stroke-width="1"/>
-  <rect x="110" y="160" width="20" height="25" rx="2" fill="#1a2a1a" stroke="#4a5a3a" stroke-width="1"/>
-  <rect x="170" y="160" width="20" height="25" rx="2" fill="#1a2a1a" stroke="#4a5a3a" stroke-width="1"/>
-  <rect x="210" y="160" width="20" height="25" rx="2" fill="#1a2a1a" stroke="#4a5a3a" stroke-width="1"/>
+  <rect x="70" y="160" width="20" height="25" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <rect x="110" y="160" width="20" height="25" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <rect x="170" y="160" width="20" height="25" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <rect x="210" y="160" width="20" height="25" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Door -->
-  <rect x="135" y="195" width="30" height="45" rx="3" fill="#2a3a1a" stroke="#5a7a4a" stroke-width="1.5"/>
-  <circle cx="160" cy="218" r="2.5" fill="#fbbf24" opacity="0.6"/>
+  <rect x="135" y="195" width="30" height="45" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="160" cy="218" r="2.5" fill="#ffffff" opacity="0.6"/>
   <!-- Flag pole -->
-  <line x1="80" y1="115" x2="80" y2="75" stroke="#5a7a4a" stroke-width="2"/>
-  <polygon points="80,75 110,82 80,90" fill="#ef4444" opacity="0.7"/>
+  <line x1="80" y1="115" x2="80" y2="75" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="80,75 110,82 80,90" fill="#ffffff" opacity="0.7"/>
   <!-- Star emblem -->
-  <polygon points="150,122 153,130 162,130 155,135 158,143 150,138 142,143 145,135 138,130 147,130" fill="#fbbf24" opacity="0.5"/>
+  <polygon points="150,122 153,130 162,130 155,135 158,143 150,138 142,143 145,135 138,130 147,130" fill="#ffffff" opacity="0.5"/>
   <!-- Sandbags -->
-  <ellipse cx="55" cy="238" rx="12" ry="6" fill="#5a5a3a" stroke="#6a6a4a" stroke-width="1"/>
-  <ellipse cx="245" cy="238" rx="12" ry="6" fill="#5a5a3a" stroke="#6a6a4a" stroke-width="1"/>
+  <ellipse cx="55" cy="238" rx="12" ry="6" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <ellipse cx="245" cy="238" rx="12" ry="6" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
 </svg>

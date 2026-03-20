@@ -1,40 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
-  <defs>
-    <linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#4a6a3a"/>
-      <stop offset="100%" stop-color="#2d3a1f"/>
-    </linearGradient>
-    <linearGradient id="tt" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#3d5a2d"/>
-      <stop offset="100%" stop-color="#2a401a"/>
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill-opacity="0.85">
   <!-- Tracks -->
-  <rect x="35" y="185" width="230" height="55" rx="27" fill="#1a2610" stroke="#3a4a2a" stroke-width="3"/>
-  <rect x="42" y="192" width="216" height="41" rx="20" fill="none" stroke="#4a5a3a" stroke-width="1.5" stroke-dasharray="8 4"/>
+  <rect x="35" y="185" width="230" height="55" rx="27" fill="#ffffff" stroke="#ffffff" stroke-width="3"/>
+  <rect x="42" y="192" width="216" height="41" rx="20" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="8 4"/>
   <!-- Wheels -->
-  <circle cx="75" cy="212" r="18" fill="#2a3a1a" stroke="#4a5a3a" stroke-width="2"/>
-  <circle cx="150" cy="212" r="18" fill="#2a3a1a" stroke="#4a5a3a" stroke-width="2"/>
-  <circle cx="225" cy="212" r="18" fill="#2a3a1a" stroke="#4a5a3a" stroke-width="2"/>
-  <circle cx="75" cy="212" r="8" fill="#1a2610"/>
-  <circle cx="150" cy="212" r="8" fill="#1a2610"/>
-  <circle cx="225" cy="212" r="8" fill="#1a2610"/>
+  <circle cx="75" cy="212" r="18" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="150" cy="212" r="18" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="225" cy="212" r="18" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="75" cy="212" r="8" fill="#ffffff"/>
+  <circle cx="150" cy="212" r="8" fill="#ffffff"/>
+  <circle cx="225" cy="212" r="8" fill="#ffffff"/>
   <!-- Hull -->
-  <polygon points="50,185 250,185 265,155 235,120 65,120 35,155" fill="url(#tg)" stroke="#5a7a4a" stroke-width="2"/>
+  <polygon points="50,185 250,185 265,155 235,120 65,120 35,155" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Turret base -->
-  <rect x="100" y="110" width="100" height="45" rx="8" fill="url(#tt)" stroke="#5a7a4a" stroke-width="2"/>
+  <rect x="100" y="110" width="100" height="45" rx="8" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Gun barrel -->
-  <rect x="200" y="122" width="75" height="12" rx="3" fill="#3a4a2a" stroke="#5a7a4a" stroke-width="1.5"/>
-  <rect x="270" y="120" width="12" height="16" rx="2" fill="#2d3a1f" stroke="#5a7a4a" stroke-width="1"/>
+  <rect x="200" y="122" width="75" height="12" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <rect x="270" y="120" width="12" height="16" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Turret hatch -->
-  <ellipse cx="150" cy="125" rx="15" ry="10" fill="#2d3a1f" stroke="#5a7a4a" stroke-width="1.5"/>
+  <ellipse cx="150" cy="125" rx="15" ry="10" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Commander cupola -->
-  <rect x="120" y="105" width="20" height="10" rx="4" fill="#3a4a2a" stroke="#5a7a4a" stroke-width="1"/>
+  <rect x="120" y="105" width="20" height="10" rx="4" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Antenna -->
-  <line x1="130" y1="105" x2="125" y2="75" stroke="#5a7a4a" stroke-width="1.5"/>
-  <circle cx="125" cy="73" r="3" fill="#fbbf24" opacity="0.6"/>
+  <line x1="130" y1="105" x2="125" y2="75" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="125" cy="73" r="3" fill="#ffffff" opacity="0.6"/>
   <!-- ERA blocks -->
-  <rect x="55" y="145" width="12" height="18" rx="2" fill="#3d5a2d" stroke="#5a7a4a" stroke-width="1" opacity="0.7"/>
-  <rect x="72" y="145" width="12" height="18" rx="2" fill="#3d5a2d" stroke="#5a7a4a" stroke-width="1" opacity="0.7"/>
-  <rect x="89" y="145" width="12" height="18" rx="2" fill="#3d5a2d" stroke="#5a7a4a" stroke-width="1" opacity="0.7"/>
+  <rect x="55" y="145" width="12" height="18" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1" opacity="0.7"/>
+  <rect x="72" y="145" width="12" height="18" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1" opacity="0.7"/>
+  <rect x="89" y="145" width="12" height="18" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1" opacity="0.7"/>
 </svg>

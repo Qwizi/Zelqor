@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
+import ItemIcon from "@/components/ui/ItemIcon";
 import {
   craftItem,
   getMyInventory,
@@ -123,8 +124,8 @@ function RecipeRow({ recipe, craftable, active, rarity, owned, onSelect }: {
       } ${!craftable ? "opacity-50" : ""}`}
     >
       <div className="flex items-center gap-3 md:gap-4">
-        <div className={`flex h-10 w-10 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-xl border ${RARITY_BORDER[rarity]} bg-secondary text-2xl md:text-3xl`}>
-          {recipe.result_item.icon || "📦"}
+        <div className={`flex h-10 w-10 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-xl border ${RARITY_BORDER[rarity]} bg-secondary`}>
+          <ItemIcon slug={recipe.result_item.slug} icon={recipe.result_item.icon} size={28} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 md:gap-2">
@@ -139,7 +140,7 @@ function RecipeRow({ recipe, craftable, active, rarity, owned, onSelect }: {
           <div className="mt-1 md:mt-2 flex items-center gap-2 md:gap-3">
             {recipe.ingredients.slice(0, 3).map((ing) => (
               <span key={ing.item.slug} className="flex items-center gap-0.5 md:gap-1">
-                <span className="text-sm md:text-lg">{ing.item.icon || "?"}</span>
+                <ItemIcon slug={ing.item.slug} icon={ing.item.icon} size={18} />
                 <span className={`text-xs md:text-base font-semibold tabular-nums ${owned(ing.item.slug) >= ing.quantity ? "text-foreground" : "text-red-400"}`}>
                   {owned(ing.item.slug)}/{ing.quantity}
                 </span>
@@ -568,8 +569,8 @@ function CraftingContent() {
               <div ref={modalSparkRef} className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="h-32 w-32 rounded-full bg-primary/10" />
               </div>
-              <div ref={modalIconRef} className="relative z-10 flex h-24 w-24 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 text-5xl">
-                {craftingModal.recipe.result_item.icon || "📦"}
+              <div ref={modalIconRef} className="relative z-10 flex h-24 w-24 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10">
+                <ItemIcon slug={craftingModal.recipe.result_item.slug} icon={craftingModal.recipe.result_item.icon} size={48} />
               </div>
               <div>
                 <p className="font-display text-2xl text-foreground">Tworzenie...</p>
@@ -584,8 +585,8 @@ function CraftingContent() {
           )}
           {craftingModal?.phase === "result" && craftingModal.result && (
             <div className="flex flex-col items-center gap-5 py-6">
-              <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-accent/30 bg-accent/10 text-5xl">
-                {craftingModal.recipe.result_item.icon || "📦"}
+              <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-accent/30 bg-accent/10">
+                <ItemIcon slug={craftingModal.recipe.result_item.slug} icon={craftingModal.recipe.result_item.icon} size={48} />
               </div>
               <div>
                 <div className="flex items-center justify-center gap-2 mb-2">
@@ -652,9 +653,9 @@ function RecipeDetail({
         {/* Result item */}
         <div className="flex items-start gap-3">
           <div
-            className={`flex h-12 w-12 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-xl border text-2xl md:text-3xl ${RARITY_BORDER[rarity]} bg-secondary`}
+            className={`flex h-12 w-12 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-xl border ${RARITY_BORDER[rarity]} bg-secondary`}
           >
-            {recipe.result_item.icon || "📦"}
+            <ItemIcon slug={recipe.result_item.slug} icon={recipe.result_item.icon} size={28} />
           </div>
           <div>
             <CardTitle className={`font-display text-lg md:text-2xl ${RARITY_TEXT[rarity]}`}>
@@ -722,7 +723,7 @@ function RecipeDetail({
                       : "border-red-500/20 bg-red-500/[0.05]"
                   }`}
                 >
-                  <span className="text-lg md:text-xl">{ing.item.icon || "?"}</span>
+                  <ItemIcon slug={ing.item.slug} icon={ing.item.icon} size={20} />
                   <span className="flex-1 text-sm md:text-base text-foreground/80 truncate">{ing.item.name}</span>
                   <span
                     className={`font-mono text-sm md:text-base font-bold tabular-nums ${

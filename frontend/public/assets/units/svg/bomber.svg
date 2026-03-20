@@ -1,45 +1,35 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#4a4a5a"/>
-      <stop offset="100%" stop-color="#2a2a3a"/>
-    </linearGradient>
-    <radialGradient id="eng" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0%" stop-color="#f97316" stop-opacity="0.8"/>
-      <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill-opacity="0.85">
   <!-- Shadow -->
-  <ellipse cx="150" cy="260" rx="60" ry="12" fill="#000" opacity="0.15"/>
+  <ellipse cx="150" cy="260" rx="60" ry="12" fill="#ffffff" opacity="0.15"/>
   <!-- Wings -->
-  <polygon points="150,80 30,170 50,185 150,145 250,185 270,170" fill="url(#bg)" stroke="#6a6a7a" stroke-width="2"/>
+  <polygon points="150,80 30,170 50,185 150,145 250,185 270,170" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Wing tips -->
-  <polygon points="30,170 15,180 50,185" fill="#3a3a4a" stroke="#6a6a7a" stroke-width="1"/>
-  <polygon points="270,170 285,180 250,185" fill="#3a3a4a" stroke="#6a6a7a" stroke-width="1"/>
+  <polygon points="30,170 15,180 50,185" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <polygon points="270,170 285,180 250,185" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Fuselage -->
-  <ellipse cx="150" cy="150" rx="22" ry="80" fill="#3a3a4a" stroke="#6a6a7a" stroke-width="2"/>
+  <ellipse cx="150" cy="150" rx="22" ry="80" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Nose -->
-  <ellipse cx="150" cy="75" rx="14" ry="20" fill="#4a4a5a" stroke="#6a6a7a" stroke-width="1.5"/>
+  <ellipse cx="150" cy="75" rx="14" ry="20" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Cockpit -->
   <ellipse cx="150" cy="90" rx="8" ry="12" fill="#22d3ee" opacity="0.4" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.6"/>
   <!-- Tail -->
-  <polygon points="140,220 160,220 165,250 135,250" fill="#3a3a4a" stroke="#6a6a7a" stroke-width="1.5"/>
+  <polygon points="140,220 160,220 165,250 135,250" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Vertical stabilizer -->
-  <polygon points="148,215 152,215 155,240 145,240" fill="#4a4a5a" stroke="#6a6a7a" stroke-width="1"/>
-  <polygon points="150,240 150,225 160,235" fill="#3a3a4a" stroke="#6a6a7a" stroke-width="1"/>
+  <polygon points="148,215 152,215 155,240 145,240" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <polygon points="150,240 150,225 160,235" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Horizontal stabilizers -->
-  <polygon points="135,235 100,250 105,255 140,245" fill="#3a3a4a" stroke="#6a6a7a" stroke-width="1.5"/>
-  <polygon points="165,235 200,250 195,255 160,245" fill="#3a3a4a" stroke="#6a6a7a" stroke-width="1.5"/>
+  <polygon points="135,235 100,250 105,255 140,245" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <polygon points="165,235 200,250 195,255 160,245" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Engine nacelles -->
-  <ellipse cx="110" cy="155" rx="8" ry="18" fill="#2a2a3a" stroke="#5a5a6a" stroke-width="1.5"/>
-  <ellipse cx="190" cy="155" rx="8" ry="18" fill="#2a2a3a" stroke="#5a5a6a" stroke-width="1.5"/>
+  <ellipse cx="110" cy="155" rx="8" ry="18" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <ellipse cx="190" cy="155" rx="8" ry="18" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Engine glow -->
-  <ellipse cx="110" cy="175" rx="6" ry="8" fill="url(#eng)"/>
-  <ellipse cx="190" cy="175" rx="6" ry="8" fill="url(#eng)"/>
+  <ellipse cx="110" cy="175" rx="6" ry="8" fill="#ffffff"/>
+  <ellipse cx="190" cy="175" rx="6" ry="8" fill="#ffffff"/>
   <!-- Bombs under wings -->
-  <ellipse cx="80" cy="175" rx="4" ry="10" fill="#2a2a3a" stroke="#5a5a6a" stroke-width="1"/>
-  <ellipse cx="220" cy="175" rx="4" ry="10" fill="#2a2a3a" stroke="#5a5a6a" stroke-width="1"/>
+  <ellipse cx="80" cy="175" rx="4" ry="10" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <ellipse cx="220" cy="175" rx="4" ry="10" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Markings -->
-  <line x1="60" y1="170" x2="90" y2="180" stroke="#fbbf24" stroke-width="1" opacity="0.3"/>
-  <line x1="210" y1="180" x2="240" y2="170" stroke="#fbbf24" stroke-width="1" opacity="0.3"/>
+  <line x1="60" y1="170" x2="90" y2="180" stroke="#ffffff" stroke-width="1" opacity="0.3"/>
+  <line x1="210" y1="180" x2="240" y2="170" stroke="#ffffff" stroke-width="1" opacity="0.3"/>
 </svg>

@@ -1,44 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
-  <defs>
-    <linearGradient id="shg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#5a6a7a"/>
-      <stop offset="100%" stop-color="#2a3a4a"/>
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill-opacity="0.85">
   <!-- Water -->
-  <path d="M10,210 Q80,205 150,210 Q220,215 290,210" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.3"/>
-  <path d="M10,218 Q80,213 150,218 Q220,223 290,218" fill="none" stroke="#38bdf8" stroke-width="0.8" opacity="0.2"/>
+  <path d="M10,210 Q80,205 150,210 Q220,215 290,210" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.3"/>
+  <path d="M10,218 Q80,213 150,218 Q220,223 290,218" fill="none" stroke="#ffffff" stroke-width="0.8" opacity="0.2"/>
   <!-- Hull -->
-  <polygon points="30,200 270,200 250,230 240,240 60,240 50,230" fill="url(#shg)" stroke="#7a8a9a" stroke-width="2"/>
+  <polygon points="30,200 270,200 250,230 240,240 60,240 50,230" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Hull stripe (waterline) -->
-  <line x1="55" y1="225" x2="245" y2="225" stroke="#ef4444" stroke-width="2.5" opacity="0.5"/>
+  <line x1="55" y1="225" x2="245" y2="225" stroke="#ffffff" stroke-width="2.5" opacity="0.5"/>
   <!-- Deck -->
-  <rect x="60" y="175" width="180" height="28" rx="4" fill="#4a5a6a" stroke="#7a8a9a" stroke-width="1.5"/>
+  <rect x="60" y="175" width="180" height="28" rx="4" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Superstructure -->
-  <rect x="120" y="135" width="80" height="42" rx="3" fill="#3a4a5a" stroke="#6a7a8a" stroke-width="2"/>
+  <rect x="120" y="135" width="80" height="42" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="2"/>
   <!-- Bridge windows -->
-  <rect x="130" y="142" width="60" height="10" rx="2" fill="#22d3ee" opacity="0.3" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.5"/>
+  <rect x="130" y="142" width="60" height="10" rx="2" fill="#ffffff" opacity="0.3" stroke="#ffffff" stroke-width="1" stroke-opacity="0.5"/>
   <!-- Upper bridge -->
-  <rect x="135" y="118" width="50" height="20" rx="3" fill="#3a4a5a" stroke="#6a7a8a" stroke-width="1.5"/>
+  <rect x="135" y="118" width="50" height="20" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Mast -->
-  <line x1="160" y1="118" x2="160" y2="75" stroke="#6a7a8a" stroke-width="2"/>
-  <line x1="148" y1="85" x2="172" y2="85" stroke="#6a7a8a" stroke-width="1.5"/>
+  <line x1="160" y1="118" x2="160" y2="75" stroke="#ffffff" stroke-width="2"/>
+  <line x1="148" y1="85" x2="172" y2="85" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Radar dome -->
-  <circle cx="160" cy="80" r="6" fill="#4a5a6a" stroke="#7a8a9a" stroke-width="1.5"/>
-  <circle cx="160" cy="80" r="2" fill="#22d3ee" opacity="0.5"/>
+  <circle cx="160" cy="80" r="6" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="160" cy="80" r="2" fill="#ffffff" opacity="0.5"/>
   <!-- Forward gun turret -->
-  <rect x="75" y="172" width="30" height="15" rx="4" fill="#3a4a5a" stroke="#6a7a8a" stroke-width="1.5"/>
-  <rect x="70" y="175" width="12" height="7" rx="2" fill="#2a3a4a" stroke="#5a6a7a" stroke-width="1"/>
+  <rect x="75" y="172" width="30" height="15" rx="4" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+  <rect x="70" y="175" width="12" height="7" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Gun barrel -->
-  <rect x="42" y="177" width="30" height="4" rx="1.5" fill="#4a5a6a" stroke="#6a7a8a" stroke-width="1"/>
+  <rect x="42" y="177" width="30" height="4" rx="1.5" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Rear gun turret -->
-  <rect x="210" y="172" width="25" height="12" rx="3" fill="#3a4a5a" stroke="#6a7a8a" stroke-width="1.5"/>
+  <rect x="210" y="172" width="25" height="12" rx="3" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Smokestacks -->
-  <rect x="145" y="112" width="10" height="15" rx="2" fill="#2a3a4a" stroke="#5a6a7a" stroke-width="1"/>
-  <rect x="162" y="115" width="8" height="12" rx="2" fill="#2a3a4a" stroke="#5a6a7a" stroke-width="1"/>
+  <rect x="145" y="112" width="10" height="15" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+  <rect x="162" y="115" width="8" height="12" rx="2" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
   <!-- Anchor -->
-  <circle cx="55" cy="195" r="4" fill="none" stroke="#7a8a9a" stroke-width="1.5"/>
+  <circle cx="55" cy="195" r="4" fill="none" stroke="#ffffff" stroke-width="1.5"/>
   <!-- Flag -->
-  <line x1="250" y1="175" x2="250" y2="155" stroke="#6a7a8a" stroke-width="1.5"/>
-  <polygon points="250,155 265,160 250,165" fill="#fbbf24" opacity="0.5"/>
+  <line x1="250" y1="175" x2="250" y2="155" stroke="#ffffff" stroke-width="1.5"/>
+  <polygon points="250,155 265,160 250,165" fill="#ffffff" opacity="0.5"/>
 </svg>
