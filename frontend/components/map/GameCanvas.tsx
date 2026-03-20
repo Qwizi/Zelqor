@@ -483,9 +483,9 @@ export default function GameCanvas({
           }
           const groundCount = region.unit_count - airManpower;
           if (groundCount > 0 && airCount > 0) {
-            label.text = `▸ ${groundCount} | ${airCount}✈`;
+            label.text = `▸ ${groundCount} | ${airCount}✈(${airManpower})`;
           } else if (airCount > 0) {
-            label.text = `▸ ${airCount}✈`;
+            label.text = `▸ ${airCount}✈(${airManpower})`;
           } else {
             label.text = region.unit_count > 0 ? `▸ ${region.unit_count}` : "";
           }
