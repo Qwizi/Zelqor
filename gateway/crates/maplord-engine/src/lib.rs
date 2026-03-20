@@ -355,7 +355,7 @@ impl GameEngine {
         // Tick down in-match boosts and emit expiry events.
         events.extend(self.tick_match_boosts(players));
 
-        events.extend(self.check_conditions(players, regions));
+        events.extend(self.check_conditions(players, regions, air_transit_queue));
 
         // Sync unit_count for all regions to reflect changes from generation, combat, etc.
         for region in regions.values_mut() {
@@ -993,11 +993,12 @@ impl GameEngine {
                     total_remaining += remaining;
                 }
             }
-            // Capital must keep at least 1 unit to prevent losing via nuke
+            // Capital must keep at least 1 unit to prevent losing via nuke.
+            // Always preserve infantry (the default unit type) for deterministic behaviour
+            // rather than relying on arbitrary HashMap iteration order.
             if is_capital && total_remaining == 0 {
-                if let Some(unit_type) = region.units.keys().next().cloned() {
-                    new_units.insert(unit_type, 1);
-                }
+                let default_type = self.default_unit_type_slug();
+                new_units.insert(default_type, 1);
             }
             region.units = new_units;
             sync_region_unit_meta(region, self);
@@ -1252,6 +1253,10 @@ impl GameEngine {
 
                 for rid in &all_affected {
                     if let Some(region) = regions.get_mut(rid) {
+                        if region.units.is_empty() {
+                            continue;
+                        }
+                        let had_units = region.units.values().any(|&c| c > 0);
                         let mut new_units: HashMap<String, i64> = HashMap::new();
                         for (unit_type, count) in &region.units {
                             let killed = (*count as f64 * kill_percent).ceil() as i64;
@@ -1259,6 +1264,12 @@ impl GameEngine {
                             if remaining > 0 {
                                 new_units.insert(unit_type.clone(), remaining);
                             }
+                        }
+                        // Safety floor: a region that had units must keep at least 1
+                        // so that multiple stacked virus effects cannot wipe it in one tick.
+                        if had_units && new_units.is_empty() {
+                            let default_type = self.default_unit_type_slug();
+                            new_units.insert(default_type, 1);
                         }
                         region.units = new_units;
                         sync_region_unit_meta(region, self);
@@ -3223,6 +3234,7 @@ impl GameEngine {
         &self,
         players: &mut HashMap<String, Player>,
         regions: &mut HashMap<String, Region>,
+        air_transit_queue: &mut Vec<AirTransitItem>,
     ) -> Vec<Event> {
         let mut events = Vec::new();
         let mut eliminated_ids = Vec::new();
@@ -3247,7 +3259,7 @@ impl GameEngine {
             }
         }
 
-        // Clear provinces owned by eliminated players
+        // Clear provinces owned by newly-eliminated players.
         for eliminated_id in &eliminated_ids {
             for region in regions.values_mut() {
                 if region.owner_id.as_deref() == Some(eliminated_id) {
@@ -3264,6 +3276,18 @@ impl GameEngine {
                     region.energy_generation_bonus = 0.0;
                 }
             }
+        }
+
+        // Remove in-flight air missions for ALL dead players (covers both newly-eliminated
+        // players detected above and those marked is_alive=false earlier in the same tick
+        // by inline paths such as the bomber-strike capital neutralisation).
+        let dead_player_ids: std::collections::HashSet<&str> = players
+            .iter()
+            .filter(|(_, p)| !p.is_alive)
+            .map(|(id, _)| id.as_str())
+            .collect();
+        if !dead_player_ids.is_empty() {
+            air_transit_queue.retain(|item| !dead_player_ids.contains(item.player_id.as_str()));
         }
 
         let alive: Vec<&String> = players
