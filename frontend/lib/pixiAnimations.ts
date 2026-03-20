@@ -1021,7 +1021,22 @@ export class PixiAnimationManager {
         .fill({ color: 0x000000, alpha: alpha * 0.18 });
     }
 
-    // Rotation toward direction of travel
+    // Rotation toward direction of travel.
+    // The SVG sprites (bomber, fighter, etc.) have their nose pointing UP
+    // (negative Y in SVG/screen space). In Pixi.js, rotation=0 means the
+    // sprite points EAST (positive X). Screen Y increases downward.
+    //
+    // For a north-facing sprite to point in direction (dx, dy):
+    //   rotation = atan2(dx, -dy)
+    //
+    // Verification:
+    //   moving right  (dx=1,dy=0): atan2(1, 0)  =  π/2  → 90° CW from north = east ✓
+    //   moving down   (dx=0,dy=1): atan2(0,-1)  = -π/2  → 90° CCW = south (sprite flips down) ✓
+    //   moving up     (dx=0,dy=-1): atan2(0, 1) =  0    → north ✓
+    //   moving left   (dx=-1,dy=0): atan2(-1,0) = -π/2  → west ✓
+    //
+    // The old formula atan2(dx, dy) was wrong: moving south (dy>0) would yield
+    // rotation=0 (nose pointing north) instead of rotating to face south.
     let rotation = 0;
     if (a.config.icon.rotate) {
       const pathLen = a.path.length;
@@ -1032,10 +1047,9 @@ export class PixiAnimationManager {
       const lookAhead = isNuke
         ? lerpPath(a.path, Math.min(1, progress + 0.005))
         : a.path[Math.min(headIdx + 1, pathLen - 1)];
-      rotation = Math.atan2(
-        lookAhead[0] - currentPoint[0],
-        lookAhead[1] - currentPoint[1]
-      );
+      const dx = lookAhead[0] - currentPoint[0];
+      const dy = lookAhead[1] - currentPoint[1];
+      rotation = Math.atan2(dx, -dy);
     }
 
     if (a.iconSprite) {

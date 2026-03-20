@@ -266,8 +266,16 @@ export default memo(function QuickActionBar({
                         key={building.id}
                         onClick={() => !isBuildingLocked && !isAtMaxLevel && onBuild(building.slug)}
                         disabled={!canAfford || isBuildingLocked || isAtMaxLevel === true}
-                        className="inline-flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-border bg-muted/20 px-2.5 py-2 transition-colors hover:bg-muted/40 disabled:opacity-40 sm:px-2 sm:py-1.5"
-                        title={isBuildingLocked ? "Wymaga blueprintu" : isAtMaxLevel ? "Maksymalny poziom" : building.name}
+                        className={`inline-flex shrink-0 flex-col items-center gap-0.5 rounded-lg border px-2.5 py-2 transition-colors sm:px-2 sm:py-1.5 ${
+                          isBuildingLocked
+                            ? "border-red-500/30 bg-red-950/20 opacity-50 cursor-not-allowed"
+                            : isAtMaxLevel
+                              ? "border-amber-500/30 bg-amber-950/10 cursor-default"
+                              : canAfford
+                                ? "border-green-500/30 bg-muted/20 hover:bg-green-950/20 hover:border-green-500/50"
+                                : "border-red-500/20 bg-muted/20 opacity-60 cursor-not-allowed"
+                        }`}
+                        title={isBuildingLocked ? "Wymaga blueprintu w decku" : isAtMaxLevel ? `${building.name} — Maksymalny poziom` : canAfford ? `${building.name} (${nextCost}⚡)` : `${building.name} — Brak energii (${nextCost}⚡, masz ${myEnergy}⚡)`}
                       >
                         <div className="relative">
                           {asset && (
@@ -284,7 +292,7 @@ export default memo(function QuickActionBar({
                           <div className="flex flex-col items-center gap-0">
                             <div className="flex items-center gap-0.5">
                               <span className="text-[10px] text-primary">⚡</span>
-                              <span className={`font-display text-[10px] sm:text-xs font-semibold tabular-nums ${canAfford ? "text-foreground/80" : "text-destructive"}`}>
+                              <span className={`font-display text-[10px] sm:text-xs font-semibold tabular-nums ${canAfford ? "text-green-400" : "text-red-400"}`}>
                                 {nextCost}
                               </span>
                             </div>
@@ -312,8 +320,14 @@ export default memo(function QuickActionBar({
                         key={unit.id}
                         onClick={() => !isUnitLocked && onProduceUnit(unit.slug)}
                         disabled={!canAfford || isUnitLocked}
-                        className="inline-flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-border bg-muted/20 px-2.5 py-2 transition-colors hover:bg-muted/40 disabled:opacity-40 sm:px-2 sm:py-1.5"
-                        title={isUnitLocked ? "Wymaga blueprintu" : unit.name}
+                        className={`inline-flex shrink-0 flex-col items-center gap-0.5 rounded-lg border px-2.5 py-2 transition-colors sm:px-2 sm:py-1.5 ${
+                          isUnitLocked
+                            ? "border-red-500/30 bg-red-950/20 opacity-50 cursor-not-allowed"
+                            : canAfford
+                              ? "border-green-500/30 bg-muted/20 hover:bg-green-950/20 hover:border-green-500/50"
+                              : "border-red-500/20 bg-muted/20 opacity-60 cursor-not-allowed"
+                        }`}
+                        title={isUnitLocked ? "Wymaga blueprintu w decku" : canAfford ? `${unit.name} (${unit.production_cost}⚡, ${unit.manpower_cost}♟)` : `${unit.name} — Brak energii (${unit.production_cost}⚡, masz ${myEnergy}⚡)`}
                       >
                         <div className="relative">
                           <Image src={asset} alt="" width={20} height={20} className="h-5 w-5 object-contain" />
@@ -328,7 +342,7 @@ export default memo(function QuickActionBar({
                           <div className="flex flex-col items-center gap-0">
                             <div className="flex items-center gap-0.5">
                               <span className="text-[10px] text-primary">⚡</span>
-                              <span className={`font-display text-[10px] sm:text-xs font-semibold tabular-nums ${canAfford ? "text-foreground/80" : "text-destructive"}`}>
+                              <span className={`font-display text-[10px] sm:text-xs font-semibold tabular-nums ${canAfford ? "text-green-400" : "text-red-400"}`}>
                                 {unit.production_cost}
                               </span>
                             </div>
