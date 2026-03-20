@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+
+  <ellipse cx="32" cy="40" rx="14" ry="10" fill="#8a9aaa" opacity="0.5" stroke="#aabaca" stroke-width="1.5"/>
+  <circle cx="28" cy="36" r="6" fill="#c0d0e0" opacity="0.4"/>
+  <circle cx="36" cy="38" r="4" fill="#c0d0e0" opacity="0.3"/>
+  <circle cx="32" cy="42" r="8" fill="#8a9aaa" opacity="0.3"/>
+  <text x="32" y="22" text-anchor="middle" font-size="9" fill="#aabaca" opacity="0.5" font-family="monospace">Hg</text>
+</svg>

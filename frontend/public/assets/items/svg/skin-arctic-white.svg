@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+
+  <circle cx="32" cy="32" r="20" fill="#e0e8f0" opacity="0.3" stroke="#c0d0e0" stroke-width="2"/>
+  <circle cx="32" cy="32" r="12" fill="#f0f4f8" opacity="0.2"/>
+  <text x="32" y="36" text-anchor="middle" font-size="18" fill="#c0d0e0" opacity="0.6">❄</text>
+</svg>
