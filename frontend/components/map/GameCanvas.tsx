@@ -222,6 +222,7 @@ export default function GameCanvas({
   const gridLayerRef = useRef<Graphics | null>(null);
   const animManagerRef = useRef<PixiAnimationManager | null>(null);
   const airTransitLayerRef = useRef<Container | null>(null);
+  const capitalRadarRef = useRef<Graphics | null>(null);
 
   /** Per-province render state — Graphics, Text, cached owner/fill */
   const stateMapRef = useRef<Map<string, ProvinceRenderState>>(new Map());
@@ -278,6 +279,9 @@ export default function GameCanvas({
 
   const unitManpowerMapRef = useRef(unitManpowerMap);
   unitManpowerMapRef.current = unitManpowerMap;
+
+  const shapesDataRef = useRef(shapesData);
+  shapesDataRef.current = shapesData;
 
   // Dirty-region rendering: track previous region snapshot + structural generation.
   const prevRegionSnapshotRef = useRef<Record<string, GameRegion>>({});
@@ -401,6 +405,34 @@ export default function GameCanvas({
             gfx.poly(flatPoints, true).stroke({ color: playerColor, width: 3, alpha: 1.0 });
             gfx.poly(flatPoints, true).stroke({ color: 0xffffff, width: 1.5, alpha: 1.0 });
           }
+        }
+      }
+
+      // Hatch pattern on enemy provinces (diagonal lines — military map style).
+      // Drawn as a separate pass so the fill polygon acts as visual context.
+      if (ownerId && ownerId !== myUserId && !isDimmed) {
+        for (const subPoly of shape.polygons) {
+          const outerRing = subPoly[0];
+          if (!outerRing || outerRing.length < 3) continue;
+          const xs = outerRing.map((p) => p[0]);
+          const ys = outerRing.map((p) => p[1]);
+          const minX = Math.min(...xs);
+          const maxX = Math.max(...xs);
+          const minY = Math.min(...ys);
+          const maxY = Math.max(...ys);
+          const spacing = 12;
+          // Clip diagonal lines to the polygon bounding box.
+          // Lines follow y = d - x (45° diagonal, d = x + y = constant).
+          for (let d = minX + minY; d < maxX + maxY; d += spacing) {
+            const x1 = Math.max(minX, d - maxY);
+            const y1 = d - x1;
+            const x2 = Math.min(maxX, d - minY);
+            const y2 = d - x2;
+            if (y1 >= minY && y1 <= maxY && y2 >= minY && y2 <= maxY) {
+              gfx.moveTo(x1, y1).lineTo(x2, y2);
+            }
+          }
+          gfx.stroke({ color: 0x000000, width: 0.8, alpha: 0.12 });
         }
       }
 
@@ -1413,6 +1445,10 @@ export default function GameCanvas({
       const animManager = new PixiAnimationManager();
       animManagerRef.current = animManager;
 
+      const capitalRadar = new Graphics();
+      capitalRadar.eventMode = "none";
+      capitalRadarRef.current = capitalRadar;
+
       const weatherOverlay = new Graphics();
       weatherOverlay.eventMode = "none";
       weatherOverlayRef.current = weatherOverlay;
@@ -1426,6 +1462,7 @@ export default function GameCanvas({
       viewport.addChild(gridLayer);
       viewport.addChild(provinceLayer);
       viewport.addChild(capitalLayer);
+      viewport.addChild(capitalRadar);
       viewport.addChild(weatherOverlay);
       viewport.addChild(effectLayer);
       viewport.addChild(nukeLayer);
@@ -1446,6 +1483,30 @@ export default function GameCanvas({
       // Ticker drives the animation loop
       app.ticker.add(() => {
         animManager.update(Date.now());
+
+        // Capital radar ping — expanding concentric rings around owned capital provinces
+        const radar = capitalRadarRef.current;
+        if (radar) {
+          radar.clear();
+          const now = Date.now();
+          const regionEntries = Object.entries(regionsRef.current);
+          for (const [rid, region] of regionEntries) {
+            if (!region.is_capital || !region.owner_id) continue;
+            const player = playersRef.current[region.owner_id];
+            if (!player) continue;
+            const shape = shapesDataRef.current?.regions.find((s) => s.id === rid);
+            if (!shape) continue;
+            const [cx, cy] = shape.centroid;
+            const playerColor = hexStringToNumber(player.color);
+            // 2 concentric expanding rings, cycle every 3 seconds
+            for (let ring = 0; ring < 2; ring++) {
+              const phase = ((now / 3000) + ring * 0.5) % 1.0;
+              const radius = 15 + phase * 40;
+              const alpha = (1 - phase) * (1 - phase) * 0.35;
+              radar.circle(cx, cy, radius).stroke({ color: playerColor, width: 1.5, alpha });
+            }
+          }
+        }
       });
 
       // Handle canvas resize
@@ -1500,6 +1561,7 @@ export default function GameCanvas({
         unitChangeLayerRef.current = null;
         weatherOverlayRef.current = null;
         gridLayerRef.current = null;
+        capitalRadarRef.current = null;
       }
     };
     // Only run once on mount

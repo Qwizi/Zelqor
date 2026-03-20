@@ -812,6 +812,30 @@ export class PixiAnimationManager {
     } else {
       this._strokePath(g, trailSlice, { color: colorNum, alpha: opacity, width });
     }
+
+    // Ship wake: V-shaped lines diverging behind the head position.
+    if (a.unitType === "ship" || a.unitType === "submarine") {
+      const headPos = a.path[headIdx];
+      if (headPos && headIdx > 0) {
+        const prevPos = a.path[Math.max(0, headIdx - 3)];
+        const dx = headPos[0] - prevPos[0];
+        const dy = headPos[1] - prevPos[1];
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0.5) {
+          const nx = -dy / len; // perpendicular
+          const ny = dx / len;
+          const wakeLen = 15;
+          const wakeSpread = 8;
+          const backX = headPos[0] - (dx / len) * wakeLen;
+          const backY = headPos[1] - (dy / len) * wakeLen;
+          g.moveTo(headPos[0], headPos[1])
+            .lineTo(backX + nx * wakeSpread, backY + ny * wakeSpread);
+          g.moveTo(headPos[0], headPos[1])
+            .lineTo(backX - nx * wakeSpread, backY - ny * wakeSpread);
+          g.stroke({ color: 0xffffff, width: 1, alpha: fadeOut * 0.25 });
+        }
+      }
+    }
   }
 
   /**
@@ -984,6 +1008,13 @@ export class PixiAnimationManager {
 
     // *3 compensates for the icon.size fraction values (0.2–0.42 range)
     const scaledRadius = iconRadius * finalScale * 3;
+
+    // Bomber shadow: dark oval below the icon to suggest altitude.
+    // Drawn at local coordinates — g.position is set to currentPoint below.
+    if (a.unitType === "bomber" && alpha > 0.05) {
+      g.ellipse(0, 20, scaledRadius * 1.6, scaledRadius * 0.5)
+        .fill({ color: 0x000000, alpha: alpha * 0.18 });
+    }
 
     // Rotation toward direction of travel
     let rotation = 0;
