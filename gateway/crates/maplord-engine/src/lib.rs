@@ -2172,6 +2172,9 @@ impl GameEngine {
                 }
             }
 
+            // Advance progress BEFORE path bombing so current_hop reflects new position.
+            item.progress += item.speed_per_tick;
+
             // Bomber path bombing — budget model.
             // path_damage = fraction of total force allocated to the ENTIRE path.
             // This budget is split evenly across intermediate provinces.
@@ -2184,7 +2187,7 @@ impl GameEngine {
                     let path_len = item.flight_path.len();
                     let start_hop = item.last_bombed_hop + 1;
                     let end_hop = current_hop.min(path_len.saturating_sub(1));
-                    if start_hop < end_hop {
+                    if start_hop <= end_hop && end_hop > 0 {
                         let unit_scale = self.get_unit_scale(&item.unit_type);
                         let attack = unit_config.attack;
                         let total_force = item.units * unit_scale;
@@ -2198,7 +2201,7 @@ impl GameEngine {
                         } else { 0 };
 
                         let mut bombed_regions: std::collections::HashSet<String> = std::collections::HashSet::new();
-                        for hop_idx in start_hop..end_hop {
+                        for hop_idx in start_hop..=end_hop {
                             let hop_region_id = item.flight_path[hop_idx].clone();
                             if hop_region_id == item.source_region_id || hop_region_id == item.target_region_id {
                                 continue;
@@ -2260,11 +2263,7 @@ impl GameEngine {
                 }
             }
 
-            // Advance progress after interceptor processing and path bombing,
-            // so hop calculations use the progress value from the start of this tick.
-            item.progress += item.speed_per_tick;
-
-            // Check for arrival.
+            // Check for arrival (progress already advanced above).
             if item.progress >= 1.0 {
                 eprintln!("[AIR] Flight {} arrived at {} (mission={})", item.id, item.target_region_id, item.mission_type);
                 match item.mission_type.as_str() {

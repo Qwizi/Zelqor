@@ -229,6 +229,7 @@ export default function GameCanvas({
 
   // Unit change pulse tracking
   const prevUnitCountsRef = useRef<Map<string, number>>(new Map());
+  const prevUnitOwnersRef = useRef<Map<string, string | null>>(new Map());
   const unitPulsesRef = useRef<Map<string, { startTime: number; delta: number }>>(new Map());
 
   /** Snapshot of the previous regions state — used to diff tick updates. */
@@ -671,15 +672,20 @@ export default function GameCanvas({
   useEffect(() => {
     if (!shapesData) return;
 
-    // Detect unit count changes for own regions and register pulses
+    // Detect unit count changes for own regions and register pulses.
+    // Only show delta if I owned the region on BOTH previous and current tick,
+    // to avoid showing huge "+N" when capturing a neutral/enemy province.
     const now = Date.now();
     const prevCounts = prevUnitCountsRef.current;
+    const prevOwners = prevUnitOwnersRef.current;
     const isSeeded = prevCounts.size > 0;
 
     for (const [rid, region] of Object.entries(regions)) {
       if (isSeeded && region.owner_id === myUserId) {
+        const prevOwner = prevOwners.get(rid);
         const prevCount = prevCounts.get(rid);
-        if (prevCount !== undefined && region.unit_count !== prevCount) {
+        // Only pulse if I owned it last tick too (not a newly captured province)
+        if (prevOwner === myUserId && prevCount !== undefined && region.unit_count !== prevCount) {
           unitPulsesRef.current.set(rid, {
             startTime: now,
             delta: region.unit_count - prevCount,
@@ -687,6 +693,7 @@ export default function GameCanvas({
         }
       }
       prevCounts.set(rid, region.unit_count);
+      prevOwners.set(rid, region.owner_id);
     }
 
     // Re-draw capitals and building sprites
