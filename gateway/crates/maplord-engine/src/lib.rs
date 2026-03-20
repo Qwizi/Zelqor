@@ -2249,8 +2249,18 @@ impl GameEngine {
                                 sync_region_unit_meta(target_region, self);
                                 bombed_regions.insert(target_rid.clone());
 
-                                eprintln!("[AIR] Path bomb {} -> {} | bombers={} force={} | budget_per_province={} damage={} killed={}/{} ground",
-                                    item.id, target_rid, item.units, total_force, force_per_province, effective_damage, killed, total_ground);
+                                // Consume bomber units: each province costs force_per_province worth of bombers.
+                                // Use floor division so small payloads don't consume entire bombers.
+                                // Cap at half of remaining bombers so they always reach the target.
+                                let units_consumed = (force_per_province as f64 / unit_scale as f64).floor() as i64;
+                                let max_consume = (item.units / 2).max(0); // never consume more than half
+                                let actual_consumed = units_consumed.min(max_consume);
+                                if actual_consumed > 0 {
+                                    item.units -= actual_consumed;
+                                }
+
+                                eprintln!("[AIR] Path bomb {} -> {} | bombers={} force={} | budget={} damage={} killed={}/{} consumed={}",
+                                    item.id, target_rid, item.units, total_force, force_per_province, effective_damage, killed, total_ground, actual_consumed);
                                 events.push(Event::PathDamage {
                                     target_region_id: target_rid,
                                     player_id: item.player_id.clone(),

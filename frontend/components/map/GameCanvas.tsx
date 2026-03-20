@@ -684,12 +684,14 @@ export default function GameCanvas({
       if (isSeeded && region.owner_id === myUserId) {
         const prevOwner = prevOwners.get(rid);
         const prevCount = prevCounts.get(rid);
-        // Only pulse if I owned it last tick too (not a newly captured province)
-        if (prevOwner === myUserId && prevCount !== undefined && region.unit_count !== prevCount) {
-          unitPulsesRef.current.set(rid, {
-            startTime: now,
-            delta: region.unit_count - prevCount,
-          });
+        // Only pulse for POSITIVE changes (unit generation, +1/+2 per tick).
+        // Negative changes (sending troops, enemy damage) are noise — player
+        // sees the unit count updating directly. Also skip newly captured provinces.
+        if (prevOwner === myUserId && prevCount !== undefined) {
+          const delta = region.unit_count - prevCount;
+          if (delta > 0) {
+            unitPulsesRef.current.set(rid, { startTime: now, delta });
+          }
         }
       }
       prevCounts.set(rid, region.unit_count);
