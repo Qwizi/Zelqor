@@ -2063,7 +2063,8 @@ impl GameEngine {
             Some(id) => id,
             None => return Vec::new(),
         };
-        let source_id = match &action.source_region_id {
+        // Frontend sends region_id (not source_region_id) for intercept actions.
+        let source_id = match action.source_region_id.as_ref().or(action.region_id.as_ref()) {
             Some(id) => id,
             None => return Vec::new(),
         };

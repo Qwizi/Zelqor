@@ -343,6 +343,7 @@ async fn handle_game_message(
     tx: &mpsc::Sender<Message>,
 ) {
     let action = content.get("action").and_then(|v| v.as_str()).unwrap_or("");
+    eprintln!("[WS] Received action='{}' from user={}", action, user_id);
 
     // Rate limit game actions (not chat/leave_match/set_tick_multiplier)
     if matches!(
