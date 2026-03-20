@@ -395,7 +395,11 @@ export default function GamePage({
   }, [unitsConfig]);
 
   const unitManpowerMap = useMemo(() => {
-    return Object.fromEntries(unitsConfig.map((u) => [u.slug, u.manpower_cost ?? 1]));
+    const map = Object.fromEntries(unitsConfig.map((u) => [u.slug, u.manpower_cost ?? 1]));
+    if (unitsConfig.length > 0) {
+      console.log("[DEBUG] unitManpowerMap:", JSON.stringify(map));
+    }
+    return map;
   }, [unitsConfig]);
 
   // Guard against double capital selection while waiting for server confirmation
@@ -1822,7 +1826,7 @@ export default function GamePage({
           activeEffects={gameState?.active_effects}
           nukeBlackout={nukeBlackout}
           onMapReady={handleMapReady}
-          weather={gameState?.weather}
+          weather={undefined} /* disabled: weather/day-night off for now */
           airTransitQueue={gameState?.air_transit_queue}
           unitManpowerMap={unitManpowerMap}
           onFlightClick={(flightId) => {

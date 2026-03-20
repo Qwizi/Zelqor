@@ -438,10 +438,14 @@ export interface FullConfig {
 }
 
 let _configCache: FullConfig | null = null;
+let _configCacheTime = 0;
+const CONFIG_CACHE_TTL_MS = 30_000; // refresh config every 30s
 export async function getConfig(): Promise<FullConfig> {
-  if (_configCache) return _configCache;
+  const now = Date.now();
+  if (_configCache && now - _configCacheTime < CONFIG_CACHE_TTL_MS) return _configCache;
   const config = await fetchAPI<FullConfig>("/config/");
   _configCache = config;
+  _configCacheTime = now;
   return config;
 }
 

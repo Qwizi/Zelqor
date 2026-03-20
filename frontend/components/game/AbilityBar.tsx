@@ -74,9 +74,9 @@ export default memo(function AbilityBar({
       {/* Desktop: vertical bar on left side */}
       <div
         data-tutorial="ability-bar"
-        className="military-frame pointer-events-auto absolute left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col gap-2 rounded-xl border border-border bg-card/90 px-2 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:flex"
+        className="pointer-events-auto absolute left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col gap-2 rounded-xl border border-border bg-card/90 px-2 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:flex"
       >
-        <div className="military-frame-inner flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
         {sortedAbilities.map((ability) => (
           <AbilityButton
             key={ability.slug}
