@@ -30,6 +30,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Skip running import_provinces after loading config",
         )
+        parser.add_argument(
+            "--dev",
+            action="store_true",
+            help="Dev mode: all costs=1, build/prod time=1 tick, cooldowns=2 ticks, high energy",
+        )
 
     def handle(self, *args, **options):
         fixture_path = Path(options["fixture"])
@@ -81,6 +86,9 @@ class Command(BaseCommand):
         self._load_maps(map_entries)
         self._load_game_modes(game_mode_entries)
 
+        if options["dev"]:
+            self._apply_dev_overrides()
+
         self.stdout.write(self.style.SUCCESS("Game config loaded successfully"))
 
         self.stdout.write("\nFlushing game state from Redis...")
@@ -98,6 +106,9 @@ class Command(BaseCommand):
 
         self.stdout.write("\nSeeding bot marketplace listings...")
         call_command("seed_bot_marketplace", stdout=self.stdout, stderr=self.stderr)
+
+        self.stdout.write("\nCleaning up duplicate decks...")
+        call_command("cleanup_duplicate_decks", stdout=self.stdout, stderr=self.stderr)
 
         self.stdout.write("\nProvisioning default items for all players...")
         call_command("provision_player_defaults", stdout=self.stdout, stderr=self.stderr)
@@ -303,3 +314,72 @@ class Command(BaseCommand):
             count += 1
 
         self.stdout.write(f"  GameMode: {count} created (defaults from GameSettings)")
+
+    def _apply_dev_overrides(self):
+        """Apply dev-friendly overrides: cheap costs, fast timers, high energy."""
+        self.stdout.write("\n  Applying --dev overrides...")
+
+        # GameSettings: high energy, fast generation
+        settings = GameSettings.objects.first()
+        if settings:
+            settings.starting_energy = 9999
+            settings.base_energy_per_tick = 50.0
+            settings.region_energy_per_tick = 5.0
+            settings.base_unit_generation_rate = 5.0
+            settings.capital_generation_bonus = 10.0
+            settings.capital_selection_time_seconds = 10
+            settings.save()
+            self.stdout.write("    GameSettings: high energy, fast gen")
+
+        # Buildings: patch level_stats — cost=1, energy_cost=1, build_time=1 tick for all levels
+        bt_updated = 0
+        for bt in BuildingType.objects.filter(is_active=True):
+            level_stats = bt.level_stats or {}
+            for level_data in level_stats.values():
+                level_data['cost'] = 1
+                level_data['energy_cost'] = 1
+                level_data['build_time_ticks'] = 1
+            bt.level_stats = level_stats
+            bt.save(update_fields=['level_stats'])
+            bt_updated += 1
+        self.stdout.write(f"    BuildingType: {bt_updated} updated (level_stats cost=1, energy=1, build=1 tick)")
+
+        # Units: patch level_stats — production_cost=1, production_time=1, manpower=1 for all levels
+        ut_updated = 0
+        for ut in UnitType.objects.filter(is_active=True):
+            level_stats = ut.level_stats or {}
+            for level_data in level_stats.values():
+                level_data['production_cost'] = 1
+                level_data['production_time_ticks'] = 1
+                level_data['manpower_cost'] = 1
+            ut.level_stats = level_stats
+            ut.save(update_fields=['level_stats'])
+            ut_updated += 1
+        self.stdout.write(f"    UnitType: {ut_updated} updated (level_stats cost=1, time=1, manpower=1)")
+
+        # Abilities: patch base fields (energy_cost, cooldown_ticks) AND level_stats
+        at_updated = 0
+        for at in AbilityType.objects.filter(is_active=True):
+            level_stats = at.level_stats or {}
+            for level_data in level_stats.values():
+                level_data['energy_cost'] = 1
+                level_data['cooldown_ticks'] = 2
+            at.level_stats = level_stats
+            at.energy_cost = 1
+            at.cooldown_ticks = 2
+            at.save(update_fields=['level_stats', 'energy_cost', 'cooldown_ticks'])
+            at_updated += 1
+        self.stdout.write(f"    AbilityType: {at_updated} updated (cost=1, cooldown=2)")
+
+        # GameModes: apply same high energy/fast gen
+        updated = GameMode.objects.all().update(
+            starting_energy=9999,
+            base_energy_per_tick=50.0,
+            region_energy_per_tick=5.0,
+            base_unit_generation_rate=5.0,
+            capital_generation_bonus=10.0,
+            capital_selection_time_seconds=10,
+        )
+        self.stdout.write(f"    GameMode: {updated} updated (dev settings)")
+
+        self.stdout.write(self.style.WARNING("  DEV MODE ACTIVE — all costs minimal!"))

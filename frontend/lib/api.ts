@@ -305,6 +305,8 @@ export interface UnitType {
   can_station_anywhere: boolean;
   lifetime_ticks: number;
   combat_target: string;
+  ticks_per_hop: number;
+  air_speed_ticks_per_hop: number;
 }
 
 export interface GameSettings {

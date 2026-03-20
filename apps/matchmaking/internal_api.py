@@ -44,7 +44,9 @@ def _consume_default_deck(user) -> dict:
     try:
         deck = Deck.objects.prefetch_related(
             'items__item'
-        ).get(user=user, is_default=True)
+        ).filter(user=user, is_default=True).order_by('-created_at').first()
+        if deck is None:
+            raise Deck.DoesNotExist
     except Deck.DoesNotExist:
         return {
             'unlocked_buildings': unlocked_buildings,
@@ -393,9 +395,9 @@ class MatchmakingInternalController(ControllerBase):
         # Snapshot building types
         building_types = {
             bt.slug: {
-                'cost': bt.cost,
-                'energy_cost': bt.energy_cost,
-                'build_time_ticks': bt.build_time_ticks,
+                'cost': (bt.level_stats or {}).get('1', {}).get('cost', 0),
+                'energy_cost': (bt.level_stats or {}).get('1', {}).get('energy_cost', 0),
+                'build_time_ticks': (bt.level_stats or {}).get('1', {}).get('build_time_ticks', 1),
                 'max_per_region': bt.max_per_region,
                 'defense_bonus': bt.defense_bonus,
                 'vision_range': bt.vision_range,
@@ -431,9 +433,9 @@ class MatchmakingInternalController(ControllerBase):
                 'sea_hop_distance_km': int(ut.sea_hop_distance_km),
                 'movement_type': ut.movement_type,
                 'produced_by_slug': ut.produced_by.slug if ut.produced_by_id else None,
-                'production_cost': int(ut.production_cost),
-                'production_time_ticks': int(ut.production_time_ticks),
-                'manpower_cost': int(ut.manpower_cost),
+                'production_cost': (ut.level_stats or {}).get('1', {}).get('production_cost', 0),
+                'production_time_ticks': (ut.level_stats or {}).get('1', {}).get('production_time_ticks', 0),
+                'manpower_cost': (ut.level_stats or {}).get('1', {}).get('manpower_cost', 1),
                 'max_level': ut.max_level,
                 'level_stats': ut.level_stats or {},
                 'is_stealth': ut.is_stealth,
@@ -444,6 +446,8 @@ class MatchmakingInternalController(ControllerBase):
                 'can_station_anywhere': ut.can_station_anywhere,
                 'lifetime_ticks': ut.lifetime_ticks,
                 'combat_target': ut.combat_target,
+                'ticks_per_hop': ut.ticks_per_hop,
+                'air_speed_ticks_per_hop': ut.air_speed_ticks_per_hop,
             }
             for ut in UnitType.objects.select_related('produced_by').filter(is_active=True)
         }
@@ -592,9 +596,9 @@ def _create_match_from_users(users, game_mode):
     # Snapshot building types
     building_types = {
         bt.slug: {
-            'cost': bt.cost,
-            'energy_cost': bt.energy_cost,
-            'build_time_ticks': bt.build_time_ticks,
+            'cost': (bt.level_stats or {}).get('1', {}).get('cost', 0),
+            'energy_cost': (bt.level_stats or {}).get('1', {}).get('energy_cost', 0),
+            'build_time_ticks': (bt.level_stats or {}).get('1', {}).get('build_time_ticks', 1),
             'max_per_region': bt.max_per_region,
             'defense_bonus': bt.defense_bonus,
             'vision_range': bt.vision_range,
@@ -630,9 +634,9 @@ def _create_match_from_users(users, game_mode):
             'sea_hop_distance_km': int(ut.sea_hop_distance_km),
             'movement_type': ut.movement_type,
             'produced_by_slug': ut.produced_by.slug if ut.produced_by_id else None,
-            'production_cost': int(ut.production_cost),
-            'production_time_ticks': int(ut.production_time_ticks),
-            'manpower_cost': int(ut.manpower_cost),
+            'production_cost': (ut.level_stats or {}).get('1', {}).get('production_cost', 0),
+            'production_time_ticks': (ut.level_stats or {}).get('1', {}).get('production_time_ticks', 0),
+            'manpower_cost': (ut.level_stats or {}).get('1', {}).get('manpower_cost', 1),
             'max_level': ut.max_level,
             'level_stats': ut.level_stats or {},
             'is_stealth': ut.is_stealth,
@@ -643,6 +647,8 @@ def _create_match_from_users(users, game_mode):
             'can_station_anywhere': ut.can_station_anywhere,
             'lifetime_ticks': ut.lifetime_ticks,
             'combat_target': ut.combat_target,
+            'ticks_per_hop': ut.ticks_per_hop,
+            'air_speed_ticks_per_hop': ut.air_speed_ticks_per_hop,
         }
         for ut in UnitType.objects.select_related('produced_by').filter(is_active=True)
     }

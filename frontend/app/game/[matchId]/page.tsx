@@ -62,6 +62,9 @@ function getUnitRules(units: UnitType[], unitSlug: string | null | undefined) {
       sea_hop_distance_km: 0,
       movement_type: "land",
       manpower_cost: 1,
+      combat_target: "ground",
+      ticks_per_hop: 0,
+      air_speed_ticks_per_hop: 0,
     }
   );
 }
@@ -125,6 +128,8 @@ export default function GamePage({
     selectCapital,
     attack,
     move,
+    bombard,
+    interceptFlight,
     build,
     produceUnit,
     useAbility: castAbility,
@@ -132,6 +137,10 @@ export default function GamePage({
     send,
     sendChat,
   } = useGameSocket(matchId);
+
+  // Expose combat actions for UI components
+  void bombard;
+  void interceptFlight;
 
   const voice = useVoiceChat();
   const effectiveVoiceUrl =
@@ -166,6 +175,18 @@ export default function GamePage({
   const [animations, setAnimations] = useState<TroopAnimation[]>([]);
   const [nukeBlackout, setNukeBlackout] = useState<Array<{ rid: string; startTime: number }>>([]);
   const [mapReady, setMapReady] = useState(false);
+
+  // Listen for air transit animations from GameCanvas (dispatched via custom event).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const anims = (e as CustomEvent<TroopAnimation[]>).detail;
+      if (anims.length > 0) {
+        setAnimations((prev) => [...prev, ...anims]);
+      }
+    };
+    window.addEventListener("air-transit-anims", handler);
+    return () => window.removeEventListener("air-transit-anims", handler);
+  }, []);
   const mapReadyRef = useRef(false);
   const [showIntro, setShowIntro] = useState(true);
   const showIntroRef = useRef(true);
@@ -359,6 +380,10 @@ export default function GamePage({
     return Object.fromEntries(unitsConfig.map((unit) => [unit.slug, unit] as const));
   }, [unitsConfig]);
 
+  const unitManpowerMap = useMemo(() => {
+    return Object.fromEntries(unitsConfig.map((u) => [u.slug, u.manpower_cost ?? 1]));
+  }, [unitsConfig]);
+
   // Guard against double capital selection while waiting for server confirmation
   const hasSelectedCapital = !!gameState?.players[myUserId]?.capital_region_id;
 
@@ -457,6 +482,15 @@ export default function GamePage({
           }
         );
         if (attackDistance !== null) {
+          // Fighters (combat_target="air") can only attack provinces with enemy air units.
+          if (rules.combat_target === "air") {
+            const targetUnits = region.units ?? {};
+            const hasEnemyAir = Object.entries(targetUnits).some(([ut, c]) => {
+              const utRules = unitConfigBySlug[ut] ?? getUnitRules(unitsConfig, ut);
+              return (c ?? 0) > 0 && utRules.movement_type === "air";
+            });
+            if (!hasEnemyAir) continue;
+          }
           attackTargets.add(regionId);
           attackDistanceByTarget.set(regionId, attackDistance);
         }
@@ -799,6 +833,101 @@ export default function GamePage({
         const slug = e.boost_slug as string;
         const label = slug.replace(/^boost-/, "").replace(/-\d+$/, "").replace(/-/g, " ");
         toast.warning(`Boost wygasł: ${label}`);
+      } else if (e.type === "bombard") {
+        const sourceId = e.source_region_id as string;
+        const targetId = e.target_region_id as string;
+        const artilleryCount = (e.artillery_count as number) ?? 1;
+        const playerId = e.player_id as string;
+        const color = gameStateRef.current?.players[playerId]?.color ?? "#ef4444";
+        const rocketCount = Math.min(artilleryCount, 5);
+        for (let i = 0; i < rocketCount; i++) {
+          newAnims.push({
+            id: crypto.randomUUID(),
+            sourceId,
+            targetId,
+            color,
+            units: artilleryCount,
+            unitType: "artillery",
+            type: "attack" as const,
+            startTime: Date.now() + i * 200,
+            durationMs: 2000,
+            playerId,
+          });
+        }
+      } else if (e.type === "air_mission_launched") {
+        // No TroopAnimation needed — flights are rendered from air_transit_queue
+        // state in GameCanvas (state-driven, position from progress field).
+      } else if (e.type === "air_combat_resolved") {
+        // Mid-air combat — show explosion at approximate position
+        // (no specific animation needed; the flight animation continues or stops)
+        const flightId = e.flight_id as string;
+        const bombersRemaining = (e.bombers_remaining as number) ?? 0;
+        if (bombersRemaining <= 0) {
+          // Remove the flight animation if bombers destroyed
+          setAnimations((prev) => prev.filter((a) => a.id !== flightId));
+        }
+      } else if (e.type === "path_damage") {
+        // Bomb drop animation on the province that took real damage during flight.
+        const targetId = e.target_region_id as string;
+        const playerId = e.player_id as string;
+        const killed = (e.units_killed as number) ?? 0;
+        if (killed > 0) {
+          const color = gameStateRef.current?.players[playerId]?.color ?? "#ef4444";
+          newAnims.push({
+            id: crypto.randomUUID(),
+            sourceId: targetId,
+            targetId,
+            color,
+            units: killed,
+            unitCount: killed,
+            unitType: "bomber",
+            type: "attack" as const,
+            startTime: Date.now(),
+            durationMs: 1200,
+            playerId,
+          });
+        }
+      } else if (e.type === "bomber_strike") {
+        // Final strike on target province.
+        const targetId = e.target_region_id as string;
+        const playerId = e.player_id as string;
+        const groundKilled = (e.ground_units_destroyed as number) ?? 0;
+        const neutralized = e.province_neutralized as boolean;
+        const regionName = gameStateRef.current?.regions[targetId]?.name ?? targetId;
+        if (groundKilled > 0) {
+          const color = gameStateRef.current?.players[playerId]?.color ?? "#ef4444";
+          // Bomb drop animation on target.
+          newAnims.push({
+            id: crypto.randomUUID(),
+            sourceId: targetId,
+            targetId,
+            color,
+            units: groundKilled,
+            unitCount: groundKilled,
+            unitType: "bomber",
+            type: "attack" as const,
+            startTime: Date.now(),
+            durationMs: 1500,
+            playerId,
+          });
+          toast.info(`Bombardowanie ${regionName}: -${groundKilled} jednostek`);
+        }
+        if (neutralized) {
+          toast.info(`${regionName} zneutralizowana przez bombardowanie!`);
+        }
+      } else if (e.type === "province_neutralized") {
+        const regionId = e.region_id as string;
+        const previousOwner = e.previous_owner_id as string;
+        if (previousOwner === myUserId) {
+          const regionName = gameStateRef.current?.regions[regionId]?.name ?? regionId;
+          toast.error(`Stracono prowincję ${regionName} — zneutralizowana!`);
+        }
+      } else if (e.type === "air_intercept_dispatched") {
+        // Interceptors sent — could add toast for own player
+        const interceptorPlayer = e.interceptor_player_id as string;
+        if (interceptorPlayer === myUserId) {
+          toast.info("Myśliwce wysłane na przechwycenie!");
+        }
       }
     }
 
@@ -823,7 +952,11 @@ export default function GamePage({
 
       const rules = unitConfigBySlug[unitType] ?? getUnitRules(unitsConfig, unitType);
       const tickMs = parseInt(gameState.meta?.tick_interval_ms || "1000", 10);
-      const travelTicks = Math.max(1, Math.ceil(Math.max(1, distance) / Math.max(1, rules.speed || 1)));
+      // Match engine's get_travel_ticks: ticks_per_hop takes priority over legacy speed.
+      const tph = rules.ticks_per_hop ?? 0;
+      const travelTicks = tph > 0
+        ? Math.max(1, Math.max(1, distance) * tph)
+        : Math.max(1, Math.ceil(Math.max(1, distance) / Math.max(1, rules.speed || 1)));
       const actionType = isAttackTarget ? "attack" : "move";
 
       const dispatchKey = [actionType, myUserId, sourceId, targetId, unitType, unitCount].join(":");
@@ -835,24 +968,38 @@ export default function GamePage({
         }
       }
 
-      setAnimations((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          sourceId,
-          targetId,
-          color: gameState.players[myUserId]?.color ?? "#3b82f6",
-          units: getAnimationPower(unitsConfig, unitType, unitCount),
-          unitType,
-          type: actionType,
-          startTime: Date.now(),
-          durationMs: travelTicks * tickMs,
-          playerId: myUserId,
-        },
-      ]);
+      // Air units are rendered from air_transit_queue state — no local TroopAnimation.
+      const isAir = rules.movement_type === "air";
+      if (!isAir) {
+        setAnimations((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            sourceId,
+            targetId,
+            color: gameState.players[myUserId]?.color ?? "#3b82f6",
+            units: getAnimationPower(unitsConfig, unitType, unitCount),
+            unitCount,
+            unitType,
+            type: actionType,
+            startTime: Date.now(),
+            durationMs: travelTicks * tickMs,
+            playerId: myUserId,
+          },
+        ]);
+      }
 
-      if (isAttackTarget) attack(sourceId, targetId, unitCount, unitType);
-      else move(sourceId, targetId, unitCount, unitType);
+      if (isAttackTarget) {
+        // When sending bombers, auto-escort with 25% of available fighters.
+        let escortCount = 0;
+        if (unitType === "bomber" && gameState.regions[sourceId]) {
+          const availableFighters = gameState.regions[sourceId].units?.fighter ?? 0;
+          escortCount = Math.ceil(availableFighters * 0.25);
+        }
+        attack(sourceId, targetId, unitCount, unitType, escortCount > 0 ? escortCount : undefined);
+      } else {
+        move(sourceId, targetId, unitCount, unitType);
+      }
     },
     [gameState, myUserId, attack, move, reachabilityByUnitType, unitConfigBySlug, unitsConfig]
   );
@@ -1319,7 +1466,19 @@ export default function GamePage({
       if (e.type === "path_damage") {
         playSound("missile_explosion");
       }
+      if (e.type === "bombard") {
+        playSound("missile_explosion");
+      }
       if (e.type === "aoe_damage") {
+        playSound("missile_explosion");
+      }
+      if (e.type === "air_mission_launched") {
+        playSound("plane_start");
+      }
+      if (e.type === "bomber_strike") {
+        playSound("missile_explosion");
+      }
+      if (e.type === "air_combat_resolved") {
         playSound("missile_explosion");
       }
       if (e.type === "flash_effect") {
@@ -1675,6 +1834,28 @@ export default function GamePage({
           nukeBlackout={nukeBlackout}
           onMapReady={handleMapReady}
           weather={gameState?.weather}
+          airTransitQueue={gameState?.air_transit_queue}
+          unitManpowerMap={unitManpowerMap}
+          onFlightClick={(flightId) => {
+            // Find a source region with fighters to intercept
+            if (!gameState) return;
+            const flight = gameState.air_transit_queue?.find((f) => f.id === flightId);
+            if (!flight || flight.player_id === myUserId) return;
+            // Find closest own region with fighters
+            const ownRegionsWithFighters = Object.entries(gameState.regions)
+              .filter(([, r]) => r.owner_id === myUserId && (r.units?.fighter ?? 0) > 0);
+            if (ownRegionsWithFighters.length === 0) {
+              toast.warning("Brak myśliwców do przechwycenia!");
+              return;
+            }
+            // Use selected region if it has fighters, otherwise first available
+            const sourceId = selectedRegion && ownRegionsWithFighters.some(([id]) => id === selectedRegion)
+              ? selectedRegion
+              : ownRegionsWithFighters[0][0];
+            const fighterCount = gameState.regions[sourceId]?.units?.fighter ?? 0;
+            interceptFlight(sourceId, flightId, fighterCount);
+            toast.info(`Wysłano ${fighterCount} myśliwców na przechwycenie!`);
+          }}
         />
 
       {/* HUD */}

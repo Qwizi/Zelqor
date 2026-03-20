@@ -55,8 +55,9 @@ class Command(BaseCommand):
                     DeckItem.objects.filter(deck=old_default).delete()
                     old_default.delete()
 
-            # Clean up old non-editable defaults (safety)
-            Deck.objects.filter(user=user, is_default=True, is_editable=False).delete()
+            # Clean up ALL non-editable decks with the default name (prevents duplicates
+            # from repeated provisioning — old copies have is_default=False after Deck.save)
+            Deck.objects.filter(user=user, is_editable=False).delete()
 
             # Ensure starter items in inventory
             instance_map = {}
@@ -78,10 +79,18 @@ class Command(BaseCommand):
                 wallet.gold = STARTER_GOLD
                 wallet.save(update_fields=['gold'])
 
-            # Create locked default deck
-            deck = Deck.objects.create(user=user, name=DEFAULT_DECK_NAME, is_default=True, is_editable=False)
+            # Create or reuse locked default deck (idempotent)
+            deck, created = Deck.objects.get_or_create(
+                user=user, is_default=True, is_editable=False,
+                defaults={'name': DEFAULT_DECK_NAME},
+            )
+            if not created:
+                # Deck already exists — refresh its items
+                DeckItem.objects.filter(deck=deck).delete()
+                deck.name = DEFAULT_DECK_NAME
+                deck.save(update_fields=['name'])
             for slug, item in items.items():
-                DeckItem.objects.create(deck=deck, item=item, quantity=1, instance=instance_map.get(slug))
+                DeckItem.objects.get_or_create(deck=deck, item=item, defaults={'quantity': 1, 'instance': instance_map.get(slug)})
 
             provisioned += 1
 

@@ -1,675 +1,1028 @@
 [
-{
-  "model": "game_config.gamesettings",
-  "pk": "7e45c05d-854f-4bdc-85f1-297e133dbb50",
-  "fields": {
-    "max_players": 2,
-    "min_players": 2,
-    "tick_interval_ms": 1000,
-    "capital_selection_time_seconds": 30,
-    "match_duration_limit_minutes": 60,
-    "base_unit_generation_rate": 0.5,
-    "capital_generation_bonus": 2.0,
-    "starting_energy": 120,
-    "base_energy_per_tick": 2.0,
-    "region_energy_per_tick": 0.35,
-    "attacker_advantage": 0.0,
-    "defender_advantage": 0.1,
-    "combat_randomness": 0.0,
-    "starting_units": 10,
-    "starting_regions": 1,
-    "neutral_region_units": 3,
-    "elo_k_factor": 32
+  {
+    "model": "game_config.gamesettings",
+    "pk": "7e45c05d-854f-4bdc-85f1-297e133dbb50",
+    "fields": {
+      "max_players": 2,
+      "min_players": 2,
+      "tick_interval_ms": 1000,
+      "capital_selection_time_seconds": 30,
+      "match_duration_limit_minutes": 60,
+      "base_unit_generation_rate": 0.5,
+      "capital_generation_bonus": 2.0,
+      "starting_energy": 120,
+      "base_energy_per_tick": 2.0,
+      "region_energy_per_tick": 0.35,
+      "attacker_advantage": 0.0,
+      "defender_advantage": 0.1,
+      "combat_randomness": 0.0,
+      "starting_units": 10,
+      "starting_regions": 1,
+      "neutral_region_units": 3,
+      "elo_k_factor": 32
+    }
+  },
+  {
+    "model": "game_config.buildingtype",
+    "pk": "2a270f85-501e-4540-befd-70ab599b9da6",
+    "fields": {
+      "name": "Port",
+      "slug": "port",
+      "asset_key": "port",
+      "description": "Nadmorska baza marynarki. Wymagana do budowy okrętów.",
+      "icon": "⚓",
+      "max_per_region": 1,
+      "requires_coastal": true,
+      "defense_bonus": 0.0,
+      "vision_range": 0,
+      "unit_generation_bonus": 0.0,
+      "energy_generation_bonus": 0.0,
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 2000,
+          "build_time_ticks": 12,
+          "cost": 500,
+          "defense_bonus": 0.0,
+          "vision_range": 0,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        },
+        "2": {
+          "energy_cost": 3000,
+          "build_time_ticks": 16,
+          "cost": 700,
+          "defense_bonus": 0.05,
+          "vision_range": 1,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        },
+        "3": {
+          "energy_cost": 4500,
+          "build_time_ticks": 20,
+          "cost": 900,
+          "defense_bonus": 0.1,
+          "vision_range": 2,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        }
+      },
+      "is_active": true,
+      "order": 4
+    }
+  },
+  {
+    "model": "game_config.buildingtype",
+    "pk": "2b21d77f-7d97-4ad0-9ea5-0e107feb557c",
+    "fields": {
+      "name": "Koszary",
+      "slug": "barracks",
+      "asset_key": "barracks",
+      "description": "Przyspiesza generowanie piechoty w regionie.",
+      "icon": "🏠",
+      "max_per_region": 1,
+      "requires_coastal": false,
+      "defense_bonus": 0.0,
+      "vision_range": 0,
+      "unit_generation_bonus": 0.9,
+      "energy_generation_bonus": 0.0,
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 300,
+          "build_time_ticks": 8,
+          "cost": 0,
+          "unit_generation_bonus": 0.9,
+          "defense_bonus": 0.0,
+          "vision_range": 0,
+          "energy_generation_bonus": 0.0
+        },
+        "2": {
+          "energy_cost": 500,
+          "build_time_ticks": 12,
+          "cost": 0,
+          "unit_generation_bonus": 1.4,
+          "defense_bonus": 0.0,
+          "vision_range": 0,
+          "energy_generation_bonus": 0.0
+        },
+        "3": {
+          "energy_cost": 800,
+          "build_time_ticks": 16,
+          "cost": 0,
+          "unit_generation_bonus": 1.9,
+          "defense_bonus": 0.05,
+          "vision_range": 1,
+          "energy_generation_bonus": 0.0
+        }
+      },
+      "is_active": true,
+      "order": 1
+    }
+  },
+  {
+    "model": "game_config.buildingtype",
+    "pk": "5e501726-f5e4-400f-a69c-406151a779e4",
+    "fields": {
+      "name": "Lotnisko",
+      "slug": "carrier",
+      "asset_key": "carrier",
+      "description": "Baza lotnicza. Wymagana do produkcji myśliwców.",
+      "icon": "🛫",
+      "max_per_region": 1,
+      "requires_coastal": false,
+      "defense_bonus": 0.02,
+      "vision_range": 1,
+      "unit_generation_bonus": 0.0,
+      "energy_generation_bonus": 0.0,
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 1000,
+          "build_time_ticks": 25,
+          "cost": 100,
+          "defense_bonus": 0.02,
+          "vision_range": 1,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        },
+        "2": {
+          "energy_cost": 1500,
+          "build_time_ticks": 30,
+          "cost": 150,
+          "defense_bonus": 0.04,
+          "vision_range": 2,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        },
+        "3": {
+          "energy_cost": 2200,
+          "build_time_ticks": 35,
+          "cost": 200,
+          "defense_bonus": 0.05,
+          "vision_range": 3,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        }
+      },
+      "is_active": true,
+      "order": 5
+    }
+  },
+  {
+    "model": "game_config.buildingtype",
+    "pk": "b7744936-1eb6-4d3d-8694-96f78e09657e",
+    "fields": {
+      "name": "Elektrownia",
+      "slug": "radar",
+      "asset_key": "radar",
+      "description": "Zwiększa dochód walutowy regionu.",
+      "icon": "📡",
+      "max_per_region": 3,
+      "requires_coastal": false,
+      "defense_bonus": 0.0,
+      "vision_range": 0,
+      "unit_generation_bonus": 0.0,
+      "energy_generation_bonus": 0.5,
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 250,
+          "build_time_ticks": 6,
+          "cost": 35,
+          "energy_generation_bonus": 0.5,
+          "vision_range": 0,
+          "defense_bonus": 0.0,
+          "unit_generation_bonus": 0.0
+        },
+        "2": {
+          "energy_cost": 400,
+          "build_time_ticks": 9,
+          "cost": 50,
+          "energy_generation_bonus": 1.0,
+          "vision_range": 1,
+          "defense_bonus": 0.0,
+          "unit_generation_bonus": 0.0
+        },
+        "3": {
+          "energy_cost": 600,
+          "build_time_ticks": 12,
+          "cost": 70,
+          "energy_generation_bonus": 1.5,
+          "vision_range": 1,
+          "defense_bonus": 0.0,
+          "unit_generation_bonus": 0.0
+        }
+      },
+      "is_active": true,
+      "order": 6
+    }
+  },
+  {
+    "model": "game_config.buildingtype",
+    "pk": "ced6527c-8259-44d1-bb36-fc51dec4d9b9",
+    "fields": {
+      "name": "Wieża obronna",
+      "slug": "tower",
+      "asset_key": "tower",
+      "description": "Budowla obronna. Przyznaje premię obronną do regionu.",
+      "icon": "🗼",
+      "max_per_region": 3,
+      "requires_coastal": false,
+      "defense_bonus": 0.11,
+      "vision_range": 1,
+      "unit_generation_bonus": 0.0,
+      "energy_generation_bonus": 0.0,
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 800,
+          "build_time_ticks": 10,
+          "cost": 40,
+          "defense_bonus": 0.11,
+          "vision_range": 1,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        },
+        "2": {
+          "energy_cost": 1200,
+          "build_time_ticks": 14,
+          "cost": 60,
+          "defense_bonus": 0.16,
+          "vision_range": 2,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        },
+        "3": {
+          "energy_cost": 1800,
+          "build_time_ticks": 18,
+          "cost": 80,
+          "defense_bonus": 0.22,
+          "vision_range": 3,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        }
+      },
+      "is_active": true,
+      "order": 3
+    }
+  },
+  {
+    "model": "game_config.buildingtype",
+    "pk": "d57c80f4-9e9a-40fa-849b-be5d3772380d",
+    "fields": {
+      "name": "Fabryka",
+      "slug": "factory",
+      "asset_key": "factory",
+      "description": "Kompleks przemysłowy. Wymagany do produkcji czołgów.",
+      "icon": "🏭",
+      "max_per_region": 3,
+      "requires_coastal": false,
+      "defense_bonus": 0.0,
+      "vision_range": 0,
+      "unit_generation_bonus": 0.0,
+      "energy_generation_bonus": 0.0,
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 600,
+          "build_time_ticks": 15,
+          "cost": 60,
+          "defense_bonus": 0.0,
+          "vision_range": 0,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        },
+        "2": {
+          "energy_cost": 1000,
+          "build_time_ticks": 20,
+          "cost": 80,
+          "defense_bonus": 0.0,
+          "vision_range": 0,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        },
+        "3": {
+          "energy_cost": 1500,
+          "build_time_ticks": 25,
+          "cost": 100,
+          "defense_bonus": 0.05,
+          "vision_range": 1,
+          "unit_generation_bonus": 0.0,
+          "energy_generation_bonus": 0.0
+        }
+      },
+      "is_active": true,
+      "order": 2
+    }
+  },
+  {
+    "model": "game_config.unittype",
+    "pk": "0586c222-e4b0-4316-8644-9fa3e50837c3",
+    "fields": {
+      "name": "Okręt",
+      "slug": "ship",
+      "asset_key": "ship_1",
+      "description": "Jednostka morska. Może atakować regiony przybrzeżne.",
+      "icon": "🚢",
+      "attack": 2.0,
+      "defense": 2.0,
+      "speed": 4,
+      "attack_range": 4,
+      "sea_range": 80,
+      "sea_hop_distance_km": 2800,
+      "produced_by": "2a270f85-501e-4540-befd-70ab599b9da6",
+      "movement_type": "sea",
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "attack": 2.0,
+          "defense": 2.0,
+          "production_cost": 500,
+          "production_time_ticks": 10,
+          "manpower_cost": 500
+        },
+        "2": {
+          "attack": 3.0,
+          "defense": 3.0,
+          "production_cost": 700,
+          "production_time_ticks": 12,
+          "manpower_cost": 600
+        },
+        "3": {
+          "attack": 4.0,
+          "defense": 4.0,
+          "production_cost": 1000,
+          "production_time_ticks": 14,
+          "manpower_cost": 700
+        }
+      },
+      "is_active": true,
+      "order": 3
+    }
+  },
+  {
+    "model": "game_config.unittype",
+    "pk": "1da708a2-951e-4a0f-b99a-427a0502c5d2",
+    "fields": {
+      "name": "Myśliwiec",
+      "slug": "fighter",
+      "asset_key": "bomber",
+      "description": "Jednostka lotnicza dalekiego zasięgu. Startuje z lotnisk.",
+      "icon": "✈️",
+      "attack": 2.5,
+      "defense": 1.0,
+      "speed": 3,
+      "attack_range": 3,
+      "sea_range": 0,
+      "sea_hop_distance_km": 0,
+      "produced_by": "5e501726-f5e4-400f-a69c-406151a779e4",
+      "movement_type": "air",
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "attack": 2.5,
+          "defense": 1.0,
+          "production_cost": 100,
+          "production_time_ticks": 12,
+          "manpower_cost": 100
+        },
+        "2": {
+          "attack": 3.5,
+          "defense": 1.5,
+          "production_cost": 150,
+          "production_time_ticks": 14,
+          "manpower_cost": 120
+        },
+        "3": {
+          "attack": 5.0,
+          "defense": 2.0,
+          "production_cost": 200,
+          "production_time_ticks": 16,
+          "manpower_cost": 140
+        }
+      },
+      "combat_target": "air",
+      "is_active": true,
+      "order": 4,
+      "air_speed_ticks_per_hop": 2
+    }
+  },
+  {
+    "model": "game_config.unittype",
+    "pk": "65c6f3d6-3f02-465f-85c2-9a6dba3563db",
+    "fields": {
+      "name": "Piechota",
+      "slug": "infantry",
+      "asset_key": "ground_unit",
+      "description": "Podstawowa jednostka lądowa. Tania i szybko generowana.",
+      "icon": "🪖",
+      "attack": 1.0,
+      "defense": 1.0,
+      "speed": 1,
+      "attack_range": 1,
+      "sea_range": 0,
+      "sea_hop_distance_km": 0,
+      "produced_by": null,
+      "movement_type": "land",
+      "max_level": 1,
+      "level_stats": {
+        "1": {
+          "attack": 1.0,
+          "defense": 1.0,
+          "production_cost": 0,
+          "production_time_ticks": 0,
+          "manpower_cost": 1
+        }
+      },
+      "is_active": true,
+      "order": 1,
+      "ticks_per_hop": 2
+    }
+  },
+  {
+    "model": "game_config.unittype",
+    "pk": "a3620265-5c70-4bec-b276-3d52e0f7f831",
+    "fields": {
+      "name": "Czołg",
+      "slug": "tank",
+      "asset_key": "ground_unit_sphere",
+      "description": "Ciężki pojazd opancerzony. Wolny, ale potężny.",
+      "icon": "🛡️",
+      "attack": 3.0,
+      "defense": 2.5,
+      "speed": 1,
+      "attack_range": 1,
+      "sea_range": 0,
+      "sea_hop_distance_km": 0,
+      "produced_by": "d57c80f4-9e9a-40fa-849b-be5d3772380d",
+      "movement_type": "land",
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "attack": 3.0,
+          "defense": 2.5,
+          "production_cost": 50,
+          "production_time_ticks": 8,
+          "manpower_cost": 50
+        },
+        "2": {
+          "attack": 4.0,
+          "defense": 3.5,
+          "production_cost": 80,
+          "production_time_ticks": 10,
+          "manpower_cost": 60
+        },
+        "3": {
+          "attack": 5.5,
+          "defense": 4.5,
+          "production_cost": 120,
+          "production_time_ticks": 12,
+          "manpower_cost": 70
+        }
+      },
+      "can_station_anywhere": true,
+      "is_active": true,
+      "order": 2,
+      "ticks_per_hop": 3
+    }
+  },
+  {
+    "model": "game_config.abilitytype",
+    "pk": "a1000000-0000-0000-0000-000000000001",
+    "fields": {
+      "name": "Nuke",
+      "slug": "ab_province_nuke",
+      "asset_key": "ab_province_nuke",
+      "description": "Natychmiastowe uderzenie nuklearne zabijające jednostki w prowincji.",
+      "icon": "☢️",
+      "sound_key": "nuke",
+      "target_type": "enemy",
+      "range": 0,
+      "energy_cost": 8000,
+      "cooldown_ticks": 600,
+      "damage": 50,
+      "effect_duration_ticks": 0,
+      "effect_params": {},
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 8000,
+          "cooldown_ticks": 600,
+          "damage": 50,
+          "range": 0
+        },
+        "2": {
+          "energy_cost": 7000,
+          "cooldown_ticks": 500,
+          "damage": 75,
+          "range": 0
+        },
+        "3": {
+          "energy_cost": 6000,
+          "cooldown_ticks": 400,
+          "damage": 99,
+          "range": 0
+        }
+      },
+      "is_active": true,
+      "order": 0
+    }
+  },
+  {
+    "model": "game_config.abilitytype",
+    "pk": "a1000000-0000-0000-0000-000000000002",
+    "fields": {
+      "name": "Virus",
+      "slug": "ab_virus",
+      "asset_key": "ab_virus",
+      "description": "Rozprzestrzenia wirusa zabijającego jednostki i redukującego produkcję.",
+      "icon": "🦠",
+      "sound_key": "virus",
+      "target_type": "enemy",
+      "range": 2,
+      "energy_cost": 250,
+      "cooldown_ticks": 120,
+      "damage": 0,
+      "effect_duration_ticks": 10,
+      "effect_params": {
+        "production_reduction": 0.5,
+        "unit_kill_percent": 0.05,
+        "spread_range": 1
+      },
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 250,
+          "cooldown_ticks": 120,
+          "effect_duration_ticks": 10,
+          "range": 2,
+          "effect_params": {
+            "production_reduction": 0.5,
+            "unit_kill_percent": 0.05,
+            "spread_range": 1
+          }
+        },
+        "2": {
+          "energy_cost": 220,
+          "cooldown_ticks": 100,
+          "effect_duration_ticks": 13,
+          "range": 2,
+          "effect_params": {
+            "production_reduction": 0.6,
+            "unit_kill_percent": 0.07,
+            "spread_range": 1
+          }
+        },
+        "3": {
+          "energy_cost": 180,
+          "cooldown_ticks": 80,
+          "effect_duration_ticks": 16,
+          "range": 3,
+          "effect_params": {
+            "production_reduction": 0.7,
+            "unit_kill_percent": 0.1,
+            "spread_range": 2
+          }
+        }
+      },
+      "is_active": true,
+      "order": 1
+    }
+  },
+  {
+    "model": "game_config.abilitytype",
+    "pk": "a1000000-0000-0000-0000-000000000003",
+    "fields": {
+      "name": "Submarine",
+      "slug": "ab_pr_submarine",
+      "asset_key": "ab_pr_submarine",
+      "description": "Ujawnia jednostki wroga w prowincji na określony czas.",
+      "icon": "🔍",
+      "sound_key": "submarine",
+      "target_type": "enemy",
+      "range": 3,
+      "energy_cost": 100,
+      "cooldown_ticks": 45,
+      "damage": 0,
+      "effect_duration_ticks": 7,
+      "effect_params": {},
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 100,
+          "cooldown_ticks": 45,
+          "effect_duration_ticks": 7,
+          "range": 3
+        },
+        "2": {
+          "energy_cost": 80,
+          "cooldown_ticks": 35,
+          "effect_duration_ticks": 10,
+          "range": 4
+        },
+        "3": {
+          "energy_cost": 60,
+          "cooldown_ticks": 25,
+          "effect_duration_ticks": 13,
+          "range": 5
+        }
+      },
+      "is_active": true,
+      "order": 2
+    }
+  },
+  {
+    "model": "game_config.abilitytype",
+    "pk": "a1000000-0000-0000-0000-000000000004",
+    "fields": {
+      "name": "Shield",
+      "slug": "ab_shield",
+      "asset_key": "ab_shield",
+      "description": "Tworzy tarczę blokującą ataki na prowincję.",
+      "icon": "🛡️",
+      "sound_key": "shield",
+      "target_type": "own",
+      "range": 0,
+      "energy_cost": 100,
+      "cooldown_ticks": 120,
+      "damage": 0,
+      "effect_duration_ticks": 14,
+      "effect_params": {},
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 100,
+          "cooldown_ticks": 120,
+          "effect_duration_ticks": 14
+        },
+        "2": {
+          "energy_cost": 80,
+          "cooldown_ticks": 100,
+          "effect_duration_ticks": 18
+        },
+        "3": {
+          "energy_cost": 60,
+          "cooldown_ticks": 80,
+          "effect_duration_ticks": 22
+        }
+      },
+      "is_active": true,
+      "order": 3
+    }
+  },
+  {
+    "model": "game_config.abilitytype",
+    "pk": "a1000000-0000-0000-0000-000000000005",
+    "fields": {
+      "name": "Conscription",
+      "slug": "ab_conscription_point",
+      "asset_key": "ab_conscription_point",
+      "description": "Zbiera procent jednostek z neutralnych sąsiednich prowincji.",
+      "icon": "📯",
+      "sound_key": "quick_gain",
+      "target_type": "own",
+      "range": 0,
+      "energy_cost": 50,
+      "cooldown_ticks": 45,
+      "damage": 0,
+      "effect_duration_ticks": 0,
+      "effect_params": {
+        "collect_percent": 0.2
+      },
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 50,
+          "cooldown_ticks": 45,
+          "effect_params": {
+            "collect_percent": 0.2
+          }
+        },
+        "2": {
+          "energy_cost": 40,
+          "cooldown_ticks": 35,
+          "effect_params": {
+            "collect_percent": 0.25
+          }
+        },
+        "3": {
+          "energy_cost": 30,
+          "cooldown_ticks": 25,
+          "effect_params": {
+            "collect_percent": 0.3
+          }
+        }
+      },
+      "is_active": true,
+      "order": 4
+    }
+  },
+  {
+    "model": "game_config.abilitytype",
+    "pk": "a1000000-0000-0000-0000-000000000006",
+    "fields": {
+      "name": "Flara Oślepiająca",
+      "slug": "ab_flash",
+      "asset_key": "ab_flash",
+      "description": "Oślepia wroga — tworzy fog of war na prowincji i okolicy.",
+      "icon": "💡",
+      "sound_key": "alert",
+      "target_type": "enemy",
+      "range": 3,
+      "energy_cost": 60,
+      "cooldown_ticks": 45,
+      "damage": 0,
+      "effect_duration_ticks": 8,
+      "effect_params": {
+        "radius": 2
+      },
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "energy_cost": 60,
+          "cooldown_ticks": 45,
+          "effect_duration_ticks": 8
+        },
+        "2": {
+          "energy_cost": 50,
+          "cooldown_ticks": 38,
+          "effect_duration_ticks": 12
+        },
+        "3": {
+          "energy_cost": 40,
+          "cooldown_ticks": 30,
+          "effect_duration_ticks": 16
+        }
+      },
+      "is_active": true,
+      "order": 5
+    }
+  },
+  {
+    "model": "game_config.unittype",
+    "pk": "4df93cd4-4e6b-43fe-b099-6ff90943918c",
+    "fields": {
+      "name": "Komandosi",
+      "slug": "commando",
+      "asset_key": "commando",
+      "description": "Komandosi — szybka jednostka stealth o wysokim ataku.",
+      "icon": "🥷",
+      "attack": 1.2,
+      "defense": 0.6,
+      "speed": 4,
+      "attack_range": 2,
+      "sea_range": 0,
+      "sea_hop_distance_km": 0,
+      "produced_by": "2b21d77f-7d97-4ad0-9ea5-0e107feb557c",
+      "movement_type": "land",
+      "is_stealth": true,
+      "path_damage": 0.0,
+      "aoe_damage": 0.0,
+      "blockade_port": false,
+      "intercept_air": false,
+      "can_station_anywhere": false,
+      "lifetime_ticks": 0,
+      "combat_target": "ground",
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "attack": 1.2,
+          "production_cost": 8,
+          "production_time_ticks": 4,
+          "manpower_cost": 1
+        },
+        "2": {
+          "attack": 1.6,
+          "production_cost": 12,
+          "production_time_ticks": 4,
+          "manpower_cost": 1
+        },
+        "3": {
+          "attack": 2.0,
+          "production_cost": 16,
+          "production_time_ticks": 4,
+          "manpower_cost": 1
+        }
+      },
+      "is_active": true,
+      "order": 2,
+      "ticks_per_hop": 1
+    }
+  },
+  {
+    "model": "game_config.unittype",
+    "pk": "a4753333-3ceb-4438-afe8-34c39078f305",
+    "fields": {
+      "name": "Artyleria",
+      "slug": "artillery",
+      "asset_key": "artillery",
+      "description": "Ciężka artyleria o dużym zasięgu ataku i obrażeniach obszarowych.",
+      "icon": "💣",
+      "attack": 2.0,
+      "defense": 0.3,
+      "speed": 1,
+      "attack_range": 3,
+      "sea_range": 0,
+      "sea_hop_distance_km": 0,
+      "produced_by": "d57c80f4-9e9a-40fa-849b-be5d3772380d",
+      "movement_type": "land",
+      "is_stealth": false,
+      "path_damage": 0.0,
+      "aoe_damage": 0.2,
+      "blockade_port": false,
+      "intercept_air": false,
+      "can_station_anywhere": false,
+      "lifetime_ticks": 0,
+      "combat_target": "ground",
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "attack": 2.0,
+          "production_cost": 12,
+          "production_time_ticks": 8,
+          "manpower_cost": 2
+        },
+        "2": {
+          "attack": 2.8,
+          "production_cost": 18,
+          "production_time_ticks": 8,
+          "manpower_cost": 2
+        },
+        "3": {
+          "attack": 3.5,
+          "production_cost": 24,
+          "production_time_ticks": 8,
+          "manpower_cost": 2
+        }
+      },
+      "is_active": true,
+      "order": 4,
+      "ticks_per_hop": 4
+    }
+  },
+  {
+    "model": "game_config.unittype",
+    "pk": "ca5775f2-6adb-4d9d-be80-3f3e6a27f998",
+    "fields": {
+      "name": "Okręt Podwodny",
+      "slug": "submarine",
+      "asset_key": "submarine",
+      "description": "Podwodna jednostka stealth blokująca porty wroga.",
+      "icon": "🔱",
+      "attack": 1.5,
+      "defense": 0.4,
+      "speed": 2,
+      "attack_range": 2,
+      "sea_range": 3,
+      "sea_hop_distance_km": 800,
+      "produced_by": "2a270f85-501e-4540-befd-70ab599b9da6",
+      "movement_type": "sea",
+      "is_stealth": true,
+      "path_damage": 0.0,
+      "aoe_damage": 0.0,
+      "blockade_port": true,
+      "intercept_air": false,
+      "can_station_anywhere": false,
+      "lifetime_ticks": 0,
+      "combat_target": "ground",
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "attack": 1.5,
+          "production_cost": 10,
+          "production_time_ticks": 7,
+          "manpower_cost": 2
+        },
+        "2": {
+          "attack": 2.0,
+          "production_cost": 15,
+          "production_time_ticks": 7,
+          "manpower_cost": 2
+        },
+        "3": {
+          "attack": 2.5,
+          "production_cost": 20,
+          "production_time_ticks": 7,
+          "manpower_cost": 2
+        }
+      },
+      "is_active": true,
+      "order": 6
+    }
+  },
+  {
+    "model": "game_config.unittype",
+    "pk": "81aeee5d-ed35-471b-ab56-5168669e8c2a",
+    "fields": {
+      "name": "Bombowiec",
+      "slug": "bomber",
+      "asset_key": "bomber_unit",
+      "description": "Bombowiec strategiczny zadający obrażenia wzdłuż trasy lotu.",
+      "icon": "💥",
+      "attack": 2.5,
+      "defense": 0.2,
+      "speed": 3,
+      "attack_range": 4,
+      "sea_range": 0,
+      "sea_hop_distance_km": 0,
+      "produced_by": "5e501726-f5e4-400f-a69c-406151a779e4",
+      "movement_type": "air",
+      "is_stealth": false,
+      "path_damage": 0.3,
+      "aoe_damage": 0.0,
+      "blockade_port": false,
+      "intercept_air": false,
+      "can_station_anywhere": false,
+      "lifetime_ticks": 0,
+      "combat_target": "ground",
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "attack": 2.5,
+          "production_cost": 15,
+          "production_time_ticks": 10,
+          "manpower_cost": 4
+        },
+        "2": {
+          "attack": 3.5,
+          "production_cost": 22,
+          "production_time_ticks": 10,
+          "manpower_cost": 4
+        },
+        "3": {
+          "attack": 4.5,
+          "production_cost": 30,
+          "production_time_ticks": 10,
+          "manpower_cost": 4
+        }
+      },
+      "is_active": true,
+      "order": 8,
+      "air_speed_ticks_per_hop": 4
+    }
+  },
+  {
+    "model": "game_config.unittype",
+    "pk": "68e826a3-16a4-4a30-83ce-71b89b96cd56",
+    "fields": {
+      "name": "System Przeciwlotniczy",
+      "slug": "sam",
+      "asset_key": "sam",
+      "description": "Naziemny system przeciwlotniczy. Wyspecjalizowany w zwalczaniu jednostek powietrznych.",
+      "icon": "🚀",
+      "attack": 2.0,
+      "defense": 0.5,
+      "speed": 1,
+      "attack_range": 2,
+      "sea_range": 0,
+      "sea_hop_distance_km": 0,
+      "produced_by": "ced6527c-8259-44d1-bb36-fc51dec4d9b9",
+      "movement_type": "land",
+      "is_stealth": false,
+      "path_damage": 0.0,
+      "aoe_damage": 0.0,
+      "blockade_port": false,
+      "intercept_air": true,
+      "can_station_anywhere": false,
+      "lifetime_ticks": 0,
+      "combat_target": "air",
+      "max_level": 3,
+      "level_stats": {
+        "1": {
+          "attack": 2.0,
+          "production_cost": 10,
+          "production_time_ticks": 6,
+          "manpower_cost": 2
+        },
+        "2": {
+          "attack": 2.8,
+          "production_cost": 15,
+          "production_time_ticks": 6,
+          "manpower_cost": 2
+        },
+        "3": {
+          "attack": 3.5,
+          "production_cost": 20,
+          "production_time_ticks": 6,
+          "manpower_cost": 2
+        }
+      },
+      "is_active": true,
+      "order": 9,
+      "ticks_per_hop": 3
+    }
+  },
+  {
+    "model": "game_config.mapconfig",
+    "pk": "e352cd6f-079e-437b-aaf9-b55c98891234",
+    "fields": {
+      "name": "World",
+      "description": "Cała mapa świata - 172 kraje, ~3949 regionów",
+      "country_codes": [],
+      "is_active": true,
+      "min_capital_distance": 1,
+      "created_at": "2026-03-10T22:19:25.508Z"
+    }
   }
-},
-{
-  "model": "game_config.buildingtype",
-  "pk": "2a270f85-501e-4540-befd-70ab599b9da6",
-  "fields": {
-    "name": "Port",
-    "slug": "port",
-    "asset_key": "port",
-    "description": "Nadmorska baza marynarki. Wymagana do budowy okrętów.",
-    "icon": "⚓",
-    "cost": 500,
-    "energy_cost": 2000,
-    "build_time_ticks": 12,
-    "max_per_region": 1,
-    "requires_coastal": true,
-    "defense_bonus": 0.0,
-    "vision_range": 0,
-    "unit_generation_bonus": 0.0,
-    "energy_generation_bonus": 0.0,
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 2000, "build_time_ticks": 12, "cost": 500, "defense_bonus": 0.0, "vision_range": 0, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
-      "2": {"energy_cost": 3000, "build_time_ticks": 16, "cost": 700, "defense_bonus": 0.05, "vision_range": 1, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
-      "3": {"energy_cost": 4500, "build_time_ticks": 20, "cost": 900, "defense_bonus": 0.10, "vision_range": 2, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0}
-    },
-    "is_active": true,
-    "order": 4
-  }
-},
-{
-  "model": "game_config.buildingtype",
-  "pk": "2b21d77f-7d97-4ad0-9ea5-0e107feb557c",
-  "fields": {
-    "name": "Koszary",
-    "slug": "barracks",
-    "asset_key": "barracks",
-    "description": "Przyspiesza generowanie piechoty w regionie.",
-    "icon": "🏠",
-    "cost": 0,
-    "energy_cost": 300,
-    "build_time_ticks": 8,
-    "max_per_region": 1,
-    "requires_coastal": false,
-    "defense_bonus": 0.0,
-    "vision_range": 0,
-    "unit_generation_bonus": 0.9,
-    "energy_generation_bonus": 0.0,
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 300, "build_time_ticks": 8, "cost": 0, "unit_generation_bonus": 0.9, "defense_bonus": 0.0, "vision_range": 0, "energy_generation_bonus": 0.0},
-      "2": {"energy_cost": 500, "build_time_ticks": 12, "cost": 0, "unit_generation_bonus": 1.4, "defense_bonus": 0.0, "vision_range": 0, "energy_generation_bonus": 0.0},
-      "3": {"energy_cost": 800, "build_time_ticks": 16, "cost": 0, "unit_generation_bonus": 1.9, "defense_bonus": 0.05, "vision_range": 1, "energy_generation_bonus": 0.0}
-    },
-    "is_active": true,
-    "order": 1
-  }
-},
-{
-  "model": "game_config.buildingtype",
-  "pk": "5e501726-f5e4-400f-a69c-406151a779e4",
-  "fields": {
-    "name": "Lotnisko",
-    "slug": "carrier",
-    "asset_key": "carrier",
-    "description": "Baza lotnicza. Wymagana do produkcji myśliwców.",
-    "icon": "🛫",
-    "cost": 100,
-    "energy_cost": 1000,
-    "build_time_ticks": 25,
-    "max_per_region": 1,
-    "requires_coastal": false,
-    "defense_bonus": 0.02,
-    "vision_range": 1,
-    "unit_generation_bonus": 0.0,
-    "energy_generation_bonus": 0.0,
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 1000, "build_time_ticks": 25, "cost": 100, "defense_bonus": 0.02, "vision_range": 1, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
-      "2": {"energy_cost": 1500, "build_time_ticks": 30, "cost": 150, "defense_bonus": 0.04, "vision_range": 2, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
-      "3": {"energy_cost": 2200, "build_time_ticks": 35, "cost": 200, "defense_bonus": 0.05, "vision_range": 3, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0}
-    },
-    "is_active": true,
-    "order": 5
-  }
-},
-{
-  "model": "game_config.buildingtype",
-  "pk": "b7744936-1eb6-4d3d-8694-96f78e09657e",
-  "fields": {
-    "name": "Elektrownia",
-    "slug": "radar",
-    "asset_key": "radar",
-    "description": "Zwiększa dochód walutowy regionu.",
-    "icon": "📡",
-    "cost": 35,
-    "energy_cost": 250,
-    "build_time_ticks": 6,
-    "max_per_region": 3,
-    "requires_coastal": false,
-    "defense_bonus": 0.0,
-    "vision_range": 0,
-    "unit_generation_bonus": 0.0,
-    "energy_generation_bonus": 0.5,
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 250, "build_time_ticks": 6, "cost": 35, "energy_generation_bonus": 0.5, "vision_range": 0, "defense_bonus": 0.0, "unit_generation_bonus": 0.0},
-      "2": {"energy_cost": 400, "build_time_ticks": 9, "cost": 50, "energy_generation_bonus": 1.0, "vision_range": 1, "defense_bonus": 0.0, "unit_generation_bonus": 0.0},
-      "3": {"energy_cost": 600, "build_time_ticks": 12, "cost": 70, "energy_generation_bonus": 1.5, "vision_range": 1, "defense_bonus": 0.0, "unit_generation_bonus": 0.0}
-    },
-    "is_active": true,
-    "order": 6
-  }
-},
-{
-  "model": "game_config.buildingtype",
-  "pk": "ced6527c-8259-44d1-bb36-fc51dec4d9b9",
-  "fields": {
-    "name": "Wieża obronna",
-    "slug": "tower",
-    "asset_key": "tower",
-    "description": "Budowla obronna. Przyznaje premię obronną do regionu.",
-    "icon": "🗼",
-    "cost": 40,
-    "energy_cost": 800,
-    "build_time_ticks": 10,
-    "max_per_region": 3,
-    "requires_coastal": false,
-    "defense_bonus": 0.11,
-    "vision_range": 1,
-    "unit_generation_bonus": 0.0,
-    "energy_generation_bonus": 0.0,
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 800, "build_time_ticks": 10, "cost": 40, "defense_bonus": 0.11, "vision_range": 1, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
-      "2": {"energy_cost": 1200, "build_time_ticks": 14, "cost": 60, "defense_bonus": 0.16, "vision_range": 2, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
-      "3": {"energy_cost": 1800, "build_time_ticks": 18, "cost": 80, "defense_bonus": 0.22, "vision_range": 3, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0}
-    },
-    "is_active": true,
-    "order": 3
-  }
-},
-{
-  "model": "game_config.buildingtype",
-  "pk": "d57c80f4-9e9a-40fa-849b-be5d3772380d",
-  "fields": {
-    "name": "Fabryka",
-    "slug": "factory",
-    "asset_key": "factory",
-    "description": "Kompleks przemysłowy. Wymagany do produkcji czołgów.",
-    "icon": "🏭",
-    "cost": 60,
-    "energy_cost": 600,
-    "build_time_ticks": 15,
-    "max_per_region": 3,
-    "requires_coastal": false,
-    "defense_bonus": 0.0,
-    "vision_range": 0,
-    "unit_generation_bonus": 0.0,
-    "energy_generation_bonus": 0.0,
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 600, "build_time_ticks": 15, "cost": 60, "defense_bonus": 0.0, "vision_range": 0, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
-      "2": {"energy_cost": 1000, "build_time_ticks": 20, "cost": 80, "defense_bonus": 0.0, "vision_range": 0, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0},
-      "3": {"energy_cost": 1500, "build_time_ticks": 25, "cost": 100, "defense_bonus": 0.05, "vision_range": 1, "unit_generation_bonus": 0.0, "energy_generation_bonus": 0.0}
-    },
-    "is_active": true,
-    "order": 2
-  }
-},
-{
-  "model": "game_config.unittype",
-  "pk": "0586c222-e4b0-4316-8644-9fa3e50837c3",
-  "fields": {
-    "name": "Okręt",
-    "slug": "ship",
-    "asset_key": "ship_1",
-    "description": "Jednostka morska. Może atakować regiony przybrzeżne.",
-    "icon": "🚢",
-    "attack": 2.0,
-    "defense": 2.0,
-    "speed": 4,
-    "attack_range": 4,
-    "sea_range": 80,
-    "sea_hop_distance_km": 2800,
-    "produced_by": "2a270f85-501e-4540-befd-70ab599b9da6",
-    "production_cost": 500,
-    "production_time_ticks": 10,
-    "manpower_cost": 500,
-    "movement_type": "sea",
-    "max_level": 3,
-    "level_stats": {
-      "1": {"attack": 2.0, "defense": 2.0, "production_cost": 500, "production_time_ticks": 10, "manpower_cost": 500},
-      "2": {"attack": 3.0, "defense": 3.0, "production_cost": 700, "production_time_ticks": 12, "manpower_cost": 600},
-      "3": {"attack": 4.0, "defense": 4.0, "production_cost": 1000, "production_time_ticks": 14, "manpower_cost": 700}
-    },
-    "is_active": true,
-    "order": 3
-  }
-},
-{
-  "model": "game_config.unittype",
-  "pk": "1da708a2-951e-4a0f-b99a-427a0502c5d2",
-  "fields": {
-    "name": "Myśliwiec",
-    "slug": "fighter",
-    "asset_key": "bomber",
-    "description": "Jednostka lotnicza dalekiego zasięgu. Startuje z lotnisk.",
-    "icon": "✈️",
-    "attack": 2.5,
-    "defense": 1.0,
-    "speed": 3,
-    "attack_range": 3,
-    "sea_range": 0,
-    "sea_hop_distance_km": 0,
-    "produced_by": "5e501726-f5e4-400f-a69c-406151a779e4",
-    "production_cost": 100,
-    "production_time_ticks": 12,
-    "manpower_cost": 100,
-    "movement_type": "air",
-    "max_level": 3,
-    "level_stats": {
-      "1": {"attack": 2.5, "defense": 1.0, "production_cost": 100, "production_time_ticks": 12, "manpower_cost": 100},
-      "2": {"attack": 3.5, "defense": 1.5, "production_cost": 150, "production_time_ticks": 14, "manpower_cost": 120},
-      "3": {"attack": 5.0, "defense": 2.0, "production_cost": 200, "production_time_ticks": 16, "manpower_cost": 140}
-    },
-    "combat_target": "air",
-    "is_active": true,
-    "order": 4
-  }
-},
-{
-  "model": "game_config.unittype",
-  "pk": "65c6f3d6-3f02-465f-85c2-9a6dba3563db",
-  "fields": {
-    "name": "Piechota",
-    "slug": "infantry",
-    "asset_key": "ground_unit",
-    "description": "Podstawowa jednostka lądowa. Tania i szybko generowana.",
-    "icon": "🪖",
-    "attack": 1.0,
-    "defense": 1.0,
-    "speed": 1,
-    "attack_range": 1,
-    "sea_range": 0,
-    "sea_hop_distance_km": 0,
-    "produced_by": null,
-    "production_cost": 0,
-    "production_time_ticks": 0,
-    "manpower_cost": 1,
-    "movement_type": "land",
-    "max_level": 1,
-    "level_stats": {},
-    "is_active": true,
-    "order": 1
-  }
-},
-{
-  "model": "game_config.unittype",
-  "pk": "a3620265-5c70-4bec-b276-3d52e0f7f831",
-  "fields": {
-    "name": "Czołg",
-    "slug": "tank",
-    "asset_key": "ground_unit_sphere",
-    "description": "Ciężki pojazd opancerzony. Wolny, ale potężny.",
-    "icon": "🛡️",
-    "attack": 3.0,
-    "defense": 2.5,
-    "speed": 1,
-    "attack_range": 1,
-    "sea_range": 0,
-    "sea_hop_distance_km": 0,
-    "produced_by": "d57c80f4-9e9a-40fa-849b-be5d3772380d",
-    "production_cost": 50,
-    "production_time_ticks": 8,
-    "manpower_cost": 50,
-    "movement_type": "land",
-    "max_level": 3,
-    "level_stats": {
-      "1": {"attack": 3.0, "defense": 2.5, "production_cost": 50, "production_time_ticks": 8, "manpower_cost": 50},
-      "2": {"attack": 4.0, "defense": 3.5, "production_cost": 80, "production_time_ticks": 10, "manpower_cost": 60},
-      "3": {"attack": 5.5, "defense": 4.5, "production_cost": 120, "production_time_ticks": 12, "manpower_cost": 70}
-    },
-    "can_station_anywhere": true,
-    "is_active": true,
-    "order": 2
-  }
-},
-{
-  "model": "game_config.abilitytype",
-  "pk": "a1000000-0000-0000-0000-000000000001",
-  "fields": {
-    "name": "Nuke",
-    "slug": "ab_province_nuke",
-    "asset_key": "ab_province_nuke",
-    "description": "Natychmiastowe uderzenie nuklearne zabijające jednostki w prowincji.",
-    "icon": "☢️",
-    "sound_key": "nuke",
-    "target_type": "enemy",
-    "range": 0,
-    "energy_cost": 8000,
-    "cooldown_ticks": 600,
-    "damage": 50,
-    "effect_duration_ticks": 0,
-    "effect_params": {},
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 8000, "cooldown_ticks": 600, "damage": 50, "range": 0},
-      "2": {"energy_cost": 7000, "cooldown_ticks": 500, "damage": 75, "range": 0},
-      "3": {"energy_cost": 6000, "cooldown_ticks": 400, "damage": 99, "range": 0}
-    },
-    "is_active": true,
-    "order": 0
-  }
-},
-{
-  "model": "game_config.abilitytype",
-  "pk": "a1000000-0000-0000-0000-000000000002",
-  "fields": {
-    "name": "Virus",
-    "slug": "ab_virus",
-    "asset_key": "ab_virus",
-    "description": "Rozprzestrzenia wirusa zabijającego jednostki i redukującego produkcję.",
-    "icon": "🦠",
-    "sound_key": "virus",
-    "target_type": "enemy",
-    "range": 2,
-    "energy_cost": 250,
-    "cooldown_ticks": 120,
-    "damage": 0,
-    "effect_duration_ticks": 10,
-    "effect_params": {"production_reduction": 0.5, "unit_kill_percent": 0.05, "spread_range": 1},
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 250, "cooldown_ticks": 120, "effect_duration_ticks": 10, "range": 2, "effect_params": {"production_reduction": 0.5, "unit_kill_percent": 0.05, "spread_range": 1}},
-      "2": {"energy_cost": 220, "cooldown_ticks": 100, "effect_duration_ticks": 13, "range": 2, "effect_params": {"production_reduction": 0.6, "unit_kill_percent": 0.07, "spread_range": 1}},
-      "3": {"energy_cost": 180, "cooldown_ticks": 80, "effect_duration_ticks": 16, "range": 3, "effect_params": {"production_reduction": 0.7, "unit_kill_percent": 0.10, "spread_range": 2}}
-    },
-    "is_active": true,
-    "order": 1
-  }
-},
-{
-  "model": "game_config.abilitytype",
-  "pk": "a1000000-0000-0000-0000-000000000003",
-  "fields": {
-    "name": "Submarine",
-    "slug": "ab_pr_submarine",
-    "asset_key": "ab_pr_submarine",
-    "description": "Ujawnia jednostki wroga w prowincji na określony czas.",
-    "icon": "🔍",
-    "sound_key": "submarine",
-    "target_type": "enemy",
-    "range": 3,
-    "energy_cost": 100,
-    "cooldown_ticks": 45,
-    "damage": 0,
-    "effect_duration_ticks": 7,
-    "effect_params": {},
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 100, "cooldown_ticks": 45, "effect_duration_ticks": 7, "range": 3},
-      "2": {"energy_cost": 80, "cooldown_ticks": 35, "effect_duration_ticks": 10, "range": 4},
-      "3": {"energy_cost": 60, "cooldown_ticks": 25, "effect_duration_ticks": 13, "range": 5}
-    },
-    "is_active": true,
-    "order": 2
-  }
-},
-{
-  "model": "game_config.abilitytype",
-  "pk": "a1000000-0000-0000-0000-000000000004",
-  "fields": {
-    "name": "Shield",
-    "slug": "ab_shield",
-    "asset_key": "ab_shield",
-    "description": "Tworzy tarczę blokującą ataki na prowincję.",
-    "icon": "🛡️",
-    "sound_key": "shield",
-    "target_type": "own",
-    "range": 0,
-    "energy_cost": 100,
-    "cooldown_ticks": 120,
-    "damage": 0,
-    "effect_duration_ticks": 14,
-    "effect_params": {},
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 100, "cooldown_ticks": 120, "effect_duration_ticks": 14},
-      "2": {"energy_cost": 80, "cooldown_ticks": 100, "effect_duration_ticks": 18},
-      "3": {"energy_cost": 60, "cooldown_ticks": 80, "effect_duration_ticks": 22}
-    },
-    "is_active": true,
-    "order": 3
-  }
-},
-{
-  "model": "game_config.abilitytype",
-  "pk": "a1000000-0000-0000-0000-000000000005",
-  "fields": {
-    "name": "Conscription",
-    "slug": "ab_conscription_point",
-    "asset_key": "ab_conscription_point",
-    "description": "Zbiera procent jednostek z neutralnych sąsiednich prowincji.",
-    "icon": "📯",
-    "sound_key": "quick_gain",
-    "target_type": "own",
-    "range": 0,
-    "energy_cost": 50,
-    "cooldown_ticks": 45,
-    "damage": 0,
-    "effect_duration_ticks": 0,
-    "effect_params": {"collect_percent": 0.2},
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 50, "cooldown_ticks": 45, "effect_params": {"collect_percent": 0.2}},
-      "2": {"energy_cost": 40, "cooldown_ticks": 35, "effect_params": {"collect_percent": 0.25}},
-      "3": {"energy_cost": 30, "cooldown_ticks": 25, "effect_params": {"collect_percent": 0.3}}
-    },
-    "is_active": true,
-    "order": 4
-  }
-},
-{
-  "model": "game_config.abilitytype",
-  "pk": "a1000000-0000-0000-0000-000000000006",
-  "fields": {
-    "name": "Flara Oślepiająca",
-    "slug": "ab_flash",
-    "asset_key": "ab_flash",
-    "description": "Oślepia wroga — tworzy fog of war na prowincji i okolicy.",
-    "icon": "💡",
-    "sound_key": "alert",
-    "target_type": "enemy",
-    "range": 3,
-    "energy_cost": 60,
-    "cooldown_ticks": 45,
-    "damage": 0,
-    "effect_duration_ticks": 8,
-    "effect_params": {"radius": 2},
-    "max_level": 3,
-    "level_stats": {
-      "1": {"energy_cost": 60, "cooldown_ticks": 45, "effect_duration_ticks": 8},
-      "2": {"energy_cost": 50, "cooldown_ticks": 38, "effect_duration_ticks": 12},
-      "3": {"energy_cost": 40, "cooldown_ticks": 30, "effect_duration_ticks": 16}
-    },
-    "is_active": true,
-    "order": 5
-  }
-},
-{
-  "model": "game_config.unittype",
-  "pk": "4df93cd4-4e6b-43fe-b099-6ff90943918c",
-  "fields": {
-    "name": "Komandosi",
-    "slug": "commando",
-    "asset_key": "commando",
-    "description": "Komandosi — szybka jednostka stealth o wysokim ataku.",
-    "icon": "🥷",
-    "attack": 1.2,
-    "defense": 0.6,
-    "speed": 4,
-    "attack_range": 2,
-    "sea_range": 0,
-    "sea_hop_distance_km": 0,
-    "produced_by": "2b21d77f-7d97-4ad0-9ea5-0e107feb557c",
-    "production_cost": 8,
-    "production_time_ticks": 4,
-    "manpower_cost": 1,
-    "movement_type": "land",
-    "is_stealth": true,
-    "path_damage": 0.0,
-    "aoe_damage": 0.0,
-    "blockade_port": false,
-    "intercept_air": false,
-    "can_station_anywhere": false,
-    "lifetime_ticks": 0,
-    "combat_target": "ground",
-    "max_level": 3,
-    "level_stats": {
-      "1": {"attack": 1.2, "production_cost": 8},
-      "2": {"attack": 1.6, "production_cost": 12},
-      "3": {"attack": 2.0, "production_cost": 16}
-    },
-    "is_active": true,
-    "order": 2
-  }
-},
-{
-  "model": "game_config.unittype",
-  "pk": "a4753333-3ceb-4438-afe8-34c39078f305",
-  "fields": {
-    "name": "Artyleria",
-    "slug": "artillery",
-    "asset_key": "artillery",
-    "description": "Ciężka artyleria o dużym zasięgu ataku i obrażeniach obszarowych.",
-    "icon": "💣",
-    "attack": 2.0,
-    "defense": 0.3,
-    "speed": 1,
-    "attack_range": 3,
-    "sea_range": 0,
-    "sea_hop_distance_km": 0,
-    "produced_by": "d57c80f4-9e9a-40fa-849b-be5d3772380d",
-    "production_cost": 12,
-    "production_time_ticks": 8,
-    "manpower_cost": 2,
-    "movement_type": "land",
-    "is_stealth": false,
-    "path_damage": 0.0,
-    "aoe_damage": 0.2,
-    "blockade_port": false,
-    "intercept_air": false,
-    "can_station_anywhere": false,
-    "lifetime_ticks": 0,
-    "combat_target": "ground",
-    "max_level": 3,
-    "level_stats": {
-      "1": {"attack": 2.0, "production_cost": 12},
-      "2": {"attack": 2.8, "production_cost": 18},
-      "3": {"attack": 3.5, "production_cost": 24}
-    },
-    "is_active": true,
-    "order": 4
-  }
-},
-{
-  "model": "game_config.unittype",
-  "pk": "ca5775f2-6adb-4d9d-be80-3f3e6a27f998",
-  "fields": {
-    "name": "Okręt Podwodny",
-    "slug": "submarine",
-    "asset_key": "submarine",
-    "description": "Podwodna jednostka stealth blokująca porty wroga.",
-    "icon": "🔱",
-    "attack": 1.5,
-    "defense": 0.4,
-    "speed": 2,
-    "attack_range": 2,
-    "sea_range": 3,
-    "sea_hop_distance_km": 800,
-    "produced_by": "2a270f85-501e-4540-befd-70ab599b9da6",
-    "production_cost": 10,
-    "production_time_ticks": 7,
-    "manpower_cost": 2,
-    "movement_type": "sea",
-    "is_stealth": true,
-    "path_damage": 0.0,
-    "aoe_damage": 0.0,
-    "blockade_port": true,
-    "intercept_air": false,
-    "can_station_anywhere": false,
-    "lifetime_ticks": 0,
-    "combat_target": "ground",
-    "max_level": 3,
-    "level_stats": {
-      "1": {"attack": 1.5, "production_cost": 10},
-      "2": {"attack": 2.0, "production_cost": 15},
-      "3": {"attack": 2.5, "production_cost": 20}
-    },
-    "is_active": true,
-    "order": 6
-  }
-},
-{
-  "model": "game_config.unittype",
-  "pk": "81aeee5d-ed35-471b-ab56-5168669e8c2a",
-  "fields": {
-    "name": "Bombowiec",
-    "slug": "bomber",
-    "asset_key": "bomber_unit",
-    "description": "Bombowiec strategiczny zadający obrażenia wzdłuż trasy lotu.",
-    "icon": "💥",
-    "attack": 2.5,
-    "defense": 0.2,
-    "speed": 3,
-    "attack_range": 4,
-    "sea_range": 0,
-    "sea_hop_distance_km": 0,
-    "produced_by": "5e501726-f5e4-400f-a69c-406151a779e4",
-    "production_cost": 15,
-    "production_time_ticks": 10,
-    "manpower_cost": 4,
-    "movement_type": "air",
-    "is_stealth": false,
-    "path_damage": 0.3,
-    "aoe_damage": 0.0,
-    "blockade_port": false,
-    "intercept_air": false,
-    "can_station_anywhere": false,
-    "lifetime_ticks": 0,
-    "combat_target": "ground",
-    "max_level": 3,
-    "level_stats": {
-      "1": {"attack": 2.5, "production_cost": 15},
-      "2": {"attack": 3.5, "production_cost": 22},
-      "3": {"attack": 4.5, "production_cost": 30}
-    },
-    "is_active": true,
-    "order": 8
-  }
-},
-{
-  "model": "game_config.unittype",
-  "pk": "68e826a3-16a4-4a30-83ce-71b89b96cd56",
-  "fields": {
-    "name": "System Przeciwlotniczy",
-    "slug": "sam",
-    "asset_key": "sam",
-    "description": "Naziemny system przeciwlotniczy. Wyspecjalizowany w zwalczaniu jednostek powietrznych.",
-    "icon": "🚀",
-    "attack": 2.0,
-    "defense": 0.5,
-    "speed": 1,
-    "attack_range": 2,
-    "sea_range": 0,
-    "sea_hop_distance_km": 0,
-    "produced_by": "ced6527c-8259-44d1-bb36-fc51dec4d9b9",
-    "production_cost": 10,
-    "production_time_ticks": 6,
-    "manpower_cost": 2,
-    "movement_type": "land",
-    "is_stealth": false,
-    "path_damage": 0.0,
-    "aoe_damage": 0.0,
-    "blockade_port": false,
-    "intercept_air": true,
-    "can_station_anywhere": false,
-    "lifetime_ticks": 0,
-    "combat_target": "air",
-    "max_level": 3,
-    "level_stats": {
-      "1": {"attack": 2.0, "production_cost": 10},
-      "2": {"attack": 2.8, "production_cost": 15},
-      "3": {"attack": 3.5, "production_cost": 20}
-    },
-    "is_active": true,
-    "order": 9
-  }
-},
-{
-  "model": "game_config.mapconfig",
-  "pk": "e352cd6f-079e-437b-aaf9-b55c98891234",
-  "fields": {
-    "name": "World",
-    "description": "Cała mapa świata - 172 kraje, ~3949 regionów",
-    "country_codes": [],
-    "is_active": true,
-    "min_capital_distance": 1,
-    "created_at": "2026-03-10T22:19:25.508Z"
-  }
-}
 ]

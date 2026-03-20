@@ -291,6 +291,14 @@ pub struct UnitConfig {
     pub lifetime_ticks: i64,
     #[serde(default = "default_combat_target")]
     pub combat_target: String,
+    /// Ticks per province-hop for air transit (0 = use ground speed formula).
+    /// Higher = slower. E.g. bomber=4 means 4 ticks per hop, fighter=2.
+    #[serde(default)]
+    pub air_speed_ticks_per_hop: i64,
+    /// Ticks per province-hop for ground/sea transit (0 = use legacy speed formula).
+    /// Higher = slower. E.g. infantry=3 means 3 ticks per hop, commando=1.
+    #[serde(default)]
+    pub ticks_per_hop: i64,
 }
 
 fn default_combat_target() -> String {
@@ -522,6 +530,12 @@ pub struct Action {
     /// Expected keys: "effect_type" (String), "value" (f64), "duration_ticks" (i64).
     #[serde(default)]
     pub boost_params: Option<serde_json::Value>,
+    /// Number of escort fighters to send with a bomber (launch_bomber action).
+    #[serde(default)]
+    pub escort_fighters: Option<i64>,
+    /// ID of an in-flight air mission to intercept (intercept action).
+    #[serde(default)]
+    pub target_flight_id: Option<String>,
 }
 
 /// Building queue item.
@@ -565,6 +579,50 @@ pub struct TransitQueueItem {
     pub units: i64,
     pub ticks_remaining: i64,
     pub travel_ticks: i64,
+}
+
+/// A group of interceptor fighters chasing an in-flight air mission.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InterceptorGroup {
+    pub player_id: String,
+    pub source_region_id: String,
+    pub fighters: i64,
+    /// 0.0 = just launched, 1.0 = reached the target flight.
+    pub progress: f64,
+    pub speed_per_tick: f64,
+}
+
+/// Air transit item — represents a bomber or fighter mission in flight.
+/// Progress advances each tick; interceptors can attach mid-flight.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AirTransitItem {
+    pub id: String,
+    /// "bomb_run" | "fighter_attack" | "escort_return"
+    pub mission_type: String,
+    pub source_region_id: String,
+    pub target_region_id: String,
+    pub player_id: String,
+    pub unit_type: String,
+    pub units: i64,
+    /// Escort fighters traveling with a bomber (only for bomb_run).
+    #[serde(default)]
+    pub escort_fighters: i64,
+    /// 0.0 = source, 1.0 = arrived at target.
+    pub progress: f64,
+    /// How much progress advances per tick.
+    pub speed_per_tick: f64,
+    /// Total distance in province hops (for frontend path rendering).
+    #[serde(default)]
+    pub total_distance: i64,
+    /// Interceptor groups chasing this flight.
+    #[serde(default)]
+    pub interceptors: Vec<InterceptorGroup>,
+    /// Province IDs along the flight path (from BFS), for path bombing.
+    #[serde(default)]
+    pub flight_path: Vec<String>,
+    /// Index of last province in flight_path that was bombed (to avoid re-bombing).
+    #[serde(default)]
+    pub last_bombed_hop: usize,
 }
 
 /// Weather/day-night state computed from UTC time.
@@ -768,5 +826,65 @@ pub enum Event {
         target_region_id: String,
         affected_region_ids: Vec<String>,
         ticks_remaining: i64,
+    },
+    /// Emitted when artillery fires a bombardment at a target region from range.
+    /// No movement occurs — artillery stays in the source region.
+    #[serde(rename = "bombard")]
+    Bombard {
+        player_id: String,
+        source_region_id: String,
+        target_region_id: String,
+        artillery_count: i64,
+        damage: i64,
+    },
+    /// An air mission (bomber/fighter) has been launched and is in flight.
+    #[serde(rename = "air_mission_launched")]
+    AirMissionLaunched {
+        flight_id: String,
+        mission_type: String,
+        player_id: String,
+        source_region_id: String,
+        target_region_id: String,
+        unit_type: String,
+        units: i64,
+        escort_fighters: i64,
+        speed_per_tick: f64,
+    },
+    /// Interceptor fighters dispatched toward an in-flight air mission.
+    #[serde(rename = "air_intercept_dispatched")]
+    AirInterceptDispatched {
+        flight_id: String,
+        interceptor_player_id: String,
+        source_region_id: String,
+        fighters: i64,
+    },
+    /// Mid-air combat resolved between interceptors and a flight (escorts/bomber).
+    #[serde(rename = "air_combat_resolved")]
+    AirCombatResolved {
+        flight_id: String,
+        interceptor_player_id: String,
+        target_player_id: String,
+        interceptors_lost: i64,
+        escorts_lost: i64,
+        bombers_lost: i64,
+        interceptors_remaining: i64,
+        escorts_remaining: i64,
+        bombers_remaining: i64,
+    },
+    /// Bomber arrived and struck the target — destruction results.
+    #[serde(rename = "bomber_strike")]
+    BomberStrike {
+        player_id: String,
+        target_region_id: String,
+        bombers: i64,
+        ground_units_destroyed: i64,
+        buildings_destroyed: Vec<String>,
+        province_neutralized: bool,
+    },
+    /// Province lost all defenders and became neutral (no owner).
+    #[serde(rename = "province_neutralized")]
+    ProvinceNeutralized {
+        region_id: String,
+        previous_owner_id: String,
     },
 }

@@ -995,6 +995,7 @@ async fn game_loop(
                 "buildings_queue": tick_data.buildings_queue,
                 "unit_queue": tick_data.unit_queue,
                 "transit_queue": tick_data.transit_queue,
+                "air_transit_queue": tick_data.air_transit_queue,
                 "weather": early_weather,
             });
             broadcast_to_match(match_id, &game_over_msg, &state.game_connections);
@@ -1126,6 +1127,7 @@ async fn game_loop(
                     "buildings_queue": tick_data.buildings_queue,
                     "unit_queue": tick_data.unit_queue,
                     "transit_queue": tick_data.transit_queue,
+                    "air_transit_queue": tick_data.air_transit_queue,
                     "active_effects": tick_data.active_effects,
                     "weather": cheat_weather,
                 });
@@ -1186,6 +1188,7 @@ async fn game_loop(
             &mut tick_data.buildings_queue,
             &mut tick_data.unit_queue,
             &mut tick_data.transit_queue,
+            &mut tick_data.air_transit_queue,
             tick,
             &mut tick_data.active_effects,
         );
@@ -1218,6 +1221,7 @@ async fn game_loop(
                 &tick_data.buildings_queue,
                 &tick_data.unit_queue,
                 &tick_data.transit_queue,
+                &tick_data.air_transit_queue,
                 &tick_data.active_effects,
                 Some(&dirty_ids),
             )
@@ -1240,6 +1244,7 @@ async fn game_loop(
             "buildings_queue": tick_data.buildings_queue,
             "unit_queue": tick_data.unit_queue,
             "transit_queue": tick_data.transit_queue,
+            "air_transit_queue": tick_data.air_transit_queue,
             "active_effects": tick_data.active_effects,
             "weather": weather,
         });
@@ -1288,6 +1293,7 @@ async fn game_loop(
                     &mut extra_tick.buildings_queue,
                     &mut extra_tick.unit_queue,
                     &mut extra_tick.transit_queue,
+                    &mut extra_tick.air_transit_queue,
                     extra_tick_num,
                     &mut extra_tick.active_effects,
                 );
@@ -1316,6 +1322,7 @@ async fn game_loop(
                     &extra_tick.buildings_queue,
                     &extra_tick.unit_queue,
                     &extra_tick.transit_queue,
+                    &extra_tick.air_transit_queue,
                     &extra_tick.active_effects,
                     Some(&extra_dirty),
                 ).await?;
@@ -1336,6 +1343,7 @@ async fn game_loop(
                     "buildings_queue": extra_tick.buildings_queue,
                     "unit_queue": extra_tick.unit_queue,
                     "transit_queue": extra_tick.transit_queue,
+                    "air_transit_queue": extra_tick.air_transit_queue,
                     "active_effects": extra_tick.active_effects,
                     "weather": extra_weather,
                 });
@@ -1650,6 +1658,7 @@ async fn eliminate_player(
         "buildings_queue": state_mgr.get_all_buildings().await.unwrap_or_default(),
         "unit_queue": state_mgr.get_all_unit_queue().await.unwrap_or_default(),
         "transit_queue": state_mgr.get_all_transit_queue().await.unwrap_or_default(),
+        "air_transit_queue": state_mgr.get_all_air_transit_queue().await.unwrap_or_default(),
         "weather": elim_weather,
     });
     broadcast_to_match(match_id, &tick_msg, &state.game_connections);
@@ -2183,6 +2192,7 @@ async fn mark_player_disconnected(
         "buildings_queue": state_mgr.get_all_buildings().await.unwrap_or_default(),
         "unit_queue": state_mgr.get_all_unit_queue().await.unwrap_or_default(),
         "transit_queue": state_mgr.get_all_transit_queue().await.unwrap_or_default(),
+        "air_transit_queue": state_mgr.get_all_air_transit_queue().await.unwrap_or_default(),
         "weather": disc_weather,
     });
     broadcast_to_match(match_id, &tick_msg, &state.game_connections);
@@ -2511,6 +2521,7 @@ async fn finish_match_with_current_state(
         "buildings_queue": state_mgr.get_all_buildings().await.unwrap_or_default(),
         "unit_queue": state_mgr.get_all_unit_queue().await.unwrap_or_default(),
         "transit_queue": state_mgr.get_all_transit_queue().await.unwrap_or_default(),
+        "air_transit_queue": state_mgr.get_all_air_transit_queue().await.unwrap_or_default(),
         "weather": finish_weather,
     });
     broadcast_to_match(match_id, &tick_msg, &state.game_connections);

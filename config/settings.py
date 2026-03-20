@@ -9,6 +9,8 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,backend', cast=Csv())
 CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
 
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
+
 INSTALLED_APPS = [
     'unfold',
     'unfold.contrib.filters',

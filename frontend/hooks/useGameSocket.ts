@@ -114,6 +114,30 @@ export interface UnitQueueItem {
   total_ticks: number;
 }
 
+export interface InterceptorGroup {
+  player_id: string;
+  source_region_id: string;
+  fighters: number;
+  progress: number;
+  speed_per_tick: number;
+}
+
+export interface AirTransitItem {
+  id: string;
+  mission_type: string; // "bomb_run" | "fighter_attack" | "escort_return"
+  source_region_id: string;
+  target_region_id: string;
+  player_id: string;
+  unit_type: string;
+  units: number;
+  escort_fighters: number;
+  progress: number; // 0.0 = source, 1.0 = arrived
+  speed_per_tick: number;
+  total_distance: number;
+  interceptors: InterceptorGroup[];
+  flight_path?: string[]; // province IDs along the route
+}
+
 export interface GameState {
   meta: {
     status: string;
@@ -130,6 +154,7 @@ export interface GameState {
   buildings_queue: BuildingQueueItem[];
   unit_queue: UnitQueueItem[];
   transit_queue?: Array<Record<string, unknown>>;
+  air_transit_queue?: AirTransitItem[];
   active_effects?: ActiveEffect[];
   weather?: WeatherState;
 }
@@ -157,8 +182,10 @@ interface UseGameSocketReturn {
   bannedReason: string | null;
   ping: number | undefined;
   selectCapital: (regionId: string) => void;
-  attack: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
+  attack: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null, escortFighters?: number) => void;
   move: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
+  bombard: (sourceRegionId: string, targetRegionId: string) => void;
+  interceptFlight: (sourceRegionId: string, flightId: string, units: number) => void;
   build: (regionId: string, buildingType: string) => void;
   upgradeBuilding: (regionId: string, buildingType: string) => void;
   produceUnit: (regionId: string, unitType: string) => void;
@@ -238,6 +265,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
             buildings_queue: (msg.buildings_queue as BuildingQueueItem[]) ?? prev.buildings_queue,
             unit_queue: (msg.unit_queue as UnitQueueItem[]) ?? prev.unit_queue,
             transit_queue: (msg.transit_queue as Array<Record<string, unknown>>) ?? prev.transit_queue,
+            air_transit_queue: (msg.air_transit_queue as AirTransitItem[]) ?? prev.air_transit_queue,
             active_effects: shallowEqualEffects(prev.active_effects, msg.active_effects as ActiveEffect[] | undefined)
               ? prev.active_effects
               : (msg.active_effects as ActiveEffect[]) ?? prev.active_effects,
@@ -446,13 +474,14 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
   );
 
   const attack = useCallback(
-    (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) =>
+    (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null, escortFighters?: number) =>
       send({
         action: "attack",
         source_region_id: sourceRegionId,
         target_region_id: targetRegionId,
         units,
         unit_type: unitType,
+        ...(escortFighters && escortFighters > 0 ? { escort_fighters: escortFighters } : {}),
       }),
     [send]
   );
@@ -465,6 +494,27 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
         target_region_id: targetRegionId,
         units,
         unit_type: unitType,
+      }),
+    [send]
+  );
+
+  const bombard = useCallback(
+    (sourceRegionId: string, targetRegionId: string) =>
+      send({
+        action: "bombard",
+        source_region_id: sourceRegionId,
+        target_region_id: targetRegionId,
+      }),
+    [send]
+  );
+
+  const interceptFlight = useCallback(
+    (sourceRegionId: string, flightId: string, units: number) =>
+      send({
+        action: "intercept",
+        region_id: sourceRegionId,
+        target_flight_id: flightId,
+        units,
       }),
     [send]
   );
@@ -533,6 +583,8 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     selectCapital,
     attack,
     move,
+    bombard,
+    interceptFlight,
     build,
     upgradeBuilding,
     produceUnit,

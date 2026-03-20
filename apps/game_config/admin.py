@@ -96,12 +96,12 @@ class GameModeAdmin(ModelAdmin):
 class UnitTypeInline(TabularInline):
     model = UnitType
     extra = 0
-    fields = ('name', 'slug', 'icon', 'attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type', 'production_cost', 'production_time_ticks', 'is_active', 'combat_target', 'is_stealth', 'can_station_anywhere', 'intercept_air')
+    fields = ('name', 'slug', 'icon', 'attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type', 'is_active', 'combat_target', 'is_stealth', 'can_station_anywhere', 'intercept_air')
 
 
 @admin.register(BuildingType)
 class BuildingTypeAdmin(ModelAdmin):
-    list_display = ('icon', 'name', 'slug', 'cost', 'build_time_ticks', 'requires_coastal', 'defense_bonus', 'max_level', 'display_active', 'order')
+    list_display = ('icon', 'name', 'slug', 'requires_coastal', 'defense_bonus', 'max_level', 'display_active', 'order')
     list_filter = ('is_active', 'requires_coastal')
     list_filter_submit = True
     list_fullwidth = True
@@ -111,7 +111,7 @@ class BuildingTypeAdmin(ModelAdmin):
     inlines = [UnitTypeInline]
     fieldsets = (
         (None, {'fields': ('name', 'slug', 'asset_key', 'description', 'icon', 'is_active', 'order')}),
-        ('Costs & Timing', {'fields': ('cost', 'energy_cost', 'build_time_ticks', 'max_per_region', 'requires_coastal')}),
+        ('Constraints', {'fields': ('max_per_region', 'requires_coastal')}),
         ('Passive Bonuses', {'fields': ('defense_bonus', 'vision_range', 'unit_generation_bonus', 'energy_generation_bonus')}),
         ('Poziomy (Level System)', {'fields': ('max_level', 'level_stats'), 'classes': ('collapse',)}),
     )
@@ -123,7 +123,7 @@ class BuildingTypeAdmin(ModelAdmin):
 
 @admin.register(UnitType)
 class UnitTypeAdmin(ModelAdmin):
-    list_display = ('icon', 'name', 'slug', 'attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type', 'produced_by', 'production_cost', 'max_level', 'display_active', 'order')
+    list_display = ('icon', 'name', 'slug', 'attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type', 'produced_by', 'max_level', 'display_active', 'order')
     list_filter = ('is_active', 'movement_type', 'produced_by')
     list_filter_submit = True
     list_fullwidth = True
@@ -133,8 +133,8 @@ class UnitTypeAdmin(ModelAdmin):
     warn_unsaved_form = True
     fieldsets = (
         (None, {'fields': ('name', 'slug', 'asset_key', 'description', 'icon', 'is_active', 'order')}),
-        ('Stats', {'fields': ('attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type')}),
-        ('Production', {'fields': ('produced_by', 'production_cost', 'production_time_ticks', 'manpower_cost')}),
+        ('Stats', {'fields': ('attack', 'defense', 'speed', 'attack_range', 'sea_range', 'sea_hop_distance_km', 'movement_type', 'ticks_per_hop', 'air_speed_ticks_per_hop')}),
+        ('Production', {'fields': ('produced_by',)}),
         ('Poziomy (Level System)', {'fields': ('max_level', 'level_stats'), 'classes': ('collapse',)}),
     )
 

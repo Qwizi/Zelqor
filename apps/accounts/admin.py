@@ -38,7 +38,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     ordering = ('email',)
     warn_unsaved_form = True
     actions_detail = ['merge_into_user']
-    inlines = [SocialAccountInline, ItemInstanceInline, UserInventoryInline, EquippedCosmeticInline, DeckInline]
+    inlines = [SocialAccountInline, EquippedCosmeticInline, DeckInline]
     fieldsets = BaseUserAdmin.fieldsets + (
         ('Game', {'fields': ('role', 'elo_rating', 'avatar', 'tutorial_completed', 'is_banned', 'banned_reason')}),
     )

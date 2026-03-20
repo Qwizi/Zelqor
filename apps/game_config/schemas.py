@@ -64,9 +64,9 @@ class BuildingTypeOutSchema(Schema):
     asset_key: str
     description: str
     icon: str
-    cost: int
-    energy_cost: int
-    build_time_ticks: int
+    cost: int = 0
+    energy_cost: int = 0
+    build_time_ticks: int = 1
     max_per_region: int
     requires_coastal: bool
     defense_bonus: float
@@ -76,6 +76,18 @@ class BuildingTypeOutSchema(Schema):
     max_level: int
     level_stats: dict
     order: int
+
+    @staticmethod
+    def resolve_cost(obj):
+        return (obj.level_stats or {}).get('1', {}).get('cost', 0)
+
+    @staticmethod
+    def resolve_energy_cost(obj):
+        return (obj.level_stats or {}).get('1', {}).get('energy_cost', 0)
+
+    @staticmethod
+    def resolve_build_time_ticks(obj):
+        return (obj.level_stats or {}).get('1', {}).get('build_time_ticks', 1)
     asset_url: Optional[str] = None
 
     @staticmethod
@@ -101,13 +113,25 @@ class UnitTypeOutSchema(Schema):
     sea_hop_distance_km: int
     produced_by_id: Optional[uuid.UUID] = None
     produced_by_slug: Optional[str] = None
-    production_cost: int
-    production_time_ticks: int
-    manpower_cost: int
+    production_cost: int = 0
+    production_time_ticks: int = 0
+    manpower_cost: int = 1
     movement_type: str
     max_level: int
     level_stats: dict
     is_stealth: bool
+
+    @staticmethod
+    def resolve_production_cost(obj):
+        return (obj.level_stats or {}).get('1', {}).get('production_cost', 0)
+
+    @staticmethod
+    def resolve_production_time_ticks(obj):
+        return (obj.level_stats or {}).get('1', {}).get('production_time_ticks', 0)
+
+    @staticmethod
+    def resolve_manpower_cost(obj):
+        return (obj.level_stats or {}).get('1', {}).get('manpower_cost', 1)
     path_damage: float
     aoe_damage: float
     blockade_port: bool
@@ -115,6 +139,8 @@ class UnitTypeOutSchema(Schema):
     can_station_anywhere: bool
     lifetime_ticks: int
     combat_target: str
+    ticks_per_hop: int
+    air_speed_ticks_per_hop: int
     order: int
     asset_url: Optional[str] = None
 

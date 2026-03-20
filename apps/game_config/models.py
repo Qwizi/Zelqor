@@ -94,11 +94,6 @@ class BuildingType(models.Model):
     description = models.TextField(blank=True)
     icon = models.CharField(max_length=50, blank=True, default='🏗️')
     
-    # Costs & timing
-    cost = models.PositiveIntegerField(default=50, help_text='Unit cost to build')
-    energy_cost = models.PositiveIntegerField(default=50, help_text='Energy cost to build')
-    build_time_ticks = models.PositiveIntegerField(default=10, help_text='Ticks to complete building')
-    
     # Constraints
     max_per_region = models.PositiveIntegerField(default=1, help_text='Max buildings of this type per region')
     requires_coastal = models.BooleanField(default=False, help_text='Only buildable in coastal regions')
@@ -155,10 +150,7 @@ class UnitType(models.Model):
         BuildingType, on_delete=models.CASCADE, related_name='unit_types',
         null=True, blank=True, help_text='Building required to produce this unit (null=default unit)'
     )
-    production_cost = models.PositiveIntegerField(default=5, help_text='Unit cost to produce')
-    production_time_ticks = models.PositiveIntegerField(default=5, help_text='Ticks to produce')
-    manpower_cost = models.PositiveIntegerField(default=1, help_text='How many base units are consumed to produce one token of this unit')
-    
+
     # Type
     movement_type = models.CharField(max_length=10, choices=MovementType.choices, default=MovementType.LAND)
 
@@ -180,6 +172,8 @@ class UnitType(models.Model):
     can_station_anywhere = models.BooleanField(default=False, help_text='Does not require producer building to station in region')
     lifetime_ticks = models.PositiveIntegerField(default=0, help_text='Auto-destruct after N ticks (0 = permanent)')
     combat_target = models.CharField(max_length=10, default='ground', choices=[('air', 'Air'), ('ground', 'Ground'), ('both', 'Both')], help_text='What this unit targets in combat')
+    ticks_per_hop = models.PositiveIntegerField(default=0, help_text='Ticks per province hop for ground/sea units (0 = use legacy speed formula)')
+    air_speed_ticks_per_hop = models.PositiveIntegerField(default=0, help_text='Ticks per province hop for air transit (0 = use legacy speed formula)')
 
     is_active = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)

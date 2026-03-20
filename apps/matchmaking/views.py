@@ -69,9 +69,9 @@ class TutorialController:
         # Snapshot building types — mirrors _do_try_match exactly
         building_types = {
             bt.slug: {
-                'cost': bt.cost,
-                'energy_cost': bt.energy_cost,
-                'build_time_ticks': bt.build_time_ticks,
+                'cost': (bt.level_stats or {}).get('1', {}).get('cost', 0),
+                'energy_cost': (bt.level_stats or {}).get('1', {}).get('energy_cost', 0),
+                'build_time_ticks': (bt.level_stats or {}).get('1', {}).get('build_time_ticks', 1),
                 'max_per_region': bt.max_per_region,
                 'defense_bonus': bt.defense_bonus,
                 'vision_range': bt.vision_range,
@@ -106,11 +106,21 @@ class TutorialController:
                 'sea_hop_distance_km': int(ut.sea_hop_distance_km),
                 'movement_type': ut.movement_type,
                 'produced_by_slug': ut.produced_by.slug if ut.produced_by_id else None,
-                'production_cost': int(ut.production_cost),
-                'production_time_ticks': int(ut.production_time_ticks),
-                'manpower_cost': int(ut.manpower_cost),
+                'production_cost': (ut.level_stats or {}).get('1', {}).get('production_cost', 0),
+                'production_time_ticks': (ut.level_stats or {}).get('1', {}).get('production_time_ticks', 0),
+                'manpower_cost': (ut.level_stats or {}).get('1', {}).get('manpower_cost', 1),
                 'max_level': ut.max_level,
                 'level_stats': ut.level_stats or {},
+                'is_stealth': ut.is_stealth,
+                'path_damage': ut.path_damage,
+                'aoe_damage': ut.aoe_damage,
+                'blockade_port': ut.blockade_port,
+                'intercept_air': ut.intercept_air,
+                'can_station_anywhere': ut.can_station_anywhere,
+                'lifetime_ticks': ut.lifetime_ticks,
+                'combat_target': ut.combat_target,
+                'ticks_per_hop': ut.ticks_per_hop,
+                'air_speed_ticks_per_hop': ut.air_speed_ticks_per_hop,
             }
             for ut in UnitType.objects.select_related('produced_by').filter(is_active=True)
         }
@@ -146,10 +156,18 @@ class TutorialController:
             bt['cost'] = 0
             bt['energy_cost'] = 10
             bt['build_time_ticks'] = 3
+            for level_data in bt['level_stats'].values():
+                level_data['cost'] = 0
+                level_data['energy_cost'] = 10
+                level_data['build_time_ticks'] = 3
         for ut in unit_types.values():
             if ut['production_cost'] > 0:
                 ut['production_cost'] = 5
                 ut['production_time_ticks'] = 2
+                for level_data in ut['level_stats'].values():
+                    if level_data.get('production_cost', 0) > 0:
+                        level_data['production_cost'] = 5
+                        level_data['production_time_ticks'] = 2
         for at in ability_types.values():
             at['energy_cost'] = 10  # All abilities cost 10
             at['cooldown_ticks'] = 5  # 5 tick cooldown

@@ -194,6 +194,26 @@ export function computeMarchPath(
  * Select path shape and resolution for a given animation kind / unit type.
  * Pass `actionType` to enable fighter circling on attack animations.
  */
+/**
+ * Build a smooth path through province centroid waypoints.
+ * Interpolates linearly between waypoints with extra points for smoothness.
+ */
+export function buildWaypointPath(waypoints: [number, number][]): [number, number][] {
+  if (waypoints.length < 2) return waypoints;
+  const path: [number, number][] = [];
+  const POINTS_PER_SEGMENT = 20;
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const [x0, y0] = waypoints[i];
+    const [x1, y1] = waypoints[i + 1];
+    for (let j = 0; j < POINTS_PER_SEGMENT; j++) {
+      const t = j / POINTS_PER_SEGMENT;
+      path.push([x0 + (x1 - x0) * t, y0 + (y1 - y0) * t]);
+    }
+  }
+  path.push(waypoints[waypoints.length - 1]);
+  return path;
+}
+
 export function buildAnimationPath(
   kind: AnimKind,
   from: [number, number],
@@ -440,13 +460,16 @@ export class PixiAnimationManager {
 
     const isNuke = anim.unitType === "nuke_rocket";
     const animKind = resolveAnimationKindSync(anim.unitType);
-    const path = buildAnimationPath(
-      animKind,
-      sourceCentroid,
-      targetCentroid,
-      anim.unitType,
-      anim.type
-    );
+    // Use waypoints path if available (air transit through province centroids).
+    const path = anim.waypoints && anim.waypoints.length >= 2
+      ? buildWaypointPath(anim.waypoints)
+      : buildAnimationPath(
+          animKind,
+          sourceCentroid,
+          targetCentroid,
+          anim.unitType,
+          anim.type
+        );
     const duration =
       anim.durationMs ??
       (isNuke ? 8000 : (EXTRA_DURATION_MAP[anim.unitType ?? ""] ?? DURATION_MAP[animKind] ?? DURATION_MAP.infantry));
@@ -476,7 +499,7 @@ export class PixiAnimationManager {
     const iconGfx = new Graphics();
 
     const labelText = new Text({
-      text: String(anim.units),
+      text: String(anim.unitCount ?? anim.units),
       style: this.labelStyle,
       resolution: 3,
     });

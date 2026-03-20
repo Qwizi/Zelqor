@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Application, Graphics, Text, Container, TextStyle, Assets, Sprite, Texture } from "pixi.js";
 import { Viewport } from "pixi-viewport";
-import type { GameRegion, ActiveEffect, WeatherState } from "@/hooks/useGameSocket";
+import type { GameRegion, ActiveEffect, WeatherState, AirTransitItem } from "@/hooks/useGameSocket";
 import type { TroopAnimation } from "@/lib/gameTypes";
 import { PixiAnimationManager } from "@/lib/pixiAnimations";
 import type { CosmeticValue } from "@/lib/animationConfig";
@@ -67,6 +67,10 @@ export interface GameCanvasProps {
   onMapReady?: () => void;
   initialZoom?: number;
   weather?: WeatherState;
+  airTransitQueue?: AirTransitItem[];
+  onFlightClick?: (flightId: string) => void;
+  /** slug → manpower_cost for air unit display. */
+  unitManpowerMap?: Record<string, number>;
 }
 
 // ── Internal render state ─────────────────────────────────────
@@ -200,6 +204,9 @@ export default function GameCanvas({
   onMapReady,
   initialZoom = 1,
   weather,
+  airTransitQueue,
+  onFlightClick,
+  unitManpowerMap,
 }: GameCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
@@ -213,6 +220,7 @@ export default function GameCanvas({
   const unitChangeLayerRef = useRef<Container | null>(null);
   const weatherOverlayRef = useRef<Graphics | null>(null);
   const animManagerRef = useRef<PixiAnimationManager | null>(null);
+  const airTransitLayerRef = useRef<Container | null>(null);
 
   /** Per-province render state — Graphics, Text, cached owner/fill */
   const stateMapRef = useRef<Map<string, ProvinceRenderState>>(new Map());
@@ -259,6 +267,9 @@ export default function GameCanvas({
 
   const activeEffectsRef = useRef(activeEffects);
   activeEffectsRef.current = activeEffects;
+
+  const airTransitQueueRef = useRef(airTransitQueue);
+  airTransitQueueRef.current = airTransitQueue;
 
   // ── Province drawing helper ──────────────────────────────────
 
@@ -358,7 +369,11 @@ export default function GameCanvas({
           (e) => e.effect_type === "ab_pr_submarine" && e.affected_region_ids.includes(id)
         ) ?? false;
 
-        const showUnitCount = isOwner || isAnimTarget || isSubRevealed;
+        // Show unit count on enemy provinces being bombed (in active bomber flight paths).
+        const isBombed = airTransitQueueRef.current?.some(
+          (f) => f.mission_type === "bomb_run" && f.flight_path?.includes(id)
+        ) ?? false;
+        const showUnitCount = isOwner || isAnimTarget || isSubRevealed || isBombed;
 
         if (showUnitCount) {
           // Calculate air units separately (fighter, bomber)
@@ -370,8 +385,7 @@ export default function GameCanvas({
             const count = units[slug] ?? 0;
             if (count > 0) {
               airCount += count;
-              // manpower: fighter=1, bomber=4 (hardcoded for display)
-              airManpower += count * (slug === "bomber" ? 4 : 1);
+              airManpower += count * (unitManpowerMap?.[slug] ?? 1);
             }
           }
           const groundCount = region.unit_count - airManpower;
@@ -760,6 +774,7 @@ export default function GameCanvas({
     dimmedRegions,
     myUserId,
     drawProvince,
+    airTransitQueue,
   ]);
 
   // ── Sync animations with the manager ──────────────────────────
@@ -794,6 +809,60 @@ export default function GameCanvas({
       registeredAnimsRef.current.clear();
     }
   }, [animations, shapesData, players]);
+
+  // ── Air transit: create TroopAnimations from air_transit_queue state ──
+  // Track which flight IDs have been registered as animations.
+  const registeredFlightsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!airTransitQueue || airTransitQueue.length === 0 || !shapesData) return;
+
+    // Build centroid lookup for waypoint computation.
+    const centroids = new Map<string, [number, number]>();
+    for (const s of shapesData.regions) centroids.set(s.id, s.centroid);
+
+    const tickMs = 1000;
+    const newAnims: TroopAnimation[] = [];
+
+    for (const flight of airTransitQueue) {
+      if (registeredFlightsRef.current.has(flight.id)) continue;
+      registeredFlightsRef.current.add(flight.id);
+
+      const color = players[flight.player_id]?.color ?? "#888888";
+
+      // Calculate manpower.
+      const mainManpower = flight.units * (unitManpowerMap?.[flight.unit_type] ?? 1);
+      const escortManpower = flight.escort_fighters * (unitManpowerMap?.["fighter"] ?? 1);
+      const totalManpower = mainManpower + escortManpower;
+
+      // Animation flies straight line (source→target) — no waypoints needed.
+      // Path bombing uses geometric corridor in engine, not waypoints.
+      newAnims.push({
+        id: flight.id,
+        sourceId: flight.source_region_id,
+        targetId: flight.target_region_id,
+        color,
+        units: totalManpower,
+        unitCount: totalManpower,
+        unitType: flight.unit_type,
+        type: "attack" as const,
+        startTime: Date.now() - (flight.progress / flight.speed_per_tick) * tickMs,
+        durationMs: (1.0 / flight.speed_per_tick) * tickMs,
+        playerId: flight.player_id,
+      });
+    }
+
+    // Clean up finished flights.
+    const activeIds = new Set(airTransitQueue.map((f) => f.id));
+    for (const id of registeredFlightsRef.current) {
+      if (!activeIds.has(id)) registeredFlightsRef.current.delete(id);
+    }
+    if (registeredFlightsRef.current.size > 200) registeredFlightsRef.current.clear();
+
+    if (newAnims.length > 0 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("air-transit-anims", { detail: newAnims }));
+    }
+  }, [airTransitQueue, players, shapesData, unitManpowerMap]);
 
   // ── Unit change floating labels ────────────────────────────────
 
@@ -1213,6 +1282,13 @@ export default function GameCanvas({
       viewport.addChild(effectLayer);
       viewport.addChild(nukeLayer);
       viewport.addChild(animManager.container);
+
+      // Air transit flight icons layer — between animations and labels
+      const airTransitLayer = new Container();
+      airTransitLayer.eventMode = "none";
+      airTransitLayerRef.current = airTransitLayer;
+      viewport.addChild(airTransitLayer);
+
       viewport.addChild(labelLayer);
       // Unit change labels sit topmost so they are never occluded
       viewport.addChild(unitChangeLayer);

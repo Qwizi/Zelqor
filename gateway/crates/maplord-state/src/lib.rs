@@ -1,5 +1,6 @@
 use maplord_engine::{
-    Action, ActiveEffect, BuildingQueueItem, Player, Region, TransitQueueItem, UnitQueueItem,
+    Action, ActiveEffect, AirTransitItem, BuildingQueueItem, Player, Region, TransitQueueItem,
+    UnitQueueItem,
 };
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
@@ -32,6 +33,7 @@ pub struct TickData {
     pub buildings_queue: Vec<BuildingQueueItem>,
     pub unit_queue: Vec<UnitQueueItem>,
     pub transit_queue: Vec<TransitQueueItem>,
+    pub air_transit_queue: Vec<AirTransitItem>,
     pub active_effects: Vec<ActiveEffect>,
 }
 
@@ -44,6 +46,7 @@ pub struct FullGameState {
     pub buildings_queue: Vec<BuildingQueueItem>,
     pub unit_queue: Vec<UnitQueueItem>,
     pub transit_queue: Vec<TransitQueueItem>,
+    pub air_transit_queue: Vec<AirTransitItem>,
     pub active_effects: Vec<ActiveEffect>,
 }
 
@@ -186,6 +189,7 @@ impl GameStateManager {
         let buildings_key = self.key("buildings_queue");
         let unit_key = self.key("unit_queue");
         let transit_key = self.key("transit_queue");
+        let air_transit_key = self.key("air_transit_queue");
         let effects_key = self.key("active_effects");
 
         pipe.hincr(&meta_key, "current_tick", 1i64);
@@ -196,6 +200,7 @@ impl GameStateManager {
         pipe.lrange(&buildings_key, 0, -1);
         pipe.lrange(&unit_key, 0, -1);
         pipe.lrange(&transit_key, 0, -1);
+        pipe.lrange(&air_transit_key, 0, -1);
         pipe.lrange(&effects_key, 0, -1);
 
         let mut conn = self.redis.clone();
@@ -205,6 +210,7 @@ impl GameStateManager {
             HashMap<String, Vec<u8>>,
             Vec<Vec<u8>>,
             (),
+            Vec<Vec<u8>>,
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
@@ -242,8 +248,13 @@ impl GameStateManager {
             .iter()
             .map(|v| deser(v))
             .collect::<redis::RedisResult<_>>()?;
-        let active_effects = results
+        let air_transit_queue = results
             .8
+            .iter()
+            .map(|v| deser(v))
+            .collect::<redis::RedisResult<_>>()?;
+        let active_effects = results
+            .9
             .iter()
             .map(|v| deser(v))
             .collect::<redis::RedisResult<_>>()?;
@@ -256,6 +267,7 @@ impl GameStateManager {
             buildings_queue,
             unit_queue,
             transit_queue,
+            air_transit_queue,
             active_effects,
         })
     }
@@ -267,6 +279,7 @@ impl GameStateManager {
         buildings_queue: &[BuildingQueueItem],
         unit_queue: &[UnitQueueItem],
         transit_queue: &[TransitQueueItem],
+        air_transit_queue: &[AirTransitItem],
         active_effects: &[ActiveEffect],
         dirty_region_ids: Option<&std::collections::HashSet<String>>,
     ) -> redis::RedisResult<()> {
@@ -310,6 +323,13 @@ impl GameStateManager {
             pipe.cmd("RPUSH").arg(&transit_key).arg(packed).ignore();
         }
 
+        let air_transit_key = self.key("air_transit_queue");
+        pipe.del(&air_transit_key).ignore();
+        if !air_transit_queue.is_empty() {
+            let packed: Vec<Vec<u8>> = air_transit_queue.iter().map(|item| rmp_serde::to_vec(item).unwrap()).collect();
+            pipe.cmd("RPUSH").arg(&air_transit_key).arg(packed).ignore();
+        }
+
         let effects_key = self.key("active_effects");
         pipe.del(&effects_key).ignore();
         if !active_effects.is_empty() {
@@ -333,6 +353,7 @@ impl GameStateManager {
         pipe.lrange(self.key("buildings_queue"), 0, -1);
         pipe.lrange(self.key("unit_queue"), 0, -1);
         pipe.lrange(self.key("transit_queue"), 0, -1);
+        pipe.lrange(self.key("air_transit_queue"), 0, -1);
         pipe.lrange(self.key("active_effects"), 0, -1);
 
         let mut conn = self.redis.clone();
@@ -340,6 +361,7 @@ impl GameStateManager {
             HashMap<String, String>,
             HashMap<String, Vec<u8>>,
             HashMap<String, Vec<u8>>,
+            Vec<Vec<u8>>,
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
@@ -373,8 +395,13 @@ impl GameStateManager {
                 .iter()
                 .map(|v| deser(v))
                 .collect::<redis::RedisResult<_>>()?,
-            active_effects: results
+            air_transit_queue: results
                 .6
+                .iter()
+                .map(|v| deser(v))
+                .collect::<redis::RedisResult<_>>()?,
+            active_effects: results
+                .7
                 .iter()
                 .map(|v| deser(v))
                 .collect::<redis::RedisResult<_>>()?,
@@ -562,6 +589,15 @@ impl GameStateManager {
     pub async fn get_all_transit_queue(&self) -> redis::RedisResult<Vec<TransitQueueItem>> {
         let mut conn = self.redis.clone();
         let raw: Vec<Vec<u8>> = conn.lrange(self.key("transit_queue"), 0, -1).await?;
+        Ok(raw
+            .iter()
+            .map(|v| deser(v))
+            .collect::<redis::RedisResult<_>>()?)
+    }
+
+    pub async fn get_all_air_transit_queue(&self) -> redis::RedisResult<Vec<AirTransitItem>> {
+        let mut conn = self.redis.clone();
+        let raw: Vec<Vec<u8>> = conn.lrange(self.key("air_transit_queue"), 0, -1).await?;
         Ok(raw
             .iter()
             .map(|v| deser(v))
@@ -880,6 +916,7 @@ mod tests {
                 buildings_queue: vec![],
                 unit_queue: vec![],
                 transit_queue: vec![],
+                air_transit_queue: vec![],
                 active_effects: vec![],
             }
         }
@@ -943,6 +980,7 @@ mod tests {
                 buildings_queue: vec![],
                 unit_queue: vec![],
                 transit_queue: vec![],
+                air_transit_queue: vec![],
                 active_effects: vec![],
             };
             let json = serde_json::to_value(&original).unwrap();
