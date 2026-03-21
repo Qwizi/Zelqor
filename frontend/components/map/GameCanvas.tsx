@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { Application, Graphics, Text, Container, TextStyle, Assets, Sprite, Texture } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import type { GameRegion, ActiveEffect, WeatherState, AirTransitItem } from "@/hooks/useGameSocket";
-import type { TroopAnimation } from "@/lib/gameTypes";
+import type { TroopAnimation, PlannedMove } from "@/lib/gameTypes";
 import { PixiAnimationManager } from "@/lib/pixiAnimations";
 import type { CosmeticValue } from "@/lib/animationConfig";
 import { getBuildingAsset, getUnitAsset } from "@/lib/gameAssets";
@@ -71,6 +71,7 @@ export interface GameCanvasProps {
   onFlightClick?: (flightId: string) => void;
   /** slug → manpower_cost for air unit display. */
   unitManpowerMap?: Record<string, number>;
+  plannedMoves?: PlannedMove[];
 }
 
 // ── Internal render state ─────────────────────────────────────
@@ -207,6 +208,7 @@ export default function GameCanvas({
   airTransitQueue,
   onFlightClick,
   unitManpowerMap,
+  plannedMoves,
 }: GameCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
@@ -224,6 +226,9 @@ export default function GameCanvas({
   const airTransitLayerRef = useRef<Container | null>(null);
   const capitalRadarRef = useRef<Graphics | null>(null);
   const weatherParticlesRef = useRef<Graphics | null>(null);
+  const plannedMovesLayerRef = useRef<Container | null>(null);
+  const plannedMovesRef = useRef(plannedMoves);
+  plannedMovesRef.current = plannedMoves;
 
   /** Per-province render state — Graphics, Text, cached owner/fill */
   const stateMapRef = useRef<Map<string, ProvinceRenderState>>(new Map());
@@ -237,6 +242,10 @@ export default function GameCanvas({
 
   /** Snapshot of the previous regions state — used to diff tick updates. */
   const prevRegionsRef = useRef<Record<string, GameRegion>>({});
+
+  /** Temporary visual adjustments from bombardment — subtracted from displayed unit_count
+   *  until the next tick confirms the actual state. Keyed by region ID. */
+  const bombardAdjustRef = useRef<Map<string, number>>(new Map());
 
   // Stable ref wrappers for props used inside Pixi event callbacks so we
   // don't have to tear down / rebuild interactivity on every render.
@@ -313,16 +322,67 @@ export default function GameCanvas({
       recentlyBombedRef.current.set(regionId, Date.now());
     };
     window.addEventListener("province-bombed", pathHandler);
+    // Listen for path_damage events to spawn bomb visuals at damaged provinces
+    const pathDamageBombHandler = (e: Event) => {
+      const { regionId } = (e as CustomEvent<{ regionId: string; killed: number }>).detail;
+      const sd = shapesDataRef.current;
+      const mgr = animManagerRef.current;
+      if (!sd || !mgr) return;
+      const shape = sd.regions.find((s) => s.id === regionId);
+      if (!shape) return;
+      const [cx, cy] = shape.centroid;
+      // spawnBombingSalvoAt spreads 2 bombs around the centroid
+      if (typeof mgr.spawnBombingSalvoAt === "function") {
+        mgr.spawnBombingSalvoAt(cx, cy, false);
+      } else {
+        // Fallback for HMR — use the older single-bomb method
+        mgr.spawnBombAt(cx, cy);
+      }
+    };
+    window.addEventListener("path-damage-bomb", pathDamageBombHandler);
+    // Listen for artillery bombardment damage — show floating "-N" label on target
+    // AND immediately update the Pixi label in-place (no React re-render needed).
+    const bombardDamageHandler = (e: Event) => {
+      const { regionId, killed } = (e as CustomEvent<{ regionId: string; killed: number }>).detail;
+      if (killed > 0) {
+        unitPulsesRef.current.set(regionId, { startTime: Date.now(), delta: -killed });
+        // Accumulate visual adjustment
+        const prev = bombardAdjustRef.current.get(regionId) ?? 0;
+        bombardAdjustRef.current.set(regionId, prev + killed);
+        // Directly update the Pixi Text label — parse current number and subtract
+        const state = stateMapRef.current.get(regionId);
+        if (state) {
+          const match = state.label.text.match(/(\d+)/);
+          if (match) {
+            const current = parseInt(match[1], 10);
+            const newCount = Math.max(0, current - killed);
+            state.label.text = newCount > 0 ? `▸ ${newCount}` : "";
+          }
+        }
+      }
+      recentlyBombedRef.current.set(regionId, Date.now());
+    };
+    window.addEventListener("bombard-damage", bombardDamageHandler);
+    // Clear bombardAdjust when all rockets have landed — province shows real state
+    const bombardCompleteHandler = (e: Event) => {
+      const { regionId } = (e as CustomEvent<{ regionId: string }>).detail;
+      bombardAdjustRef.current.delete(regionId);
+      recentlyBombedRef.current.delete(regionId);
+    };
+    window.addEventListener("bombard-complete", bombardCompleteHandler);
     // Cleanup stale entries every 5s
     const interval = setInterval(() => {
       const now = Date.now();
       for (const [rid, ts] of recentlyBombedRef.current) {
-        if (now - ts > 8000) recentlyBombedRef.current.delete(rid);
+        if (now - ts > 3000) recentlyBombedRef.current.delete(rid);
       }
     }, 5000);
     return () => {
       window.removeEventListener("bomb-drop", handler);
       window.removeEventListener("province-bombed", pathHandler);
+      window.removeEventListener("path-damage-bomb", pathDamageBombHandler);
+      window.removeEventListener("bombard-damage", bombardDamageHandler);
+      window.removeEventListener("bombard-complete", bombardCompleteHandler);
       clearInterval(interval);
     };
   }, []);
@@ -337,7 +397,13 @@ export default function GameCanvas({
       isHovered: boolean
     ) => {
       const region = regionsRef.current[id];
-      const ownerId = region?.owner_id ?? null;
+      // If rockets are still in flight (bombardAdjust active), keep showing the
+      // previous owner so the province doesn't visually neutralize before impact.
+      const hasPendingBombard = (bombardAdjustRef.current.get(id) ?? 0) > 0;
+      const prevOwner = prevUnitOwnersRef.current.get(id) ?? null;
+      const ownerId = (hasPendingBombard && !region?.owner_id && prevOwner)
+        ? prevOwner
+        : (region?.owner_id ?? null);
       const player = ownerId ? playersRef.current[ownerId] : null;
 
       const isSelected = selectedRegionRef.current === id;
@@ -472,25 +538,75 @@ export default function GameCanvas({
         const showUnitCount = isOwner || isAnimTarget || isSubRevealed || isBombed || wasRecentlyBombed;
 
         if (showUnitCount) {
-          // Calculate air units separately (fighter, bomber)
-          const airSlugs = ["fighter", "bomber"];
           const units = region.units ?? {};
-          let airCount = 0;
-          let airManpower = 0;
-          for (const slug of airSlugs) {
-            const count = units[slug] ?? 0;
-            if (count > 0) {
-              airCount += count;
-              airManpower += count * (unitManpowerMapRef.current?.[slug] ?? 1);
+          const mpMap = unitManpowerMapRef.current ?? {};
+          const bombAdj = bombardAdjustRef.current.get(id) ?? 0;
+
+          // Infantry = raw count minus manpower reserved by special units
+          const infantryRaw = units["infantry"] ?? 0;
+          let reserved = 0;
+          for (const [slug, count] of Object.entries(units)) {
+            if (slug !== "infantry" && count > 0) {
+              reserved += count * (mpMap[slug] ?? 1);
             }
           }
-          const groundCount = region.unit_count - airManpower;
-          if (groundCount > 0 && airCount > 0) {
-            label.text = `▸ ${groundCount} | ${airCount}✈(${airManpower})`;
-          } else if (airCount > 0) {
-            label.text = `▸ ${airCount}✈(${airManpower})`;
+          const infantryAvailable = Math.max(0, infantryRaw - reserved);
+          const infantryDisplay = Math.max(0, infantryAvailable - bombAdj);
+
+          // Collect non-infantry unit counts for breakdown
+          const UNIT_SYMBOLS: Record<string, string> = {
+            tank: "T",
+            artillery: "A",
+            ship: "S",
+            submarine: "U",
+            fighter: "F",
+            bomber: "B",
+            commando: "C",
+            sam: "M",
+            nuke_rocket: "N",
+          };
+          const parts: string[] = [];
+          for (const [slug, symbol] of Object.entries(UNIT_SYMBOLS)) {
+            const count = units[slug] ?? 0;
+            if (count > 0) {
+              const mp = count * (mpMap[slug] ?? 1);
+              parts.push(`${symbol}${count}(${mp})`);
+            }
+          }
+
+          // Full breakdown on selected/hovered province, compact on others
+          const isDetailed = isSelected || isHovered;
+          let specialCount = 0;
+          let specialMp = 0;
+          for (const [slug] of Object.entries(UNIT_SYMBOLS)) {
+            const count = units[slug] ?? 0;
+            if (count > 0) {
+              specialCount += count;
+              specialMp += count * (mpMap[slug] ?? 1);
+            }
+          }
+
+          if (isDetailed) {
+            // Full: ▸ 319 | A1(25) F1(100) B1(100)
+            const extras = parts.length > 0 ? ` | ${parts.join(" ")}` : "";
+            if (infantryDisplay > 0 || parts.length > 0) {
+              label.text = infantryDisplay > 0
+                ? `▸ ${infantryDisplay}${extras}`
+                : `▸${extras}`;
+            } else {
+              label.text = "";
+            }
           } else {
-            label.text = region.unit_count > 0 ? `▸ ${region.unit_count}` : "";
+            // Compact: ▸ 319  or  ▸ 319+3  (infantry + number of special units)
+            if (infantryDisplay > 0 && specialCount > 0) {
+              label.text = `▸ ${infantryDisplay}+${specialCount}`;
+            } else if (infantryDisplay > 0) {
+              label.text = `▸ ${infantryDisplay}`;
+            } else if (specialCount > 0) {
+              label.text = `▸ +${specialCount}`;
+            } else {
+              label.text = "";
+            }
           }
         } else if (ownerId && player) {
           // Show short username for enemies
@@ -554,14 +670,14 @@ export default function GameCanvas({
 
     const labelStyle = new TextStyle({
       fontFamily: GAME_FONT,
-      fontSize: 15,
+      fontSize: 11,
       fill: 0xffffff,
       fontWeight: "bold",
       dropShadow: {
         color: 0x000000,
-        blur: 4,
+        blur: 3,
         distance: 1,
-        alpha: 0.9,
+        alpha: 0.85,
         angle: Math.PI / 4,
       },
       align: "center",
@@ -755,16 +871,27 @@ export default function GameCanvas({
     const prevOwners = prevUnitOwnersRef.current;
     const isSeeded = prevCounts.size > 0;
 
+    // Clear stale bombardAdjust entries — keep only those with active rockets.
+    // Entries are removed by bombard-complete event; this is a safety net for
+    // entries older than 5s that somehow missed cleanup.
+    for (const [rid, adj] of bombardAdjustRef.current) {
+      const bombedAt = recentlyBombedRef.current.get(rid) ?? 0;
+      if (adj > 0 && now - bombedAt > 5000) {
+        bombardAdjustRef.current.delete(rid);
+      }
+    }
+
     for (const [rid, region] of Object.entries(regions)) {
       if (isSeeded && region.owner_id === myUserId) {
         const prevOwner = prevOwners.get(rid);
         const prevCount = prevCounts.get(rid);
-        // Only pulse for POSITIVE changes (unit generation, +1/+2 per tick).
-        // Negative changes (sending troops, enemy damage) are noise — player
-        // sees the unit count updating directly. Also skip newly captured provinces.
-        if (prevOwner === myUserId && prevCount !== undefined) {
+        // Only show +N for unit generation on provinces I already owned.
+        // Skip: newly captured, sending troops away (negative), bombardment targets.
+        const hasBombAdj = (bombardAdjustRef.current.get(rid) ?? 0) > 0;
+        if (prevOwner === myUserId && prevCount !== undefined && !hasBombAdj) {
           const delta = region.unit_count - prevCount;
-          if (delta > 0) {
+          // Only small positive deltas (unit gen is 1-3 per tick, not 50+)
+          if (delta > 0 && delta <= 10) {
             unitPulsesRef.current.set(rid, { startTime: now, delta });
           }
         }
@@ -910,7 +1037,9 @@ export default function GameCanvas({
         const curr = regions[rid];
         const p = prev[rid];
         if (!curr) continue;
-        if (p && p.unit_count === curr.unit_count && p.owner_id === curr.owner_id &&
+        // Always redraw if bombardment adjustment is pending
+        const hasBombAdj = (bombardAdjustRef.current.get(rid) ?? 0) > 0;
+        if (!hasBombAdj && p && p.unit_count === curr.unit_count && p.owner_id === curr.owner_id &&
             p.is_capital === curr.is_capital && p.building_type === curr.building_type) {
           continue; // unchanged — skip redraw
         }
@@ -918,7 +1047,12 @@ export default function GameCanvas({
         if (state) drawProvince(rid, shape, state, false);
       }
     }
-    prevRegionSnapshotRef.current = regions;
+    // Shallow snapshot of unit_count + owner for next diff (avoid ref aliasing)
+    const snapshot: Record<string, GameRegion> = {};
+    for (const [rid, r] of Object.entries(regions)) {
+      snapshot[rid] = r;
+    }
+    prevRegionSnapshotRef.current = snapshot;
   }, [
     shapesData,
     regions,
@@ -1531,6 +1665,11 @@ export default function GameCanvas({
       viewport.addChild(nukeLayer);
       viewport.addChild(animManager.container);
 
+      const plannedMovesLayer = new Container();
+      plannedMovesLayer.eventMode = "none";
+      plannedMovesLayerRef.current = plannedMovesLayer;
+      viewport.addChild(plannedMovesLayer);
+
       // Air transit flight icons layer — between animations and labels.
       // eventMode "static" allows clickable hit areas for enemy flights.
       const airTransitLayer = new Container();
@@ -1585,43 +1724,40 @@ export default function GameCanvas({
               });
               airLayer.addChild(hitArea);
             }
-          }
-        }
 
-        // Render interceptor groups chasing bombers — drawn each frame to track moving targets.
-        const atqForInt = airTransitQueueRef.current;
-        if (atqForInt && centroidLookup.size > 0) {
-          for (const flight of atqForInt) {
-            if (!flight.interceptors || flight.interceptors.length === 0) continue;
-            // Bomber's current position (interpolated from progress)
-            const src = centroidLookup.get(flight.source_region_id);
-            const tgt = centroidLookup.get(flight.target_region_id);
-            if (!src || !tgt) continue;
-            const bomberX = src[0] + (tgt[0] - src[0]) * flight.progress;
-            const bomberY = src[1] + (tgt[1] - src[1]) * flight.progress;
+            // Render interceptor groups chasing bombers — drawn each frame to track moving targets.
+            for (const flight of atq) {
+              if (!flight.interceptors || flight.interceptors.length === 0) continue;
+              // Bomber's current position (interpolated from progress)
+              const src = centroidLookup.get(flight.source_region_id);
+              const tgt = centroidLookup.get(flight.target_region_id);
+              if (!src || !tgt) continue;
+              const bomberX = src[0] + (tgt[0] - src[0]) * flight.progress;
+              const bomberY = src[1] + (tgt[1] - src[1]) * flight.progress;
 
-            for (const interceptor of flight.interceptors) {
-              const intSrc = centroidLookup.get(interceptor.source_region_id);
-              if (!intSrc) continue;
-              // Interceptor position: lerp from source toward bomber's current position
-              const intX = intSrc[0] + (bomberX - intSrc[0]) * interceptor.progress;
-              const intY = intSrc[1] + (bomberY - intSrc[1]) * interceptor.progress;
-              const intPlayer = playersRef.current[interceptor.player_id];
-              const intColor = intPlayer ? hexStringToNumber(intPlayer.color) : 0xef4444;
+              for (const interceptor of flight.interceptors) {
+                const intSrc = centroidLookup.get(interceptor.source_region_id);
+                if (!intSrc) continue;
+                // Interceptor position: lerp from source toward bomber's current position
+                const intX = intSrc[0] + (bomberX - intSrc[0]) * interceptor.progress;
+                const intY = intSrc[1] + (bomberY - intSrc[1]) * interceptor.progress;
+                const intPlayer = playersRef.current[interceptor.player_id];
+                const intColor = intPlayer ? hexStringToNumber(intPlayer.color) : 0xef4444;
 
-              // Draw interceptor icon (small fighter circle)
-              const g = new Graphics();
-              g.eventMode = "none";
-              // Trail line from source to current position
-              g.moveTo(intSrc[0], intSrc[1]).lineTo(intX, intY)
-                .stroke({ color: intColor, width: 1.5, alpha: 0.4 });
-              // Fighter icon circle
-              g.circle(intX, intY, 8)
-                .fill({ color: intColor, alpha: 0.7 })
-                .stroke({ color: 0xffffff, width: 1.5, alpha: 0.8 });
-              // Fighter count label
-              g.circle(intX, intY, 3).fill({ color: 0xffffff, alpha: 0.9 });
-              airLayer.addChild(g);
+                // Draw interceptor icon (small fighter circle)
+                const g = new Graphics();
+                g.eventMode = "none";
+                // Trail line from source to current position
+                g.moveTo(intSrc[0], intSrc[1]).lineTo(intX, intY)
+                  .stroke({ color: intColor, width: 1.5, alpha: 0.4 });
+                // Fighter icon circle
+                g.circle(intX, intY, 8)
+                  .fill({ color: intColor, alpha: 0.7 })
+                  .stroke({ color: 0xffffff, width: 1.5, alpha: 0.8 });
+                // Fighter count label
+                g.circle(intX, intY, 3).fill({ color: 0xffffff, alpha: 0.9 });
+                airLayer.addChild(g);
+              }
             }
           }
         }
@@ -1689,6 +1825,79 @@ export default function GameCanvas({
             }
           }
         }
+
+        // Render planned move arrows
+        const pmLayer = plannedMovesLayerRef.current;
+        if (pmLayer) {
+          pmLayer.removeChildren();
+          const pMoves = plannedMovesRef.current;
+          const sd = shapesDataRef.current;
+          if (pMoves && pMoves.length > 0 && sd) {
+            const cMap = new Map<string, [number, number]>();
+            for (const shape of sd.regions) cMap.set(shape.id, shape.centroid);
+
+            for (const pm of pMoves) {
+              const src = cMap.get(pm.sourceId);
+              const tgt = cMap.get(pm.targetId);
+              if (!src || !tgt) continue;
+
+              const g = new Graphics();
+              const isAttack = pm.actionType === "attack" || pm.actionType === "bombard";
+              const color = isAttack ? 0xff4444 : 0x22d3ee;
+
+              // Dashed line
+              const dx = tgt[0] - src[0];
+              const dy = tgt[1] - src[1];
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              const dashLen = 8;
+              const gapLen = 5;
+              const steps = Math.floor(dist / (dashLen + gapLen));
+              const ux = dx / dist;
+              const uy = dy / dist;
+
+              for (let si = 0; si < steps; si++) {
+                const startD = si * (dashLen + gapLen);
+                const endD = startD + dashLen;
+                g.moveTo(src[0] + ux * startD, src[1] + uy * startD)
+                  .lineTo(src[0] + ux * Math.min(endD, dist), src[1] + uy * Math.min(endD, dist));
+              }
+              // Animate: pulse alpha
+              const pulse = 0.5 + Math.sin(now * 0.004) * 0.3;
+              g.stroke({ color, width: 2.5, alpha: pulse });
+
+              // Arrowhead
+              const aSize = 8;
+              const angle = Math.atan2(dy, dx);
+              const ax = tgt[0] - ux * 5;
+              const ay = tgt[1] - uy * 5;
+              g.moveTo(ax, ay)
+                .lineTo(ax - Math.cos(angle - 0.4) * aSize, ay - Math.sin(angle - 0.4) * aSize)
+                .lineTo(ax - Math.cos(angle + 0.4) * aSize, ay - Math.sin(angle + 0.4) * aSize)
+                .closePath()
+                .fill({ color, alpha: pulse });
+
+              pmLayer.addChild(g);
+
+              // Unit count label at midpoint
+              const mx = (src[0] + tgt[0]) / 2;
+              const my = (src[1] + tgt[1]) / 2;
+              const label = new Text({
+                text: String(pm.unitCount),
+                style: new TextStyle({
+                  fontFamily: "Rajdhani, sans-serif",
+                  fontSize: 10,
+                  fontWeight: "bold",
+                  fill: color,
+                  dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
+                }),
+                resolution: 3,
+              });
+              label.anchor.set(0.5, 0.5);
+              label.position.set(mx, my - 6);
+              pmLayer.addChild(label);
+            }
+          }
+        }
       });
 
       // Handle canvas resize
@@ -1745,6 +1954,7 @@ export default function GameCanvas({
         weatherParticlesRef.current = null;
         gridLayerRef.current = null;
         capitalRadarRef.current = null;
+        plannedMovesLayerRef.current = null;
       }
     };
     // Only run once on mount

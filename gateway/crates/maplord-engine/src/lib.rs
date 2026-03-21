@@ -87,6 +87,26 @@ fn default_unit_types() -> HashMap<String, UnitConfig> {
             ..Default::default()
         },
     );
+    m.insert(
+        "artillery".into(),
+        UnitConfig {
+            attack: 3.5,
+            defense: 0.3,
+            speed: 1,
+            attack_range: 3,
+            sea_range: 0,
+            sea_hop_distance_km: 0,
+            movement_type: "land".into(),
+            production_cost: 18,
+            production_time_ticks: 10,
+            produced_by_slug: Some("factory".into()),
+            manpower_cost: 5,
+            aoe_damage: 0.3,
+            combat_target: "ground".into(),
+            ticks_per_hop: 4,
+            ..Default::default()
+        },
+    );
     m
 }
 
@@ -278,7 +298,8 @@ impl GameEngine {
         events.extend(self.process_active_effects(regions, active_effects));
 
         events.extend(self.generate_energy(players, regions));
-        events.extend(self.generate_units_with_effects(players, regions, active_effects));
+        // Unit generation moved to end of tick — after actions — so bombardment
+        // damage isn't immediately undone by regeneration.
 
         let (remaining_buildings, build_events) =
             self.process_buildings(players, regions, buildings_queue);
@@ -354,6 +375,19 @@ impl GameEngine {
 
         // Tick down in-match boosts and emit expiry events.
         events.extend(self.tick_match_boosts(players));
+
+        // Collect regions that were bombardment targets — skip their regeneration this tick
+        // so artillery damage actually sticks and isn't immediately healed.
+        let bombarded: std::collections::HashSet<String> = events.iter().filter_map(|e| {
+            if let Event::Bombard { target_region_id, .. } = e {
+                Some(target_region_id.clone())
+            } else {
+                None
+            }
+        }).collect();
+
+        // Unit generation AFTER actions, skipping bombarded provinces.
+        events.extend(self.generate_units_with_effects_skip(players, regions, active_effects, &bombarded));
 
         events.extend(self.check_conditions(players, regions, air_transit_queue));
 
@@ -555,6 +589,10 @@ impl GameEngine {
     // --- Unit generation with virus reduction ---
 
     fn generate_units_with_effects(&self, players: &mut HashMap<String, Player>, regions: &mut HashMap<String, Region>, active_effects: &[ActiveEffect]) -> Vec<Event> {
+        self.generate_units_with_effects_skip(players, regions, active_effects, &std::collections::HashSet::new())
+    }
+
+    fn generate_units_with_effects_skip(&self, players: &mut HashMap<String, Player>, regions: &mut HashMap<String, Region>, active_effects: &[ActiveEffect], skip_regions: &std::collections::HashSet<String>) -> Vec<Event> {
         // Collect virus-affected regions for production reduction
         let mut virus_regions: HashMap<String, f64> = HashMap::new();
         for effect in active_effects {
@@ -596,7 +634,14 @@ impl GameEngine {
         let mut rate_group_accum: HashMap<(String, u64), f64> = HashMap::new();
         let mut region_rates: Vec<(String, f64)> = Vec::new();
 
+        if !skip_regions.is_empty() {
+            eprintln!("[UNIT_GEN] Skipping {} bombarded regions: {:?}", skip_regions.len(), skip_regions);
+        }
         for (rid, region) in regions.iter() {
+            // Skip regions that were bombarded this tick — no regeneration.
+            if skip_regions.contains(rid) {
+                continue;
+            }
             let owner = match &region.owner_id {
                 Some(o) => o.clone(),
                 None => continue,
@@ -1949,7 +1994,7 @@ impl GameEngine {
     fn process_bombard(
         &self,
         action: &Action,
-        players: &mut HashMap<String, Player>,
+        _players: &mut HashMap<String, Player>,
         regions: &mut HashMap<String, Region>,
     ) -> Vec<Event> {
         let player_id = match &action.player_id {
@@ -1960,7 +2005,11 @@ impl GameEngine {
             Some(id) => id,
             None => return Vec::new(),
         };
-        let target_id = match &action.target_region_id {
+        // Single target from target_region_ids[0] or target_region_id.
+        let target_id = action.target_region_ids.as_ref()
+            .and_then(|ids| ids.first().cloned())
+            .or_else(|| action.target_region_id.clone());
+        let target_id = match target_id {
             Some(id) => id,
             None => return Vec::new(),
         };
@@ -1973,80 +2022,115 @@ impl GameEngine {
             return Vec::new();
         }
 
-        // Determine the unit type performing the bombardment.
-        let unit_type = action
-            .unit_type
-            .clone()
-            .unwrap_or_else(|| get_region_unit_type(source, self));
+        let unit_type = action.unit_type.clone().unwrap_or_else(|| {
+            source.units.keys()
+                .find(|ut| self.get_unit_config(ut).attack_range > 1)
+                .cloned()
+                .unwrap_or_else(|| "artillery".into())
+        });
 
         let unit_config = self.get_unit_config(&unit_type);
-        if unit_config.path_damage <= 0.0 {
+        if unit_config.attack_range <= 1 {
             return vec![reject_action(player_id, "Ta jednostka nie ma zdolnosci bombardowania", action)];
         }
 
-        // Artillery count available in the source region.
-        let artillery_count = get_available_units(source, &unit_type, self);
-        if artillery_count <= 0 {
+        // 1 artillery unit = 1 rocket. Fire requested amount or all available.
+        let available = source.units.get(&unit_type).copied().unwrap_or(0);
+        if available <= 0 {
+            return Vec::new();
+        }
+        let rocket_count = action.units.map(|u| u.min(available)).unwrap_or(available);
+        if rocket_count <= 0 {
             return Vec::new();
         }
 
-        // Check that target is within attack range.
-        let distance = self.get_travel_distance(
-            source_id,
-            target_id,
-            regions,
-            &unit_config,
-            unit_config.attack_range.max(1) as usize,
-            None,
-        );
-        if distance.is_none() {
+        // Remove fired artillery from source — rockets are expendable ordnance.
+        {
+            let source_mut = regions.get_mut(source_id).unwrap();
+            let remaining = available - rocket_count;
+            if remaining > 0 {
+                source_mut.units.insert(unit_type.clone(), remaining);
+            } else {
+                source_mut.units.remove(&unit_type);
+            }
+            sync_region_unit_meta(source_mut, self);
+        }
+
+        // Validate target: in range, enemy-owned.
+        let max_range = unit_config.attack_range.max(1) as usize;
+        let in_range = self.get_travel_distance(source_id, &target_id, regions, &unit_config, max_range, None).is_some();
+        if !in_range {
             return vec![reject_action(player_id, "Cel poza zasiegiem bombardowania", action)];
         }
 
-        // Apply bombardment damage to target's ground units.
-        let target = match regions.get_mut(target_id) {
+        let target = match regions.get_mut(&target_id) {
             Some(r) => r,
             None => return Vec::new(),
         };
-
-        let total_defenders: i64 = target.units.values().sum();
-        if total_defenders == 0 {
-            return Vec::new();
+        let is_enemy = target.owner_id.as_ref().map(|oid| oid != player_id).unwrap_or(true);
+        if !is_enemy {
+            return vec![reject_action(player_id, "Nie mozna bombardowac wlasnych prowincji", action)];
         }
 
-        let unit_scale = self.get_unit_scale(&unit_type);
-        let damage_raw = (artillery_count as f64 * unit_scale as f64 * unit_config.path_damage) as i64;
-        let kill_fraction = (unit_config.path_damage * artillery_count as f64 / total_defenders as f64).min(0.5);
+        // Each rocket deals damage = manpower_cost × attack of 1 artillery unit.
+        let damage_per_rocket = (unit_config.manpower_cost.max(1) as f64 * unit_config.attack).ceil() as i64;
+        eprintln!("[BOMBARD] damage_per_rocket={} (manpower={} × attack={})",
+            damage_per_rocket, unit_config.manpower_cost, unit_config.attack);
+        let mut total_killed = 0i64;
 
-        let mut new_units: HashMap<String, i64> = HashMap::new();
-        let mut _total_killed = 0i64;
-        for (ut, &count) in &target.units {
-            let def_cfg = self.get_unit_config(ut);
-            // Bombardment only affects ground units, not air.
-            if def_cfg.movement_type == "air" {
-                new_units.insert(ut.clone(), count);
-                continue;
+        for _r in 0..rocket_count {
+            let ground_total: i64 = target.units.iter()
+                .filter(|(ut, _)| self.get_unit_config(ut).movement_type != "air")
+                .map(|(_, c)| c)
+                .sum();
+            if ground_total <= 0 { break; }
+
+            // This rocket kills damage_per_rocket worth of ground units (manpower × attack).
+            let mut budget = damage_per_rocket;
+            let mut new_units: HashMap<String, i64> = HashMap::new();
+            for (ut, &count) in &target.units {
+                let def_cfg = self.get_unit_config(ut);
+                if def_cfg.movement_type == "air" || budget <= 0 {
+                    new_units.insert(ut.clone(), count);
+                    continue;
+                }
+                // Each defender unit costs its own manpower to kill.
+                let def_mp = def_cfg.manpower_cost.max(1);
+                let can_kill = (budget / def_mp).min(count);
+                let killed = can_kill.max(if budget >= def_mp { 1 } else { 0 });
+                budget -= killed * def_mp;
+                total_killed += killed;
+                let remaining = count - killed;
+                if remaining > 0 {
+                    new_units.insert(ut.clone(), remaining);
+                }
             }
-            let killed = (count as f64 * kill_fraction).round() as i64;
-            let remaining = (count - killed).max(0);
-            _total_killed += killed;
-            if remaining > 0 {
-                new_units.insert(ut.clone(), remaining);
-            }
+            target.units = new_units;
         }
-        target.units = new_units;
+        // Neutralize province if all ground units destroyed
+        let ground_remaining: i64 = target.units.iter()
+            .filter(|(ut, _)| self.get_unit_config(ut).movement_type != "air")
+            .map(|(_, c)| *c)
+            .sum();
+        let neutralized = ground_remaining <= 0;
+        if neutralized {
+            target.owner_id = None;
+            target.is_capital = false;
+            target.units.clear();
+            eprintln!("[BOMBARD] Province {} NEUTRALIZED by artillery", target_id);
+        }
         sync_region_unit_meta(target, self);
 
-        if let Some(player) = players.get_mut(player_id.as_str()) {
-            let _ = player; // stat tracking could go here
-        }
+        let remaining: i64 = target.units.values().sum();
+        eprintln!("[BOMBARD] {} fires {} rockets at {} | killed={} remaining={} neutralized={}",
+            player_id, rocket_count, target_id, total_killed, remaining, neutralized);
 
         vec![Event::Bombard {
             player_id: player_id.clone(),
             source_region_id: source_id.clone(),
-            target_region_id: target_id.clone(),
-            artillery_count,
-            damage: damage_raw,
+            target_region_id: target_id,
+            rocket_count,
+            total_killed,
         }]
     }
 

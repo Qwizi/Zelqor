@@ -17,7 +17,8 @@ import {
 import { loadAssetOverrides } from "@/lib/assetOverrides";
 import { getSeaTravelRange, getTravelDistance } from "@/lib/gameTravel.js";
 import dynamic from "next/dynamic";
-import type { TroopAnimation } from "@/lib/gameTypes";
+import type { TroopAnimation, PlannedMove } from "@/lib/gameTypes";
+import { MAX_PLANNED_MOVES, PLAN_EXPIRY_S } from "@/lib/gameTypes";
 import { getEliminationVfx, getVictoryVfx } from "@/lib/animationConfig";
 import { useShapesData } from "@/hooks/useShapesData";
 const ANIMATION_DURATION_MS = 2200;
@@ -170,10 +171,15 @@ export default function GamePage({
   const [abilitiesConfig, setAbilitiesConfig] = useState<AbilityType[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [selectedActionUnitType, setSelectedActionUnitType] = useState<string | null>(null);
+  /** Remember last unit type selection per region so reopening keeps the choice. */
+  const lastUnitTypePerRegionRef = useRef<Map<string, string>>(new Map());
   const [unitPercent, setUnitPercent] = useState<number>(100);
   const [selectedAbility, setSelectedAbility] = useState<string | null>(null);
   const [animations, setAnimations] = useState<TroopAnimation[]>([]);
   const [nukeBlackout, setNukeBlackout] = useState<Array<{ rid: string; startTime: number }>>([]);
+  const [plannedMoves, setPlannedMoves] = useState<PlannedMove[]>([]);
+  const [planningMode, setPlanningMode] = useState(false);
+  const shiftHeldRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
 
   // Listen for air transit animations from GameCanvas (dispatched via custom event).
@@ -855,24 +861,68 @@ export default function GamePage({
       } else if (e.type === "bombard") {
         const sourceId = e.source_region_id as string;
         const targetId = e.target_region_id as string;
-        const artilleryCount = (e.artillery_count as number) ?? 1;
+        const rocketCount = (e.rocket_count as number) ?? 1;
+        const totalKilled = (e.total_killed as number) ?? 0;
         const playerId = e.player_id as string;
         const color = gameStateRef.current?.players[playerId]?.color ?? "#ef4444";
-        const rocketCount = Math.min(artilleryCount, 5);
-        for (let i = 0; i < rocketCount; i++) {
+        const manpowerPerUnit = unitManpowerMap?.["artillery"] ?? 5;
+        const artilleryAttack = unitConfigBySlug["artillery"]?.attack ?? 3.5;
+        const rocketDmg = Math.ceil(manpowerPerUnit * artilleryAttack);
+
+        // Mark as bombed immediately so province shows unit count (not just username)
+        window.dispatchEvent(new CustomEvent("province-bombed", { detail: { regionId: targetId } }));
+
+        const ROCKET_FLIGHT_MS = 1500;
+        // All rockets fly — grouped in pairs with stagger
+        const visibleRockets = rocketCount;
+        const SALVO_GAP_MS = 200;
+        const PAIR_STAGGER_MS = 60;
+
+        // Split total kills evenly across rockets so each shows its damage on landing
+        const killPerRocket = rocketCount > 0 ? Math.floor(totalKilled / rocketCount) : 0;
+        let killRemainder = rocketCount > 0 ? totalKilled % rocketCount : 0;
+
+        for (let i = 0; i < visibleRockets; i++) {
+          const salvoIdx = Math.floor(i / 2);
+          const inPairIdx = i % 2;
+          const delay = salvoIdx * SALVO_GAP_MS + inPairIdx * PAIR_STAGGER_MS;
+          const landingTime = delay + ROCKET_FLIGHT_MS;
+
           newAnims.push({
             id: crypto.randomUUID(),
             sourceId,
             targetId,
             color,
-            units: artilleryCount,
+            units: rocketDmg,
+            unitCount: rocketDmg,
             unitType: "artillery",
             type: "attack" as const,
-            startTime: Date.now() + i * 200,
-            durationMs: 2000,
+            startTime: Date.now() + delay,
+            durationMs: ROCKET_FLIGHT_MS,
             playerId,
           });
+
+          // Each rocket shows its portion of damage exactly when it lands
+          const thisRocketKill = killPerRocket + (killRemainder > 0 ? 1 : 0);
+          if (killRemainder > 0) killRemainder--;
+          if (thisRocketKill > 0) {
+            const capturedKill = thisRocketKill;
+            const isLastRocket = i === visibleRockets - 1;
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("bombard-damage", {
+                detail: { regionId: targetId, killed: capturedKill, isLast: isLastRocket },
+              }));
+            }, landingTime);
+          }
         }
+
+        // Clear bombardAdjust after all rockets have landed + grace period
+        const lastLandingTime = (Math.floor((visibleRockets - 1) / 2)) * SALVO_GAP_MS + ((visibleRockets - 1) % 2) * PAIR_STAGGER_MS + ROCKET_FLIGHT_MS;
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("bombard-complete", {
+            detail: { regionId: targetId },
+          }));
+        }, lastLandingTime + 500);
       } else if (e.type === "air_mission_launched") {
         // No TroopAnimation needed — flights are rendered from air_transit_queue
         // state in GameCanvas (state-driven, position from progress field).
@@ -936,11 +986,12 @@ export default function GamePage({
           toast.warning(`Wróg przechwycił nalot: stracono ${escortsLost} eskort, ${bombersLost} bombowców`);
         }
       } else if (e.type === "path_damage") {
-        // Visual bomb-drop already handled client-side in PixiAnimationManager.
-        // Mark province as recently bombed so unit count stays visible.
+        // Trigger visual bomb-drop at the damaged province.
         const killed = (e.units_killed as number) ?? 0;
         const targetId = e.target_region_id as string;
         window.dispatchEvent(new CustomEvent("province-bombed", { detail: { regionId: targetId } }));
+        // Tell GameCanvas to spawn bomb visuals at this province centroid.
+        window.dispatchEvent(new CustomEvent("path-damage-bomb", { detail: { regionId: targetId, killed } }));
         const regionName = gameStateRef.current?.regions[targetId]?.name ?? targetId;
         if (killed >= 3) {
           toast.info(`Nalot na ${regionName}: -${killed} jednostek`);
@@ -1043,8 +1094,9 @@ export default function GamePage({
       }
 
       // Air units are rendered from air_transit_queue state — no local TroopAnimation.
+      // Artillery rockets are rendered from the bombard event — no local TroopAnimation.
       const isAir = rules.movement_type === "air";
-      if (!isAir) {
+      if (!isAir && unitType !== "artillery") {
         setAnimations((prev) => [
           ...prev,
           {
@@ -1064,6 +1116,11 @@ export default function GamePage({
       }
 
       if (isAttackTarget) {
+        // Artillery: bombardment (stationary, no unit movement)
+        if (unitType === "artillery") {
+          bombard(sourceId, [targetId], unitCount);
+          return;
+        }
         // When sending bombers, auto-escort with 25% of available fighters.
         let escortCount = 0;
         if (unitType === "bomber" && gameState.regions[sourceId]) {
@@ -1072,10 +1129,12 @@ export default function GamePage({
         }
         attack(sourceId, targetId, unitCount, unitType, escortCount > 0 ? escortCount : undefined);
       } else {
+        // Artillery cannot move — only bombard
+        if (unitType === "artillery") return;
         move(sourceId, targetId, unitCount, unitType);
       }
     },
-    [gameState, myUserId, attack, move, reachabilityByUnitType, unitConfigBySlug, unitsConfig]
+    [gameState, myUserId, attack, move, bombard, reachabilityByUnitType, unitConfigBySlug, unitsConfig]
   );
 
   // ── Click handler ──────────────────────────────────────────
@@ -1157,22 +1216,59 @@ export default function GamePage({
           setSelectedActionUnitType(unitType);
         }
 
+        // Planning mode: Shift starts it, then ALL clicks go to queue until Execute/Cancel
+        const inPlanningMode = planningMode || shiftHeldRef.current || plannedMoves.length > 0;
+
+        if (inPlanningMode) {
+          // Toast on first planned move — show immediately
+          if (!planningMode) setPlanningMode(true);
+          if (plannedMoves.length === 0) {
+            toast.info("Tryb planowania: klikaj cele, Enter = wykonaj, Z = cofnij, Esc = anuluj", { id: "planning-mode", duration: 5000 });
+          }
+          if (plannedMoves.length >= MAX_PLANNED_MOVES) {
+            toast.warning(`Limit ${MAX_PLANNED_MOVES} ruchow osiagniety`, { id: "plan-limit", duration: 2000 });
+            return;
+          }
+          const alreadyQueued = plannedMoves
+            .filter(pm => pm.sourceId === selectedRegion && pm.unitType === unitType)
+            .reduce((sum, pm) => sum + pm.unitCount, 0);
+          const avail = (gameState?.regions[selectedRegion!]?.units?.[unitType] ?? 0) - alreadyQueued;
+          if (avail <= 0) return;
+          const clampedUnits = Math.min(unitsToSend, avail);
+          const isAttackTarget = gameState?.regions[regionId]?.owner_id !== myUserId;
+          let actionType: PlannedMove["actionType"] = isAttackTarget ? "attack" : "move";
+          if (unitType === "artillery" && isAttackTarget) actionType = "bombard";
+          setPlannedMoves(prev => [...prev, {
+            id: crypto.randomUUID(),
+            sourceId: selectedRegion!,
+            targetId: regionId,
+            unitType,
+            unitCount: clampedUnits,
+            actionType,
+            createdAt: Date.now(),
+          }]);
+          // Deselect so player can pick another province (or re-select this one)
+          setSelectedRegion(null);
+          setSelectedActionUnitType(null);
+          return;
+        }
+
         dispatchTroops(selectedRegion, regionId, unitType, unitsToSend);
         setSelectedRegion(null);
         setSelectedActionUnitType(null);
         return;
       }
 
-      // Click same region → deselect
-      if (regionId === selectedRegion) {
+      // Click same region → deselect (but not in planning mode)
+      if (regionId === selectedRegion && plannedMoves.length === 0) {
         setSelectedRegion(null);
         setSelectedActionUnitType(null);
         return;
       }
 
-      // Select new region (keep last unitPercent choice)
+      // Select new region — restore last unit type choice for this region
       setSelectedRegion(regionId);
-      setSelectedActionUnitType(null);
+      setSelectedActionUnitType(lastUnitTypePerRegionRef.current.get(regionId) ?? null);
     },
     [
       status,
@@ -1192,6 +1288,7 @@ export default function GamePage({
       effectiveAbilities,
       castAbility,
       dispatchTroops,
+      setPlannedMoves,
     ]
   );
 
@@ -1259,7 +1356,10 @@ export default function GamePage({
 
   const handleSelectedActionUnitTypeChange = useCallback((unitType: string) => {
     setSelectedActionUnitType(unitType);
-  }, []);
+    if (selectedRegion) {
+      lastUnitTypePerRegionRef.current.set(selectedRegion, unitType);
+    }
+  }, [selectedRegion]);
 
   const handleMapReady = useCallback(() => {
     mapReadyRef.current = true;
@@ -1272,9 +1372,66 @@ export default function GamePage({
     setSelectedAbility(null);
   }, []);
 
+  const executePlannedMoves = useCallback(() => {
+    const now = Date.now();
+    let executed = 0;
+    for (const pm of plannedMoves) {
+      if (now - pm.createdAt > PLAN_EXPIRY_S * 1000) continue;
+
+      // No dedup keys for planned moves — let server events create animations.
+      // dispatchTroops would create local animations + dedup keys, but we skip it
+      // because it needs reachability data. Server events will handle visuals.
+      if (pm.actionType === "bombard") {
+        bombard(pm.sourceId, [pm.targetId], pm.unitCount);
+      } else if (pm.actionType === "attack") {
+        attack(pm.sourceId, pm.targetId, pm.unitCount, pm.unitType);
+      } else {
+        move(pm.sourceId, pm.targetId, pm.unitCount, pm.unitType);
+      }
+      executed++;
+    }
+    setPlannedMoves([]);
+    setPlanningMode(false);
+    setSelectedRegion(null);
+    setSelectedActionUnitType(null);
+    if (executed > 0) {
+      toast.success(`Wykonano ${executed} ruchow!`, { id: "plan-exec", duration: 2000 });
+    }
+  }, [plannedMoves, attack, move, bombard]);
+
+  const clearPlannedMoves = useCallback(() => {
+    if (plannedMoves.length > 0 || planningMode) {
+      toast.info("Plan anulowany", { id: "plan-cancel", duration: 1500 });
+    }
+    setPlannedMoves([]);
+    setPlanningMode(false);
+    setSelectedRegion(null);
+    setSelectedActionUnitType(null);
+  }, [plannedMoves, planningMode]);
+
+  const undoLastPlannedMove = useCallback(() => {
+    if (plannedMoves.length === 0) return;
+    setPlannedMoves(prev => prev.slice(0, -1));
+    toast.info(`Cofnieto ruch (${plannedMoves.length - 1} pozostalo)`, { id: "plan-undo", duration: 1500 });
+  }, [plannedMoves]);
+
+  // Auto-expire old planned moves every second
+  useEffect(() => {
+    if (plannedMoves.length === 0) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setPlannedMoves(prev => {
+        const filtered = prev.filter(pm => now - pm.createdAt <= PLAN_EXPIRY_S * 1000);
+        return filtered.length === prev.length ? prev : filtered;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [plannedMoves.length]);
+
   // ── Keyboard shortcuts ──────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      shiftHeldRef.current = e.shiftKey;
       // Don't handle if typing in an input/textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (status !== "in_progress") return;
@@ -1304,9 +1461,38 @@ export default function GamePage({
           break;
         }
 
-        // Escape: deselect / cancel
+        // Ctrl+Z / Z: undo last planned move
+        case "z": case "Z":
+          if (plannedMoves.length > 0) {
+            e.preventDefault();
+            undoLastPlannedMove();
+          }
+          break;
+
+        // Enter: execute all planned moves
+        case "Enter":
+          if (plannedMoves.length > 0) {
+            executePlannedMoves();
+          }
+          break;
+
+        // P: toggle planning mode
+        case "p": case "P":
+          if (!planningMode) {
+            setPlanningMode(true);
+            toast.info("Tryb planowania: klikaj cele, Enter = wykonaj, Z = cofnij, Esc = anuluj", { id: "planning-mode", duration: 5000 });
+          } else {
+            clearPlannedMoves();
+          }
+          break;
+
+        // Escape: clear planned moves first, then deselect / cancel
         case "Escape":
-          handleCancelAction();
+          if (planningMode || plannedMoves.length > 0) {
+            clearPlannedMoves();
+          } else {
+            handleCancelAction();
+          }
           break;
 
         // Tab: cycle through own provinces
@@ -1327,9 +1513,17 @@ export default function GamePage({
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      shiftHeldRef.current = e.shiftKey;
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [status, selectedRegion, gameState, myUserId, handleCancelAction, handleSelectedActionUnitTypeChange]);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [status, selectedRegion, gameState, myUserId, handleCancelAction, handleSelectedActionUnitTypeChange, plannedMoves, planningMode, executePlannedMoves, clearPlannedMoves, undoLastPlannedMove]);
 
   const handleSelectAbility = useCallback((slug: string | null) => {
     setSelectedAbility(slug);
@@ -1906,6 +2100,7 @@ export default function GamePage({
           weather={undefined} /* disabled: weather/day-night off for now */
           airTransitQueue={gameState?.air_transit_queue}
           unitManpowerMap={unitManpowerMap}
+          plannedMoves={plannedMoves}
           onFlightClick={(flightId) => {
             // Find a source region with fighters to intercept
             if (!gameState) return;
@@ -2027,6 +2222,47 @@ export default function GamePage({
         myUserId={myUserId}
         myCosmetics={gameState?.players[myUserId]?.cosmetics}
       />
+
+      {/* Planned moves queue bar */}
+      {(planningMode || plannedMoves.length > 0) && (() => {
+        const hasItems = plannedMoves.length > 0;
+        const oldest = hasItems ? Math.min(...plannedMoves.map(pm => pm.createdAt)) : Date.now();
+        const remaining = hasItems ? Math.max(0, Math.ceil((PLAN_EXPIRY_S * 1000 - (Date.now() - oldest)) / 1000)) : PLAN_EXPIRY_S;
+        return (
+          <div className="absolute bottom-[72px] left-1/2 z-30 -translate-x-1/2 flex items-center gap-3 rounded-xl border border-primary/30 bg-card/95 px-4 py-2 shadow-lg backdrop-blur-xl">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">📋 Plan</span>
+              <span className="text-xs font-semibold text-foreground tabular-nums">
+                {plannedMoves.length}/{MAX_PLANNED_MOVES}
+              </span>
+              {hasItems && (
+                <span className={`text-[10px] tabular-nums ${remaining <= 10 ? "text-red-400" : "text-muted-foreground"}`}>
+                  {remaining}s
+                </span>
+              )}
+            </div>
+            <button
+              onClick={undoLastPlannedMove}
+              className="rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"
+              title="Cofnij ostatni (Z)"
+            >
+              Cofnij (Z)
+            </button>
+            <button
+              onClick={executePlannedMoves}
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90"
+            >
+              Wykonaj (Enter)
+            </button>
+            <button
+              onClick={clearPlannedMoves}
+              className="rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"
+            >
+              Anuluj (Esc)
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Quick Action Bar — region info + unit actions + build/produce */}
       {sourceRegionData && selectedRegion && status === "in_progress" && (

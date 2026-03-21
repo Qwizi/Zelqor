@@ -167,15 +167,35 @@ export default memo(function RegionPanel({
           </div>
         </div>
 
-        {/* Quick stats */}
-        <div className="flex items-center gap-2 text-xs tabular-nums">
+        {/* Quick stats — infantry (available) + special unit badges */}
+        <div className="flex items-center gap-1.5 text-xs tabular-nums">
+          {/* Infantry strength */}
           <div className="flex items-center gap-1 rounded-lg bg-muted/30 px-2 py-1">
             <Image
-              src={getPlayerUnitAsset(region.unit_type ?? "default", ownerCosmetics, getUnitConfig(region.unit_type ?? "")?.asset_url)}
+              src={getPlayerUnitAsset("infantry", ownerCosmetics, getUnitConfig("infantry")?.asset_url)}
               alt="" width={14} height={14} className="h-3.5 w-3.5 object-contain"
             />
-            <span className="font-display font-bold text-foreground">{isOwned ? region.unit_count : "?"}</span>
+            <span className="font-display font-bold text-foreground">
+              {isOwned ? Math.max(0, (region.units?.infantry ?? 0) - reservedInfantry) : "?"}
+            </span>
           </div>
+          {/* Other units as compact badges */}
+          {isOwned && unitBreakdown
+            .filter(([type]) => type !== "infantry")
+            .map(([type, count]) => {
+              const cfg = getUnitConfig(type);
+              const mp = count * Math.max(1, cfg?.manpower_cost ?? 1);
+              return (
+                <div key={type} className="flex items-center gap-0.5 rounded-lg bg-muted/30 px-1.5 py-1">
+                  <Image
+                    src={getPlayerUnitAsset(type, ownerCosmetics, cfg?.asset_url)}
+                    alt="" width={12} height={12} className="h-3 w-3 object-contain"
+                  />
+                  <span className="font-display font-bold text-foreground text-[11px]">{count}</span>
+                </div>
+              );
+            })
+          }
           <div className="flex items-center gap-1 rounded-lg bg-muted/30 px-2 py-1">
             <span className="text-[11px] text-primary">⚡</span>
             <span className="font-display font-bold text-foreground">{isOwned ? myEnergy : "?"}</span>

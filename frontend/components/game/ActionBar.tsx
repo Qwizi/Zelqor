@@ -13,10 +13,22 @@ function getUnitLabel(unitType: string) {
       return "Piechota";
     case "tank":
       return "Czolgi";
+    case "artillery":
+      return "Artyleria";
     case "ship":
       return "Flota";
+    case "submarine":
+      return "Okret podw.";
     case "fighter":
-      return "Lotnictwo";
+      return "Mysliwce";
+    case "bomber":
+      return "Bombowce";
+    case "commando":
+      return "Komandosi";
+    case "sam":
+      return "Rakiety SAM";
+    case "nuke_rocket":
+      return "Rakieta nuk.";
     default:
       return unitType;
   }
@@ -65,6 +77,23 @@ export default memo(function ActionBar({
     [sourceRegion.units]
   );
   const availableUnitsByType = sourceRegion.units ?? {};
+
+  // Compute display counts: infantry shows available (minus reserved), others show raw + manpower
+  const unitDisplayInfo = useMemo(() => {
+    const units = sourceRegion.units ?? {};
+    const info: Record<string, { display: number; manpower: number }> = {};
+    let reserved = 0;
+    for (const [slug, count] of Object.entries(units)) {
+      if (slug !== "infantry" && count > 0) {
+        const mp = Math.max(1, unitConfigMap.get(slug)?.manpower_cost ?? 1);
+        reserved += count * mp;
+        info[slug] = { display: count, manpower: count * mp };
+      }
+    }
+    const infantryRaw = units["infantry"] ?? 0;
+    info["infantry"] = { display: Math.max(0, infantryRaw - reserved), manpower: Math.max(0, infantryRaw - reserved) };
+    return info;
+  }, [sourceRegion.units, unitConfigMap]);
   const liveMaxUnits = useMemo(() => {
     const raw = availableUnitsByType[selectedUnitType] ?? 0;
     if (selectedUnitType !== "infantry") return raw;
@@ -144,9 +173,13 @@ export default memo(function ActionBar({
           </div>
 
           <div className="flex gap-1.5 overflow-x-auto">
-            {unitTypes.map(([unitType, count]) => {
+            {unitTypes.map(([unitType]) => {
               const active = unitType === selectedUnitType;
               const unitCfg = unitConfigMap.get(unitType);
+              const info = unitDisplayInfo[unitType];
+              const displayLabel = unitType === "infantry"
+                ? `${info?.display ?? 0}`
+                : `${info?.display ?? 0} (${info?.manpower ?? 0})`;
               return (
                 <button
                   key={unitType}
@@ -165,7 +198,7 @@ export default memo(function ActionBar({
                     className="h-4 w-4 object-contain"
                   />
                   <span className="text-[11px] font-medium">{getUnitLabel(unitType)}</span>
-                  <span className={`text-[10px] ${active ? "text-primary/80" : "text-muted-foreground"}`}>{count}</span>
+                  <span className={`text-[10px] ${active ? "text-primary/80" : "text-muted-foreground"}`}>{displayLabel}</span>
                 </button>
               );
             })}
@@ -235,9 +268,13 @@ export default memo(function ActionBar({
 
           <div className="flex flex-col gap-2">
             <div className="flex min-w-0 flex-wrap gap-2">
-              {unitTypes.map(([unitType, count]) => {
+              {unitTypes.map(([unitType]) => {
                 const active = unitType === selectedUnitType;
                 const unitCfg = unitConfigMap.get(unitType);
+                const info = unitDisplayInfo[unitType];
+                const displayLabel = unitType === "infantry"
+                  ? `${info?.display ?? 0}`
+                  : `${info?.display ?? 0} (${info?.manpower ?? 0})`;
                 return (
                   <button
                     key={unitType}
@@ -260,7 +297,7 @@ export default memo(function ActionBar({
                         {getUnitLabel(unitType)}
                       </span>
                       <span className={`mt-1 block text-[10px] leading-none ${active ? "text-primary/80" : "text-muted-foreground"}`}>
-                        {count}
+                        {displayLabel}
                       </span>
                     </span>
                   </button>

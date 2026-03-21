@@ -15,6 +15,11 @@ import {
   type ImpactConfig,
   type PulseConfig,
 } from "@/lib/animationConfig";
+import {
+  ParticleManager as PixiParticleManager,
+  ParticleEmitter,
+  ParticlePresets,
+} from "@/lib/particleSystem";
 
 // ── Texture cache ────────────────────────────────────────────────────────────
 // Deduplicate concurrent Assets.load() calls for the same URL so that 100
@@ -278,7 +283,7 @@ export function buildAnimationPath(
   if (unitType === "nuke_rocket") return computeCurvePath(from, to, 0.35, 200);
   if (unitType === "bomber") return computeCurvePath(from, to, 0.28, 60);
   if (unitType === "submarine") return computeCurvePath(from, to, 0.04, 34);
-  if (unitType === "artillery") return computeCurvePath(from, to, 0.35, 30);
+  if (unitType === "artillery") return computeCurvePath(from, to, 0.55, 40);
   if (unitType === "commando") return computeMarchPath(from, to, 26);
   if (unitType === "sam") return computeMarchPath(from, to, 26);
   if (kind === "fighter") {
@@ -485,9 +490,22 @@ export class PixiAnimationManager {
 
   private readonly labelStyle: TextStyle;
 
+  /** Sprite-based particle manager for combat VFX (explosions, sparks, smoke). */
+  private readonly _particles: PixiParticleManager;
+  private readonly _particleContainer: Container;
+  private _particleIdCounter = 0;
+  private _lastUpdateTime = 0;
+
   constructor() {
     this.container = new Container();
     this.container.label = "PixiAnimationManager";
+
+    // Particle VFX container sits above bomb graphics
+    this._particleContainer = new Container();
+    this._particleContainer.label = "ParticleVFX";
+    this._particleContainer.eventMode = "none";
+    this.container.addChild(this._particleContainer);
+    this._particles = new PixiParticleManager();
 
     this.labelStyle = new TextStyle({
       fontSize: 13,
@@ -616,19 +634,75 @@ export class PixiAnimationManager {
 
     this.anims.set(anim.id, internal);
 
-    // Load unit sprite asynchronously
-    const spriteUrl = UNIT_ICON_MAP[anim.unitType ?? ""] ?? UNIT_ICON_MAP[animKind];
-    if (spriteUrl) {
-      loadTextureCached(spriteUrl).then((texture: Texture) => {
-        if (!this.anims.has(anim.id)) return; // animation already removed
-        const sprite = new Sprite(texture);
-        sprite.anchor.set(0.5, 0.5);
-        sprite.eventMode = "none";
-        sprite.visible = false;
-        this.container.addChild(sprite);
-        internal.iconSprite = sprite;
-      }).catch(() => {});
+    // Load unit sprite asynchronously (not needed for artillery rockets)
+    if (anim.unitType !== "artillery") {
+      const spriteUrl = UNIT_ICON_MAP[anim.unitType ?? ""] ?? UNIT_ICON_MAP[animKind];
+      if (spriteUrl) {
+        loadTextureCached(spriteUrl).then((texture: Texture) => {
+          if (!this.anims.has(anim.id)) return;
+          const sprite = new Sprite(texture);
+          sprite.anchor.set(0.5, 0.5);
+          sprite.eventMode = "none";
+          sprite.visible = false;
+          this.container.addChild(sprite);
+          internal.iconSprite = sprite;
+        }).catch(() => {});
+      }
     }
+
+    // Artillery: muzzle flash + smoke at launch position
+    if (anim.unitType === "artillery") {
+      const [sx, sy] = sourceCentroid;
+      this._particles.addEmitter(
+        `art-muzzle-${this._particleIdCounter++}`,
+        new ParticleEmitter(this._particleContainer, ParticlePresets.artilleryMuzzle(sx, sy))
+      );
+    }
+  }
+
+  /**
+   * Spawn a one-shot particle effect at a world position.
+   * Useful for external triggers (shield hit, province capture, etc.).
+   */
+  spawnParticleEffect(
+    preset: "explosion" | "sparks" | "smokeTrail" | "nukeMushroom",
+    x: number,
+    y: number
+  ): void {
+    const id = `fx-${preset}-${this._particleIdCounter++}`;
+    const config =
+      preset === "explosion"
+        ? ParticlePresets.explosion(x, y)
+        : preset === "sparks"
+          ? ParticlePresets.sparks(x, y)
+          : preset === "smokeTrail"
+            ? ParticlePresets.smokeTrail(x, y)
+            : ParticlePresets.nukeMushroom(x, y);
+    this._particles.addEmitter(id, new ParticleEmitter(this._particleContainer, config));
+  }
+
+  /**
+   * Spawn a persistent (infinite) particle effect, like capital glow.
+   * Returns the id so the caller can remove it later.
+   */
+  spawnPersistentEffect(
+    preset: "capitalGlow" | "shieldShimmer",
+    x: number,
+    y: number,
+    color: number
+  ): string {
+    const id = `persist-${preset}-${this._particleIdCounter++}`;
+    const config =
+      preset === "capitalGlow"
+        ? ParticlePresets.capitalGlow(x, y, color)
+        : ParticlePresets.shieldShimmer(x, y, color);
+    this._particles.addEmitter(id, new ParticleEmitter(this._particleContainer, config));
+    return id;
+  }
+
+  /** Remove a persistent particle effect by id. */
+  removeParticleEffect(id: string): void {
+    this._particles.removeEmitter(id);
   }
 
   /**
@@ -650,6 +724,12 @@ export class PixiAnimationManager {
     this._updateAnims(now);
     this._updateBombs(now);
     this._updateImpacts(now);
+    // Particle system uses delta-seconds
+    const dt = this._lastUpdateTime > 0
+      ? Math.min((now - this._lastUpdateTime) / 1000, 0.1) // cap at 100ms to avoid burst
+      : 1 / 60;
+    this._lastUpdateTime = now;
+    this._particles.update(dt);
     this._gc(now);
   }
 
@@ -679,6 +759,8 @@ export class PixiAnimationManager {
     this._bombs.length = 0;
 
     this.arrived.clear();
+    this._particles.cleanup();
+    this._particleContainer.destroy({ children: true });
     this.container.destroy({ children: true });
   }
 
@@ -727,65 +809,280 @@ export class PixiAnimationManager {
       const tailIdx = Math.max(0, Math.floor(tailProgress * (pathLen - 1)));
 
       // ── Trail line ────────────────────────────────────────────────────────
-      this._drawTrail(a, trailColorNum, tailIdx, headIdx, fadeOut);
+      if (a.unitType === "artillery") {
+        // Artillery rocket: fiery smoke trail (orange→gray gradient)
+        this._drawArtilleryTrail(a, tailIdx, headIdx, fadeOut);
+      } else {
+        this._drawTrail(a, trailColorNum, tailIdx, headIdx, fadeOut);
+      }
 
       // ── Trail particles ───────────────────────────────────────────────────
-      this._drawParticles(
-        a,
-        dotColorNum,
-        progress,
-        tailProgress,
-        isNuke,
-        fadeOut
-      );
+      if (a.unitType !== "artillery") {
+        this._drawParticles(
+          a,
+          dotColorNum,
+          progress,
+          tailProgress,
+          isNuke,
+          fadeOut
+        );
+      }
 
       // ── Unit icon ─────────────────────────────────────────────────────────
+      const isArtillery = a.unitType === "artillery";
       const currentPoint = isNuke
         ? lerpPath(a.path, progress)
-        : a.path[headIdx];
-      this._drawIcon(a, currentPoint, rawLinear, progress, isNuke, fadeOut);
+        : isArtillery
+          ? lerpPath(a.path, progress)
+          : a.path[headIdx];
+
+      if (isArtillery) {
+        // Artillery rockets: small projectile with fiery trail, no unit icon/label
+        this._drawArtilleryRocket(a, currentPoint, progress, rawLinear, fadeOut);
+      } else {
+        this._drawIcon(a, currentPoint, rawLinear, progress, isNuke, fadeOut);
+      }
 
       // ── Pulse rings (during approach, attack only) ────────────────────────
       if (
+        !isArtillery &&
         a.config.pulse.enabled &&
         a.actionType === "attack" &&
         progress > a.config.pulse.start_at
       ) {
         this._upsertPulseRing(a, now, progress, fadeOut);
-      } else {
+      } else if (!isArtillery) {
         this._removePulseRing(a.id);
       }
 
       // ── Arrival trigger ───────────────────────────────────────────────────
       if (rawLinear >= 1 && !this.arrived.has(a.id)) {
         this.arrived.add(a.id);
-        this._triggerImpact(a, now);
+        if (isArtillery) {
+          // Cinematic artillery impact — fireball, debris, smoke column, shockwave
+          const [tx, ty] = a.targetCentroid;
+          const pc = this._particleContainer;
+          const id = () => `art-${this._particleIdCounter++}`;
+          // 1. Main fireball explosion (large burst)
+          this._particles.addEmitter(id(), new ParticleEmitter(pc, ParticlePresets.artilleryImpact(tx, ty)));
+          // 2. Ground debris flying outward
+          this._particles.addEmitter(id(), new ParticleEmitter(pc, ParticlePresets.artilleryDebris(tx, ty)));
+          // 3. Rising smoke column (lingers for ~3s)
+          this._particles.addEmitter(id(), new ParticleEmitter(pc, ParticlePresets.artillerySmoke(tx, ty)));
+          // 4. Expanding shockwave ring drawn as Graphics
+          this._spawnArtilleryShockwave(tx, ty, now);
+        } else {
+          this._triggerImpact(a, now);
+        }
         // Bomber: big salvo on target province at arrival.
         if (a.unitType === "bomber" && a.bombingWaypoints.length > 0) {
           const target = a.bombingWaypoints[a.bombingWaypoints.length - 1];
           this._spawnBombingSalvo(target[0], target[1], now, true);
         }
+        // Nuke: dramatic mushroom cloud particle effect
+        if (a.unitType === "nuke_rocket") {
+          const [nx, ny] = a.targetCentroid;
+          const nukeId = `nuke-${this._particleIdCounter++}`;
+          this._particles.addEmitter(
+            nukeId,
+            new ParticleEmitter(this._particleContainer, ParticlePresets.nukeMushroom(nx, ny))
+          );
+        }
       }
 
       // ── Bomber waypoint bombing ─────────────────────────────────────────
-      // Engine formula: currentHop = floor(progress * totalHops).
-      // Bomb each intermediate province centroid as the bomber passes over it.
-      // Skip hop 0 (source) and last hop (target — handled at arrival).
-      // This is client-side so it's instant — no server delay.
-      if (a.unitType === "bomber" && a.totalHops > 1 && a.bombingWaypoints.length > 1) {
-        const currentHop = Math.min(
-          Math.floor(rawLinear * a.totalHops),
-          a.totalHops - 1 // cap so we don't overshoot
-        );
-        while (a.lastBombedHop < currentHop) {
-          a.lastBombedHop++;
-          // Skip source (0) and target (last) — target gets big impact at arrival.
-          if (a.lastBombedHop <= 0 || a.lastBombedHop >= a.bombingWaypoints.length - 1) continue;
-          const wp = a.bombingWaypoints[a.lastBombedHop];
-          if (wp) {
-            this._spawnBombingSalvo(wp[0], wp[1], now, false);
-          }
-        }
+      // Bombs are now spawned reactively from engine path_damage events
+      // (dispatched via "path-damage-bomb" custom event → GameCanvas handler
+      // → spawnBombingSalvoAt). This ensures bombs only fall on provinces
+      // that actually take damage (skips own provinces & empty ones).
+    }
+  }
+
+  // ── Artillery rocket rendering ───────────────────────────────────────────
+
+  /**
+   * Draw a cinematic rocket projectile for artillery bombardment.
+   * Large rocket with exhaust flame, engine glow, wobble, and smoke.
+   */
+  private _drawArtilleryRocket(
+    a: InternalAnim,
+    pos: [number, number],
+    progress: number,
+    rawLinear: number,
+    fadeOut: number
+  ): void {
+    const g = a.iconGfx;
+    g.clear();
+    if (a.iconSprite) a.iconSprite.visible = false;
+
+    if (rawLinear >= 1) {
+      a.labelText.visible = false;
+      return;
+    }
+
+    // Show manpower label next to rocket (so enemy sees incoming force)
+    if (a.units > 0) {
+      a.labelText.visible = true;
+      a.labelText.position.set(pos[0] + 12, pos[1] - 12);
+      a.labelText.alpha = fadeOut * 0.9;
+    } else {
+      a.labelText.visible = false;
+    }
+
+    // Direction for rotation + slight wobble for realism
+    const lookAhead = lerpPath(a.path, Math.min(1, progress + 0.015));
+    const dx = lookAhead[0] - pos[0];
+    const dy = lookAhead[1] - pos[1];
+    const baseRotation = Math.atan2(dx, -dy);
+    // Wobble: subtle oscillation that decreases as rocket stabilizes
+    const wobble = Math.sin(rawLinear * 40) * 0.06 * (1 - rawLinear);
+    const rotation = baseRotation + wobble;
+
+    g.position.set(pos[0], pos[1]);
+    g.rotation = rotation;
+
+    const now = Date.now();
+    const flicker = 0.85 + Math.sin(now * 0.03) * 0.15; // engine flame flicker
+
+    // ── Exhaust flame (large, layered) ──────────────────────────
+    // Outer flame envelope (big, dim orange)
+    const flameLen = 14 + Math.sin(now * 0.025) * 3;
+    g.moveTo(-3.5, 8)
+      .lineTo(0, 8 + flameLen)
+      .lineTo(3.5, 8)
+      .closePath()
+      .fill({ color: 0xff4400, alpha: fadeOut * 0.35 * flicker });
+
+    // Inner flame (bright yellow-white)
+    const innerLen = 9 + Math.sin(now * 0.04) * 2;
+    g.moveTo(-2, 8)
+      .lineTo(0, 8 + innerLen)
+      .lineTo(2, 8)
+      .closePath()
+      .fill({ color: 0xffdd44, alpha: fadeOut * 0.7 * flicker });
+
+    // Hot core
+    g.circle(0, 9, 2.5)
+      .fill({ color: 0xffffff, alpha: fadeOut * 0.6 * flicker });
+
+    // Engine glow halo
+    g.circle(0, 10, 8)
+      .fill({ color: 0xff6600, alpha: fadeOut * 0.15 * flicker });
+
+    // ── Rocket body ─────────────────────────────────────────────
+    const rocketLen = 16;
+    const rocketW = 4;
+
+    // Body (dark metal with gradient feel)
+    g.moveTo(0, -rocketLen * 0.55) // nose tip
+      .lineTo(-rocketW * 0.6, -rocketLen * 0.25) // nose taper
+      .lineTo(-rocketW, rocketLen * 0.15) // body left
+      .lineTo(-rocketW, rocketLen * 0.45) // body bottom left
+      .lineTo(rocketW, rocketLen * 0.45) // body bottom right
+      .lineTo(rocketW, rocketLen * 0.15) // body right
+      .lineTo(rocketW * 0.6, -rocketLen * 0.25) // nose taper
+      .closePath()
+      .fill({ color: 0x778899, alpha: fadeOut * 0.95 })
+      .stroke({ color: 0x556677, alpha: fadeOut * 0.5, width: 0.8 });
+
+    // Warhead (red nose cone)
+    g.moveTo(0, -rocketLen * 0.55)
+      .lineTo(-rocketW * 0.5, -rocketLen * 0.2)
+      .lineTo(rocketW * 0.5, -rocketLen * 0.2)
+      .closePath()
+      .fill({ color: 0xcc2200, alpha: fadeOut * 0.9 });
+
+    // Nose tip glow
+    g.circle(0, -rocketLen * 0.5, 2)
+      .fill({ color: 0xff4400, alpha: fadeOut * 0.8 });
+
+    // ── Fins (larger, angled) ───────────────────────────────────
+    // Left fin
+    g.moveTo(-rocketW, rocketLen * 0.25)
+      .lineTo(-rocketW - 5, rocketLen * 0.5)
+      .lineTo(-rocketW - 2, rocketLen * 0.5)
+      .lineTo(-rocketW, rocketLen * 0.4)
+      .closePath()
+      .fill({ color: 0x993322, alpha: fadeOut * 0.8 });
+    // Right fin
+    g.moveTo(rocketW, rocketLen * 0.25)
+      .lineTo(rocketW + 5, rocketLen * 0.5)
+      .lineTo(rocketW + 2, rocketLen * 0.5)
+      .lineTo(rocketW, rocketLen * 0.4)
+      .closePath()
+      .fill({ color: 0x993322, alpha: fadeOut * 0.8 });
+
+    // ── Body stripe (military marking) ──────────────────────────
+    g.rect(-rocketW + 0.5, rocketLen * 0.0, (rocketW - 0.5) * 2, 2)
+      .fill({ color: 0x445566, alpha: fadeOut * 0.4 });
+  }
+
+  /**
+   * Cinematic rocket exhaust trail — thick layered smoke with fire core.
+   */
+  private _drawArtilleryTrail(
+    a: InternalAnim,
+    tailIdx: number,
+    headIdx: number,
+    fadeOut: number
+  ): void {
+    const g = a.trailGfx;
+    g.clear();
+    if (headIdx - tailIdx < 1) return;
+
+    const trailSlice = a.path.slice(tailIdx, headIdx + 1);
+    if (trailSlice.length < 2) return;
+
+    // Layer 1: Wide dim smoke envelope
+    this._strokePath(g, trailSlice, {
+      color: 0x555555,
+      alpha: fadeOut * 0.15,
+      width: 10,
+    });
+
+    // Layer 2: Orange heat glow
+    this._strokePath(g, trailSlice, {
+      color: 0xff6600,
+      alpha: fadeOut * 0.2,
+      width: 6,
+    });
+
+    // Layer 3: Bright fire core
+    this._strokePath(g, trailSlice, {
+      color: 0xffaa33,
+      alpha: fadeOut * 0.45,
+      width: 3,
+    });
+
+    // Layer 4: White-hot inner core
+    this._strokePath(g, trailSlice, {
+      color: 0xffffcc,
+      alpha: fadeOut * 0.6,
+      width: 1.2,
+    });
+
+    // Smoke puffs — expanding, darkening clouds along the trail
+    const dotsGfx = a.dotsGfx;
+    dotsGfx.clear();
+    for (let i = tailIdx; i <= headIdx; i += 3) {
+      const pt = a.path[i];
+      if (!pt) continue;
+      const t = (i - tailIdx) / Math.max(1, headIdx - tailIdx); // 0=tail(old), 1=head(new)
+      const age = 1 - t; // 1=old, 0=new
+
+      // Smoke: starts small and bright near rocket, grows and fades behind
+      const smokeRadius = 1.5 + age * 7;
+      const smokeAlpha = (1 - age * 0.7) * 0.25 * fadeOut;
+      // Color shifts: near rocket=light gray, far=dark
+      const gray = Math.round(100 - age * 60);
+      const smokeColor = (gray << 16) | (gray << 8) | gray;
+      dotsGfx.circle(pt[0], pt[1], smokeRadius)
+        .fill({ color: smokeColor, alpha: smokeAlpha });
+
+      // Occasional ember sparks near the rocket head
+      if (t > 0.7 && i % 6 === 0) {
+        dotsGfx.circle(pt[0] + (Math.random() - 0.5) * 6, pt[1] + (Math.random() - 0.5) * 6, 1)
+          .fill({ color: 0xffcc00, alpha: fadeOut * 0.6 });
       }
     }
   }
@@ -1165,6 +1462,14 @@ export class PixiAnimationManager {
   }
 
   /**
+   * Public method to spawn a bomb salvo at a world position.
+   * Called from GameCanvas when a path_damage event arrives from the engine.
+   */
+  spawnBombingSalvoAt(cx: number, cy: number, isFinal: boolean): void {
+    this._spawnBombingSalvo(cx, cy, Date.now(), isFinal);
+  }
+
+  /**
    * Spawn a salvo of bombs spread around a province centroid.
    * `isFinal` = true for the target province (bigger salvo + shockwave).
    */
@@ -1190,9 +1495,15 @@ export class PixiAnimationManager {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("bomber-salvo", { detail: { isFinal } }));
     }
-    // Final strike: add a shockwave ring at province center.
+    // Final strike: add a shockwave ring + big particle explosion at province center.
     if (isFinal) {
       this._spawnShockwave(cx, cy, now + count * 100);
+      // Large smoke+fire particle burst for the final bombing target
+      const smokeId = `bomb-smoke-${this._particleIdCounter++}`;
+      this._particles.addEmitter(
+        smokeId,
+        new ParticleEmitter(this._particleContainer, ParticlePresets.smokeTrail(cx, cy))
+      );
     }
   }
 
@@ -1210,6 +1521,30 @@ export class PixiAnimationManager {
       y,
       startTime: now,
       duration: 100, // "fall" is instant
+      startY: y,
+      endY: y,
+      gfx,
+      impactGfx,
+      impacted: false,
+      impactStartTime: 0,
+    });
+  }
+
+  /**
+   * Artillery impact shockwave — larger and more dramatic than bomber shockwave.
+   * White flash + expanding orange ring + ground crater circle.
+   */
+  private _spawnArtilleryShockwave(x: number, y: number, now: number): void {
+    const gfx = new Graphics();
+    this.container.addChild(gfx);
+    const impactGfx = new Graphics();
+    this.container.addChild(impactGfx);
+    // Reuse BombDrop struct: instant "fall" → immediately triggers impact rendering.
+    this._bombs.push({
+      x,
+      y,
+      startTime: now,
+      duration: 50, // near-instant fall
       startY: y,
       endY: y,
       gfx,
@@ -1273,6 +1608,12 @@ export class PixiAnimationManager {
       if (!bomb.impacted && rawProgress >= 1) {
         bomb.impacted = true;
         bomb.impactStartTime = now;
+        // Spawn particle explosion at bomb impact point
+        const bombExplId = `bomb-expl-${this._particleIdCounter++}`;
+        this._particles.addEmitter(
+          bombExplId,
+          new ParticleEmitter(this._particleContainer, ParticlePresets.explosion(bomb.x, bomb.endY))
+        );
       }
 
       // Draw expanding explosion at impact point
@@ -1372,6 +1713,47 @@ export class PixiAnimationManager {
       config: impactCfg,
       gfx,
     });
+
+    // ── Particle VFX on arrival — adapted per unit type ─────────────────────
+    const [tx, ty] = a.targetCentroid;
+    const id = () => `impact-${this._particleIdCounter++}`;
+    const pc = this._particleContainer;
+
+    if (!isAttack) {
+      // Move arrival: tiny dust puff
+      const cfg = ParticlePresets.dust({ x: tx, y: ty, w: 1, h: 1 });
+      cfg.emitterLifetime = 0.3;
+      cfg.maxParticles = 8;
+      cfg.particlesPerWave = 8;
+      this._particles.addEmitter(id(), new ParticleEmitter(pc, cfg));
+    } else if (a.unitType === "tank") {
+      // Tank: medium sparks + dust cloud
+      this._particles.addEmitter(id(), new ParticleEmitter(pc, ParticlePresets.sparks(tx, ty)));
+      const dustCfg = ParticlePresets.dust({ x: tx, y: ty, w: 1, h: 1 });
+      dustCfg.emitterLifetime = 0.4;
+      dustCfg.maxParticles = 15;
+      dustCfg.particlesPerWave = 15;
+      this._particles.addEmitter(id(), new ParticleEmitter(pc, dustCfg));
+    } else if (a.unitType === "ship" || a.unitType === "submarine") {
+      // Naval: water splash
+      const cfg = ParticlePresets.sparks(tx, ty);
+      cfg.behaviors = cfg.behaviors.map((b) =>
+        b.type === "color"
+          ? { type: "color" as const, config: { start: "#88ccff", end: "#4488cc" } }
+          : b
+      );
+      cfg.maxParticles = 20;
+      this._particles.addEmitter(id(), new ParticleEmitter(pc, cfg));
+    } else if (a.unitType === "nuke_rocket") {
+      // Nuke handled separately in arrival trigger (mushroom cloud)
+    } else {
+      // Infantry, commando, fighter, etc: small dust + clash (NO explosion)
+      const dustCfg = ParticlePresets.dust({ x: tx, y: ty, w: 1, h: 1 });
+      dustCfg.emitterLifetime = 0.2;
+      dustCfg.maxParticles = 10;
+      dustCfg.particlesPerWave = 10;
+      this._particles.addEmitter(id(), new ParticleEmitter(pc, dustCfg));
+    }
   }
 
   // ── Impact flash update ────────────────────────────────────────────────────

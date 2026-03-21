@@ -325,11 +325,11 @@ class Command(BaseCommand):
             settings.starting_energy = 9999
             settings.base_energy_per_tick = 50.0
             settings.region_energy_per_tick = 5.0
-            settings.base_unit_generation_rate = 5.0
-            settings.capital_generation_bonus = 10.0
+            settings.base_unit_generation_rate = 1.5
+            settings.capital_generation_bonus = 3.0
             settings.capital_selection_time_seconds = 10
             settings.save()
-            self.stdout.write("    GameSettings: high energy, fast gen")
+            self.stdout.write("    GameSettings: high energy, normal unit gen")
 
         # Buildings: patch level_stats — cost=1, energy_cost=1, build_time=1 tick for all levels
         bt_updated = 0
@@ -377,8 +377,8 @@ class Command(BaseCommand):
             starting_energy=9999,
             base_energy_per_tick=50.0,
             region_energy_per_tick=5.0,
-            base_unit_generation_rate=5.0,
-            capital_generation_bonus=10.0,
+            base_unit_generation_rate=1.5,
+            capital_generation_bonus=3.0,
             capital_selection_time_seconds=10,
         )
         self.stdout.write(f"    GameMode: {updated} updated (dev settings)")

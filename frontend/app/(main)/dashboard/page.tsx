@@ -160,11 +160,13 @@ export default function DashboardPage() {
       { y: 0, opacity: 1, duration: 0.6, delay: 0.2, ease: "power2.out" }
     );
 
-    gsap.fromTo("[data-animate='table-row']",
-      { x: -16, opacity: 0 },
-      { x: 0, opacity: 1, duration: 0.3, stagger: 0.06, delay: 0.5, ease: "power2.out" }
-    );
-  }, { scope: containerRef, dependencies: [mountId, !!user] });
+    if (containerRef.current.querySelector("[data-animate='table-row']")) {
+      gsap.fromTo("[data-animate='table-row']",
+        { x: -16, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.3, stagger: 0.06, delay: 0.5, ease: "power2.out" }
+      );
+    }
+  }, { scope: containerRef, dependencies: [mountId, !!user, recentMatches.length] });
 
   if (authLoading || !user) {
     return (

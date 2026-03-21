@@ -343,7 +343,9 @@ async fn handle_game_message(
     tx: &mpsc::Sender<Message>,
 ) {
     let action = content.get("action").and_then(|v| v.as_str()).unwrap_or("");
-    eprintln!("[WS] Received action='{}' from user={}", action, user_id);
+    if action != "ping" {
+        eprintln!("[WS] Received action='{}' from user={}", action, user_id);
+    }
 
     // Rate limit game actions (not chat/leave_match/set_tick_multiplier)
     if matches!(
@@ -1232,6 +1234,17 @@ async fn game_loop(
         for event in &events {
             if let Event::PlayerEliminated { player_id, .. } = event {
                 let _ = state.django.set_player_alive(match_id, player_id, false).await;
+            }
+        }
+
+        // Log bombarded regions in the delta to verify state is correct
+        for event in &events {
+            if let Event::Bombard { target_region_id, total_killed, .. } = event {
+                let after_units = tick_data.regions.get(target_region_id)
+                    .map(|r| r.unit_count).unwrap_or(-1);
+                let in_delta = changed_regions.contains_key(target_region_id);
+                eprintln!("[TICK] Bombarded {} killed={} after_unit_count={} in_delta={}",
+                    target_region_id, total_killed, after_units, in_delta);
             }
         }
 

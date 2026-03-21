@@ -819,7 +819,7 @@
       "asset_key": "artillery",
       "description": "Ciężka artyleria o dużym zasięgu ataku i obrażeniach obszarowych.",
       "icon": "💣",
-      "attack": 2.0,
+      "attack": 3.5,
       "defense": 0.3,
       "speed": 1,
       "attack_range": 3,
@@ -829,7 +829,7 @@
       "movement_type": "land",
       "is_stealth": false,
       "path_damage": 0.0,
-      "aoe_damage": 0.2,
+      "aoe_damage": 0.3,
       "blockade_port": false,
       "intercept_air": false,
       "can_station_anywhere": false,
@@ -838,22 +838,22 @@
       "max_level": 3,
       "level_stats": {
         "1": {
-          "attack": 2.0,
-          "production_cost": 12,
-          "production_time_ticks": 8,
-          "manpower_cost": 2
+          "attack": 3.5,
+          "production_cost": 18,
+          "production_time_ticks": 10,
+          "manpower_cost": 5
         },
         "2": {
-          "attack": 2.8,
-          "production_cost": 18,
-          "production_time_ticks": 8,
-          "manpower_cost": 2
+          "attack": 5.0,
+          "production_cost": 28,
+          "production_time_ticks": 10,
+          "manpower_cost": 6
         },
         "3": {
-          "attack": 3.5,
-          "production_cost": 24,
-          "production_time_ticks": 8,
-          "manpower_cost": 2
+          "attack": 7.0,
+          "production_cost": 38,
+          "production_time_ticks": 10,
+          "manpower_cost": 8
         }
       },
       "is_active": true,

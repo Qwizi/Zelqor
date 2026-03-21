@@ -27,3 +27,19 @@ export interface TroopAnimation {
   /** Perpendicular offset in pixels from the path (for escorts flying beside bomber). */
   pathOffset?: number;
 }
+
+export interface PlannedMove {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  unitType: string;
+  unitCount: number;
+  actionType: "attack" | "move" | "bombard";
+  /** Timestamp when this move was planned — expires after PLAN_EXPIRY_MS. */
+  createdAt: number;
+}
+
+/** Max planned moves in the queue. */
+export const MAX_PLANNED_MOVES = 6;
+/** Planned moves expire after this many seconds. */
+export const PLAN_EXPIRY_S = 30;

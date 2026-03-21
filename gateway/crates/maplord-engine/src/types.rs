@@ -536,6 +536,9 @@ pub struct Action {
     /// ID of an in-flight air mission to intercept (intercept action).
     #[serde(default)]
     pub target_flight_id: Option<String>,
+    /// Multiple target regions for bombardment (artillery salvo across provinces).
+    #[serde(default)]
+    pub target_region_ids: Option<Vec<String>>,
 }
 
 /// Building queue item.
@@ -834,8 +837,9 @@ pub enum Event {
         player_id: String,
         source_region_id: String,
         target_region_id: String,
-        artillery_count: i64,
-        damage: i64,
+        /// 1 rocket per artillery unit.
+        rocket_count: i64,
+        total_killed: i64,
     },
     /// An air mission (bomber/fighter) has been launched and is in flight.
     #[serde(rename = "air_mission_launched")]

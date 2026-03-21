@@ -184,7 +184,7 @@ interface UseGameSocketReturn {
   selectCapital: (regionId: string) => void;
   attack: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null, escortFighters?: number) => void;
   move: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
-  bombard: (sourceRegionId: string, targetRegionId: string) => void;
+  bombard: (sourceRegionId: string, targetRegionIds: string[], units?: number) => void;
   interceptFlight: (sourceRegionId: string, flightId: string, units: number) => void;
   build: (regionId: string, buildingType: string) => void;
   upgradeBuilding: (regionId: string, buildingType: string) => void;
@@ -499,11 +499,13 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
   );
 
   const bombard = useCallback(
-    (sourceRegionId: string, targetRegionId: string) =>
+    (sourceRegionId: string, targetRegionIds: string[], units?: number) =>
       send({
         action: "bombard",
         source_region_id: sourceRegionId,
-        target_region_id: targetRegionId,
+        target_region_ids: targetRegionIds,
+        unit_type: "artillery",
+        ...(units != null ? { units } : {}),
       }),
     [send]
   );
