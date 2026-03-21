@@ -971,7 +971,7 @@
       "asset_key": "sam",
       "description": "Naziemny system przeciwlotniczy. Wyspecjalizowany w zwalczaniu jednostek powietrznych.",
       "icon": "🚀",
-      "attack": 2.0,
+      "attack": 3.0,
       "defense": 0.5,
       "speed": 1,
       "attack_range": 2,
@@ -990,22 +990,22 @@
       "max_level": 3,
       "level_stats": {
         "1": {
-          "attack": 2.0,
-          "production_cost": 10,
+          "attack": 3.0,
+          "production_cost": 12,
           "production_time_ticks": 6,
-          "manpower_cost": 2
+          "manpower_cost": 3
         },
         "2": {
-          "attack": 2.8,
-          "production_cost": 15,
+          "attack": 4.5,
+          "production_cost": 18,
           "production_time_ticks": 6,
-          "manpower_cost": 2
+          "manpower_cost": 4
         },
         "3": {
-          "attack": 3.5,
-          "production_cost": 20,
+          "attack": 6.0,
+          "production_cost": 24,
           "production_time_ticks": 6,
-          "manpower_cost": 2
+          "manpower_cost": 5
         }
       },
       "is_active": true,

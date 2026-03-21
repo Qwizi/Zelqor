@@ -837,9 +837,15 @@ pub enum Event {
         player_id: String,
         source_region_id: String,
         target_region_id: String,
-        /// 1 rocket per artillery unit.
+        /// 1 rocket per artillery unit (after SAM interception).
         rocket_count: i64,
         total_killed: i64,
+        /// Number of rockets intercepted by SAM units before reaching the target.
+        #[serde(default)]
+        intercepted_count: i64,
+        /// Region IDs that contributed SAM units to intercept the bombardment.
+        #[serde(default)]
+        sam_region_ids: Vec<String>,
     },
     /// An air mission (bomber/fighter) has been launched and is in flight.
     #[serde(rename = "air_mission_launched")]

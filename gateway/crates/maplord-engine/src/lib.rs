@@ -107,6 +107,24 @@ fn default_unit_types() -> HashMap<String, UnitConfig> {
             ..Default::default()
         },
     );
+    m.insert(
+        "sam".into(),
+        UnitConfig {
+            attack: 3.0,
+            defense: 0.5,
+            speed: 1,
+            attack_range: 2,
+            movement_type: "land".into(),
+            production_cost: 12,
+            production_time_ticks: 6,
+            produced_by_slug: Some("tower".into()),
+            manpower_cost: 3,
+            intercept_air: true,
+            combat_target: "air".into(),
+            ticks_per_hop: 2,
+            ..Default::default()
+        },
+    );
     m
 }
 
@@ -1433,6 +1451,12 @@ impl GameEngine {
         }
 
         let unit_config = self.get_unit_config(&unit_type);
+
+        // SAM cannot attack — it can only be repositioned between own provinces via move.
+        if unit_config.intercept_air && unit_config.movement_type == "land" {
+            return vec![reject_action(player_id, "SAM nie moze atakowac — uzyj ruchu na wlasne prowincje", action)];
+        }
+
         let attack_range = unit_config.attack_range.max(1);
         let distance = self.get_travel_distance(
             source_id,
@@ -2063,13 +2087,61 @@ impl GameEngine {
             return vec![reject_action(player_id, "Cel poza zasiegiem bombardowania", action)];
         }
 
-        let target = match regions.get_mut(&target_id) {
-            Some(r) => r,
-            None => return Vec::new(),
-        };
-        let is_enemy = target.owner_id.as_ref().map(|oid| oid != player_id).unwrap_or(true);
-        if !is_enemy {
-            return vec![reject_action(player_id, "Nie mozna bombardowac wlasnych prowincji", action)];
+        // Validate target ownership using an immutable borrow (dropped before mutable use below).
+        {
+            let target = match regions.get(&target_id) {
+                Some(r) => r,
+                None => return Vec::new(),
+            };
+            let is_enemy = target.owner_id.as_ref().map(|oid| oid != player_id).unwrap_or(true);
+            if !is_enemy {
+                return vec![reject_action(player_id, "Nie mozna bombardowac wlasnych prowincji", action)];
+            }
+        }
+
+        // SAM intercept: collect SAM units from target + neighboring provinces within SAM range.
+        // Each SAM unit destroys 1 incoming rocket. BFS from target up to sam_range hops,
+        // counting SAM owned by the defender. Uses only immutable borrows of `regions`.
+        let sam_config = self.get_unit_config("sam");
+        let sam_range = sam_config.attack_range.max(1) as usize;
+        let mut total_sam = 0i64;
+        let mut sam_region_ids: Vec<String> = Vec::new();
+
+        let target_owner: Option<String> = regions.get(&target_id).and_then(|r| r.owner_id.clone());
+        if let Some(ref defender_id) = target_owner {
+            let mut visited = std::collections::HashSet::new();
+            let mut queue = std::collections::VecDeque::new();
+            visited.insert(target_id.clone());
+            queue.push_back((target_id.clone(), 0usize));
+
+            while let Some((rid, depth)) = queue.pop_front() {
+                if let Some(region) = regions.get(&rid) {
+                    if region.owner_id.as_deref() == Some(defender_id) {
+                        let sam_count = region.units.get("sam").copied().unwrap_or(0);
+                        if sam_count > 0 {
+                            total_sam += sam_count;
+                            sam_region_ids.push(rid.clone());
+                        }
+                    }
+                }
+                if depth < sam_range {
+                    if let Some(neighbors) = self.neighbor_map.get(&rid) {
+                        for nid in neighbors {
+                            if visited.insert(nid.clone()) {
+                                queue.push_back((nid.clone(), depth + 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let intercepted_count = total_sam.min(rocket_count);
+        let effective_rockets = rocket_count - intercepted_count;
+
+        if intercepted_count > 0 {
+            eprintln!("[BOMBARD] SAM intercepted {} of {} rockets (SAM regions: {:?})",
+                intercepted_count, rocket_count, sam_region_ids);
         }
 
         // Each rocket deals damage = manpower_cost × attack of 1 artillery unit.
@@ -2078,7 +2150,10 @@ impl GameEngine {
             damage_per_rocket, unit_config.manpower_cost, unit_config.attack);
         let mut total_killed = 0i64;
 
-        for _r in 0..rocket_count {
+        // Now take the mutable borrow for the damage loop (all immutable borrows above are dropped).
+        let target = regions.get_mut(&target_id).unwrap();
+
+        for _r in 0..effective_rockets {
             let ground_total: i64 = target.units.iter()
                 .filter(|(ut, _)| self.get_unit_config(ut).movement_type != "air")
                 .map(|(_, c)| c)
@@ -2122,15 +2197,17 @@ impl GameEngine {
         sync_region_unit_meta(target, self);
 
         let remaining: i64 = target.units.values().sum();
-        eprintln!("[BOMBARD] {} fires {} rockets at {} | killed={} remaining={} neutralized={}",
-            player_id, rocket_count, target_id, total_killed, remaining, neutralized);
+        eprintln!("[BOMBARD] {} fires {}/{} rockets at {} | killed={} intercepted={} remaining={} neutralized={}",
+            player_id, effective_rockets, rocket_count, target_id, total_killed, intercepted_count, remaining, neutralized);
 
         vec![Event::Bombard {
             player_id: player_id.clone(),
             source_region_id: source_id.clone(),
             target_region_id: target_id,
-            rocket_count,
+            rocket_count: effective_rockets,
             total_killed,
+            intercepted_count,
+            sam_region_ids,
         }]
     }
 

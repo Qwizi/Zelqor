@@ -1333,4 +1333,34 @@ export const ParticlePresets = {
       ],
     };
   },
+
+  /** SAM intercept flash — bright white-yellow burst in mid-air. */
+  samIntercept(x: number, y: number): EmitterConfig {
+    return {
+      lifetime: { min: 0.2, max: 0.5 },
+      frequency: 0.001,
+      particlesPerWave: 25,
+      maxParticles: 25,
+      emitterLifetime: 0.05,
+      pos: { x, y },
+      addAtBack: false,
+      behaviors: [
+        { type: "spawnShape", config: { type: "circle", x: 0, y: 0, r: 4 } },
+        {
+          type: "textureRandom",
+          config: {
+            textures: [
+              ParticleTextures.createSpark(),
+              ParticleTextures.createStar(),
+            ],
+          },
+        },
+        { type: "alpha", config: { start: 1.0, end: 0.0 } },
+        { type: "scale", config: { start: 0.4, end: 0.05 } },
+        { type: "moveSpeed", config: { start: 120, end: 300 } },
+        { type: "moveDirection", config: { minAngle: 0, maxAngle: 360 } },
+        { type: "color", config: { start: "#ffffff", end: "#ffcc00" } },
+      ],
+    };
+  },
 };

@@ -458,6 +458,9 @@ export default function GamePage({
       const moveDistanceByTarget = new Map<string, number>();
       const attackDistanceByTarget = new Map<string, number>();
 
+      // SAM (intercept_air + land) can only move to own provinces, never attack
+      const isSamUnit = rules.intercept_air && movementType === "land";
+
       for (const [regionId, region] of Object.entries(mapRegions)) {
         if (regionId === selectedRegion) continue;
         if (movementType === "sea" && !region.is_coastal) continue;
@@ -485,6 +488,9 @@ export default function GamePage({
           }
           continue;
         }
+
+        // SAM cannot attack — only move to own provinces
+        if (isSamUnit) continue;
 
         const attackDistance = getTravelDistance(
           selectedRegion,
@@ -868,6 +874,19 @@ export default function GamePage({
         const manpowerPerUnit = unitManpowerMap?.["artillery"] ?? 5;
         const artilleryAttack = unitConfigBySlug["artillery"]?.attack ?? 3.5;
         const rocketDmg = Math.ceil(manpowerPerUnit * artilleryAttack);
+
+        const interceptedCount = (e.intercepted_count as number) ?? 0;
+        const samRegionIds = (e.sam_region_ids as string[]) ?? [];
+
+        // Toast if SAM intercepted rockets
+        if (interceptedCount > 0) {
+          const isMyProvince = gameStateRef.current?.regions[targetId]?.owner_id === myUserId;
+          if (isMyProvince) {
+            toast.success(`SAM przechwycil ${interceptedCount} rakiet!`, { id: `sam-${targetId}`, duration: 3000 });
+          } else if (playerId === myUserId) {
+            toast.warning(`SAM wroga przechwycil ${interceptedCount} Twoich rakiet`, { id: `sam-${targetId}`, duration: 3000 });
+          }
+        }
 
         // Mark as bombed immediately so province shows unit count (not just username)
         window.dispatchEvent(new CustomEvent("province-bombed", { detail: { regionId: targetId } }));
