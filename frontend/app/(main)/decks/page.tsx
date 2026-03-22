@@ -182,11 +182,14 @@ function DecksContent() {
             return (
               <div key={deck.id}>
                 {/* Mobile: compact list row */}
-                <button
-                  className={`flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 md:hidden ${
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className={`flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 md:hidden cursor-pointer ${
                     deck.is_default ? "bg-accent/5" : ""
                   }`}
                   onClick={() => router.push(`/decks/${deck.id}`)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push(`/decks/${deck.id}`); }}
                 >
                   <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
                     deck.is_default ? "bg-accent/15 border border-accent/25" : "bg-secondary border border-border"
@@ -228,7 +231,7 @@ function DecksContent() {
                     </button>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
-                </button>
+                </div>
 
                 {/* Desktop: full card */}
                 <Card

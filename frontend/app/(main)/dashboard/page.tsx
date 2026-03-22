@@ -3,7 +3,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchmaking } from "@/hooks/useMatchmaking";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import Link from "next/link";
@@ -11,16 +11,48 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import {
   getMyMatches,
   getConfig,
   getMyDecks,
   startTutorial,
+  getFriends,
+  getReceivedRequests,
+  inviteFriendToGame,
   type Match,
   type GameModeListItem,
   type DeckOut,
+  type FriendshipOut,
+  type FriendUser,
 } from "@/lib/api";
+import { useChat } from "@/hooks/useChat";
+
+function activityDot(status: string): string {
+  switch (status) {
+    case "in_game": return "bg-accent";
+    case "in_queue": return "bg-yellow-500";
+    case "online": return "bg-green-500";
+    default: return "bg-muted-foreground/30";
+  }
+}
+
+function activityLabel(status: string, details?: { game_mode?: string; players_count?: number; started_at?: string }): string {
+  const mode = details?.game_mode;
+  switch (status) {
+    case "in_game": {
+      const parts = ["W grze"];
+      if (mode) parts.push(mode);
+      if (details?.players_count) parts.push(`${details.players_count}P`);
+      return parts.join(" · ");
+    }
+    case "in_queue": return mode ? `Szuka · ${mode}` : "W kolejce";
+    case "online": return "Online";
+    default: return "Offline";
+  }
+}
 import { loadAssetOverrides } from "@/lib/assetOverrides";
+import { cn } from "@/lib/utils";
 import {
   Swords,
   Users,
@@ -38,10 +70,14 @@ import {
   Store,
   Hammer,
   Trophy,
+  UserPlus,
   Bell,
   X,
+  MessageSquare,
+  Eye,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { toast } from "sonner";
 
 const MODE_ICONS: Record<string, typeof Users> = {
   "standard-1v1": Swords,
@@ -60,6 +96,7 @@ export default function DashboardPage() {
   } = useMatchmaking();
   const router = useRouter();
   const { showPrompt, subscribe, dismiss } = usePushNotifications(true);
+  const { openDMTab } = useChat();
 
   const [recentMatches, setRecentMatches] = useState<Match[]>([]);
   const [gameModes, setGameModes] = useState<GameModeListItem[]>([]);
@@ -67,6 +104,8 @@ export default function DashboardPage() {
   const [decks, setDecks] = useState<DeckOut[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [tutorialLoading, setTutorialLoading] = useState(false);
+  const [friends, setFriends] = useState<FriendshipOut[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const activeMatch = recentMatches.find(
     (m) =>
@@ -107,6 +146,25 @@ export default function DashboardPage() {
       if (def) setSelectedDeckId((p) => p ?? def.id);
     }).catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    const load = () => {
+      getFriends(token, 100).then((r) => {
+        const sorted = [...r.items].sort((a, b) => {
+          const order = { in_game: 0, in_queue: 1, online: 2, offline: 3 };
+          const friendA = a.from_user.id === user?.id ? a.to_user : a.from_user;
+          const friendB = b.from_user.id === user?.id ? b.to_user : b.from_user;
+          return (order[friendA.activity_status as keyof typeof order] ?? 3) - (order[friendB.activity_status as keyof typeof order] ?? 3);
+        });
+        setFriends(sorted);
+      }).catch(() => {});
+      getReceivedRequests(token, 1).then((r) => setPendingCount(r.count)).catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 15_000);
+    return () => clearInterval(id);
+  }, [token, user?.id]);
 
   useEffect(() => { if (matchId) router.push(`/game/${matchId}`); }, [matchId, router]);
   useEffect(() => { if (activeMatchId) router.push(`/game/${activeMatchId}`); }, [activeMatchId, router]);
@@ -259,7 +317,10 @@ export default function DashboardPage() {
 
       {/* ═══ GAME CONFIG — flat on mobile, cards on desktop ═══ */}
       {!activeMatch && (
-        <div className="space-y-4 md:space-y-6">
+        <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-3 md:gap-6 md:items-stretch">
+
+          {/* Game config cols (col-span-2 on desktop) */}
+          <div className="md:col-span-2 md:space-y-6">
 
           {/* Mode selector — Card on desktop */}
           <div className={`px-4 md:px-0 ${inQueue ? "opacity-50 pointer-events-none" : ""}`} data-animate="main-card">
@@ -546,6 +607,108 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+          </div>{/* end col-span-2 */}
+
+          {/* Friends side panel — desktop only (col-span-1, full height) */}
+          <div className="hidden md:flex md:col-span-1 md:flex-col" data-animate="main-card">
+            <Card className="rounded-2xl flex-1 flex flex-col overflow-hidden">
+              <CardContent className="p-5 flex-1 flex flex-col min-h-0">
+                {/* Header — always visible */}
+                <div className="flex items-center justify-between mb-4 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                    <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground font-medium">Znajomi</p>
+                    {pendingCount > 0 && (
+                      <span className="inline-flex items-center rounded-full bg-primary/15 px-2.5 py-0.5 text-sm font-semibold text-primary">
+                        {pendingCount}
+                      </span>
+                    )}
+                  </div>
+                  <Link href="/friends" className="text-sm text-primary hover:text-primary/80 transition-colors">
+                    Wszystkie <ChevronRight className="inline h-4 w-4" />
+                  </Link>
+                </div>
+
+                {/* Body: friends list */}
+                {friends.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-3 py-6">
+                    <Users className="h-8 w-8 text-muted-foreground/20" />
+                    <p className="text-base text-muted-foreground/40">Brak znajomych</p>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col gap-0.5 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-border">
+                    {friends.map((friendship) => {
+                      const friend: FriendUser = friendship.from_user.id === user.id ? friendship.to_user : friendship.from_user;
+                      return (
+                        <div
+                          key={friendship.id}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all hover:bg-muted/50 group shrink-0"
+                        >
+                          <Link href={`/profile/${friend.id}`} className="flex flex-1 min-w-0 items-center gap-3">
+                            <div className="relative shrink-0">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-sm font-bold text-foreground uppercase">
+                                {friend.username.charAt(0)}
+                              </div>
+                              <div className={cn(
+                                "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card",
+                                activityDot(friend.activity_status)
+                              )} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-base font-semibold text-foreground truncate block group-hover:text-primary transition-colors">{friend.username}</span>
+                              <span className="text-xs text-muted-foreground">{activityLabel(friend.activity_status, friend.activity_details)} · <span className="text-accent tabular-nums">{friend.elo_rating}</span></span>
+                            </div>
+                          </Link>
+                          <button
+                            title="Napisz wiadomość"
+                            onClick={() => openDMTab(friend.id, friend.username)}
+                            className="shrink-0 flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 transition-all"
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </button>
+                          {friend.activity_status === "in_game" && friend.activity_details?.match_id && (
+                            <Link
+                              href={`/spectate/${friend.activity_details.match_id}`}
+                              className="shrink-0 flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-accent hover:bg-accent/10 transition-all"
+                              title="Oglądaj mecz"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          )}
+                          <button
+                            title="Zaproś do gry"
+                            disabled={inQueue}
+                            onClick={async () => {
+                              if (!token || !selectedMode) return;
+                              toast.info("Tworzenie lobby...");
+                              try {
+                                await inviteFriendToGame(token, friendship.id, selectedMode);
+                                joinQueue(selectedMode);
+                                toast.success("Zaproszenie wysłane!");
+                              } catch {
+                                toast.error("Nie udało się wysłać zaproszenia");
+                              }
+                            }}
+                            className="shrink-0 flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 disabled:opacity-30 disabled:pointer-events-none transition-all"
+                          >
+                            <Swords className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <Link
+                  href="/friends"
+                  className="mt-3 shrink-0 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-5 py-3 text-sm text-muted-foreground hover:border-primary/30 hover:text-foreground transition-all"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Dodaj znajomych
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
+
         </div>
       )}
 
@@ -632,6 +795,77 @@ export default function DashboardPage() {
             <ChevronRight className="hidden md:block h-4 w-4 text-muted-foreground/40 ml-auto shrink-0 group-hover:text-muted-foreground transition-colors" />
           </Link>
         ))}
+      </div>
+
+      {/* ═══ FRIENDS WIDGET — mobile only (desktop is in game config grid) ═══ */}
+      <div className="px-4 md:hidden">
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground font-medium">Znajomi</p>
+            {pendingCount > 0 && (
+              <span className="inline-flex items-center rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                {pendingCount}
+              </span>
+            )}
+          </div>
+          <Link href="/friends" className="text-xs text-primary hover:text-primary/80 transition-colors">
+            Zobacz wszystkich <ChevronRight className="inline h-3.5 w-3.5" />
+          </Link>
+        </div>
+        {friends.length === 0 ? (
+          <Link
+            href="/friends"
+            className="flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground hover:border-primary/30 hover:text-foreground transition-all"
+          >
+            <Users className="h-4 w-4 shrink-0" />
+            Dodaj znajomych aby grać razem!
+          </Link>
+        ) : (
+          <div className="space-y-1">
+            {friends.map((friendship) => {
+              const friend: FriendUser = friendship.from_user.id === user.id ? friendship.to_user : friendship.from_user;
+              return (
+                <div
+                  key={friendship.id}
+                  className="flex items-center gap-3 rounded-xl px-1 py-2.5 transition-all hover:bg-muted/50"
+                >
+                  <Link
+                    href={`/profile/${friend.id}`}
+                    className="flex flex-1 min-w-0 items-center gap-3"
+                  >
+                    <div className="relative shrink-0">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground uppercase">
+                        {friend.username.charAt(0)}
+                      </div>
+                      <div className={cn(
+                        "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card",
+                        friend.is_online ? "bg-green-500" : "bg-muted-foreground/30"
+                      )} />
+                    </div>
+                    <span className="flex-1 min-w-0 text-sm font-medium text-foreground truncate">{friend.username}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground shrink-0">{friend.elo_rating} ELO</span>
+                  </Link>
+                  <button
+                    onClick={() => openDMTab(friend.id, friend.username)}
+                    title="Napisz wiadomość"
+                    className="shrink-0 flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                  </button>
+                  {friend.activity_status === "in_game" && friend.activity_details?.match_id && (
+                    <Link
+                      href={`/spectate/${friend.activity_details.match_id}`}
+                      className="shrink-0 flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors"
+                      title="Oglądaj mecz"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Link>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ═══ RECENT MATCHES — mobile: clean list, desktop: table ═══ */}

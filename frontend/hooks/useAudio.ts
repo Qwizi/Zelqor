@@ -2,16 +2,22 @@
 
 import { useRef, useCallback, useEffect, useState } from "react";
 
+// ── In-game music playlist ──────────────────────────────────────────────────
 export const MUSIC_TRACKS = [
-  { src: "/assets/audio/music/maplord_marching_loop.ogg", name: "Marching" },
-  { src: "/assets/audio/music/maplord_soviet_loop.ogg", name: "Soviet March" },
-  { src: "/assets/audio/music/music.match.no_action.ogg", name: "No Action" },
-  { src: "/assets/audio/music/maplord_lofi_loop.ogg", name: "Lofi" },
-  { src: "/assets/audio/music/music.match.no_action_ac.ogg", name: "Acoustic" },
-  { src: "/assets/audio/music/maplord_discorock.ogg", name: "Disco Rock" },
-  { src: "/assets/audio/music/maplord_firstsong.ogg", name: "First Song" },
-  { src: "/assets/audio/music/maplord_when_johny_home.ogg", name: "When Johnny Comes Home" },
+  { src: "/assets/audio/music/trailer.mp3", name: "Trailer Theme" },
 ];
+
+// ── Menu background music ───────────────────────────────────────────────────
+export const MENU_MUSIC_SRC = "/assets/audio/music/menu.mp3";
+
+// ── One-shot jingles (victory, defeat, elimination) ─────────────────────────
+export const JINGLES = {
+  victory: "/assets/audio/music/jingle_victory.mp3",
+  defeat: "/assets/audio/music/jingle_defeat.mp3",
+  elimination: "/assets/audio/music/jingle_elimination.mp3",
+} as const;
+
+export type JingleKey = keyof typeof JINGLES;
 
 export const SOUNDS = {
   click: "/assets/audio/gui/button_click_1.ogg",
@@ -43,7 +49,7 @@ const SOUND_COOLDOWN_MS = 80;
 function readLS(): boolean {
   try {
     const val = localStorage.getItem(LS_MUTED);
-    if (val === null) return true; // default: muted
+    if (val === null) return false; // default: unmuted
     return val === "1";
   } catch {
     return true;
@@ -52,6 +58,7 @@ function readLS(): boolean {
 
 export function useAudio() {
   const musicRef = useRef<HTMLAudioElement | null>(null);
+  const jingleRef = useRef<HTMLAudioElement | null>(null);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const trackIndexRef = useRef(0);
   const [muted, setMuted] = useState(() => readLS());
@@ -63,6 +70,7 @@ export function useAudio() {
     mutedRef.current = muted;
     try { localStorage.setItem(LS_MUTED, muted ? "1" : "0"); } catch {}
     if (musicRef.current) musicRef.current.muted = muted;
+    if (jingleRef.current) jingleRef.current.muted = muted;
   }, [muted]);
 
   const advanceTrack = useCallback(() => {
@@ -91,6 +99,43 @@ export function useAudio() {
   const stopMusic = useCallback(() => {
     musicRef.current?.pause();
     musicRef.current = null;
+  }, []);
+
+  // ── Menu music (separate from in-game playlist) ─────────────────────────
+  const menuPendingRef = useRef(false);
+  const startMenuMusic = useCallback(() => {
+    if (musicRef.current || menuPendingRef.current) return;
+    menuPendingRef.current = true;
+    const audio = new Audio(MENU_MUSIC_SRC);
+    audio.volume = 0.08;
+    audio.loop = true;
+    audio.muted = mutedRef.current;
+    audio.play().then(() => {
+      musicRef.current = audio;
+      menuPendingRef.current = false;
+    }).catch(() => {
+      menuPendingRef.current = false;
+    });
+  }, []);
+
+  const stopMenuMusic = useCallback(() => {
+    musicRef.current?.pause();
+    musicRef.current = null;
+  }, []);
+
+  // ── Jingle playback (stops current music, plays once, optionally resumes) ──
+  const playJingle = useCallback((key: JingleKey, { volume = 0.35, stopBgMusic = true } = {}) => {
+    if (mutedRef.current) return;
+    if (stopBgMusic && musicRef.current) {
+      musicRef.current.pause();
+    }
+    jingleRef.current?.pause();
+    const audio = new Audio(JINGLES[key]);
+    audio.volume = volume;
+    audio.muted = mutedRef.current;
+    audio.onended = () => { jingleRef.current = null; };
+    jingleRef.current = audio;
+    audio.play().catch(() => {});
   }, []);
 
   const selectTrack = useCallback((index: number) => {
@@ -134,8 +179,15 @@ export function useAudio() {
   useEffect(() => {
     return () => {
       musicRef.current?.pause();
+      jingleRef.current?.pause();
     };
   }, []);
 
-  return { startMusic, stopMusic, playSound, toggleMute, muted, currentTrackIndex, selectTrack };
+  return {
+    startMusic, stopMusic,
+    startMenuMusic, stopMenuMusic,
+    playJingle,
+    playSound, toggleMute, muted,
+    currentTrackIndex, selectTrack,
+  };
 }

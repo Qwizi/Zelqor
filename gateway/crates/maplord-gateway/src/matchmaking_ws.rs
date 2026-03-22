@@ -144,6 +144,11 @@ async fn handle_matchmaking_socket(
         }
     };
 
+    crate::social::set_player_status(&mut state.redis.clone(), &user_id, &serde_json::json!({
+        "status": "in_queue",
+        "game_mode": game_mode.as_deref().unwrap_or("default"),
+    })).await;
+
     // Send LiveKit voice token for lobby voice chat (fire-and-forget).
     if let Some(lobby_id) = state.matchmaking.get_user_lobby_id(&user_id).await {
         let config = state.config.clone();
@@ -194,6 +199,7 @@ async fn handle_matchmaking_socket(
     let matchmaking = state.matchmaking.clone();
     let user_id_clone = user_id.clone();
     let game_mode_clone = game_mode.clone();
+    let mut redis_for_recv = state.redis.clone();
 
     let recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_receiver.next().await {
@@ -212,6 +218,7 @@ async fn handle_matchmaking_socket(
                                         game_mode_clone.as_deref(),
                                     )
                                     .await;
+                                crate::social::clear_player_status(&mut redis_for_recv, &user_id_clone).await;
                                 break;
                             }
                             "status" => {
@@ -284,6 +291,8 @@ async fn handle_matchmaking_socket(
         .matchmaking
         .disconnect(&user_id, game_mode.as_deref(), conn_id)
         .await;
+
+    crate::social::clear_player_status(&mut state.redis.clone(), &user_id).await;
 }
 
 // ---------------------------------------------------------------------------

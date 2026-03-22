@@ -60,3 +60,50 @@ class LeaderboardEntrySchema(Schema):
         if self.matches_played > 0:
             self.win_rate = self.wins / self.matches_played
         return self
+
+
+class FriendUserSchema(Schema):
+    id: uuid.UUID
+    username: str
+    elo_rating: int
+    is_online: bool = False
+    activity_status: str = 'offline'
+    activity_details: dict = {}
+
+    class Config:
+        from_attributes = True
+
+
+class FriendshipOutSchema(Schema):
+    id: uuid.UUID
+    from_user: FriendUserSchema
+    to_user: FriendUserSchema
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FriendRequestSchema(Schema):
+    username: str
+
+
+class GameInviteSchema(Schema):
+    game_mode: str
+
+
+class DirectMessageOutSchema(Schema):
+    id: uuid.UUID
+    sender: FriendUserSchema
+    receiver: FriendUserSchema
+    content: str
+    is_read: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DirectMessageCreateSchema(Schema):
+    content: str

@@ -145,6 +145,46 @@ class GameInternalController(ControllerBase):
             is_banned = True
         return {'is_member': is_member, 'is_active': not is_banned}
 
+    @route.get('/matches/{match_id}/verify-spectator/{user_id}/')
+    def verify_spectator(self, request, match_id: str, user_id: str):
+        """Verify if a user can spectate a match. Only friends of match players can spectate."""
+        if not check_internal_secret(request):
+            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+
+        from django.db.models import Q
+        from apps.accounts.models import User, Friendship
+        from apps.matchmaking.models import Match
+
+        try:
+            is_banned = User.objects.filter(id=user_id).values_list('is_banned', flat=True).get()
+        except User.DoesNotExist:
+            return {'is_member': False, 'is_active': False}
+
+        if is_banned:
+            return {'is_member': False, 'is_active': False}
+
+        match = Match.objects.filter(id=match_id).first()
+        if not match:
+            return {'is_member': False, 'is_active': True}
+
+        if match.status not in (Match.Status.SELECTING, Match.Status.IN_PROGRESS):
+            return {'is_member': False, 'is_active': True}
+
+        # Check if spectator is friends with at least one player in the match
+        player_ids = list(
+            match.players.values_list('user_id', flat=True)
+        )
+        is_friend_of_player = Friendship.objects.filter(
+            Q(from_user_id=user_id, to_user_id__in=player_ids) |
+            Q(to_user_id=user_id, from_user_id__in=player_ids),
+            status=Friendship.Status.ACCEPTED,
+        ).exists()
+
+        if not is_friend_of_player:
+            return {'is_member': False, 'is_active': True}
+
+        return {'is_member': True, 'is_active': True}
+
     @route.get('/matches/{match_id}/data/')
     def get_match_data(self, request, match_id: str):
         if not check_internal_secret(request):

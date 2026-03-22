@@ -1,6 +1,7 @@
 use crate::chat::ChatConnections;
 use crate::config::AppConfig;
 use crate::game::GameConnections;
+use crate::social::SocialConnections;
 use dashmap::DashMap;
 use maplord_django::DjangoClient;
 use maplord_matchmaking::MatchmakingManager;
@@ -17,6 +18,8 @@ pub struct AppState {
     pub game_connections: GameConnections,
     /// Global chat WebSocket senders: user_id -> Vec<sender>
     pub chat_connections: ChatConnections,
+    /// Social notification/DM WebSocket senders: user_id -> Vec<sender>
+    pub social_connections: SocialConnections,
     /// Cached usernames from Django: user_id -> (username, fetched_at)
     pub username_cache: Arc<DashMap<String, (String, Instant)>>,
     /// Last message timestamp per user for chat rate limiting

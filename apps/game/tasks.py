@@ -240,6 +240,20 @@ def finalize_match_results_sync(
             User.objects.bulk_update(users_to_update, ['elo_rating'])
         PlayerResult.objects.bulk_create(player_results_to_create)
 
+        # Send match result notifications to non-bot players
+        try:
+            from apps.notifications.services import notify_match_result
+            for row in player_rows:
+                if not row["is_bot"]:
+                    notify_match_result(
+                        user=row["match_player"].user,
+                        placement=row["placement"],
+                        elo_change=row.get("final_elo_change", 0),
+                        match_id=str(match_id),
+                    )
+        except Exception as e:
+            logger.error("Failed to send match result notifications for match %s: %s", match_id, e)
+
     logger.info(
         "Match %s finalized immediately: winner=%s, ticks=%d",
         match_id,

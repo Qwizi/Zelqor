@@ -16,6 +16,8 @@ import {
   Swords,
   Trophy,
   User,
+  UserPlus,
+  Users,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -26,6 +28,11 @@ import {
   getMyInventory,
   getMyDecks,
   getPlayerMatches,
+  sendFriendRequest,
+  getFriends,
+  getSentRequests,
+  getReceivedRequests,
+  APIError,
   type LeaderboardEntry,
   type Match,
   type WalletOut,
@@ -33,6 +40,7 @@ import {
   type DeckOut,
   type User as UserType,
 } from "@/lib/api";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { BannedBadge } from "@/components/ui/banned-badge";
 import dynamic from "next/dynamic";
@@ -69,6 +77,9 @@ export default function ProfilePage() {
 
   const [dataLoading, setDataLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [friendLoading, setFriendLoading] = useState(false);
+  const [friendSent, setFriendSent] = useState(false);
+  const [friendshipStatus, setFriendshipStatus] = useState<"none" | "pending" | "accepted">("none");
   const containerRef = useRef<HTMLDivElement>(null);
 
   useGSAP(() => {
@@ -117,13 +128,31 @@ export default function ProfilePage() {
       Promise.allSettled([
         getLeaderboard(token, 1000),
         getPlayerMatches(token, userId, 50),
-      ]).then(([lbRes, matchesRes]) => {
+        getFriends(token, 200),
+        getSentRequests(token, 200),
+        getReceivedRequests(token, 200),
+      ]).then(([lbRes, matchesRes, friendsRes, sentRes, receivedRes]) => {
         if (lbRes.status === "fulfilled") {
           const idx = lbRes.value.items.findIndex((e) => e.id === userId);
           if (idx === -1) { setNotFound(true); }
           else { setEntry(lbRes.value.items[idx]); setPlacement(idx + 1); }
         } else { setNotFound(true); }
         if (matchesRes.status === "fulfilled") setMatches(matchesRes.value.items);
+        // Check friendship status
+        const isFriend = friendsRes.status === "fulfilled" && friendsRes.value.items.some(
+          (f) => f.from_user.id === userId || f.to_user.id === userId
+        );
+        if (isFriend) {
+          setFriendshipStatus("accepted");
+        } else {
+          const hasSent = sentRes.status === "fulfilled" && sentRes.value.items.some(
+            (f) => f.to_user.id === userId
+          );
+          const hasReceived = receivedRes.status === "fulfilled" && receivedRes.value.items.some(
+            (f) => f.from_user.id === userId
+          );
+          if (hasSent || hasReceived) setFriendshipStatus("pending");
+        }
         setDataLoading(false);
       });
     }
@@ -150,6 +179,29 @@ export default function ProfilePage() {
         </div>
       </div>
     );
+  }
+
+  async function handleAddFriend() {
+    if (!token || !entry?.username || friendSent) return;
+    setFriendLoading(true);
+    try {
+      await sendFriendRequest(token, entry.username);
+      setFriendSent(true);
+      toast.success("Zaproszenie wysłane");
+    } catch (err) {
+      if (err instanceof APIError && err.status === 400) {
+        const body = err.body as Record<string, unknown> | undefined;
+        const detail =
+          typeof body?.detail === "string"
+            ? body.detail
+            : "Już jesteście znajomymi";
+        toast.error(detail);
+      } else {
+        toast.error("Nie udało się wysłać zaproszenia");
+      }
+    } finally {
+      setFriendLoading(false);
+    }
   }
 
   const currentUser = profile ?? user!;
@@ -190,6 +242,34 @@ export default function ProfilePage() {
           >
             <Settings className="h-4 w-4" />
           </Link>
+        )}
+        {!isOwnProfile && friendshipStatus === "none" && (
+          <button
+            onClick={handleAddFriend}
+            disabled={friendLoading || friendSent}
+            className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {friendLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <UserPlus className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {friendSent ? "Wysłano" : "Dodaj do znajomych"}
+            </span>
+          </button>
+        )}
+        {!isOwnProfile && friendshipStatus === "pending" && (
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+            <UserPlus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Zaproszenie wysłane</span>
+          </span>
+        )}
+        {!isOwnProfile && friendshipStatus === "accepted" && (
+          <span className="inline-flex items-center gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-400">
+            <Users className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Znajomy</span>
+          </span>
         )}
       </div>
 

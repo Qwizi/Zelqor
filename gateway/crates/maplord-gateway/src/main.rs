@@ -3,6 +3,7 @@ mod chat;
 mod config;
 mod game;
 mod matchmaking_ws;
+mod social;
 mod state;
 mod voice;
 
@@ -20,6 +21,7 @@ use tracing::{error, info};
 use crate::chat::new_chat_connections;
 use crate::config::AppConfig;
 use crate::game::new_game_connections;
+use crate::social::new_social_connections;
 use crate::state::AppState;
 use dashmap::DashMap;
 
@@ -135,6 +137,7 @@ async fn main() {
 
     // Create chat state
     let chat_connections = new_chat_connections();
+    let social_connections = new_social_connections();
     let username_cache = Arc::new(DashMap::new());
     let chat_rate_limits = Arc::new(DashMap::new());
     let action_rate_limits = Arc::new(DashMap::new());
@@ -146,6 +149,7 @@ async fn main() {
         matchmaking,
         game_connections,
         chat_connections,
+        social_connections,
         username_cache,
         chat_rate_limits,
         action_rate_limits,
@@ -153,6 +157,12 @@ async fn main() {
 
     // Start lobby pub/sub listener (Django/Celery → Gateway events)
     app_state.matchmaking.spawn_pubsub_listener(&config.redis_url());
+
+    // Start social pub/sub listener (Django → Gateway social events)
+    social::spawn_social_pubsub(
+        config.redis_url(),
+        app_state.social_connections.clone(),
+    );
 
     recover_active_matches(&app_state).await;
 
@@ -178,10 +188,13 @@ async fn main() {
                 )
             }),
         )
-        // Game WebSocket route
+        // Game WebSocket routes
         .route("/ws/game/{match_id}/", get(game::ws_game_handler))
+        .route("/ws/game/{match_id}/spectate/", get(game::ws_spectate_handler))
         // Global chat WebSocket route
         .route("/ws/chat/", get(chat::ws_chat_handler))
+        // Social notifications / DM WebSocket route
+        .route("/ws/social/", get(social::ws_social_handler))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);

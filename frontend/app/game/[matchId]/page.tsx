@@ -169,7 +169,7 @@ export default function GamePage({
     return ids;
   }, [voice.isSpeaking, voice.peers, user?.id]);
 
-  const { startMusic, stopMusic, playSound, toggleMute, muted, currentTrackIndex, selectTrack } = useAudio();
+  const { startMusic, stopMusic, playSound, playJingle, toggleMute, muted, currentTrackIndex, selectTrack } = useAudio();
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
 
   const [regionGraph, setRegionGraph] = useState<RegionGraphEntry[]>([]);
@@ -1744,14 +1744,14 @@ export default function GamePage({
         const winner = gameState?.players[winnerId];
         if (winnerId === myUserId) {
           toast.success("Wygrales");
-          playSound("popup");
+          playJingle("victory");
           // TODO: Trigger victory VFX overlay using the winner's vfx_victory cosmetic.
           // getVictoryVfx returns the cosmetic asset (URL or params object) to use.
           const _victoryVfx = getVictoryVfx(gameStateRef.current?.players[myUserId]?.cosmetics);
           void _victoryVfx; // placeholder — pass to VFX overlay component when implemented
         } else {
           toast.error(`Przegrales. Wygrywa: ${winner?.username || "?"}`);
-          playSound("buzzer");
+          playJingle("defeat");
         }
       }
       if (e.type === "player_eliminated" && e.player_id === myUserId) {
@@ -1762,7 +1762,7 @@ export default function GamePage({
         } else {
           toast.error("Twoja stolica zostala zdobyta");
         }
-        playSound("buzzer");
+        playJingle("elimination");
       }
       if (e.type === "player_eliminated" && e.player_id !== myUserId) {
         const eliminatedPlayer = gameStateRef.current?.players[String(e.player_id)];
@@ -2136,7 +2136,8 @@ export default function GamePage({
                 toast.error("Nie udalo sie potwierdzic opuszczenia meczu");
                 return;
               }
-              router.push("/dashboard");
+              playJingle("defeat");
+              setTimeout(() => router.push("/dashboard"), 3000);
             }}
             className="hidden rounded-full border border-destructive/20 bg-destructive/10 px-4 py-2 text-xs text-destructive shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors hover:bg-destructive/20 sm:block"
           >
@@ -2162,7 +2163,8 @@ export default function GamePage({
                 toast.error("Nie udalo sie potwierdzic opuszczenia meczu");
                 return;
               }
-              router.push("/dashboard");
+              playJingle("defeat");
+              setTimeout(() => router.push("/dashboard"), 3000);
             }}
             className="rounded-full border border-destructive/20 bg-destructive/10 px-4 py-2 text-xs text-destructive transition-colors hover:bg-destructive/20"
           >

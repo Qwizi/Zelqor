@@ -94,6 +94,159 @@ pub async fn ws_game_handler(
     ws.on_upgrade(move |socket| handle_game_socket(socket, match_id, user_id, state))
 }
 
+pub async fn ws_spectate_handler(
+    ws: WebSocketUpgrade,
+    Path(match_id): Path<String>,
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    axum_extra::extract::Query(query): axum_extra::extract::Query<TokenQuery>,
+) -> Response {
+    if let Err(resp) = auth::check_origin(&headers, &state.config.allowed_ws_origins) {
+        return resp;
+    }
+
+    let token = match query.token {
+        Some(t) => t,
+        None => {
+            return Response::builder()
+                .status(401)
+                .body("Missing token".into())
+                .unwrap();
+        }
+    };
+
+    let user_id = match auth::validate_token(&token, &state.config.secret_key) {
+        Ok(id) => id,
+        Err(_) => {
+            return Response::builder()
+                .status(401)
+                .body("Invalid token".into())
+                .unwrap();
+        }
+    };
+
+    if let Some(ticket) = query.ticket {
+        match auth::validate_ticket(&ticket, query.nonce.as_deref(), &mut state.redis.clone()).await {
+            Ok(ticket_user_id) if ticket_user_id != user_id => {
+                return Response::builder()
+                    .status(401)
+                    .body("Ticket user mismatch".into())
+                    .unwrap();
+            }
+            Err(_) => {
+                return Response::builder()
+                    .status(401)
+                    .body("Invalid or expired ticket".into())
+                    .unwrap();
+            }
+            Ok(_) => {}
+        }
+    }
+
+    ws.on_upgrade(move |socket| handle_spectate_socket(socket, match_id, user_id, state))
+}
+
+async fn handle_spectate_socket(
+    socket: WebSocket,
+    match_id: String,
+    user_id: String,
+    state: AppState,
+) {
+    use futures::SinkExt;
+    use futures::StreamExt;
+
+    let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    // Verify spectator permission via Django
+    match state.django.verify_spectator(&match_id, &user_id).await {
+        Ok(result) if result.is_member && result.is_active => {}
+        Ok(result) if !result.is_active => {
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4003,
+                    reason: "Account banned".into(),
+                })))
+                .await;
+            return;
+        }
+        _ => {
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4003,
+                    reason: "Spectating not permitted".into(),
+                })))
+                .await;
+            return;
+        }
+    }
+
+    info!("Spectator {user_id} joined match {match_id}");
+
+    // Create bounded channel for outgoing messages
+    let (tx, mut rx) = mpsc::channel::<Message>(WS_CHANNEL_BUFFER);
+
+    // Register as spectator — key is prefixed to avoid collision with player UUIDs
+    let spectator_key = format!("spectator_{user_id}");
+    state
+        .game_connections
+        .entry(match_id.clone())
+        .or_insert_with(DashMap::new)
+        .entry(spectator_key.clone())
+        .or_default()
+        .push(tx.clone());
+
+    // Send the current game state immediately so the spectator does not have
+    // to wait for the next tick broadcast.
+    let state_mgr = GameStateManager::new(match_id.clone(), state.redis.clone());
+    if let Ok(full_state) = state_mgr.get_full_state().await {
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        let current_weather = compute_weather_from_meta(&state_mgr, now_secs).await;
+        let msg = json!({"type": "game_state", "state": full_state, "weather": current_weather});
+        let _ = tx.try_send(Message::Text(msg.to_string().into()));
+    }
+
+    // Outgoing message forwarder
+    let send_task = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if ws_sender.send(msg).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    // Receive loop — spectators are read-only; just watch for close/ping frames
+    let recv_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = ws_receiver.next().await {
+            match msg {
+                Message::Close(_) => break,
+                // Ping is handled automatically by axum; nothing else to do
+                _ => {}
+            }
+        }
+    });
+
+    tokio::select! {
+        _ = send_task => {},
+        _ = recv_task => {},
+    }
+
+    // Cleanup: remove this spectator's sender from the match connections
+    if let Some(match_conns) = state.game_connections.get(&match_id) {
+        if let Some(mut senders) = match_conns.get_mut(&spectator_key) {
+            senders.retain(|s| !s.is_closed());
+            if senders.is_empty() {
+                drop(senders);
+                match_conns.remove(&spectator_key);
+            }
+        }
+    }
+
+    info!("Spectator {user_id} left match {match_id}");
+}
+
 async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String, state: AppState) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
@@ -164,6 +317,32 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
             })))
             .await;
         return;
+    }
+
+    {
+        let meta = state_mgr.get_meta().await.unwrap_or_default();
+        let max_players = meta
+            .get("max_players")
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(0);
+        let players_connected = state
+            .game_connections
+            .get(&match_id)
+            .map(|m| m.len() as u32)
+            .unwrap_or(0);
+        let started_at = meta.get("started_at").cloned().unwrap_or_default();
+        crate::social::set_player_status(
+            &mut state.redis.clone(),
+            &user_id,
+            &serde_json::json!({
+                "status": "in_game",
+                "match_id": &match_id,
+                "max_players": max_players,
+                "players_connected": players_connected,
+                "started_at": started_at,
+            }),
+        )
+        .await;
     }
 
     // Create channel for outgoing messages with backpressure
@@ -302,6 +481,8 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
 
     // Disconnect cleanup
     mark_player_disconnected(&state_mgr, &user_id, &match_id, &state).await;
+
+    crate::social::clear_player_status(&mut state.redis.clone(), &user_id).await;
 
     // Unregister connection
     if let Some(match_conns) = state.game_connections.get(&match_id) {
@@ -1833,6 +2014,9 @@ async fn initialize_game(
     if match_data.is_tutorial {
         state_mgr.set_meta_field("is_tutorial", "1").await?;
     }
+    state_mgr
+        .set_meta_field("started_at", &now.to_string())
+        .await?;
 
     // Set up players
     let mut players = HashMap::new();

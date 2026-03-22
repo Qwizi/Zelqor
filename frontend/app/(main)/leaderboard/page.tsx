@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { Trophy, Medal, ChevronLeft, ChevronRight, Loader2, Target, Swords, Crown } from "lucide-react";
+import { Trophy, Medal, ChevronLeft, ChevronRight, Loader2, Target, Swords, Crown, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
-import { getLeaderboard, type LeaderboardEntry } from "@/lib/api";
+import { getLeaderboard, getFriends, type LeaderboardEntry } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BannedBadge } from "@/components/ui/banned-badge";
@@ -35,6 +35,7 @@ function LeaderboardContent() {
   const { user, loading, token } = useAuth();
   const router = useRouter();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
   const [pageLoading, setPageLoading] = useState(true);
   const [pageOverride, setPageOverride] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,9 +53,18 @@ function LeaderboardContent() {
       return;
     }
 
-    getLeaderboard(token)
-      .then((res) => setEntries(res.items))
-      .finally(() => setPageLoading(false));
+    Promise.all([
+      getLeaderboard(token),
+      getFriends(token, 200, 0),
+    ]).then(([leaderboardRes, friendsRes]) => {
+      setEntries(leaderboardRes.items);
+      const ids = new Set<string>(
+        friendsRes.items.map((f) =>
+          f.from_user.id === user.id ? f.to_user.id : f.from_user.id
+        )
+      );
+      setFriendIds(ids);
+    }).finally(() => setPageLoading(false));
   }, [loading, router, token, user]);
 
   const myPlacement = entries.findIndex((entry) => entry.id === user?.id) + 1;
@@ -112,6 +122,7 @@ function LeaderboardContent() {
         <div className="md:hidden space-y-0.5">
           {paginatedEntries.map((entry, index) => {
             const isMe = entry.id === user?.id;
+            const isFriend = !isMe && friendIds.has(entry.id);
             const placement = (safePage - 1) * PAGE_SIZE + index + 1;
             const isTop3 = placement <= 3;
 
@@ -120,7 +131,7 @@ function LeaderboardContent() {
                 key={entry.id}
                 data-animate="row"
                 onClick={() => router.push(`/profile/${entry.id}`)}
-                className={`flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 ${isMe ? "bg-primary/5" : ""}`}
+                className={`flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 ${isMe ? "bg-primary/5" : isFriend ? "bg-accent/5" : ""}`}
               >
                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
                   isTop3 ? "bg-accent/15 text-accent" : "bg-secondary text-muted-foreground"
@@ -131,6 +142,7 @@ function LeaderboardContent() {
                   <div className="flex items-center gap-1.5">
                     <span className={`text-sm font-semibold text-foreground truncate ${entry.is_banned ? "line-through opacity-60" : ""}`}>{entry.username}</span>
                     {isMe && <span className="text-[10px] font-bold text-primary">Ty</span>}
+                    {isFriend && <Users className="h-3 w-3 text-muted-foreground shrink-0" />}
                     {entry.is_banned && <BannedBadge />}
                   </div>
                   <span className="text-xs text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR · {entry.matches_played} meczy</span>
@@ -167,6 +179,7 @@ function LeaderboardContent() {
             <TableBody>
               {paginatedEntries.map((entry, index) => {
                 const isMe = entry.id === user?.id;
+                const isFriend = !isMe && friendIds.has(entry.id);
                 const placement = (safePage - 1) * PAGE_SIZE + index + 1;
                 const isTop3 = placement <= 3;
 
@@ -175,7 +188,7 @@ function LeaderboardContent() {
                     key={entry.id}
                     data-animate="row"
                     onClick={() => router.push(`/profile/${entry.id}`)}
-                    className={`cursor-pointer ${isMe ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/50"}`}
+                    className={`cursor-pointer ${isMe ? "bg-primary/5 hover:bg-primary/10" : isFriend ? "bg-accent/5 hover:bg-accent/10" : "hover:bg-muted/50"}`}
                   >
                     <TableCell className="pl-6 py-3.5">
                       <div className={`flex h-9 w-9 items-center justify-center rounded-lg font-display text-sm font-bold ${
@@ -188,6 +201,7 @@ function LeaderboardContent() {
                       <div className="flex items-center gap-2">
                         <Link href={`/profile/${entry.id}`} className={`text-base font-semibold text-foreground hover:text-primary transition-colors ${entry.is_banned ? "line-through opacity-60" : ""}`}>{entry.username}</Link>
                         {isMe && <Badge className="border-0 bg-primary/15 text-xs text-primary hover:bg-primary/15">Ty</Badge>}
+                        {isFriend && <Badge className="border-0 bg-muted text-xs text-muted-foreground hover:bg-muted gap-1"><Users className="h-3 w-3" />Znajomy</Badge>}
                         {entry.is_banned && <BannedBadge />}
                       </div>
                     </TableCell>

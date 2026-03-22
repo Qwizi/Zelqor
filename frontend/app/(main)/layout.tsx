@@ -5,11 +5,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Backpack,
+  Bell,
+  Check,
+  CheckCheck,
   ChevronLeft,
   ChevronRight,
   ChevronRightIcon,
   Code,
   Coins,
+  ExternalLink,
   Globe,
   Hammer,
   Home,
@@ -17,14 +21,20 @@ import {
   LayoutDashboard,
   LogOut,
   Medal,
+  MessageSquare,
   MoreHorizontal,
   Search,
   Settings,
+  Shield,
   Shirt,
   Store,
+  Swords,
   Trophy,
   UserCircle,
+  UserPlus,
   Users,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,9 +42,15 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import { MatchmakingProvider, useMatchmaking } from "@/hooks/useMatchmaking";
 import { useSystemModules } from "@/hooks/useSystemModules";
-import { getMyWallet, type WalletOut } from "@/lib/api";
+import { getMyWallet, getFriends, type WalletOut, type FriendshipOut, type FriendUser } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAudio } from "@/hooks/useAudio";
+import { useNotifications } from "@/hooks/useNotifications";
+import { useChat } from "@/hooks/useChat";
+import { useSocialSocket } from "@/hooks/useSocialSocket";
+import { SocialSocketContext } from "@/hooks/SocialSocketContext";
+import type { NotificationOut } from "@/lib/api";
 // ---------------------------------------------------------------------------
 // Nav item definitions
 // ---------------------------------------------------------------------------
@@ -60,6 +76,8 @@ const NAV_MODULE_MAP: Record<string, string> = {
 const ALL_PLAY_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Graj", icon: <LayoutDashboard size={20} />, matchExact: true },
   { href: "/leaderboard", label: "Ranking", icon: <Medal size={20} />, matchExact: true },
+  { href: "/friends", label: "Znajomi", icon: <Users size={20} /> },
+  { href: "/messages", label: "Wiadomości", icon: <MessageSquare size={20} /> },
 ];
 
 const ALL_LOADOUT_ITEMS: NavItem[] = [
@@ -198,12 +216,15 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   marketplace: "Rynek",
   crafting: "Kuźnia",
   developers: "Deweloperzy",
+  friends: "Znajomi",
+  messages: "Wiadomości",
   profile: "Profil",
   settings: "Ustawienia",
   lobby: "Lobby",
   match: "Mecz",
   replay: "Powtórka",
   docs: "Dokumentacja",
+  notifications: "Powiadomienia",
 };
 
 // For dynamic segments (e.g. item slugs, deck IDs) we show a human-readable
@@ -675,6 +696,384 @@ function QueueBannerInline() {
 }
 
 // ---------------------------------------------------------------------------
+// Sidebar friends panel
+// ---------------------------------------------------------------------------
+
+const FRIENDS_MAX_VISIBLE = 5;
+const FRIENDS_REFRESH_INTERVAL = 15_000;
+
+function SidebarFriendsPanel({
+  collapsed,
+  token,
+  currentUserId,
+}: {
+  collapsed: boolean;
+  token: string | null;
+  currentUserId: string | undefined;
+}) {
+  const { openDMTab: sidebarOpenDM } = useChat();
+  const [friends, setFriends] = useState<FriendUser[]>([]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const load = () => {
+      getFriends(token, 100, 0)
+        .then((res) => {
+          const resolved = res.items.map((f: FriendshipOut) =>
+            f.from_user.id === currentUserId ? f.to_user : f.from_user
+          );
+          // Online friends first
+          resolved.sort((a, b) => {
+            const order = { in_game: 0, in_queue: 1, online: 2, offline: 3 };
+            return (order[a.activity_status as keyof typeof order] ?? 3) - (order[b.activity_status as keyof typeof order] ?? 3);
+          });
+          setFriends(resolved);
+        })
+        .catch(() => {
+          // Silently ignore — friends panel is non-critical
+        });
+    };
+
+    load();
+    const id = setInterval(load, FRIENDS_REFRESH_INTERVAL);
+    return () => clearInterval(id);
+  }, [token, currentUserId]);
+
+  const count = friends.length;
+  const visible = friends.slice(0, FRIENDS_MAX_VISIBLE);
+  const hasMore = count > FRIENDS_MAX_VISIBLE;
+
+  // Collapsed state: just the Users icon with an optional count badge
+  if (collapsed) {
+    return (
+      <div className="border-t border-border">
+        <Link
+          href="/friends"
+          title={`Znajomi (${count})`}
+          className="relative flex items-center justify-center py-3 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <Users size={20} />
+          {count > 0 && (
+            <span className="absolute top-2 right-2 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground leading-none">
+              {count > 9 ? "9+" : count}
+            </span>
+          )}
+        </Link>
+      </div>
+    );
+  }
+
+  // Expanded state
+  return (
+    <div className="border-t border-border">
+      {/* Header row */}
+      <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+        <span className="flex-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 select-none">
+          Znajomi
+        </span>
+        {count > 0 && (
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-secondary px-1 text-[10px] font-bold tabular-nums text-muted-foreground">
+            {count}
+          </span>
+        )}
+        <Link
+          href="/friends"
+          title="Przejdź do znajomych"
+          className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <ExternalLink size={12} />
+        </Link>
+      </div>
+
+      {/* Friend rows */}
+      {count === 0 ? (
+        <p className="px-3 pb-3 text-[11px] text-muted-foreground/50 select-none">
+          Brak znajomych
+        </p>
+      ) : (
+        <div className="flex flex-col px-2 pb-2 gap-0.5 overflow-y-auto max-h-[280px] scrollbar-thin scrollbar-thumb-border">
+          {friends.map((friend) => (
+            <div
+              key={friend.id}
+              className="flex h-8 items-center gap-2 rounded-md px-2 hover:bg-muted transition-colors group shrink-0"
+            >
+              {/* Avatar initial with activity dot — click → profile */}
+              <Link href={`/profile/${friend.id}`} className="relative shrink-0">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold uppercase text-primary">
+                  {friend.username.charAt(0)}
+                </div>
+                <div className={cn(
+                  "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-card",
+                  activityDot(friend.activity_status)
+                )} />
+              </Link>
+              {/* Username — click → profile */}
+              <Link href={`/profile/${friend.id}`} className="flex-1 truncate text-[12px] font-medium text-foreground hover:text-primary transition-colors">
+                {friend.username}
+              </Link>
+              {/* Chat */}
+              <button
+                onClick={(e) => { e.stopPropagation(); sidebarOpenDM(friend.id, friend.username); }}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 transition-all"
+                title={`Czat z ${friend.username}`}
+              >
+                <MessageSquare size={11} />
+              </button>
+              {/* ELO */}
+              <span className="text-[10px] tabular-nums text-muted-foreground shrink-0">
+                {friend.elo_rating}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Notification bell helpers
+// ---------------------------------------------------------------------------
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "teraz";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
+}
+
+function activityDot(status: string): string {
+  switch (status) {
+    case "in_game": return "bg-accent";
+    case "in_queue": return "bg-yellow-500";
+    case "online": return "bg-green-500";
+    default: return "bg-muted-foreground/30";
+  }
+}
+
+function notifIcon(type: string) {
+  switch (type) {
+    case "friend_request_received": return <UserPlus size={15} className="text-primary shrink-0" />;
+    case "friend_request_accepted": return <Check size={15} className="text-green-400 shrink-0" />;
+    case "match_won": return <Trophy size={15} className="text-accent shrink-0" />;
+    case "match_lost": return <X size={15} className="text-destructive shrink-0" />;
+    case "player_eliminated": return <Shield size={15} className="text-destructive shrink-0" />;
+    case "game_invite": return <Swords size={15} className="text-primary shrink-0" />;
+    default: return <Bell size={15} className="text-muted-foreground shrink-0" />;
+  }
+}
+
+function notifHref(n: { type: string; data: Record<string, unknown> }): string | null {
+  switch (n.type) {
+    case "friend_request_received": return "/friends";
+    case "friend_request_accepted": return "/friends";
+    case "game_invite": return n.data.lobby_id ? `/lobby/${n.data.lobby_id}` : "/dashboard";
+    case "match_won":
+    case "match_lost":
+      return n.data.match_id ? `/match/${n.data.match_id}` : null;
+    case "player_eliminated":
+      return n.data.match_id ? `/match/${n.data.match_id}` : null;
+    default: return null;
+  }
+}
+
+function NotificationBell({
+  token,
+  onNotification,
+  onGameInvite,
+}: {
+  token: string | null;
+  onGameInvite?: (gameMode: string) => void;
+  onNotification: (handler: (n: NotificationOut) => void) => () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const { unreadCount, notifications, loading, refreshList, markRead, markAllRead, handleIncoming } = useNotifications(token);
+
+  // Register real-time notification handler from social socket
+  useEffect(() => {
+    return onNotification((notif) => {
+      handleIncoming(notif);
+    });
+  }, [onNotification, handleIncoming]);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  function handleToggle() {
+    const next = !open;
+    setOpen(next);
+    if (next) refreshList();
+  }
+
+  if (!mounted) return null;
+
+  return (
+    <div ref={dropdownRef} className="relative">
+      <button
+        onClick={handleToggle}
+        className="relative flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        title="Powiadomienia"
+        aria-label="Powiadomienia"
+      >
+        <Bell size={16} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-0.5 text-[9px] font-bold text-white leading-none">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-[320px] sm:w-[380px] bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <span className="text-sm font-semibold text-foreground">Powiadomienia</span>
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                <CheckCheck size={13} />
+                Oznacz wszystkie
+              </button>
+            )}
+          </div>
+
+          {/* List — only unread notifications */}
+          <div className="max-h-[360px] overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+                Ładowanie...
+              </div>
+            ) : (() => {
+              const unreadNotifs = notifications.filter((n) => !n.is_read);
+              return unreadNotifs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+                <Bell size={28} className="opacity-20" />
+                <span className="text-sm">Brak nowych powiadomień</span>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {unreadNotifs.map((n) => {
+                  const isGameInvite = n.type === "game_invite" && n.data.lobby_id;
+
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() => {
+                        if (isGameInvite) return; // handled by buttons
+                        if (!n.is_read) markRead(n.id);
+                        const href = notifHref(n);
+                        if (href) { setOpen(false); router.push(href); }
+                      }}
+                      className={cn(
+                        "w-full flex flex-col gap-2 px-4 py-3 text-left transition-colors",
+                        !isGameInvite && "hover:bg-muted/60 cursor-pointer",
+                        !n.is_read && "bg-primary/5"
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary">
+                          {notifIcon(n.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{n.title}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0 ml-1">
+                          <span className="text-[10px] text-muted-foreground/60 tabular-nums">{timeAgo(n.created_at)}</span>
+                          {!n.is_read && !isGameInvite && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                          )}
+                        </div>
+                      </div>
+                      {isGameInvite && (
+                        <div className="flex items-center gap-2 pl-10">
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const { acceptGameInvite } = await import("@/lib/api");
+                                const result = await acceptGameInvite(token!, n.id);
+                                markRead(n.id);
+                                setOpen(false);
+                                if (onGameInvite && result.game_mode) {
+                                  onGameInvite(result.game_mode);
+                                }
+                                toast.success("Dołączono do lobby!");
+                              } catch {
+                                toast.error("Nie udało się dołączyć");
+                              }
+                            }}
+                            className="flex items-center gap-1.5 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs font-semibold text-green-400 hover:bg-green-500/25 transition-colors"
+                          >
+                            <Check size={13} />
+                            Dołącz
+                          </button>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const { rejectGameInvite } = await import("@/lib/api");
+                                await rejectGameInvite(token!, n.id);
+                                markRead(n.id);
+                                toast("Zaproszenie odrzucone");
+                              } catch {
+                                toast.error("Błąd");
+                              }
+                            }}
+                            className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/20 transition-colors"
+                          >
+                            <X size={13} />
+                            Odrzuć
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+            })()}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-border px-4 py-2.5">
+            <Link
+              href="/notifications"
+              onClick={() => setOpen(false)}
+              className="flex items-center justify-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors py-1"
+            >
+              Zobacz wszystkie
+              <ChevronRight size={13} />
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main layout
 // ---------------------------------------------------------------------------
 
@@ -688,7 +1087,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
 function MainLayoutInner({ children }: { children: ReactNode }) {
   const { user, logout, token } = useAuth();
-  const { inQueue: showQueueSubheader } = useMatchmaking();
+  const { inQueue: showQueueSubheader, joinQueue } = useMatchmaking();
   const pathname = usePathname();
   const [wallet, setWallet] = useState<WalletOut | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -696,6 +1095,90 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("sidebar-collapsed") === "true";
   });
+
+  // Social WebSocket — real-time notifications and direct messages
+  const social = useSocialSocket(token);
+
+  // Show a toast whenever a new notification arrives (deduplicate by id)
+  const seenNotifIdsRef = useRef(new Set<string>());
+  useEffect(() => {
+    return social.onNotification((notif) => {
+      if (seenNotifIdsRef.current.has(notif.id)) return;
+      seenNotifIdsRef.current.add(notif.id);
+      // Keep set small
+      if (seenNotifIdsRef.current.size > 50) {
+        const arr = [...seenNotifIdsRef.current];
+        seenNotifIdsRef.current = new Set(arr.slice(-25));
+      }
+      if (notif.type === "game_invite" && notif.data.lobby_id) {
+        toast(notif.title, {
+          description: notif.body || undefined,
+          duration: 30000,
+          action: {
+            label: "Dołącz",
+            onClick: async () => {
+              try {
+                const { acceptGameInvite } = await import("@/lib/api");
+                const result = await acceptGameInvite(token!, notif.id);
+                if (result.game_mode) joinQueue(result.game_mode);
+                toast.success("Dołączono do lobby!");
+              } catch {
+                toast.error("Nie udało się dołączyć");
+              }
+            },
+          },
+          classNames: {
+            actionButton: "!bg-green-500 !text-white !font-bold",
+          },
+        });
+      } else {
+        toast(notif.title, { description: notif.body || undefined });
+      }
+    });
+  }, [social.onNotification, token, joinQueue]);
+
+  // Add DM tab silently when receiving a direct message (don't open chat)
+  const { addDMTabSilent } = useChat();
+  useEffect(() => {
+    return social.onDirectMessage((msg) => {
+      addDMTabSilent(msg.sender.id, msg.sender.username);
+    });
+  }, [social.onDirectMessage, addDMTabSilent]);
+
+  // ── Menu background music ──────────────────────────────────
+  const { startMenuMusic, stopMenuMusic, toggleMute, muted } = useAudio();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    // Try autoplay immediately (works if user already interacted with the page)
+    startMenuMusic();
+
+    // Fallback: if browser blocked autoplay, start on next interaction
+    const handleInteraction = () => {
+      startMenuMusic();
+    };
+    window.addEventListener("click", handleInteraction);
+    window.addEventListener("keydown", handleInteraction);
+    return () => {
+      window.removeEventListener("click", handleInteraction);
+      window.removeEventListener("keydown", handleInteraction);
+      stopMenuMusic();
+    };
+  }, [startMenuMusic, stopMenuMusic]);
+
+  // ── Online stats ──────────────────────────────────────────
+  const [onlineStats, setOnlineStats] = useState<{ online: number; in_queue: number; in_game: number } | null>(null);
+  useEffect(() => {
+    const load = () => {
+      import("@/lib/api").then(({ getOnlineStats }) =>
+        getOnlineStats().then(setOnlineStats).catch(() => {})
+      );
+    };
+    load();
+    const id = setInterval(load, 15_000);
+    return () => clearInterval(id);
+  }, []);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -718,6 +1201,7 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
   const contentPadding = collapsed ? "md:pl-14" : "md:pl-56";
 
   return (
+    <SocialSocketContext.Provider value={social}>
     <div className="min-h-screen bg-background text-foreground">
       {/* ------------------------------------------------------------------ */}
       {/* Top bar                                                             */}
@@ -738,7 +1222,46 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
+          {/* Online stats */}
+          {onlineStats && (
+            <div className="hidden md:flex items-center gap-3 text-[11px] tabular-nums text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <span className="font-medium">{onlineStats.online}</span>
+                <span className="text-muted-foreground/60">online</span>
+              </span>
+              {onlineStats.in_game > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                  <span className="font-medium">{onlineStats.in_game}</span>
+                  <span className="text-muted-foreground/60">w grze</span>
+                </span>
+              )}
+              {onlineStats.in_queue > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+                  <span className="font-medium">{onlineStats.in_queue}</span>
+                  <span className="text-muted-foreground/60">szuka</span>
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="flex-1" />
+
+          {/* Music mute toggle */}
+          {mounted && (
+            <button
+              onClick={toggleMute}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title={muted ? "Włącz dźwięk" : "Wycisz"}
+            >
+              {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+          )}
+
+          {/* Notification bell */}
+          <NotificationBell token={token} onNotification={social.onNotification} onGameInvite={(mode) => joinQueue(mode)} />
 
           {/* Queue indicator — inline in header */}
           <QueueBannerInline />
@@ -803,6 +1326,13 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
             <DesktopSidebarContent pathname={pathname} collapsed={collapsed} />
           </div>
 
+          {/* Friends panel */}
+          <SidebarFriendsPanel
+            collapsed={collapsed}
+            token={token}
+            currentUserId={user?.id}
+          />
+
           {/* Collapse toggle */}
           <div className="border-t border-border">
             <button
@@ -842,6 +1372,7 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
       {/* ------------------------------------------------------------------ */}
       <MobileBottomBar pathname={pathname} sheetOpen={sheetOpen} setSheetOpen={setSheetOpen} />
     </div>
+    </SocialSocketContext.Provider>
   );
 }
 
@@ -871,6 +1402,7 @@ function MobileBottomBar({
         <SheetTrigger
           render={
             <button
+              id="mobile-more-trigger"
               className={cn(
                 "flex flex-1 flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium transition-colors",
                 "text-slate-400 hover:text-slate-300"

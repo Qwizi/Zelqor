@@ -14,6 +14,11 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+export interface DMTab {
+  friendId: string;
+  friendUsername: string;
+}
+
 interface ChatContextType {
   messages: ChatMessage[];
   connected: boolean;
@@ -22,9 +27,19 @@ interface ChatContextType {
   resetUnread: () => void;
   chatOpen: boolean;
   setChatOpen: (open: boolean) => void;
+  // DM tab management
+  activeTab: "global" | string;
+  dmTabs: DMTab[];
+  dmUnread: Record<string, number>;
+  openDMTab: (friendId: string, friendUsername: string) => void;
+  addDMTabSilent: (friendId: string, friendUsername: string) => void;
+  closeDMTab: (friendId: string) => void;
+  setActiveTab: (tab: "global" | string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
+
+const MAX_DM_TABS = 5;
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -32,6 +47,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"global" | string>("global");
+  const [dmTabs, setDmTabs] = useState<DMTab[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const userIdRef = useRef<string | null>(null);
   const chatOpenRef = useRef(false);
@@ -90,7 +107,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setMessages((msg.messages as ChatMessage[]) || []);
             initializedRef.current = true;
           } else if (msg.type === "chat_message") {
-            setMessages((prev) => [...prev.slice(-199), msg as unknown as ChatMessage]);
+            setMessages((prev) => {
+              // Deduplicate by timestamp + user_id + content
+              const cm = msg as unknown as ChatMessage;
+              const isDup = prev.some(
+                (m) => m.timestamp === cm.timestamp && m.user_id === cm.user_id && m.content === cm.content
+              );
+              if (isDup) return prev;
+              return [...prev.slice(-199), cm];
+            });
             // Unread for messages from others when chat is closed or tab is hidden
             if (initializedRef.current && msg.user_id !== userIdRef.current) {
               if (!chatOpenRef.current || document.visibilityState === "hidden") {
@@ -145,8 +170,41 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const resetUnread = useCallback(() => setUnreadCount(0), []);
 
+  const [dmUnread, setDmUnread] = useState<Record<string, number>>({});
+
+  const openDMTab = useCallback((friendId: string, friendUsername: string) => {
+    setDmTabs((prev) => {
+      const exists = prev.some((t) => t.friendId === friendId);
+      if (exists) return prev;
+      const next = [...prev, { friendId, friendUsername }];
+      return next.slice(-MAX_DM_TABS);
+    });
+    setActiveTab(friendId);
+    setChatOpen(true);
+    setDmUnread((prev) => { const next = { ...prev }; delete next[friendId]; return next; });
+  }, []);
+
+  const addDMTabSilent = useCallback((friendId: string, friendUsername: string) => {
+    setDmTabs((prev) => {
+      const exists = prev.some((t) => t.friendId === friendId);
+      if (exists) return prev;
+      const next = [...prev, { friendId, friendUsername }];
+      return next.slice(-MAX_DM_TABS);
+    });
+    setDmUnread((prev) => ({ ...prev, [friendId]: (prev[friendId] || 0) + 1 }));
+  }, []);
+
+  const closeDMTab = useCallback((friendId: string) => {
+    setDmTabs((prev) => prev.filter((t) => t.friendId !== friendId));
+    setActiveTab((current) => (current === friendId ? "global" : current));
+    setDmUnread((prev) => { const next = { ...prev }; delete next[friendId]; return next; });
+  }, []);
+
   return (
-    <ChatContext.Provider value={{ messages, connected, sendMessage, unreadCount, resetUnread, chatOpen, setChatOpen }}>
+    <ChatContext.Provider value={{
+      messages, connected, sendMessage, unreadCount, resetUnread, chatOpen, setChatOpen,
+      activeTab, dmTabs, dmUnread, openDMTab, addDMTabSilent, closeDMTab, setActiveTab,
+    }}>
       {children}
     </ChatContext.Provider>
   );

@@ -107,6 +107,16 @@ export async function refreshToken(refresh: string): Promise<TokenPair> {
   });
 }
 
+export interface OnlineStats {
+  online: number;
+  in_queue: number;
+  in_game: number;
+}
+
+export async function getOnlineStats(): Promise<OnlineStats> {
+  return fetchAPI<OnlineStats>("/auth/online-stats");
+}
+
 export async function register(data: {
   username: string;
   email: string;
@@ -1314,4 +1324,158 @@ export async function oauthAuthorize(
     body: JSON.stringify(data),
     token,
   });
+}
+
+// --- Friends ---
+
+export interface FriendUser {
+  id: string;
+  username: string;
+  elo_rating: number;
+  is_online: boolean;
+  activity_status: string;
+  activity_details: { status?: string; game_mode?: string; match_id?: string; players_count?: number; started_at?: string };
+}
+
+export interface FriendshipOut {
+  id: string;
+  from_user: FriendUser;
+  to_user: FriendUser;
+  status: string;
+  created_at: string;
+}
+
+export async function getFriends(
+  token: string,
+  limit?: number,
+  offset?: number
+): Promise<PaginatedResponse<FriendshipOut>> {
+  return fetchPaginated<FriendshipOut>("/friends/", { token, limit, offset });
+}
+
+export async function getReceivedRequests(
+  token: string,
+  limit?: number,
+  offset?: number
+): Promise<PaginatedResponse<FriendshipOut>> {
+  return fetchPaginated<FriendshipOut>("/friends/requests/received/", { token, limit, offset });
+}
+
+export async function getSentRequests(
+  token: string,
+  limit?: number,
+  offset?: number
+): Promise<PaginatedResponse<FriendshipOut>> {
+  return fetchPaginated<FriendshipOut>("/friends/requests/sent/", { token, limit, offset });
+}
+
+export async function sendFriendRequest(
+  token: string,
+  username: string
+): Promise<FriendshipOut> {
+  return fetchAPI<FriendshipOut>("/friends/request/", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ username }),
+  });
+}
+
+export async function acceptFriendRequest(
+  token: string,
+  friendshipId: string
+): Promise<FriendshipOut> {
+  return fetchAPI<FriendshipOut>(`/friends/${friendshipId}/accept/`, {
+    method: "POST",
+    token,
+  });
+}
+
+export async function rejectFriendRequest(
+  token: string,
+  friendshipId: string
+): Promise<FriendshipOut> {
+  return fetchAPI<FriendshipOut>(`/friends/${friendshipId}/reject/`, {
+    method: "POST",
+    token,
+  });
+}
+
+export async function removeFriend(
+  token: string,
+  friendshipId: string
+): Promise<void> {
+  await fetchAPI(`/friends/${friendshipId}/`, { method: "DELETE", token });
+}
+
+export async function inviteFriendToGame(token: string, friendshipId: string, gameMode: string): Promise<{ lobby_id: string }> {
+  return fetchAPI<{ lobby_id: string }>(`/friends/${friendshipId}/invite-game/`, { method: "POST", token, body: JSON.stringify({ game_mode: gameMode }) });
+}
+
+export async function acceptGameInvite(token: string, notificationId: string): Promise<{ lobby_id: string; game_mode: string }> {
+  return fetchAPI<{ lobby_id: string; game_mode: string }>(`/friends/invite-accept/${notificationId}/`, { method: "POST", token });
+}
+
+export async function rejectGameInvite(token: string, notificationId: string): Promise<void> {
+  await fetchAPI(`/friends/invite-reject/${notificationId}/`, { method: "POST", token });
+}
+
+// --- Direct Messages ---
+
+export interface DirectMessageOut {
+  id: string;
+  sender: FriendUser;
+  receiver: FriendUser;
+  content: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface ConversationOut {
+  partner: FriendUser;
+  last_message: { content: string; created_at: string; is_mine: boolean };
+  unread_count: number;
+}
+
+export async function getConversations(token: string): Promise<ConversationOut[]> {
+  return fetchAPI<ConversationOut[]>("/messages/conversations/", { token });
+}
+
+export async function getMessages(token: string, userId: string, limit?: number, offset?: number): Promise<PaginatedResponse<DirectMessageOut>> {
+  return fetchPaginated<DirectMessageOut>(`/messages/${userId}/`, { token, limit, offset });
+}
+
+export async function sendMessage(token: string, userId: string, content: string): Promise<DirectMessageOut> {
+  return fetchAPI<DirectMessageOut>(`/messages/${userId}/`, { method: "POST", token, body: JSON.stringify({ content }) });
+}
+
+export async function getUnreadMessageCount(token: string): Promise<{ count: number }> {
+  return fetchAPI<{ count: number }>("/messages/unread-total/", { token });
+}
+
+// --- Notifications ---
+
+export interface NotificationOut {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+  is_read: boolean;
+  created_at: string;
+}
+
+export async function getNotifications(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<NotificationOut>> {
+  return fetchPaginated<NotificationOut>('/notifications/', { token, limit, offset });
+}
+
+export async function getUnreadNotificationCount(token: string): Promise<{ count: number }> {
+  return fetchAPI<{ count: number }>('/notifications/unread-count', { token });
+}
+
+export async function markNotificationRead(token: string, id: string): Promise<void> {
+  await fetchAPI('/notifications/' + id + '/read/', { method: 'POST', token });
+}
+
+export async function markAllNotificationsRead(token: string): Promise<void> {
+  await fetchAPI('/notifications/read-all/', { method: 'POST', token });
 }

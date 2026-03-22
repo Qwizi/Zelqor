@@ -7,7 +7,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import action, display
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 from unfold.contrib.filters.admin import RangeNumericFilter
-from apps.accounts.models import SocialAccount, User
+from apps.accounts.models import DirectMessage, Friendship, SocialAccount, User
 from apps.inventory.admin import UserInventoryInline, EquippedCosmeticInline, DeckInline, ItemInstanceInline
 
 
@@ -124,4 +124,21 @@ class SocialAccountAdmin(ModelAdmin):
     list_filter = ('provider',)
     search_fields = ('user__email', 'user__username', 'display_name', 'email', 'provider_user_id')
     raw_id_fields = ('user',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(DirectMessage)
+class DirectMessageAdmin(ModelAdmin):
+    list_display = ('sender', 'receiver', 'content', 'is_read', 'created_at')
+    list_filter = ('is_read',)
+    search_fields = ('sender__username', 'receiver__username', 'content')
+    raw_id_fields = ('sender', 'receiver')
+
+
+@admin.register(Friendship)
+class FriendshipAdmin(ModelAdmin):
+    list_display = ('from_user', 'to_user', 'status', 'created_at', 'updated_at')
+    list_filter = ('status',)
+    search_fields = ('from_user__email', 'from_user__username', 'to_user__email', 'to_user__username')
+    raw_id_fields = ('from_user', 'to_user')
     readonly_fields = ('created_at', 'updated_at')

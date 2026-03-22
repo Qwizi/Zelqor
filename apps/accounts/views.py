@@ -157,3 +157,43 @@ class AuthController:
     @route.get('/push/vapid-key/', auth=None)
     def vapid_key(self, request):
         return {'vapid_public_key': settings.VAPID_PUBLIC_KEY}
+
+    @route.get('/online-stats', auth=None)
+    def online_stats(self, request):
+        """Get global player activity stats: online, in_queue, in_game."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.accounts.models import _get_game_redis
+
+        threshold = timezone.now() - timedelta(minutes=2)
+        online_count = User.objects.filter(last_active__gte=threshold).count()
+
+        r = _get_game_redis()
+        in_queue = 0
+        in_game = 0
+        cursor = 0
+        while True:
+            cursor, keys = r.scan(cursor, match='player:status:*', count=100)
+            for key in keys:
+                val = r.get(key)
+                if val:
+                    try:
+                        import json
+                        data = json.loads(val)
+                        status = data.get('status', '')
+                    except (json.JSONDecodeError, AttributeError):
+                        status = val
+                    if status == 'in_queue':
+                        in_queue += 1
+                    elif status == 'in_game':
+                        in_game += 1
+            if cursor == 0:
+                break
+
+        return {
+            'online': online_count,
+            'in_queue': in_queue,
+            'in_game': in_game,
+        }

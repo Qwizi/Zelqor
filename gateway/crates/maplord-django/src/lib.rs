@@ -401,6 +401,17 @@ impl DjangoClient {
         .await
     }
 
+    pub async fn verify_spectator(
+        &self,
+        match_id: &str,
+        user_id: &str,
+    ) -> Result<VerifyPlayerResult, DjangoError> {
+        self.get(&format!(
+            "/api/v1/internal/matches/{match_id}/verify-spectator/{user_id}/"
+        ))
+        .await
+    }
+
     pub async fn get_match_data(&self, match_id: &str) -> Result<MatchData, DjangoError> {
         self.get(&format!("/api/v1/internal/matches/{match_id}/data/"))
             .await
