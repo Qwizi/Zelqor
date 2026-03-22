@@ -1,6 +1,6 @@
 use maplord_engine::{
-    Action, ActiveEffect, AirTransitItem, BuildingQueueItem, Player, Region, TransitQueueItem,
-    UnitQueueItem,
+    Action, ActiveEffect, AirTransitItem, BuildingQueueItem, DiplomacyState, Player, Region,
+    TransitQueueItem, UnitQueueItem,
 };
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
@@ -35,6 +35,7 @@ pub struct TickData {
     pub transit_queue: Vec<TransitQueueItem>,
     pub air_transit_queue: Vec<AirTransitItem>,
     pub active_effects: Vec<ActiveEffect>,
+    pub diplomacy: DiplomacyState,
 }
 
 /// Full game state for snapshots.
@@ -48,6 +49,8 @@ pub struct FullGameState {
     pub transit_queue: Vec<TransitQueueItem>,
     pub air_transit_queue: Vec<AirTransitItem>,
     pub active_effects: Vec<ActiveEffect>,
+    #[serde(default)]
+    pub diplomacy: DiplomacyState,
 }
 
 impl GameStateManager {
@@ -191,6 +194,7 @@ impl GameStateManager {
         let transit_key = self.key("transit_queue");
         let air_transit_key = self.key("air_transit_queue");
         let effects_key = self.key("active_effects");
+        let diplomacy_key = self.key("diplomacy");
 
         pipe.hincr(&meta_key, "current_tick", 1i64);
         pipe.hgetall(&players_key);
@@ -202,6 +206,7 @@ impl GameStateManager {
         pipe.lrange(&transit_key, 0, -1);
         pipe.lrange(&air_transit_key, 0, -1);
         pipe.lrange(&effects_key, 0, -1);
+        pipe.get(&diplomacy_key);
 
         let mut conn = self.redis.clone();
         let results: (
@@ -215,6 +220,7 @@ impl GameStateManager {
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
+            Option<Vec<u8>>,
         ) = pipe.query_async(&mut conn).await?;
 
         let tick = results.0;
@@ -258,6 +264,12 @@ impl GameStateManager {
             .iter()
             .map(|v| deser(v))
             .collect::<redis::RedisResult<_>>()?;
+        let diplomacy = results
+            .10
+            .as_deref()
+            .map(deser)
+            .transpose()?
+            .unwrap_or_default();
 
         Ok(TickData {
             tick,
@@ -269,6 +281,7 @@ impl GameStateManager {
             transit_queue,
             air_transit_queue,
             active_effects,
+            diplomacy,
         })
     }
 
@@ -281,6 +294,7 @@ impl GameStateManager {
         transit_queue: &[TransitQueueItem],
         air_transit_queue: &[AirTransitItem],
         active_effects: &[ActiveEffect],
+        diplomacy: &DiplomacyState,
         dirty_region_ids: Option<&std::collections::HashSet<String>>,
     ) -> redis::RedisResult<()> {
         let mut pipe = redis::pipe();
@@ -337,6 +351,9 @@ impl GameStateManager {
             pipe.cmd("RPUSH").arg(&effects_key).arg(packed).ignore();
         }
 
+        let diplomacy_packed = rmp_serde::to_vec(diplomacy).unwrap();
+        pipe.set(self.key("diplomacy"), diplomacy_packed).ignore();
+
         let mut conn = self.redis.clone();
         pipe.exec_async(&mut conn).await
     }
@@ -355,6 +372,7 @@ impl GameStateManager {
         pipe.lrange(self.key("transit_queue"), 0, -1);
         pipe.lrange(self.key("air_transit_queue"), 0, -1);
         pipe.lrange(self.key("active_effects"), 0, -1);
+        pipe.get(self.key("diplomacy"));
 
         let mut conn = self.redis.clone();
         let results: (
@@ -366,6 +384,7 @@ impl GameStateManager {
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
             Vec<Vec<u8>>,
+            Option<Vec<u8>>,
         ) = pipe.query_async(&mut conn).await?;
 
         Ok(FullGameState {
@@ -405,6 +424,12 @@ impl GameStateManager {
                 .iter()
                 .map(|v| deser(v))
                 .collect::<redis::RedisResult<_>>()?,
+            diplomacy: results
+                .8
+                .as_deref()
+                .map(deser)
+                .transpose()?
+                .unwrap_or_default(),
         })
     }
 
@@ -452,6 +477,7 @@ impl GameStateManager {
         pipe.del(self.key("air_transit_queue")).ignore();
         pipe.del(self.key("active_effects")).ignore();
         pipe.del(self.key("actions")).ignore();
+        pipe.del(self.key("diplomacy")).ignore();
 
         // Restore meta fields
         let meta_key = self.key("meta");
@@ -504,6 +530,9 @@ impl GameStateManager {
             pipe.rpush(&effects_key, packed).ignore();
         }
 
+        let diplomacy_packed = rmp_serde::to_vec(&full_state.diplomacy).unwrap();
+        pipe.set(self.key("diplomacy"), diplomacy_packed).ignore();
+
         let mut conn = self.redis.clone();
         pipe.exec_async(&mut conn).await
     }
@@ -522,6 +551,7 @@ impl GameStateManager {
             self.key("transit_queue"),
             self.key("air_transit_queue"),
             self.key("active_effects"),
+            self.key("diplomacy"),
         ];
         redis::cmd("DEL")
             .arg(&keys)
@@ -935,6 +965,7 @@ mod tests {
                 transit_queue: vec![],
                 air_transit_queue: vec![],
                 active_effects: vec![],
+                diplomacy: DiplomacyState::default(),
             }
         }
 
@@ -999,6 +1030,7 @@ mod tests {
                 transit_queue: vec![],
                 air_transit_queue: vec![],
                 active_effects: vec![],
+                diplomacy: DiplomacyState::default(),
             };
             let json = serde_json::to_value(&original).unwrap();
             let restored: FullGameState = serde_json::from_value(json).unwrap();

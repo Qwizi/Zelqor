@@ -90,6 +90,7 @@ function defaultProps(
     myRegionCount: 5,
     myUnitCount: 100,
     myEnergy: 75,
+    myActionPoints: 10,
     ...overrides,
   }
 }

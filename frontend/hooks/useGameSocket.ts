@@ -5,6 +5,7 @@ import { createSocket, type WSMessage } from "@/lib/ws";
 import { getAccessToken } from "@/lib/auth";
 import { getWsTicket } from "@/lib/api";
 import { solveChallenge } from "@/lib/pow";
+import type { DiplomacyState } from "@/lib/gameTypes";
 
 /** Fast shallow comparison for active_effects — avoids re-renders when data is identical. */
 function shallowEqualEffects(
@@ -45,6 +46,9 @@ export interface GameRegion {
   vision_range?: number;
   unit_generation_bonus?: number;
   energy_generation_bonus?: number;
+  action_cooldowns?: Record<string, number>;
+  fatigue_until?: number | null;
+  fatigue_modifier?: number;
 }
 
 export interface GamePlayer {
@@ -57,6 +61,8 @@ export interface GamePlayer {
   left_match_at?: number | null;
   capital_region_id: string | null;
   energy: number;
+  action_points: number;
+  ap_regen_accum?: number;
   eliminated_reason?: string | null;
   eliminated_tick?: number | null;
   ability_cooldowns?: Record<string, number>;
@@ -148,6 +154,8 @@ export interface GameState {
     capital_selection_time_seconds?: string;
     capital_selection_ends_at?: string;
     is_tutorial?: string;
+    capital_protection_ticks?: string;
+    diplomacy_enabled?: string;
   };
   players: Record<string, GamePlayer>;
   regions: Record<string, GameRegion>;
@@ -157,6 +165,7 @@ export interface GameState {
   air_transit_queue?: AirTransitItem[];
   active_effects?: ActiveEffect[];
   weather?: WeatherState;
+  diplomacy?: DiplomacyState;
 }
 
 export interface GameEvent {
@@ -181,6 +190,7 @@ interface UseGameSocketReturn {
   voiceUrl: string | null;
   bannedReason: string | null;
   ping: number | undefined;
+  diplomacy: DiplomacyState;
   selectCapital: (regionId: string) => void;
   attack: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null, escortFighters?: number) => void;
   move: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
@@ -193,6 +203,12 @@ interface UseGameSocketReturn {
   leaveMatch: () => Promise<boolean>;
   send: (data: Record<string, unknown>) => void;
   sendChat: (content: string) => void;
+  proposePact: (targetPlayerId: string, pactType?: string) => void;
+  respondPact: (proposalId: string, accept: boolean) => void;
+  proposePeace: (targetPlayerId: string, conditionType?: string, provincesToReturn?: string[]) => void;
+  respondPeace: (proposalId: string, accept: boolean) => void;
+  breakPact: (pactId: string) => void;
+  declareWar: (targetPlayerId: string) => void;
 }
 
 export function useGameSocket(matchId: string): UseGameSocketReturn {
@@ -204,6 +220,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
   const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
   const [bannedReason, setBannedReason] = useState<string | null>(null);
   const [ping, setPing] = useState<number | undefined>(undefined);
+  const [diplomacy, setDiplomacy] = useState<DiplomacyState>({ wars: [], pacts: [], proposals: [] });
   const wsRef = useRef<WebSocket | null>(null);
   const leaveResolverRef = useRef<((value: boolean) => void) | null>(null);
   const pingTimestampRef = useRef<number | null>(null);
@@ -216,6 +233,11 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
           initialState.weather = msg.weather as WeatherState;
         }
         setGameState(initialState);
+        if (msg.diplomacy) {
+          setDiplomacy(msg.diplomacy as DiplomacyState);
+        } else if (initialState.diplomacy) {
+          setDiplomacy(initialState.diplomacy);
+        }
         break;
       }
       case "game_tick": {
@@ -274,6 +296,9 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
               : prev.weather,
           };
         });
+        if (msg.diplomacy) {
+          setDiplomacy(msg.diplomacy as DiplomacyState);
+        }
         if (tickEvents.length > 0) {
           setEvents((prev) => [...prev.slice(-50), ...tickEvents]);
         }
@@ -554,6 +579,40 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     [send]
   );
 
+  const proposePact = useCallback(
+    (targetPlayerId: string, pactType: string = "nap") =>
+      send({ action: "propose_pact", target_player_id: targetPlayerId, pact_type: pactType }),
+    [send]
+  );
+
+  const respondPact = useCallback(
+    (proposalId: string, accept: boolean) =>
+      send({ action: "respond_pact", proposal_id: proposalId, accept }),
+    [send]
+  );
+
+  const proposePeace = useCallback(
+    (targetPlayerId: string, conditionType: string = "status_quo", provincesToReturn?: string[]) =>
+      send({ action: "propose_peace", target_player_id: targetPlayerId, condition_type: conditionType, provinces_to_return: provincesToReturn }),
+    [send]
+  );
+
+  const respondPeace = useCallback(
+    (proposalId: string, accept: boolean) =>
+      send({ action: "respond_peace", proposal_id: proposalId, accept }),
+    [send]
+  );
+
+  const breakPact = useCallback(
+    (pactId: string) => send({ action: "break_pact", pact_id: pactId }),
+    [send]
+  );
+
+  const declareWar = useCallback(
+    (targetPlayerId: string) => send({ action: "declare_war", target_player_id: targetPlayerId }),
+    [send]
+  );
+
   const leaveMatch = useCallback(() => {
     return new Promise<boolean>((resolve) => {
       if (wsRef.current?.readyState !== WebSocket.OPEN) {
@@ -582,6 +641,7 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     voiceUrl,
     bannedReason,
     ping,
+    diplomacy,
     selectCapital,
     attack,
     move,
@@ -594,5 +654,11 @@ export function useGameSocket(matchId: string): UseGameSocketReturn {
     leaveMatch,
     send,
     sendChat,
+    proposePact,
+    respondPact,
+    proposePeace,
+    respondPeace,
+    breakPact,
+    declareWar,
   };
 }

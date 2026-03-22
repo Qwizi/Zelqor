@@ -2,6 +2,23 @@
  * Shared game type definitions used across map renderers and the game page.
  */
 
+/**
+ * Action Point (AP) costs matching Rust engine defaults.
+ * Each action type costs a fixed number of AP.
+ */
+export const AP_COSTS = {
+  attack: 3,
+  move: 2,
+  build: 2,
+  produce: 1,
+  ability: 4,
+} as const;
+
+export type ActionType = keyof typeof AP_COSTS;
+
+/** Maximum AP a player can hold at once. */
+export const AP_MAX = 10;
+
 export interface TroopAnimation {
   id: string;
   sourceId: string;
@@ -43,3 +60,52 @@ export interface PlannedMove {
 export const MAX_PLANNED_MOVES = 6;
 /** Planned moves expire after this many seconds. */
 export const PLAN_EXPIRY_S = 30;
+
+// ─── Diplomacy types ──────────────────────────────────────────────────────────
+
+export interface War {
+  player_a: string;
+  player_b: string;
+  started_tick: number;
+  aggressor_id: string;
+  provinces_changed: ProvinceChange[];
+}
+
+export interface ProvinceChange {
+  region_id: string;
+  from_player_id: string;
+  to_player_id: string;
+  tick: number;
+}
+
+export interface Pact {
+  id: string;
+  pact_type: string;
+  player_a: string;
+  player_b: string;
+  created_tick: number;
+  expires_tick: number | null;
+}
+
+export interface DiplomacyProposal {
+  id: string;
+  proposal_type: string; // "nap" | "peace"
+  from_player_id: string;
+  to_player_id: string;
+  created_tick: number;
+  conditions: PeaceConditions | null;
+  status: string; // "pending" | "accepted" | "rejected" | "expired"
+  rejected_tick: number | null;
+  expires_tick: number | null;
+}
+
+export interface PeaceConditions {
+  condition_type: string; // "status_quo" | "return_provinces"
+  provinces_to_return: string[];
+}
+
+export interface DiplomacyState {
+  wars: War[];
+  pacts: Pact[];
+  proposals: DiplomacyProposal[];
+}

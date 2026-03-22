@@ -1,11 +1,13 @@
 "use client";
 
-import { memo, useMemo, type ReactNode } from "react";
+import { memo, useMemo, useState, useCallback, type ReactNode } from "react";
 import Image from "next/image";
-import { Zap } from "lucide-react";
+import { Zap, Swords, Handshake, Shield, BoltIcon } from "lucide-react";
 import type { GamePlayer } from "@/hooks/useGameSocket";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { CosmeticValue } from "@/lib/animationConfig";
+import type { DiplomacyState } from "@/lib/gameTypes";
 import ActiveBoosts from "@/components/game/ActiveBoosts";
 
 /**
@@ -34,16 +36,25 @@ interface GameHUDProps {
     unitCount: number;
     isAlive: boolean;
     isBot: boolean;
-    /** Player's equipped cosmetics — used to render the emblem slot icon. */
     cosmetics?: Record<string, unknown>;
   }>;
   myUserId: string;
   myRegionCount: number;
   myUnitCount: number;
   myEnergy: number;
+  myActionPoints: number;
   fps?: number;
   ping?: number;
   connected?: boolean;
+  // Diplomacy
+  diplomacy?: DiplomacyState;
+  capitalProtectionTicks?: number;
+  onProposePact?: (targetPlayerId: string) => void;
+  onRespondPact?: (proposalId: string, accept: boolean) => void;
+  onBreakPact?: (pactId: string) => void;
+  onDeclareWar?: (targetPlayerId: string) => void;
+  onProposePeace?: (targetPlayerId: string, conditionType: string, provincesToReturn?: string[]) => void;
+  onRespondPeace?: (proposalId: string, accept: boolean) => void;
 }
 
 function formatClock(tick: number, tickIntervalMs: number) {
@@ -60,10 +71,80 @@ function formatClock(tick: number, tickIntervalMs: number) {
 }
 
 function statusLabel(status: string) {
-  if (status === "selecting") return "Wybór stolicy";
+  if (status === "selecting") return "Wybor stolicy";
   if (status === "in_progress") return "W trakcie";
   if (status === "finished") return "Koniec";
   return status;
+}
+
+type PlayerRelation = "war" | "nap" | "neutral";
+
+function getPlayerRelation(
+  diplomacy: DiplomacyState | undefined,
+  myId: string,
+  otherId: string,
+): PlayerRelation {
+  if (!diplomacy) return "neutral";
+  const isWar = diplomacy.wars.some(
+    (w) =>
+      (w.player_a === myId && w.player_b === otherId) ||
+      (w.player_b === myId && w.player_a === otherId),
+  );
+  if (isWar) return "war";
+  const isNap = diplomacy.pacts.some(
+    (p) =>
+      (p.player_a === myId && p.player_b === otherId) ||
+      (p.player_b === myId && p.player_a === otherId),
+  );
+  if (isNap) return "nap";
+  return "neutral";
+}
+
+function findPactId(
+  diplomacy: DiplomacyState | undefined,
+  myId: string,
+  otherId: string,
+): string | null {
+  if (!diplomacy) return null;
+  const pact = diplomacy.pacts.find(
+    (p) =>
+      (p.player_a === myId && p.player_b === otherId) ||
+      (p.player_b === myId && p.player_a === otherId),
+  );
+  return pact?.id ?? null;
+}
+
+function hasOutgoingProposal(
+  diplomacy: DiplomacyState | undefined,
+  myId: string,
+  otherId: string,
+): boolean {
+  if (!diplomacy) return false;
+  return diplomacy.proposals.some(
+    (p) =>
+      p.from_player_id === myId &&
+      p.to_player_id === otherId &&
+      p.status === "pending",
+  );
+}
+
+// Relation badge shown inline in ranking
+function RelationBadge({ relation }: { relation: PlayerRelation }) {
+  if (relation === "war") {
+    return (
+      <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[9px] font-medium text-red-400" title="W wojnie">
+        <Swords className="h-2.5 w-2.5" />
+      </span>
+    );
+  }
+  if (relation === "nap") {
+    return (
+      <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400" title="Pakt o nieagresji">
+        <Handshake className="h-2.5 w-2.5" />
+      </span>
+    );
+  }
+  return null;
 }
 
 export default memo(function GameHUD({
@@ -76,18 +157,54 @@ export default memo(function GameHUD({
   myRegionCount,
   myUnitCount,
   myEnergy,
+  myActionPoints,
   fps,
   ping,
   connected,
+  diplomacy,
+  capitalProtectionTicks,
+  onProposePact,
+  onRespondPact,
+  onBreakPact,
+  onDeclareWar,
+  onProposePeace,
+  onRespondPeace,
 }: GameHUDProps) {
   const aliveCount = useMemo(
     () => Object.values(players).filter((player) => player.is_alive).length,
-    [players]
+    [players],
   );
   const formattedClock = useMemo(() => formatClock(tick, tickIntervalMs), [tick, tickIntervalMs]);
 
+  // Capital protection
+  const protectionTicks = capitalProtectionTicks ?? 0;
+  const protectionRemaining = Math.max(0, protectionTicks - tick);
+  const isProtected = protectionRemaining > 0 && status === "in_progress";
+  const protectionSeconds = Math.ceil((protectionRemaining * tickIntervalMs) / 1000);
+
+  // Incoming proposals
+  const incomingProposals = useMemo(
+    () =>
+      diplomacy?.proposals.filter(
+        (p) => p.to_player_id === myUserId && p.status === "pending",
+      ) ?? [],
+    [diplomacy?.proposals, myUserId],
+  );
+
+  // Which player's action popover is open
+  const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
+
+  const toggleExpanded = useCallback(
+    (userId: string) => {
+      if (userId === myUserId) return;
+      setExpandedPlayer((prev) => (prev === userId ? null : userId));
+    },
+    [myUserId],
+  );
+
   return (
-    <div data-tutorial="hud" className="absolute left-2 top-2 z-10 flex max-w-[calc(100vw-5rem)] flex-col gap-2 sm:left-3 sm:top-3 sm:max-w-[240px]">
+    <div data-tutorial="hud" className="absolute left-2 top-2 z-10 flex max-w-[calc(100vw-5rem)] flex-col gap-2 sm:left-3 sm:top-3 sm:max-w-[260px]">
+      {/* Clock + status bar */}
       <div className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-border bg-card sm:bg-card/85 px-2.5 py-1.5 text-[10px] text-foreground shadow-lg sm:backdrop-blur-xl">
         <span className="font-display text-xs font-bold text-primary sm:text-base">{formattedClock}</span>
         <span className="h-1 w-1 rounded-full bg-white/20" />
@@ -98,7 +215,7 @@ export default memo(function GameHUD({
         {connected === false && (
           <span className="flex items-center gap-1 text-[10px] sm:text-xs font-medium text-red-400">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
-            Rozłączono
+            Rozlaczono
           </span>
         )}
         {connected !== false && typeof fps === "number" && (
@@ -109,10 +226,33 @@ export default memo(function GameHUD({
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <CompactStat icon={<Zap className="h-3.5 w-3.5 text-primary" />} label="Energia" value={myEnergy} />
+      {/* Capital protection timer */}
+      {isProtected && (
+        <div className="flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs shadow-lg backdrop-blur-xl">
+          <Shield className="h-3.5 w-3.5 text-amber-400" />
+          <span className="font-medium text-amber-300">Ochrona stolic</span>
+          <span className="ml-auto font-display tabular-nums text-amber-400">
+            {Math.floor(protectionSeconds / 60)}:{String(protectionSeconds % 60).padStart(2, "0")}
+          </span>
+        </div>
+      )}
+
+      {/* Stats — Energy + AP (large, prominent) */}
+      <div className="grid grid-cols-2 gap-2">
+        <LargeStat
+          icon={<Zap className="h-4 w-4 text-primary" />}
+          label="Energia"
+          value={myEnergy}
+          valueColor="text-primary"
+          lowPulse={myEnergy < 50}
+        />
+        <APStat actionPoints={myActionPoints} />
+      </div>
+
+      {/* Stats — Regions + Units (smaller) */}
+      <div className="grid grid-cols-2 gap-2">
         <CompactStat icon="/assets/icons/storage_icon.webp" label="Regiony" value={myRegionCount} />
-        <CompactStat icon="/assets/units/ground_unit.webp" label="Siła" value={myUnitCount} />
+        <CompactStat icon="/assets/units/ground_unit.webp" label="Sila" value={myUnitCount} />
       </div>
 
       <ActiveBoosts
@@ -121,6 +261,67 @@ export default memo(function GameHUD({
         tickIntervalMs={tickIntervalMs}
       />
 
+      {/* Incoming diplomacy proposals */}
+      {incomingProposals.length > 0 && (
+        <div className="military-frame hidden rounded-xl border border-amber-500/30 bg-card/80 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:block">
+          <div className="mb-1.5 px-1 text-[10px] uppercase tracking-[0.14em] text-amber-400">
+            Propozycje
+          </div>
+          <div className="space-y-1.5">
+            {incomingProposals.map((proposal) => {
+              const fromPlayer = players[proposal.from_player_id];
+              if (!fromPlayer) return null;
+              const label = proposal.proposal_type === "peace" ? "pokoj" : "pakt o nieagresji";
+              const expiresIn = proposal.expires_tick != null ? Math.max(0, proposal.expires_tick - tick) : null;
+              const expireSeconds = expiresIn != null ? Math.ceil((expiresIn * tickIntervalMs) / 1000) : null;
+              return (
+                <div key={proposal.id} className="rounded-lg border border-border bg-muted/10 p-2">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <p className="text-[11px] text-foreground">
+                      <span className="font-medium" style={{ color: fromPlayer.color }}>
+                        {fromPlayer.username}
+                      </span>{" "}
+                      proponuje {label}
+                    </p>
+                    {expireSeconds != null && (
+                      <span className={`ml-2 shrink-0 font-display text-[10px] tabular-nums ${expireSeconds <= 10 ? "text-red-400 animate-pulse" : "text-muted-foreground"}`}>
+                        {expireSeconds}s
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() =>
+                        proposal.proposal_type === "peace"
+                          ? onRespondPeace?.(proposal.id, false)
+                          : onRespondPact?.(proposal.id, false)
+                      }
+                      className="h-6 flex-1 text-[10px]"
+                    >
+                      Odrzuc
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        proposal.proposal_type === "peace"
+                          ? onRespondPeace?.(proposal.id, true)
+                          : onRespondPact?.(proposal.id, true)
+                      }
+                      className="h-6 flex-1 text-[10px]"
+                    >
+                      Akceptuj
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Ranking + diplomacy */}
       <div className="military-frame hidden rounded-xl border border-border bg-card/80 p-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:block">
         <div className="military-frame-inner px-1 pb-1.5 text-[10px] sm:text-xs uppercase tracking-[0.16em] text-muted-foreground">
           Ranking
@@ -128,38 +329,106 @@ export default memo(function GameHUD({
         <div className="space-y-0.5">
           {rankedPlayers.map((player, index) => {
             const emblemUrl = resolveEmblemUrl(player.cosmetics);
+            const relation = getPlayerRelation(diplomacy, myUserId, player.user_id);
+            const isMe = player.user_id === myUserId;
+            const isExpanded = expandedPlayer === player.user_id;
+            const hasPending = hasOutgoingProposal(diplomacy, myUserId, player.user_id);
+
             return (
-              <div
-                key={player.user_id}
-                className={`grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1 text-xs sm:text-sm ${
-                  player.user_id === myUserId ? "bg-muted/30" : "bg-transparent"
-                }`}
-              >
-                <div className="font-display text-muted-foreground">{index + 1}</div>
-                <div className="min-w-0">
-                  <div className={`flex items-center gap-1 truncate ${player.isAlive ? "text-foreground" : "text-muted-foreground line-through"}`}>
-                    <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: player.color }} />
-                    {/* Emblem cosmetic — small icon shown next to the player color dot */}
-                    {emblemUrl && (
-                      <Image
-                        src={emblemUrl}
-                        alt=""
-                        width={16}
-                        height={16}
-                        className="h-4 w-4 shrink-0 rounded-sm object-contain"
-                        title="Emblem"
-                      />
-                    )}
-                    <span className="truncate">
-                      {player.username}
-                      {player.user_id === myUserId ? " (Ty)" : ""}
+              <div key={player.user_id}>
+                <div
+                  className={`grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1 text-xs sm:text-sm ${
+                    isMe ? "bg-muted/30" : "cursor-pointer hover:bg-muted/20"
+                  } ${isExpanded ? "bg-muted/25" : ""}`}
+                  onClick={() => toggleExpanded(player.user_id)}
+                >
+                  <div className="font-display text-muted-foreground">{index + 1}</div>
+                  <div className="min-w-0">
+                    <div className={`flex items-center gap-1 truncate ${player.isAlive ? "text-foreground" : "text-muted-foreground line-through"}`}>
+                      <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: player.color }} />
+                      {emblemUrl && (
+                        <Image
+                          src={emblemUrl}
+                          alt=""
+                          width={16}
+                          height={16}
+                          className="h-4 w-4 shrink-0 rounded-sm object-contain"
+                          title="Emblem"
+                        />
+                      )}
+                      <span className="truncate">
+                        {player.username}
+                        {isMe ? " (Ty)" : ""}
+                      </span>
+                      {player.isBot && <span className="ml-1 shrink-0 text-[10px] font-medium uppercase tracking-widest text-muted-foreground" title="Bot AI">BOT</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-right">
+                    {!isMe && <RelationBadge relation={relation} />}
+                    <span className="font-display text-xs sm:text-sm tabular-nums text-muted-foreground">
+                      {player.regionCount}r · {player.unitCount}u
                     </span>
-                    {player.isBot && <span className="ml-1 shrink-0 text-[10px] font-medium uppercase tracking-widest text-muted-foreground" title="Bot AI">BOT</span>}
                   </div>
                 </div>
-                <div className="text-right font-display text-xs sm:text-sm tabular-nums text-muted-foreground">
-                  {player.regionCount}r · {player.unitCount}u
-                </div>
+
+                {/* Expanded diplomacy actions */}
+                {isExpanded && player.isAlive && !isMe && (
+                  <div className="mx-2 mb-1 mt-0.5 flex flex-wrap gap-1 rounded-lg border border-border/50 bg-muted/10 p-1.5">
+                    {hasPending ? (
+                      <span className="px-1 text-[10px] text-muted-foreground">Oczekuje na odpowiedz...</span>
+                    ) : relation === "war" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onProposePeace?.(player.user_id, "status_quo");
+                        }}
+                        className="h-6 text-[10px]"
+                      >
+                        Zaproponuj pokoj
+                      </Button>
+                    ) : relation === "nap" ? (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const pactId = findPactId(diplomacy, myUserId, player.user_id);
+                          if (pactId) onBreakPact?.(pactId);
+                        }}
+                        className="h-6 text-[10px]"
+                      >
+                        Zerwij pakt
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onProposePact?.(player.user_id);
+                          }}
+                          className="h-6 text-[10px]"
+                        >
+                          Zaproponuj pakt
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeclareWar?.(player.user_id);
+                          }}
+                          className="h-6 text-[10px]"
+                        >
+                          Wypowiedz wojne
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -171,8 +440,8 @@ export default memo(function GameHUD({
 
 
 const CompactStat = memo(function CompactStat({
-  icon, label, value,
-}: { icon: string | ReactNode; label: string; value: number }) {
+  icon, label, value, suffix, valueColor,
+}: { icon: string | ReactNode; label: string; value: number; suffix?: string; valueColor?: string }) {
   return (
     <div className="min-w-0 rounded-2xl border border-border bg-card sm:bg-card/80 px-2 py-1.5 shadow-lg sm:backdrop-blur-xl">
       <div className="flex items-center gap-1.5 text-[10px] sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
@@ -181,7 +450,65 @@ const CompactStat = memo(function CompactStat({
         ) : icon}
         <span className="truncate">{label}</span>
       </div>
-      <div className="mt-1 truncate font-display text-base font-bold leading-none text-foreground sm:text-xl">{value}</div>
+      <div className={`mt-1 flex items-baseline gap-0.5 truncate font-display text-base font-bold leading-none sm:text-xl ${valueColor ?? "text-foreground"}`}>
+        <span>{value}</span>
+        {suffix && <span className="text-[10px] font-normal text-muted-foreground sm:text-xs">{suffix}</span>}
+      </div>
+    </div>
+  );
+});
+
+/** Large prominent stat tile — used for Energy and AP */
+const LargeStat = memo(function LargeStat({
+  icon, label, value, valueColor, lowPulse,
+}: { icon: ReactNode; label: string; value: number; valueColor?: string; lowPulse?: boolean }) {
+  return (
+    <div className={`min-w-0 rounded-2xl border bg-card sm:bg-card/80 px-3 py-2 shadow-lg sm:backdrop-blur-xl transition-colors ${
+      lowPulse ? "border-primary/60 animate-pulse" : "border-border"
+    }`}>
+      <div className="flex items-center gap-1.5 text-[10px] sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        {icon}
+        <span className="truncate">{label}</span>
+      </div>
+      <div className={`mt-1 font-display text-2xl font-bold leading-none sm:text-3xl tabular-nums ${valueColor ?? "text-foreground"}`}>
+        {value}
+      </div>
+    </div>
+  );
+});
+
+const AP_MAX_HUD = 10;
+
+/** AP tile with progress bar and regen rate */
+const APStat = memo(function APStat({ actionPoints }: { actionPoints: number }) {
+  const pct = Math.round((Math.min(actionPoints, AP_MAX_HUD) / AP_MAX_HUD) * 100);
+  const isLow = actionPoints < 3;
+  const isMid = actionPoints >= 3 && actionPoints < 6;
+  const valueColor = isLow ? "text-red-400" : isMid ? "text-amber-400" : "text-green-400";
+  const barColor = isLow ? "bg-red-500" : isMid ? "bg-amber-500" : "bg-green-500";
+
+  return (
+    <div className={`min-w-0 rounded-2xl border bg-card sm:bg-card/80 px-3 py-2 shadow-lg sm:backdrop-blur-xl transition-colors ${
+      isLow ? "border-red-500/60 animate-pulse" : "border-border"
+    }`}>
+      <div className="flex items-center justify-between gap-1 text-[10px] sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <BoltIcon className="h-4 w-4 text-amber-400" />
+          <span>AP</span>
+        </div>
+        <span className="normal-case text-[9px] sm:text-[10px] text-muted-foreground/70 tracking-normal">+1 co 3s</span>
+      </div>
+      <div className={`mt-1 font-display text-2xl font-bold leading-none sm:text-3xl tabular-nums ${valueColor}`}>
+        {actionPoints}
+        <span className="text-[11px] font-normal text-muted-foreground sm:text-sm">/{AP_MAX_HUD}</span>
+      </div>
+      {/* Progress bar */}
+      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted/40">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 });

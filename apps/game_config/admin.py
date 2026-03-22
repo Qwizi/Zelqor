@@ -46,6 +46,20 @@ class GameSettingsAdmin(ModelAdmin):
         }),
         ('Gameplay Limits', {'fields': ('disconnect_grace_seconds', 'max_build_queue_per_region', 'max_unit_queue_per_region', 'casualty_factor', 'snapshot_interval_ticks')}),
         ('ELO', {'fields': ('elo_k_factor',)}),
+        ('Action Points', {
+            'fields': (
+                'max_action_points', 'ap_regen_interval',
+                'ap_cost_attack', 'ap_cost_move', 'ap_cost_build',
+                'ap_cost_produce', 'ap_cost_ability',
+            ),
+        }),
+        ('Region Cooldowns', {'fields': ('region_attack_cooldown', 'region_move_cooldown')}),
+        ('Combat Fatigue', {
+            'fields': (
+                'fatigue_attack_modifier', 'fatigue_defense_modifier',
+                'fatigue_attack_ticks', 'fatigue_defense_ticks',
+            ),
+        }),
     )
 
     def has_add_permission(self, request):
@@ -86,6 +100,20 @@ class GameModeAdmin(ModelAdmin):
         }),
         ('Gameplay Limits', {'fields': ('disconnect_grace_seconds', 'max_build_queue_per_region', 'max_unit_queue_per_region', 'casualty_factor', 'snapshot_interval_ticks')}),
         ('ELO', {'fields': ('elo_k_factor',)}),
+        ('Action Points', {
+            'fields': (
+                'max_action_points', 'ap_regen_interval',
+                'ap_cost_attack', 'ap_cost_move', 'ap_cost_build',
+                'ap_cost_produce', 'ap_cost_ability',
+            ),
+        }),
+        ('Region Cooldowns', {'fields': ('region_attack_cooldown', 'region_move_cooldown')}),
+        ('Combat Fatigue', {
+            'fields': (
+                'fatigue_attack_modifier', 'fatigue_defense_modifier',
+                'fatigue_attack_ticks', 'fatigue_defense_ticks',
+            ),
+        }),
     )
 
     @display(description="Active", label=True)

@@ -6,7 +6,7 @@ import type { GameRegion, GamePlayer, BuildingQueueItem } from "@/hooks/useGameS
 import type { BuildingType, UnitType } from "@/lib/api";
 import { getActionAsset, getPlayerBuildingAsset, getPlayerUnitAsset } from "@/lib/gameAssets";
 import { Badge } from "@/components/ui/badge";
-import { Lock, X, Hammer, Swords as SwordsIcon, Info } from "lucide-react";
+import { Lock, X, Hammer, Swords as SwordsIcon, Info, Timer, AlertTriangle } from "lucide-react";
 
 interface RegionPanelProps {
   regionId: string;
@@ -14,6 +14,7 @@ interface RegionPanelProps {
   players: Record<string, GamePlayer>;
   myUserId: string;
   myEnergy: number;
+  currentTick?: number;
   buildings: BuildingType[];
   buildingQueue: BuildingQueueItem[];
   units: UnitType[];
@@ -33,6 +34,7 @@ export default memo(function RegionPanel({
   players,
   myUserId,
   myEnergy,
+  currentTick = 0,
   buildings,
   buildingQueue,
   units,
@@ -120,6 +122,17 @@ export default memo(function RegionPanel({
 
   const hasBuild = isOwned && buildOptions.length > 0;
   const hasProduce = isOwned && producedUnits.length > 0;
+
+  // Cooldown indicators (only for owned regions)
+  const moveCooldownRemaining = isOwned ? Math.max(0, (region.action_cooldowns?.move ?? 0) - currentTick) : 0;
+  const attackCooldownRemaining = isOwned ? Math.max(0, (region.action_cooldowns?.attack ?? 0) - currentTick) : 0;
+  const isMoveCoolingDown = moveCooldownRemaining > 0;
+  const isAttackCoolingDown = attackCooldownRemaining > 0;
+
+  // Fatigue indicator
+  const hasFatigue = isOwned && region.fatigue_until != null && region.fatigue_until > currentTick;
+  const fatigueTicks = hasFatigue ? Math.max(0, (region.fatigue_until ?? 0) - currentTick) : 0;
+  const fatiguePercent = hasFatigue ? Math.round((region.fatigue_modifier ?? 0) * 100) : 0;
 
   const defaultTab: TabId = hasBuild ? "build" : hasProduce ? "produce" : "info";
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
@@ -337,6 +350,48 @@ export default memo(function RegionPanel({
                     <span className="font-bold text-primary">+{(region.energy_generation_bonus ?? 0).toFixed(1)}/tick</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Cooldowns */}
+            {(isMoveCoolingDown || isAttackCoolingDown) && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Cooldowny</p>
+                {isMoveCoolingDown && (
+                  <div className="flex items-center justify-between rounded-lg border border-blue-500/20 bg-blue-950/20 px-2 py-1.5 text-xs">
+                    <div className="flex items-center gap-1.5 text-blue-400">
+                      <Timer className="h-3 w-3" />
+                      <span>Ruch</span>
+                    </div>
+                    <span className="font-bold tabular-nums text-blue-400">{moveCooldownRemaining}t</span>
+                  </div>
+                )}
+                {isAttackCoolingDown && (
+                  <div className="flex items-center justify-between rounded-lg border border-orange-500/20 bg-orange-950/20 px-2 py-1.5 text-xs">
+                    <div className="flex items-center gap-1.5 text-orange-400">
+                      <Timer className="h-3 w-3" />
+                      <span>Atak</span>
+                    </div>
+                    <span className="font-bold tabular-nums text-orange-400">{attackCooldownRemaining}t</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Combat fatigue */}
+            {hasFatigue && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Stan bojowy</p>
+                <div className="flex items-center justify-between rounded-lg border border-red-500/20 bg-red-950/20 px-2 py-1.5 text-xs">
+                  <div className="flex items-center gap-1.5 text-red-400">
+                    <AlertTriangle className="h-3 w-3" />
+                    <span>Zmeczenie bojowe</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-red-400">-{fatiguePercent}%</span>
+                    <span className="tabular-nums text-muted-foreground">{fatigueTicks}t</span>
+                  </div>
+                </div>
               </div>
             )}
           </div>

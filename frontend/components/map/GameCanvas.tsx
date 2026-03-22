@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { Application, Graphics, Text, Container, TextStyle, Assets, Sprite, Texture } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import type { GameRegion, ActiveEffect, WeatherState, AirTransitItem } from "@/hooks/useGameSocket";
-import type { TroopAnimation, PlannedMove } from "@/lib/gameTypes";
+import type { TroopAnimation, PlannedMove, DiplomacyState } from "@/lib/gameTypes";
 import { PixiAnimationManager, computeCurvePath } from "@/lib/pixiAnimations";
 import type { CosmeticValue } from "@/lib/animationConfig";
 import { getBuildingAsset, getUnitAsset } from "@/lib/gameAssets";
@@ -72,6 +72,7 @@ export interface GameCanvasProps {
   /** slug → manpower_cost for air unit display. */
   unitManpowerMap?: Record<string, number>;
   plannedMoves?: PlannedMove[];
+  diplomacy?: DiplomacyState;
 }
 
 // ── Internal render state ─────────────────────────────────────
@@ -209,6 +210,7 @@ export default function GameCanvas({
   onFlightClick,
   unitManpowerMap,
   plannedMoves,
+  diplomacy,
 }: GameCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
@@ -296,6 +298,12 @@ export default function GameCanvas({
 
   const activeEffectsRef = useRef(activeEffects);
   activeEffectsRef.current = activeEffects;
+
+  const diplomacyRef = useRef(diplomacy);
+  diplomacyRef.current = diplomacy;
+
+  const myUserIdRef = useRef(myUserId);
+  myUserIdRef.current = myUserId;
 
   const airTransitQueueRef = useRef(airTransitQueue);
   airTransitQueueRef.current = airTransitQueue;
@@ -485,9 +493,41 @@ export default function GameCanvas({
         baseFill = lighten(baseFill, 0.15);
       }
 
+      // Determine diplomacy-based style for other players' provinces
+      const myId = myUserIdRef.current;
+      let relationStroke = DEFAULT_STROKE;
+      let showHatch = true;
+      let hatchAlpha = 0.12;
+      let fillAlphaOverride: number | null = null;
+
+      if (ownerId && ownerId !== myId) {
+        const diplo = diplomacyRef.current;
+        if (diplo) {
+          const isAtWar = diplo.wars.some(
+            (w) =>
+              (w.player_a === myId && w.player_b === ownerId) ||
+              (w.player_b === myId && w.player_a === ownerId)
+          );
+          const hasNap = diplo.pacts.some(
+            (p) =>
+              ((p.player_a === myId && p.player_b === ownerId) ||
+                (p.player_b === myId && p.player_a === ownerId)) &&
+              p.pact_type === "nap"
+          );
+          if (isAtWar) {
+            relationStroke = 0x8b2020; // dark red — war
+            hatchAlpha = 0.18;        // more visible danger hatch
+          } else if (hasNap) {
+            relationStroke = 0x1a5c2d; // dark green — allied NAP
+            showHatch = false;          // no hostile hatch for allies
+            fillAlphaOverride = 0.45;  // slightly more transparent, friendly
+          }
+        }
+      }
+
       // Determine stroke
       const isCapital = region?.is_capital ?? false;
-      let strokeColor = DEFAULT_STROKE;
+      let strokeColor = relationStroke;
       let strokeWidth = STROKE_WIDTH_DEFAULT;
       if (isSelected) {
         strokeColor = SELECTED_STROKE;
@@ -503,11 +543,12 @@ export default function GameCanvas({
         strokeWidth = 2;
       }
 
-      const alpha = isDimmed
+      const baseAlpha = isDimmed
         ? DIMMED_ALPHA
         : ownerId
-          ? NORMAL_ALPHA
+          ? (fillAlphaOverride !== null ? fillAlphaOverride : NORMAL_ALPHA)
           : UNCLAIMED_FILL_ALPHA;
+      const alpha = baseAlpha;
 
       // Redraw
       const gfx = state.graphics;
@@ -531,9 +572,9 @@ export default function GameCanvas({
         }
       }
 
-      // Hatch pattern on enemy provinces (diagonal lines — military map style).
+      // Hatch pattern on non-ally enemy provinces (diagonal lines — military map style).
       // Drawn as a separate pass so the fill polygon acts as visual context.
-      if (ownerId && ownerId !== myUserId && !isDimmed) {
+      if (ownerId && ownerId !== myId && !isDimmed && showHatch) {
         for (const subPoly of shape.polygons) {
           const outerRing = subPoly[0];
           if (!outerRing || outerRing.length < 3) continue;
@@ -555,7 +596,32 @@ export default function GameCanvas({
               gfx.moveTo(x1, y1).lineTo(x2, y2);
             }
           }
-          gfx.stroke({ color: 0x000000, width: 0.8, alpha: 0.12 });
+          gfx.stroke({ color: 0x000000, width: 0.8, alpha: hatchAlpha });
+        }
+      }
+
+      // War pulse — red border throb for provinces owned by a player we're at war with.
+      // Only applies to the default (non-selected, non-target, non-neighbor) stroke case.
+      if (
+        ownerId &&
+        ownerId !== myId &&
+        !isSelected &&
+        !isTarget &&
+        !isNeighbor &&
+        !isDimmed &&
+        relationStroke === 0x8b2020
+      ) {
+        const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 500);
+        for (const subPoly of shape.polygons) {
+          const outerRing = subPoly[0];
+          if (!outerRing || outerRing.length < 3) continue;
+          const flatPoints: number[] = [];
+          for (const pt of outerRing) {
+            flatPoints.push(pt[0], pt[1]);
+          }
+          gfx
+            .poly(flatPoints, true)
+            .stroke({ color: 0x8b2020, width: STROKE_WIDTH_DEFAULT + 1, alpha: pulse });
         }
       }
 
@@ -566,7 +632,7 @@ export default function GameCanvas({
       // show short username for other owned regions.
       const label = state.label;
       if (region) {
-        const isOwner = ownerId === myUserId;
+        const isOwner = ownerId === myId;
 
         // Reveal unit count only when actively being attacked (animation in flight),
         // NOT when merely selected as a target — player shouldn't know before attacking
@@ -677,7 +743,7 @@ export default function GameCanvas({
         const textW = Math.max(label.text.length * 9, 20);
         const textH = 18;
         const [lx, ly] = shape.centroid;
-        const isEnemy = ownerId !== null && ownerId !== myUserId;
+        const isEnemy = ownerId !== null && ownerId !== myId;
         const bgColor = isEnemy ? 0x1a0a0a : 0x0a1a0a;
         const borderColor = isEnemy ? 0x4a2a2a : 0x2a4a2a;
         bg.rect(lx - textW / 2 - 4, ly - textH / 2 - 1, textW + 8, textH + 2)

@@ -18,7 +18,7 @@ import { loadAssetOverrides } from "@/lib/assetOverrides";
 import { getSeaTravelRange, getTravelDistance } from "@/lib/gameTravel.js";
 import dynamic from "next/dynamic";
 import type { TroopAnimation, PlannedMove } from "@/lib/gameTypes";
-import { MAX_PLANNED_MOVES, PLAN_EXPIRY_S } from "@/lib/gameTypes";
+import { MAX_PLANNED_MOVES, PLAN_EXPIRY_S, AP_COSTS } from "@/lib/gameTypes";
 import { getEliminationVfx, getVictoryVfx } from "@/lib/animationConfig";
 import { useShapesData } from "@/hooks/useShapesData";
 const ANIMATION_DURATION_MS = 2200;
@@ -38,6 +38,7 @@ import VoicePanel from "@/components/chat/VoicePanel";
 import DesktopChatVoice from "@/components/game/DesktopChatVoice";
 // WeatherIndicator removed — weather/day-night not used
 import { useVoiceChat } from "@/hooks/useVoiceChat";
+import DiplomacyPanel from "@/components/game/DiplomacyPanel";
 
 const BOOST_EFFECT_LABELS: Record<string, string> = {
   unit_bonus: "Mobilizacja (+jednostki)",
@@ -126,6 +127,7 @@ export default function GamePage({
     voiceUrl,
     bannedReason,
     ping,
+    diplomacy,
     selectCapital,
     attack,
     move,
@@ -137,6 +139,12 @@ export default function GamePage({
     leaveMatch,
     send,
     sendChat,
+    proposePact,
+    respondPact,
+    proposePeace,
+    respondPeace,
+    breakPact,
+    declareWar,
   } = useGameSocket(matchId);
 
   // Expose combat actions for UI components
@@ -711,10 +719,12 @@ export default function GamePage({
   const regions = useMemo(() => gameState?.regions || {}, [gameState?.regions]);
   const currentTick = parseInt(gameState?.meta?.current_tick || "0", 10);
   const tickIntervalMs = parseInt(gameState?.meta?.tick_interval_ms || "1000", 10);
+  const capitalProtectionTicks = parseInt(gameState?.meta?.capital_protection_ticks || "0", 10);
+  const diplomacyEnabled = gameState?.meta?.diplomacy_enabled === "1";
 
   // My stats
-  const { myRegionCount, myUnitCount, myEnergy } = useMemo(() => {
-    if (!gameState) return { myRegionCount: 0, myUnitCount: 0, myEnergy: 0 };
+  const { myRegionCount, myUnitCount, myEnergy, myActionPoints } = useMemo(() => {
+    if (!gameState) return { myRegionCount: 0, myUnitCount: 0, myEnergy: 0, myActionPoints: 0 };
     let rc = 0;
     let uc = 0;
     for (const r of Object.values(gameState.regions)) {
@@ -727,6 +737,7 @@ export default function GamePage({
       myRegionCount: rc,
       myUnitCount: uc,
       myEnergy: gameState.players[myUserId]?.energy ?? 0,
+      myActionPoints: gameState.players[myUserId]?.action_points ?? 0,
     };
   }, [gameState, myUserId]);
 
@@ -1136,6 +1147,35 @@ export default function GamePage({
       if (!gameState) return;
       const target = gameState.regions[targetId];
       if (!target) return;
+
+      // AP check — must happen before any animation or dispatch
+      // If action_points is undefined (server hasn't sent it yet), allow the action
+      // and let the server validate. This prevents blocking on stale/missing data.
+      const isAttackAction = target.owner_id !== myUserId;
+      const apCost = isAttackAction ? AP_COSTS.attack : AP_COSTS.move;
+      const playerData = gameState.players[myUserId];
+      const currentAP = playerData?.action_points;
+      if (currentAP != null && currentAP < apCost) {
+        toast.warning(`Brak AP! (${currentAP}/${apCost})`, { id: "no-ap", duration: 2000 });
+        return;
+      }
+
+      // Cooldown check — only block if we have cooldown data and a valid tick
+      const sourceRegion = gameState.regions[sourceId];
+      const tick = parseInt(gameState.meta?.current_tick || "0", 10);
+      if (sourceRegion && tick > 0) {
+        const attackCd = sourceRegion.action_cooldowns?.attack ?? 0;
+        const moveCd = sourceRegion.action_cooldowns?.move ?? 0;
+        if (isAttackAction && attackCd > tick) {
+          toast.warning(`Cooldown ataku (${attackCd - tick}t)`, { id: "cooldown-attack", duration: 2000 });
+          return;
+        }
+        if (!isAttackAction && moveCd > tick) {
+          toast.warning(`Cooldown ruchu (${moveCd - tick}t)`, { id: "cooldown-move", duration: 2000 });
+          return;
+        }
+      }
+
       const reachability = reachabilityByUnitType[unitType];
       const isAttackTarget = target.owner_id !== myUserId;
       const distance = isAttackTarget
@@ -1445,9 +1485,14 @@ export default function GamePage({
     let executed = 0;
     let skipped = 0;
     const currentRegions = gameStateRef.current?.regions ?? {};
+    const currentTick = parseInt(gameStateRef.current?.meta?.current_tick || "0", 10);
 
     // Track how many units we've already committed from each source+unitType
     const committed = new Map<string, number>();
+    // Track AP consumed locally so we stop early if exhausted
+    // If action_points is undefined, assume unlimited (let server validate)
+    const rawAP = gameStateRef.current?.players[myUserId]?.action_points;
+    let apRemaining = rawAP ?? 999;
 
     for (const pm of plannedMoves) {
       if (now - pm.createdAt > PLAN_EXPIRY_S * 1000) { skipped++; continue; }
@@ -1463,9 +1508,19 @@ export default function GamePage({
       // Skip if not enough units left
       if (available <= 0) { skipped++; continue; }
 
+      // AP check per planned action
+      const isAttackAction = pm.actionType === "attack" || pm.actionType === "bombard";
+      const apCost = isAttackAction ? AP_COSTS.attack : AP_COSTS.move;
+      if (apRemaining < apCost) { skipped++; continue; }
+
+      // Cooldown check
+      if (isAttackAction && (source.action_cooldowns?.attack ?? 0) > currentTick) { skipped++; continue; }
+      if (!isAttackAction && pm.actionType === "move" && (source.action_cooldowns?.move ?? 0) > currentTick) { skipped++; continue; }
+
       // Clamp to what's actually available
       const units = Math.min(pm.unitCount, available);
       committed.set(key, alreadySent + units);
+      apRemaining -= apCost;
 
       if (pm.actionType === "bombard") {
         bombard(pm.sourceId, [pm.targetId], units);
@@ -1866,6 +1921,106 @@ export default function GamePage({
       if (e.type === "server_error") {
         toast.error(e.message as string);
       }
+      // ── Diplomacy events ──────────────────────────────────────
+      if (e.type === "war_declared") {
+        const aggressorId = e.aggressor_id as string;
+        const aggressorName = gameStateRef.current?.players[aggressorId]?.username ?? "Gracz";
+        if (aggressorId !== myUserId) {
+          toast.error(`⚔️ Wojna z ${aggressorName}!`, { duration: 6000 });
+        } else {
+          const targetId = (e.player_a === myUserId ? e.player_b : e.player_a) as string;
+          const targetName = gameStateRef.current?.players[targetId]?.username ?? "Gracz";
+          toast.warning(`⚔️ Wypowiedziałeś wojnę graczowi ${targetName}!`, { duration: 6000 });
+        }
+      }
+      if (e.type === "pact_proposed") {
+        const fromId = e.from_player_id as string;
+        if (fromId !== myUserId) {
+          const fromName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
+          toast.info(`🤝 ${fromName} proponuje pakt o nieagresji`, { duration: 6000 });
+        }
+      }
+      if (e.type === "pact_accepted") {
+        const fromId = e.from_player_id as string;
+        const toId = e.to_player_id as string;
+        const otherId = fromId === myUserId ? toId : fromId;
+        const otherName = gameStateRef.current?.players[otherId]?.username ?? "Gracz";
+        if (fromId === myUserId || toId === myUserId) {
+          toast.success(`✅ Pakt zaakceptowany z ${otherName}`, { duration: 5000 });
+        }
+      }
+      if (e.type === "pact_broken") {
+        const breakerId = e.breaker_id as string;
+        if (breakerId !== myUserId) {
+          const breakerName = gameStateRef.current?.players[breakerId]?.username ?? "Gracz";
+          toast.error(`❌ ${breakerName} zerwał pakt!`, { duration: 6000 });
+        }
+      }
+      if (e.type === "peace_proposed") {
+        const fromId = e.from_player_id as string;
+        if (fromId !== myUserId) {
+          const fromName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
+          toast.info(`🕊️ ${fromName} proponuje pokój`, { duration: 6000 });
+        }
+      }
+      if (e.type === "peace_accepted") {
+        const fromId = e.from_player_id as string;
+        const toId = e.to_player_id as string;
+        const otherId = fromId === myUserId ? toId : fromId;
+        const otherName = gameStateRef.current?.players[otherId]?.username ?? "Gracz";
+        if (fromId === myUserId || toId === myUserId) {
+          toast.success(`✅ Pokój zawarty z ${otherName}`, { duration: 5000 });
+        }
+      }
+      if (e.type === "peace_rejected") {
+        const fromId = e.from_player_id as string;
+        const toId = e.to_player_id as string;
+        if (fromId === myUserId) {
+          const otherName = gameStateRef.current?.players[toId]?.username ?? "Gracz";
+          toast.error(`❌ ${otherName} odrzucił propozycję pokoju`, { duration: 5000 });
+        }
+        if (toId === myUserId) {
+          const otherName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
+          toast.info(`Odrzucono propozycję pokoju od ${otherName}`, { duration: 3000 });
+        }
+      }
+      if (e.type === "pact_rejected") {
+        const fromId = e.from_player_id as string;
+        const toId = e.to_player_id as string;
+        if (fromId === myUserId) {
+          const otherName = gameStateRef.current?.players[toId]?.username ?? "Gracz";
+          toast.error(`❌ ${otherName} odrzucił propozycję paktu`, { duration: 5000 });
+        }
+      }
+      if (e.type === "pact_expired") {
+        const pa = e.player_a as string;
+        const pb = e.player_b as string;
+        if (pa === myUserId || pb === myUserId) {
+          const otherId = pa === myUserId ? pb : pa;
+          const otherName = gameStateRef.current?.players[otherId]?.username ?? "Gracz";
+          toast.warning(`Pakt o nieagresji z ${otherName} wygasł`, { duration: 5000 });
+        }
+      }
+      if (e.type === "proposal_expired") {
+        const fromId = e.from_player_id as string;
+        const toId = e.to_player_id as string;
+        const proposalType = e.proposal_type as string;
+        const label = proposalType === "peace" ? "pokoju" : "paktu";
+        if (fromId === myUserId) {
+          const otherName = gameStateRef.current?.players[toId]?.username ?? "Gracz";
+          toast.warning(`Propozycja ${label} do ${otherName} wygasła`, { duration: 4000 });
+        }
+        if (toId === myUserId) {
+          const otherName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
+          toast.info(`Propozycja ${label} od ${otherName} wygasła`, { duration: 4000 });
+        }
+      }
+      if (e.type === "capital_protected") {
+        const ticksRemaining = e.ticks_remaining as number;
+        if (e.player_id === myUserId) {
+          toast.info(`🛡️ Stolica chroniona! Pozostało ${ticksRemaining} tur`, { duration: 4000 });
+        }
+      }
     }
   }, [events, myUserId, neighborMap, gameState?.players, playSound]);
 
@@ -2193,6 +2348,7 @@ export default function GamePage({
           airTransitQueue={gameState?.air_transit_queue}
           unitManpowerMap={unitManpowerMap}
           plannedMoves={plannedMoves}
+          diplomacy={diplomacy}
           onFlightClick={(flightId) => {
             // Find a source region with fighters to intercept
             if (!gameState) return;
@@ -2275,9 +2431,18 @@ export default function GamePage({
         myRegionCount={myRegionCount}
         myUnitCount={myUnitCount}
         myEnergy={myEnergy}
+        myActionPoints={myActionPoints}
         fps={fps}
         ping={ping}
         connected={connected}
+        diplomacy={diplomacy}
+        capitalProtectionTicks={capitalProtectionTicks}
+        onProposePact={proposePact}
+        onRespondPact={respondPact}
+        onBreakPact={breakPact}
+        onDeclareWar={declareWar}
+        onProposePeace={proposePeace}
+        onRespondPeace={respondPeace}
       />
 
       {/* Weather indicator removed — weather/day-night not used */}
@@ -2363,6 +2528,8 @@ export default function GamePage({
           players={players}
           myUserId={myUserId}
           myEnergy={myEnergy}
+          myActionPoints={myActionPoints}
+          currentTick={currentTick}
           unitPercent={unitPercent}
           selectedUnitType={selectedUnitTypeForAction ?? sourceRegionData.unit_type ?? "infantry"}
           onPercentChange={setUnitPercent}
@@ -2376,6 +2543,23 @@ export default function GamePage({
           unlockedBuildings={gameState?.players[myUserId]?.unlocked_buildings}
           unlockedUnits={gameState?.players[myUserId]?.unlocked_units}
           buildingLevels={gameState?.players[myUserId]?.building_levels}
+        />
+      )}
+
+      {/* Peace proposal dialog (full-screen modal) */}
+      {status === "in_progress" && (
+        <DiplomacyPanel
+          players={players}
+          currentPlayerId={myUserId}
+          diplomacy={diplomacy}
+          currentTick={currentTick}
+          onProposePact={proposePact}
+          onRespondPact={respondPact}
+          onProposePeace={proposePeace}
+          onRespondPeace={respondPeace}
+          onBreakPact={breakPact}
+          onDeclareWar={declareWar}
+          renderMode="dialog-only"
         />
       )}
 

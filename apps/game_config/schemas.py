@@ -52,6 +52,22 @@ class GameSettingsOutSchema(Schema):
     max_unit_queue_per_region: int
     casualty_factor: float
     snapshot_interval_ticks: int
+    # Action Points
+    max_action_points: int
+    ap_regen_interval: int
+    ap_cost_attack: int
+    ap_cost_move: int
+    ap_cost_build: int
+    ap_cost_produce: int
+    ap_cost_ability: int
+    # Region Cooldowns
+    region_attack_cooldown: int
+    region_move_cooldown: int
+    # Combat Fatigue
+    fatigue_attack_modifier: float
+    fatigue_defense_modifier: float
+    fatigue_attack_ticks: int
+    fatigue_defense_ticks: int
 
     class Config:
         from_attributes = True
@@ -201,6 +217,22 @@ class GameModeOutSchema(Schema):
     casualty_factor: float
     snapshot_interval_ticks: int
     elo_k_factor: int
+    # Action Points
+    max_action_points: int
+    ap_regen_interval: int
+    ap_cost_attack: int
+    ap_cost_move: int
+    ap_cost_build: int
+    ap_cost_produce: int
+    ap_cost_ability: int
+    # Region Cooldowns
+    region_attack_cooldown: int
+    region_move_cooldown: int
+    # Combat Fatigue
+    fatigue_attack_modifier: float
+    fatigue_defense_modifier: float
+    fatigue_attack_ticks: int
+    fatigue_defense_ticks: int
     map_config_id: Optional[uuid.UUID] = None
     is_active: bool
     is_default: bool

@@ -2,10 +2,11 @@
 
 import { memo, useMemo, useState } from "react";
 import Image from "next/image";
-import { X, Lock, ChevronUp } from "lucide-react";
+import { X, Lock, ChevronUp, BoltIcon, Timer, AlertTriangle, Zap } from "lucide-react";
 import type { GameRegion, GamePlayer, BuildingQueueItem } from "@/hooks/useGameSocket";
 import type { BuildingType, UnitType } from "@/lib/api";
 import { getUnitAsset, getPlayerBuildingAsset, getPlayerUnitAsset } from "@/lib/gameAssets";
+import { AP_COSTS, AP_MAX } from "@/lib/gameTypes";
 
 const PERCENT_PRESETS = [25, 50, 75, 100] as const;
 
@@ -15,6 +16,8 @@ export interface QuickActionBarProps {
   players: Record<string, GamePlayer>;
   myUserId: string;
   myEnergy: number;
+  myActionPoints: number;
+  currentTick: number;
   unitPercent: number;
   selectedUnitType: string;
   onPercentChange: (percent: number) => void;
@@ -295,6 +298,8 @@ export default memo(function QuickActionBar({
   players,
   myUserId,
   myEnergy,
+  myActionPoints,
+  currentTick,
   unitPercent,
   selectedUnitType,
   onPercentChange,
@@ -390,93 +395,216 @@ export default memo(function QuickActionBar({
   const hasProduce = isOwned && producedUnits.length > 0;
   const buildingCount = Object.values(buildingCounts).reduce((s, c) => s + c, 0);
 
+  // AP gating
+  const canAffordMove = myActionPoints >= AP_COSTS.move;
+  const canAffordBuild = myActionPoints >= AP_COSTS.build;
+  const canAffordProduce = myActionPoints >= AP_COSTS.produce;
+
+  // Region cooldowns: ticks remaining until the action is ready
+  const moveCooldownRemaining = Math.max(0, (region.action_cooldowns?.move ?? 0) - currentTick);
+  const attackCooldownRemaining = Math.max(0, (region.action_cooldowns?.attack ?? 0) - currentTick);
+  const isMoveCoolingDown = moveCooldownRemaining > 0;
+  const isAttackCoolingDown = attackCooldownRemaining > 0;
+
+  // Fatigue: active when fatigue_until > currentTick
+  const hasFatigue = region.fatigue_until != null && region.fatigue_until > currentTick;
+  const fatigueTicks = hasFatigue ? Math.max(0, (region.fatigue_until ?? 0) - currentTick) : 0;
+  const fatiguePercent = hasFatigue
+    ? Math.round((region.fatigue_modifier ?? 0) * 100)
+    : 0;
+
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 w-[min(95vw,540px)]">
-      <div className="rounded-2xl border border-border bg-card/90 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+    <div className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 w-[min(95vw,680px)]">
+      <div className={`rounded-2xl border bg-card/90 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-colors ${
+        hasFatigue ? "border-red-500/60" : "border-border"
+      }`}>
 
         {/* ── Header ─────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          {owner && (
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-white/20"
-              style={{ backgroundColor: owner.color }}
-            />
-          )}
-          <span className="min-w-0 flex-1 truncate font-semibold tracking-wide text-foreground text-sm">
-            {region.name}
-          </span>
+        <div className="px-3 pt-2.5 pb-1">
+          {/* Region name row */}
+          <div className="flex items-center gap-2 mb-2">
+            {owner && (
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-white/20"
+                style={{ backgroundColor: owner.color }}
+              />
+            )}
+            <span className="min-w-0 flex-1 truncate font-semibold tracking-wide text-foreground text-sm">
+              {region.name}
+            </span>
 
-          {/* unit + building summary */}
-          <div className="flex items-center gap-1.5 text-xs tabular-nums text-muted-foreground shrink-0">
-            {isOwned ? (
-              <>
-                <div className="flex items-center gap-0.5">
-                  <Image src={getUnitAsset("infantry")} alt="" width={12} height={12} className="h-3 w-3 object-contain opacity-70" />
-                  <span className="font-semibold text-foreground/80">
-                    {Math.max(0, (region.units?.infantry ?? 0) - visibleUnitTypes.filter(([t]) => t !== "infantry").reduce((s, [t, c]) => s + c * Math.max(1, unitConfigMap.get(t)?.manpower_cost ?? 1), 0))}
-                  </span>
-                </div>
-                {visibleUnitTypes.filter(([t]) => t !== "infantry").map(([t, c]) => (
-                  <div key={t} className="flex items-center gap-0.5">
-                    <Image src={getUnitAsset(t)} alt="" width={11} height={11} className="h-2.5 w-2.5 object-contain opacity-70" />
-                    <span className="font-semibold text-[10px] text-foreground/70">{c}</span>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <span className="font-semibold text-foreground/60">?</span>
+            {/* Cooldown badges */}
+            {isOwned && isMoveCoolingDown && (
+              <div
+                className="flex shrink-0 items-center gap-0.5 rounded-full border border-blue-500/30 bg-blue-950/30 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-blue-400"
+                title={`Cooldown ruchu: ${moveCooldownRemaining} tickow`}
+              >
+                <Timer className="h-2.5 w-2.5" />
+                {moveCooldownRemaining}t
+              </div>
             )}
-            {buildingCount > 0 && (
-              <>
-                <span className="text-white/15">·</span>
-                <span className="text-yellow-400/80 text-[11px]">⚡</span>
-                <span className="font-semibold tabular-nums text-foreground/70">{myEnergy}</span>
-              </>
+            {isOwned && isAttackCoolingDown && (
+              <div
+                className="flex shrink-0 items-center gap-0.5 rounded-full border border-orange-500/30 bg-orange-950/30 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-orange-400"
+                title={`Cooldown ataku: ${attackCooldownRemaining} tickow`}
+              >
+                <Timer className="h-2.5 w-2.5" />
+                {attackCooldownRemaining}t
+              </div>
             )}
+
+            {/* Fatigue badge */}
+            {isOwned && hasFatigue && (
+              <div
+                className="flex shrink-0 items-center gap-1 rounded-full border border-red-500/50 bg-red-950/40 px-2 py-1 text-xs font-semibold tabular-nums text-red-400"
+                title={`Zmeczenie bojowe: -${fatiguePercent}% sily przez ${fatigueTicks} tickow`}
+              >
+                <AlertTriangle className="h-3 w-3" />
+                -{fatiguePercent}%
+              </div>
+            )}
+
+            {/* Region bonuses */}
+            {isOwned && ((region.defense_bonus ?? 0) > 0 || (region.unit_generation_bonus ?? 0) > 0 || (region.energy_generation_bonus ?? 0) > 0) && (
+              <div className="flex items-center gap-1.5 text-[10px] tabular-nums shrink-0">
+                {(region.defense_bonus ?? 0) > 0 && (
+                  <span className="text-blue-400" title="Bonus obrony">🛡+{+(region.defense_bonus ?? 0).toFixed(2)}</span>
+                )}
+                {(region.unit_generation_bonus ?? 0) > 0 && (
+                  <span className="text-green-400" title="Bonus gen. jednostek">♟+{+(region.unit_generation_bonus ?? 0).toFixed(1)}/t</span>
+                )}
+                {(region.energy_generation_bonus ?? 0) > 0 && (
+                  <span className="text-yellow-400" title="Bonus gen. energii">⚡+{+(region.energy_generation_bonus ?? 0).toFixed(1)}/t</span>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={onCancel}
+              aria-label="Anuluj"
+              className="ml-1 rounded-full p-1 text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground shrink-0"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
-          {/* Region bonuses */}
-          {isOwned && ((region.defense_bonus ?? 0) > 0 || (region.unit_generation_bonus ?? 0) > 0 || (region.energy_generation_bonus ?? 0) > 0) && (
-            <div className="flex items-center gap-1.5 text-[10px] tabular-nums shrink-0">
-              {(region.defense_bonus ?? 0) > 0 && (
-                <span className="text-blue-400" title="Bonus obrony">🛡+{+(region.defense_bonus ?? 0).toFixed(2)}</span>
-              )}
-              {(region.unit_generation_bonus ?? 0) > 0 && (
-                <span className="text-green-400" title="Bonus gen. jednostek">♟+{+(region.unit_generation_bonus ?? 0).toFixed(1)}/t</span>
-              )}
-              {(region.energy_generation_bonus ?? 0) > 0 && (
-                <span className="text-yellow-400" title="Bonus gen. energii">⚡+{+(region.energy_generation_bonus ?? 0).toFixed(1)}/t</span>
-              )}
+
+          {/* Stats row — units, energy, AP */}
+          {isOwned && (
+            <div className="grid grid-cols-3 gap-1.5">
+              {/* Units */}
+              <div className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
+                <Image src={getUnitAsset("infantry")} alt="" width={16} height={16} className="h-4 w-4 object-contain opacity-80" />
+                <div className="min-w-0">
+                  <div className="font-display text-lg font-bold leading-none tabular-nums text-foreground">
+                    {availableInfantry}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">Jednostki</div>
+                </div>
+                {visibleUnitTypes.filter(([t]) => t !== "infantry").length > 0 && (
+                  <div className="ml-auto flex items-center gap-1">
+                    {visibleUnitTypes.filter(([t]) => t !== "infantry").map(([t, c]) => (
+                      <div key={t} className="flex items-center gap-0.5" title={t}>
+                        <Image src={getUnitAsset(t)} alt="" width={12} height={12} className="h-3 w-3 object-contain opacity-70" />
+                        <span className="text-xs font-semibold tabular-nums text-foreground/70">{c}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Energy */}
+              <div className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 ${
+                myEnergy < 50 ? "border-yellow-500/40 bg-yellow-950/20" : "border-border bg-muted/20"
+              }`}>
+                <Zap className={`h-4 w-4 shrink-0 ${myEnergy < 50 ? "text-yellow-400" : "text-primary"}`} />
+                <div className="min-w-0">
+                  <div className={`font-display text-lg font-bold leading-none tabular-nums ${
+                    myEnergy < 50 ? "text-yellow-400" : "text-primary"
+                  }`}>
+                    {myEnergy}
+                  </div>
+                  <div className="text-[9px] text-muted-foreground">Energia</div>
+                </div>
+              </div>
+
+              {/* AP */}
+              <div className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 ${
+                myActionPoints < 3 ? "border-red-500/40 bg-red-950/20" : myActionPoints < 6 ? "border-amber-500/30 bg-amber-950/15" : "border-border bg-muted/20"
+              }`}>
+                <BoltIcon className={`h-4 w-4 shrink-0 ${
+                  myActionPoints < 3 ? "text-red-400" : myActionPoints < 6 ? "text-amber-400" : "text-emerald-400"
+                }`} />
+                <div className="min-w-0 flex-1">
+                  <div className={`font-display text-lg font-bold leading-none tabular-nums ${
+                    myActionPoints < 3 ? "text-red-400" : myActionPoints < 6 ? "text-amber-400" : "text-emerald-400"
+                  }`}>
+                    {myActionPoints}<span className="text-xs font-normal text-muted-foreground">/{AP_MAX}</span>
+                  </div>
+                  <div className="mt-0.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        myActionPoints < 3 ? "bg-red-500" : myActionPoints < 6 ? "bg-amber-500" : "bg-emerald-500"
+                      }`}
+                      style={{ width: `${Math.min(100, (myActionPoints / AP_MAX) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
-
-          <button
-            onClick={onCancel}
-            aria-label="Anuluj"
-            className="ml-1 rounded-full p-1 text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground shrink-0"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
         </div>
 
         {/* ── Move actions ────────────────────────────────────────────── */}
         {hasMoveAction && (
           <div className="border-t border-border px-3 py-2.5 space-y-2">
 
+            {/* AP / cooldown warning row */}
+            {(!canAffordMove || isMoveCoolingDown) && (
+              <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-950/20 px-2.5 py-1.5">
+                {isMoveCoolingDown ? (
+                  <>
+                    <Timer className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                    <span className="text-xs font-medium text-amber-400">
+                      Cooldown ruchu: {moveCooldownRemaining} tick{moveCooldownRemaining !== 1 ? "i" : ""}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <BoltIcon className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                    <span className="text-xs font-medium text-amber-400">
+                      Brak AP na ruch ({AP_COSTS.move} wymagane, masz {myActionPoints})
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Fatigue warning */}
+            {hasFatigue && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-950/20 px-2.5 py-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+                <span className="text-xs font-medium text-red-400">
+                  Zmeczenie bojowe: -{fatiguePercent}% sily ({fatigueTicks} tick{fatigueTicks !== 1 ? "i" : ""})
+                </span>
+              </div>
+            )}
+
             {/* Percent presets */}
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] uppercase tracking-widest text-muted-foreground/60 mr-1">Wyslij</span>
+            <div className={`flex items-center gap-1.5 ${isMoveCoolingDown || !canAffordMove ? "opacity-50 pointer-events-none" : ""}`}>
+              <span className="text-xs font-bold uppercase tracking-widest text-foreground/70 mr-1">Wyslij</span>
               {PERCENT_PRESETS.map((preset) => {
                 const active = unitPercent === preset;
                 return (
                   <button
                     key={preset}
                     onClick={() => onPercentChange(preset)}
-                    className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold tabular-nums transition-all ${
+                    disabled={isMoveCoolingDown || !canAffordMove}
+                    className={`rounded-md border px-2.5 py-1 text-xs font-bold tabular-nums transition-all ${
                       active
-                        ? "border-primary/60 bg-primary/20 text-primary shadow-sm shadow-primary/20"
-                        : "border-white/10 bg-white/5 text-muted-foreground hover:border-white/20 hover:text-white/70"
+                        ? "border-primary bg-primary/25 text-primary shadow-sm shadow-primary/20"
+                        : "border-white/20 bg-white/8 text-foreground/70 hover:border-white/35 hover:bg-white/15 hover:text-foreground"
                     }`}
                   >
                     {preset === 100 ? "MAX" : `${preset}%`}
@@ -487,7 +615,7 @@ export default memo(function QuickActionBar({
 
             {/* Unit type pills */}
             {visibleUnitTypes.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className={`flex items-center gap-1.5 flex-wrap ${isMoveCoolingDown || !canAffordMove ? "opacity-50 pointer-events-none" : ""}`}>
                 {visibleUnitTypes.map(([unitType, count]) => {
                   const active = unitType === selectedUnitType;
                   const isInfantry = unitType === "infantry";
@@ -503,18 +631,19 @@ export default memo(function QuickActionBar({
                     <div key={unitType} className="group relative">
                       <button
                         onClick={() => onUnitTypeChange(unitType)}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-all ${
+                        disabled={isMoveCoolingDown || !canAffordMove}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-all ${
                           active
-                            ? "border-primary/60 bg-primary/20 text-primary shadow-sm shadow-primary/20"
-                            : "border-white/12 bg-white/6 text-white/60 hover:border-white/25 hover:bg-white/10 hover:text-white/85"
+                            ? "border-primary bg-primary/25 text-primary shadow-sm shadow-primary/20"
+                            : "border-white/20 bg-white/8 text-foreground/70 hover:border-white/35 hover:bg-white/15 hover:text-foreground"
                         }`}
                       >
                         <Image
                           src={getUnitAsset(unitType)}
                           alt={unitType}
-                          width={14}
-                          height={14}
-                          className="h-3.5 w-3.5 object-contain"
+                          width={16}
+                          height={16}
+                          className="h-4 w-4 object-contain"
                         />
                         <span className="tabular-nums">{label}</span>
                       </button>
@@ -542,7 +671,7 @@ export default memo(function QuickActionBar({
             <div className="flex items-center border-t border-border sm:hidden">
               <button
                 onClick={() => setExpanded((prev) => !prev)}
-                className="flex w-full items-center justify-center gap-1.5 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35 hover:text-white/60 transition-colors"
+                className="flex w-full items-center justify-center gap-1.5 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/35 hover:text-white/60 transition-colors"
               >
                 <ChevronUp className={`h-3 w-3 transition-transform ${expanded ? "" : "rotate-180"}`} />
                 {hasBuild && "Buduj"}{hasBuild && hasProduce && " · "}{hasProduce && "Produkuj"}
@@ -552,7 +681,15 @@ export default memo(function QuickActionBar({
             {/* Build row */}
             {hasBuild && (
               <div className={`border-t border-border px-3 py-2.5 ${expanded ? "block" : "hidden"} sm:block`}>
-                <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground/60">Budynki</p>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-widest text-muted-foreground/60">Budynki</p>
+                  {!canAffordBuild && (
+                    <span className="flex items-center gap-1 text-xs font-medium text-amber-400">
+                      <BoltIcon className="h-3 w-3" />
+                      {AP_COSTS.build} AP wymagane
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6">
                   {buildOptions.map((building) => {
                     const isBuildingLocked = hasBuildingLocks && !unlockedBuildings!.includes(building.slug);
@@ -566,40 +703,45 @@ export default memo(function QuickActionBar({
                     const nextLevel = isUpgrade ? (currentRegionLevel ?? 0) + 1 : 1;
                     const nextCost = building.level_stats?.[String(nextLevel)]?.energy_cost ?? building.energy_cost;
                     const asset = getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url);
-                    const canAfford = myEnergy >= nextCost;
+                    const canAffordEnergy = myEnergy >= nextCost;
+                    const canAfford = canAffordEnergy && canAffordBuild;
 
                     const stateClass = isBuildingLocked
-                      ? "border-red-500/25 bg-red-950/15 opacity-50 cursor-not-allowed"
+                      ? "border-red-500/30 bg-red-950/20 opacity-50 cursor-not-allowed"
                       : isAtMaxLevel
-                        ? "border-amber-500/25 bg-amber-950/10 cursor-default"
+                        ? "border-amber-500/30 bg-amber-950/15 cursor-default"
                         : canAfford
-                          ? "border-green-500/25 bg-green-950/15 hover:border-green-500/45 hover:bg-green-950/25 cursor-pointer"
-                          : "border-border bg-muted/20 opacity-55 cursor-not-allowed";
+                          ? "border-green-500/35 bg-green-950/20 hover:border-green-400/60 hover:bg-green-950/30 cursor-pointer"
+                          : "border-white/15 bg-muted/25 opacity-55 cursor-not-allowed";
 
                     return (
                       <div key={building.id} className="group relative">
                         <button
                           onClick={() => !isBuildingLocked && !isAtMaxLevel && canAfford && onBuild(building.slug)}
+                          title={!canAffordBuild ? `Wymaga ${AP_COSTS.build} AP (masz ${myActionPoints})` : undefined}
                           className={`flex w-full flex-col items-center gap-0.5 rounded-lg border p-1.5 transition-all ${stateClass}`}
                         >
                           <div className="relative">
                             {asset && (
-                              <Image src={asset} alt="" width={20} height={20} className="h-5 w-5 object-contain" />
+                              <Image src={asset} alt="" width={24} height={24} className="h-6 w-6 object-contain" />
                             )}
                             {isBuildingLocked && (
                               <Lock className="absolute -right-1 -top-1 h-2.5 w-2.5 text-red-400" />
                             )}
+                            {!canAffordBuild && !isBuildingLocked && !isAtMaxLevel && (
+                              <BoltIcon className="absolute -right-1 -top-1 h-2.5 w-2.5 text-amber-400" />
+                            )}
                           </div>
-                          <span className="w-full text-[8px] font-medium text-muted-foreground leading-tight truncate text-center">{building.name}</span>
+                          <span className="w-full text-[10px] font-semibold text-foreground/70 leading-tight truncate text-center">{building.name}</span>
                           {isAtMaxLevel ? (
-                            <span className="text-[9px] font-semibold text-amber-400">Max</span>
+                            <span className="text-[11px] font-bold text-amber-400">Max</span>
                           ) : (
                             <div className="flex items-center gap-0.5">
-                              <span className="text-[9px] text-yellow-400">⚡</span>
-                              <span className={`text-[10px] font-bold tabular-nums ${canAfford ? "text-green-400" : "text-red-400"}`}>
+                              <span className="text-[11px] text-yellow-400">⚡</span>
+                              <span className={`text-xs font-bold tabular-nums ${canAffordEnergy ? "text-green-400" : "text-red-400"}`}>
                                 {nextCost}
                               </span>
-                              {isUpgrade && <span className="text-[8px] text-amber-400/80 ml-0.5">Lv{nextLevel}</span>}
+                              {isUpgrade && <span className="text-[10px] font-semibold text-amber-400 ml-0.5">Lv{nextLevel}</span>}
                             </div>
                           )}
                         </button>
@@ -621,7 +763,15 @@ export default memo(function QuickActionBar({
             {/* Produce row */}
             {hasProduce && (
               <div className={`border-t border-border px-3 py-2.5 ${expanded ? "block" : "hidden"} sm:block`}>
-                <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground/60">Produkcja</p>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-widest text-muted-foreground/60">Produkcja</p>
+                  {!canAffordProduce && (
+                    <span className="flex items-center gap-1 text-xs font-medium text-amber-400">
+                      <BoltIcon className="h-3 w-3" />
+                      {AP_COSTS.produce} AP wymagane
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6">
                   {producedUnits.map((unit) => {
                     const isUnitLocked = hasUnitLocks && Boolean(unit.produced_by_slug) && !unlockedUnits!.includes(unit.slug);
@@ -636,38 +786,42 @@ export default memo(function QuickActionBar({
                     const effectiveAttack = lvlStats.attack ?? unit.attack;
                     const canAffordEnergy = myEnergy >= effectiveCost;
                     const canAffordManpower = availableInfantry >= effectiveManpower;
-                    const canAfford = canAffordEnergy && canAffordManpower;
+                    const canAfford = canAffordEnergy && canAffordManpower && canAffordProduce;
                     const asset = getPlayerUnitAsset(unit.asset_key || unit.slug, myCosmetics, unit.asset_url);
 
                     const stateClass = isUnitLocked
-                      ? "border-red-500/25 bg-red-950/15 opacity-50 cursor-not-allowed"
+                      ? "border-red-500/30 bg-red-950/20 opacity-50 cursor-not-allowed"
                       : canAfford
-                        ? "border-green-500/25 bg-green-950/15 hover:border-green-500/45 hover:bg-green-950/25 cursor-pointer"
-                        : "border-border bg-muted/20 opacity-55 cursor-not-allowed";
+                        ? "border-green-500/35 bg-green-950/20 hover:border-green-400/60 hover:bg-green-950/30 cursor-pointer"
+                        : "border-white/15 bg-muted/25 opacity-55 cursor-not-allowed";
 
                     return (
                       <div key={unit.id} className="group relative">
                         <button
                           onClick={() => !isUnitLocked && canAfford && onProduceUnit(unit.slug)}
+                          title={!canAffordProduce ? `Wymaga ${AP_COSTS.produce} AP (masz ${myActionPoints})` : undefined}
                           className={`flex w-full flex-col items-center gap-0.5 rounded-lg border p-1.5 transition-all ${stateClass}`}
                         >
                           <div className="relative">
-                            <Image src={asset} alt="" width={20} height={20} className="h-5 w-5 object-contain" />
+                            <Image src={asset} alt="" width={24} height={24} className="h-6 w-6 object-contain" />
                             {isUnitLocked && (
                               <Lock className="absolute -right-1 -top-1 h-2.5 w-2.5 text-red-400" />
                             )}
+                            {!canAffordProduce && !isUnitLocked && (
+                              <BoltIcon className="absolute -right-1 -top-1 h-2.5 w-2.5 text-amber-400" />
+                            )}
                           </div>
-                          <span className="w-full text-[8px] font-medium text-muted-foreground leading-tight truncate text-center">{unit.name}</span>
+                          <span className="w-full text-[10px] font-semibold text-foreground/70 leading-tight truncate text-center">{unit.name}</span>
                           {isUnitLocked ? (
-                            <Lock className="h-2.5 w-2.5 text-muted-foreground/60" />
+                            <Lock className="h-3 w-3 text-muted-foreground/60" />
                           ) : (
                             <div className="flex items-center gap-0.5">
-                              <span className="text-[9px] text-yellow-400">⚡</span>
-                              <span className={`text-[10px] font-bold tabular-nums ${canAffordEnergy ? "text-green-400" : "text-red-400"}`}>
+                              <span className="text-[11px] text-yellow-400">⚡</span>
+                              <span className={`text-xs font-bold tabular-nums ${canAffordEnergy ? "text-green-400" : "text-red-400"}`}>
                                 {effectiveCost}
                               </span>
                               {effectiveManpower > 1 && (
-                                <span className={`text-[8px] font-bold tabular-nums ml-0.5 ${canAffordManpower ? "text-muted-foreground" : "text-red-400"}`}>
+                                <span className={`text-[11px] font-bold tabular-nums ml-0.5 ${canAffordManpower ? "text-foreground/60" : "text-red-400"}`}>
                                   {effectiveManpower}♟
                                 </span>
                               )}

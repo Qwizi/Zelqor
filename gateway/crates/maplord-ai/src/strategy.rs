@@ -1,5 +1,5 @@
 use crate::BotStrategy;
-use maplord_engine::{Action, GameSettings, Player, Region};
+use maplord_engine::{Action, DiplomacyState, GameSettings, Player, Region};
 use rand::Rng;
 use std::collections::HashMap;
 
@@ -103,6 +103,7 @@ impl BotBrain {
         neighbor_map: &HashMap<String, Vec<String>>,
         settings: &GameSettings,
         current_tick: i64,
+        diplomacy: &DiplomacyState,
     ) -> Vec<Action> {
         if current_tick % self.action_interval != 0 {
             return Vec::new();
@@ -115,6 +116,94 @@ impl BotBrain {
 
         let mut actions = Vec::new();
         let mut rng = rand::thread_rng();
+
+        // ── DIPLOMACY DECISIONS ──────────────────────────────────────────────
+
+        // A. Auto-accept NAP proposals (80% chance if not at war with proposer)
+        for proposal in &diplomacy.proposals {
+            if proposal.to_player_id == self.player_id
+                && proposal.status == "pending"
+                && proposal.proposal_type == "nap"
+                && !diplomacy.are_at_war(&self.player_id, &proposal.from_player_id)
+            {
+                let accept = rng.gen_range(0..100) < 80;
+                actions.push(Action {
+                    action_type: "respond_pact".into(),
+                    player_id: Some(self.player_id.clone()),
+                    proposal_id: Some(proposal.id.clone()),
+                    accept: Some(accept),
+                    ..Default::default()
+                });
+            }
+        }
+
+        // B. Auto-respond to peace proposals
+        for proposal in &diplomacy.proposals {
+            if proposal.to_player_id == self.player_id
+                && proposal.status == "pending"
+                && proposal.proposal_type == "peace"
+            {
+                let my_regions_count = regions
+                    .values()
+                    .filter(|r| r.owner_id.as_deref() == Some(&self.player_id))
+                    .count();
+                let enemy_regions_count = regions
+                    .values()
+                    .filter(|r| r.owner_id.as_deref() == Some(proposal.from_player_id.as_str()))
+                    .count();
+                let accept = my_regions_count < enemy_regions_count
+                    || (my_regions_count == enemy_regions_count && rng.gen_range(0..100) < 50);
+                actions.push(Action {
+                    action_type: "respond_peace".into(),
+                    player_id: Some(self.player_id.clone()),
+                    proposal_id: Some(proposal.id.clone()),
+                    accept: Some(accept),
+                    ..Default::default()
+                });
+            }
+        }
+
+        // C. Propose peace when losing badly (< 30% of opponent's regions)
+        for war in &diplomacy.wars {
+            let opponent_id = if war.player_a == self.player_id {
+                &war.player_b
+            } else if war.player_b == self.player_id {
+                &war.player_a
+            } else {
+                continue;
+            };
+
+            let my_regions_count = regions
+                .values()
+                .filter(|r| r.owner_id.as_deref() == Some(&self.player_id))
+                .count();
+            let enemy_regions_count = regions
+                .values()
+                .filter(|r| r.owner_id.as_deref() == Some(opponent_id.as_str()))
+                .count();
+
+            if enemy_regions_count > 0
+                && (my_regions_count as f64 / enemy_regions_count as f64) < 0.3
+                && current_tick % 30 == 0
+                && rng.gen_range(0..100) < 40
+            {
+                let has_pending = diplomacy.proposals.iter().any(|p| {
+                    p.from_player_id == self.player_id
+                        && p.to_player_id == *opponent_id
+                        && p.status == "pending"
+                        && p.proposal_type == "peace"
+                });
+                if !has_pending {
+                    actions.push(Action {
+                        action_type: "propose_peace".into(),
+                        player_id: Some(self.player_id.clone()),
+                        target_player_id: Some(opponent_id.clone()),
+                        condition_type: Some("status_quo".into()),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
 
         let my_regions: Vec<(&String, &Region)> = regions
             .iter()
@@ -168,6 +257,15 @@ impl BotBrain {
                     targets.sort_by_key(|(_, r)| r.unit_count);
 
                     for (target_id, target) in &targets {
+                        // D. Respect NAP pacts — skip NAP partners 90% of the time
+                        if let Some(owner) = &target.owner_id {
+                            if diplomacy.have_pact(&self.player_id, owner)
+                                && rng.gen_range(0..100) < 90
+                            {
+                                continue; // respect the NAP
+                            }
+                        }
+
                         let is_neutral = target.owner_id.is_none();
                         // Require big advantage: own units > target + 8 for neutrals,
                         // own units > target * 3 + 5 for enemies
@@ -304,8 +402,9 @@ impl BotStrategy for BotBrain {
         neighbor_map: &HashMap<String, Vec<String>>,
         settings: &GameSettings,
         current_tick: i64,
+        diplomacy: &DiplomacyState,
     ) -> Vec<Action> {
-        self.decide(players, regions, neighbor_map, settings, current_tick)
+        self.decide(players, regions, neighbor_map, settings, current_tick, diplomacy)
     }
 }
 
@@ -336,6 +435,9 @@ mod tests {
                 m
             },
             unit_accum: 0.0,
+            action_cooldowns: HashMap::new(),
+            fatigue_until: None,
+            fatigue_modifier: 0.0,
         }
     }
 
@@ -429,7 +531,7 @@ mod tests {
         // Bot has 50% hesitation chance, so run multiple ticks to get an attack
         let mut found_attack = false;
         for tick in 1..=50 {
-            let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+            let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick, &DiplomacyState::default());
             let attacks: Vec<_> = actions
                 .iter()
                 .filter(|a| a.action_type == "attack")
@@ -503,7 +605,7 @@ mod tests {
             action_interval: 1,
         };
 
-        let actions = brain.decide(&players, &regions, &neighbor_map, &settings, 1);
+        let actions = brain.decide(&players, &regions, &neighbor_map, &settings, 1, &DiplomacyState::default());
         assert!(actions.is_empty());
     }
 
@@ -674,7 +776,7 @@ mod tests {
             let settings = default_settings();
             let brain = brain_always_acts(bot_id);
 
-            let actions = brain.decide(&players, &regions, &neighbor_map, &settings, 1);
+            let actions = brain.decide(&players, &regions, &neighbor_map, &settings, 1, &DiplomacyState::default());
 
             assert!(actions.is_empty(), "bot with no regions should produce no actions");
         }
@@ -700,7 +802,7 @@ mod tests {
                 action_interval: 10,
             };
 
-            let actions = brain.decide(&players, &regions, &neighbor_map, &settings, 7);
+            let actions = brain.decide(&players, &regions, &neighbor_map, &settings, 7, &DiplomacyState::default());
 
             assert!(actions.is_empty(), "bot should skip ticks that don't align with action_interval");
         }
@@ -725,7 +827,7 @@ mod tests {
 
             // Run many ticks — bot should never attack (insufficient advantage)
             for tick in 1..=100 {
-                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick, &DiplomacyState::default());
                 let attacks: Vec<_> = actions.iter().filter(|a| a.action_type == "attack").collect();
                 assert!(
                     attacks.is_empty(),
@@ -766,7 +868,7 @@ mod tests {
 
             // Over many ticks, never more than one attack per decision
             for tick in 1..=100 {
-                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick, &DiplomacyState::default());
                 let attack_count = actions.iter().filter(|a| a.action_type == "attack").count();
                 assert!(
                     attack_count <= 1,
@@ -799,7 +901,7 @@ mod tests {
             // Find a consolidation move
             let mut found_move = false;
             for tick in 1..=100 {
-                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick, &DiplomacyState::default());
                 for action in actions.iter().filter(|a| a.action_type == "move") {
                     let units_moved = action.units.unwrap_or(0);
                     let source_units = regions
@@ -886,7 +988,7 @@ mod tests {
             let brain = brain_always_acts(bot_id);
 
             for tick in 1..=200 {
-                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick, &DiplomacyState::default());
                 let builds: Vec<_> = actions.iter().filter(|a| a.action_type == "build").collect();
                 assert!(
                     builds.is_empty(),
@@ -910,7 +1012,7 @@ mod tests {
             let brain = brain_always_acts(bot_id);
 
             for tick in 1..=200 {
-                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick, &DiplomacyState::default());
                 let productions: Vec<_> = actions
                     .iter()
                     .filter(|a| a.action_type == "produce_unit")
@@ -939,7 +1041,7 @@ mod tests {
             // Build action has 20% probability per tick; expect it within 200 tries
             let mut found_build = false;
             for tick in 1..=200 {
-                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick, &DiplomacyState::default());
                 if actions.iter().any(|a| a.action_type == "build") {
                     found_build = true;
                     break;
@@ -985,7 +1087,7 @@ mod tests {
             // Consolidation has 30% probability; should trigger within 200 ticks
             let mut found_consolidation = false;
             for tick in 1..=200 {
-                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick, &DiplomacyState::default());
                 for action in &actions {
                     if action.action_type == "move"
                         && action.source_region_id.as_deref() == Some("A")
@@ -1027,7 +1129,7 @@ mod tests {
             let brain = brain_always_acts(bot_id);
 
             for tick in 1..=200 {
-                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick, &DiplomacyState::default());
                 let moves_from_a: Vec<_> = actions
                     .iter()
                     .filter(|a| a.action_type == "move" && a.source_region_id.as_deref() == Some("A"))
@@ -1062,7 +1164,7 @@ mod tests {
             let brain = brain_always_acts(bot_id);
 
             for tick in 1..=100 {
-                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick);
+                let actions = brain.decide(&players, &regions, &neighbor_map, &settings, tick, &DiplomacyState::default());
                 let move_count = actions.iter().filter(|a| a.action_type == "move").count();
                 assert!(
                     move_count <= 1,

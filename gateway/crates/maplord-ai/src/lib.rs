@@ -4,7 +4,7 @@ mod tutorial;
 pub use strategy::BotBrain;
 pub use tutorial::TutorialBotBrain;
 
-use maplord_engine::{Action, GameSettings, Player, Region};
+use maplord_engine::{Action, DiplomacyState, GameSettings, Player, Region};
 use std::collections::HashMap;
 
 pub trait BotStrategy: Send + Sync {
@@ -15,5 +15,6 @@ pub trait BotStrategy: Send + Sync {
         neighbor_map: &HashMap<String, Vec<String>>,
         settings: &GameSettings,
         current_tick: i64,
+        diplomacy: &DiplomacyState,
     ) -> Vec<Action>;
 }

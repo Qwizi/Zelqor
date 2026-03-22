@@ -86,6 +86,50 @@ pub struct GameSettings {
     // System module configs (anticheat, chat, matchmaking, etc.)
     #[serde(default)]
     pub system_modules: HashMap<String, SystemModuleSnapshot>,
+
+    // Diplomacy settings
+    #[serde(default = "default_capital_protection_ticks")]
+    pub capital_protection_ticks: i64,
+    #[serde(default = "default_nap_minimum_duration_ticks")]
+    pub nap_minimum_duration_ticks: i64,
+    #[serde(default = "default_peace_cooldown_ticks")]
+    pub peace_cooldown_ticks: i64,
+    #[serde(default = "default_proposal_timeout_ticks")]
+    pub proposal_timeout_ticks: i64,
+    #[serde(default = "default_true")]
+    pub diplomacy_enabled: bool,
+
+    // Action Points (AP) system — limits actions per player to prevent click-speed advantage
+    #[serde(default = "default_max_action_points")]
+    pub max_action_points: i64,
+    #[serde(default = "default_ap_regen_interval")]
+    pub ap_regen_interval: i64,
+    #[serde(default = "default_ap_cost_attack")]
+    pub ap_cost_attack: i64,
+    #[serde(default = "default_ap_cost_move")]
+    pub ap_cost_move: i64,
+    #[serde(default = "default_ap_cost_build")]
+    pub ap_cost_build: i64,
+    #[serde(default = "default_ap_cost_produce")]
+    pub ap_cost_produce: i64,
+    #[serde(default = "default_ap_cost_ability")]
+    pub ap_cost_ability: i64,
+
+    // Region cooldowns — prevent spamming actions from the same region
+    #[serde(default = "default_region_attack_cooldown")]
+    pub region_attack_cooldown: i64,
+    #[serde(default = "default_region_move_cooldown")]
+    pub region_move_cooldown: i64,
+
+    // Combat fatigue — weakens units after battle
+    #[serde(default = "default_fatigue_attack_modifier")]
+    pub fatigue_attack_modifier: f64,
+    #[serde(default = "default_fatigue_defense_modifier")]
+    pub fatigue_defense_modifier: f64,
+    #[serde(default = "default_fatigue_attack_ticks")]
+    pub fatigue_attack_ticks: i64,
+    #[serde(default = "default_fatigue_defense_ticks")]
+    pub fatigue_defense_ticks: i64,
 }
 
 /// Configuration for a single game module.
@@ -158,6 +202,29 @@ fn default_max_build_queue_per_region() -> u64 { 3 }
 fn default_max_unit_queue_per_region() -> u64 { 4 }
 fn default_casualty_factor() -> f64 { 0.5 }
 fn default_snapshot_interval_ticks() -> u64 { 30 }
+fn default_capital_protection_ticks() -> i64 { 300 }
+fn default_nap_minimum_duration_ticks() -> i64 { 300 }
+fn default_peace_cooldown_ticks() -> i64 { 120 }
+fn default_proposal_timeout_ticks() -> i64 { 60 }
+
+// AP system defaults
+fn default_max_action_points() -> i64 { 10 }
+fn default_ap_regen_interval() -> i64 { 3 }
+fn default_ap_cost_attack() -> i64 { 3 }
+fn default_ap_cost_move() -> i64 { 2 }
+fn default_ap_cost_build() -> i64 { 2 }
+fn default_ap_cost_produce() -> i64 { 1 }
+fn default_ap_cost_ability() -> i64 { 4 }
+
+// Region cooldown defaults
+fn default_region_attack_cooldown() -> i64 { 5 }
+fn default_region_move_cooldown() -> i64 { 2 }
+
+// Combat fatigue defaults
+fn default_fatigue_attack_modifier() -> f64 { 0.30 }
+fn default_fatigue_defense_modifier() -> f64 { 0.20 }
+fn default_fatigue_attack_ticks() -> i64 { 5 }
+fn default_fatigue_defense_ticks() -> i64 { 3 }
 
 impl Default for GameSettings {
     fn default() -> Self {
@@ -199,6 +266,24 @@ impl Default for GameSettings {
             snapshot_interval_ticks: default_snapshot_interval_ticks(),
             modules: HashMap::new(),
             system_modules: HashMap::new(),
+            capital_protection_ticks: default_capital_protection_ticks(),
+            nap_minimum_duration_ticks: default_nap_minimum_duration_ticks(),
+            peace_cooldown_ticks: default_peace_cooldown_ticks(),
+            proposal_timeout_ticks: default_proposal_timeout_ticks(),
+            diplomacy_enabled: true,
+            max_action_points: default_max_action_points(),
+            ap_regen_interval: default_ap_regen_interval(),
+            ap_cost_attack: default_ap_cost_attack(),
+            ap_cost_move: default_ap_cost_move(),
+            ap_cost_build: default_ap_cost_build(),
+            ap_cost_produce: default_ap_cost_produce(),
+            ap_cost_ability: default_ap_cost_ability(),
+            region_attack_cooldown: default_region_attack_cooldown(),
+            region_move_cooldown: default_region_move_cooldown(),
+            fatigue_attack_modifier: default_fatigue_attack_modifier(),
+            fatigue_defense_modifier: default_fatigue_defense_modifier(),
+            fatigue_attack_ticks: default_fatigue_attack_ticks(),
+            fatigue_defense_ticks: default_fatigue_defense_ticks(),
         }
     }
 }
@@ -418,6 +503,12 @@ pub struct Player {
     pub energy: i64,
     #[serde(default)]
     pub energy_accum: f64,
+    /// Action Points — limits how many actions a player can take.
+    #[serde(default = "default_max_action_points")]
+    pub action_points: i64,
+    /// Fractional AP accumulator for regeneration (like energy_accum).
+    #[serde(default)]
+    pub ap_regen_accum: f64,
     #[serde(default)]
     pub ability_cooldowns: HashMap<String, i64>,
     #[serde(default)]
@@ -504,6 +595,15 @@ pub struct Region {
     pub units: HashMap<String, i64>,
     #[serde(default)]
     pub unit_accum: f64,
+    /// Per-action cooldowns: action_type (e.g. "attack", "move") → tick when ready.
+    #[serde(default)]
+    pub action_cooldowns: HashMap<String, i64>,
+    /// Tick when combat fatigue expires (units fight at reduced power until then).
+    #[serde(default)]
+    pub fatigue_until: Option<i64>,
+    /// Fatigue power reduction (e.g. 0.30 = 30% weaker).
+    #[serde(default)]
+    pub fatigue_modifier: f64,
 }
 
 /// Action from a player.
@@ -539,6 +639,24 @@ pub struct Action {
     /// Multiple target regions for bombardment (artillery salvo across provinces).
     #[serde(default)]
     pub target_region_ids: Option<Vec<String>>,
+    /// Target player for diplomacy actions.
+    #[serde(default)]
+    pub target_player_id: Option<String>,
+    /// Proposal ID for respond_pact / respond_peace.
+    #[serde(default)]
+    pub proposal_id: Option<String>,
+    /// Accept/reject for diplomacy responses.
+    #[serde(default)]
+    pub accept: Option<bool>,
+    /// Pact ID for break_pact.
+    #[serde(default)]
+    pub pact_id: Option<String>,
+    /// Condition type for peace proposals: "status_quo" or "return_provinces".
+    #[serde(default)]
+    pub condition_type: Option<String>,
+    /// Province IDs to return in "return_provinces" peace condition.
+    #[serde(default)]
+    pub provinces_to_return: Option<Vec<String>>,
 }
 
 /// Building queue item.
@@ -649,6 +767,77 @@ pub struct WeatherState {
     pub energy_modifier: f64,
     /// Multiplier applied to unit generation rate (rain = slightly reduced)
     pub unit_gen_modifier: f64,
+}
+
+/// Diplomacy state — wars, pacts, and proposals between players.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DiplomacyState {
+    #[serde(default)]
+    pub wars: Vec<War>,
+    #[serde(default)]
+    pub pacts: Vec<Pact>,
+    #[serde(default)]
+    pub proposals: Vec<DiplomacyProposal>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct War {
+    /// Lexicographically smaller player ID.
+    pub player_a: String,
+    /// Lexicographically larger player ID.
+    pub player_b: String,
+    pub started_tick: i64,
+    pub aggressor_id: String,
+    /// Provinces that changed ownership during this war.
+    #[serde(default)]
+    pub provinces_changed: Vec<ProvinceChange>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProvinceChange {
+    pub region_id: String,
+    pub from_player_id: String,
+    pub to_player_id: String,
+    pub tick: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Pact {
+    pub id: String,
+    /// "nap" for non-aggression pact.
+    pub pact_type: String,
+    pub player_a: String,
+    pub player_b: String,
+    pub created_tick: i64,
+    #[serde(default)]
+    pub expires_tick: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiplomacyProposal {
+    pub id: String,
+    /// "nap" or "peace"
+    pub proposal_type: String,
+    pub from_player_id: String,
+    pub to_player_id: String,
+    pub created_tick: i64,
+    #[serde(default)]
+    pub conditions: Option<PeaceConditions>,
+    /// "pending", "accepted", "rejected", "expired"
+    pub status: String,
+    #[serde(default)]
+    pub rejected_tick: Option<i64>,
+    /// Tick at which this proposal auto-expires if not responded to.
+    #[serde(default)]
+    pub expires_tick: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeaceConditions {
+    /// "status_quo" or "return_provinces"
+    pub condition_type: String,
+    #[serde(default)]
+    pub provinces_to_return: Vec<String>,
 }
 
 /// Events produced by the engine.
@@ -896,5 +1085,95 @@ pub enum Event {
     ProvinceNeutralized {
         region_id: String,
         previous_owner_id: String,
+    },
+
+    #[serde(rename = "war_declared")]
+    WarDeclared {
+        aggressor_id: String,
+        defender_id: String,
+        tick: i64,
+    },
+
+    #[serde(rename = "pact_proposed")]
+    PactProposed {
+        proposal_id: String,
+        from_player_id: String,
+        to_player_id: String,
+        pact_type: String,
+    },
+
+    #[serde(rename = "pact_accepted")]
+    PactAccepted {
+        pact_id: String,
+        player_a: String,
+        player_b: String,
+        pact_type: String,
+    },
+
+    #[serde(rename = "pact_rejected")]
+    PactRejected {
+        proposal_id: String,
+        from_player_id: String,
+        to_player_id: String,
+    },
+
+    #[serde(rename = "pact_broken")]
+    PactBroken {
+        pact_id: String,
+        broken_by: String,
+        player_a: String,
+        player_b: String,
+    },
+
+    #[serde(rename = "pact_expired")]
+    PactExpired {
+        pact_id: String,
+        player_a: String,
+        player_b: String,
+    },
+
+    #[serde(rename = "peace_proposed")]
+    PeaceProposed {
+        proposal_id: String,
+        from_player_id: String,
+        to_player_id: String,
+        conditions: PeaceConditions,
+    },
+
+    #[serde(rename = "peace_accepted")]
+    PeaceAccepted {
+        from_player_id: String,
+        to_player_id: String,
+        conditions: PeaceConditions,
+    },
+
+    #[serde(rename = "peace_rejected")]
+    PeaceRejected {
+        proposal_id: String,
+        from_player_id: String,
+        to_player_id: String,
+    },
+
+    #[serde(rename = "proposal_expired")]
+    ProposalExpired {
+        proposal_id: String,
+        proposal_type: String,
+        from_player_id: String,
+        to_player_id: String,
+    },
+
+    #[serde(rename = "capital_protected")]
+    CapitalProtected {
+        target_region_id: String,
+        attacker_id: String,
+        ticks_remaining: i64,
+    },
+
+    /// Combat fatigue applied to a region after battle.
+    #[serde(rename = "combat_fatigue")]
+    CombatFatigue {
+        region_id: String,
+        modifier: f64,
+        ticks: i64,
     },
 }
