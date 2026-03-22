@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'ovh.qwizi.maplord'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "ovh.qwizi.maplord"
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName "1.0.0"
+
+        // TWA Metadata
+        manifestPlaceholders = [
+            hostName    : "maplord.qwizi.ovh",
+            defaultUrl  : "https://maplord.qwizi.ovh/dashboard",
+            launcherName: "MapLord",
+            // Asset link fingerprint — replace with your signing key SHA-256
+            assetStatements: '[{ "relation": ["delegate_permission/common.handle_all_urls"], "target": { "namespace": "web", "site": "https://maplord.qwizi.ovh" } }]'
+        ]
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.browser:browser:1.8.0'
+}

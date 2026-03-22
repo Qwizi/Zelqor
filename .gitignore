@@ -31,6 +31,12 @@ promo/node_modules/
 promo/out/
 promo/public/assets
 
+# TWA
+twa/.gradle/
+twa/app/build/
+twa/maplord.keystore
+twa/local.properties
+
 # OS
 .DS_Store
 pixi/
