@@ -522,6 +522,11 @@ class MatchmakingInternalController(ControllerBase):
                 'max_unit_queue_per_region': src.max_unit_queue_per_region,
                 'casualty_factor': src.casualty_factor,
                 'snapshot_interval_ticks': src.snapshot_interval_ticks,
+                'capital_protection_ticks': src.capital_protection_ticks,
+                'nap_minimum_duration_ticks': src.nap_minimum_duration_ticks,
+                'peace_cooldown_ticks': src.peace_cooldown_ticks,
+                'proposal_timeout_ticks': src.proposal_timeout_ticks,
+                'diplomacy_enabled': src.diplomacy_enabled,
             },
         )
 
@@ -723,6 +728,11 @@ def _create_match_from_users(users, game_mode):
             'max_unit_queue_per_region': src.max_unit_queue_per_region,
             'casualty_factor': src.casualty_factor,
             'snapshot_interval_ticks': src.snapshot_interval_ticks,
+            'capital_protection_ticks': src.capital_protection_ticks,
+            'nap_minimum_duration_ticks': src.nap_minimum_duration_ticks,
+            'peace_cooldown_ticks': src.peace_cooldown_ticks,
+            'proposal_timeout_ticks': src.proposal_timeout_ticks,
+            'diplomacy_enabled': src.diplomacy_enabled,
         },
     )
 

@@ -1,5 +1,5 @@
 use crate::BotStrategy;
-use maplord_engine::{Action, GameSettings, Player, Region};
+use maplord_engine::{Action, DiplomacyState, GameSettings, Player, Region};
 use std::collections::HashMap;
 
 /// Deliberately weak bot for the tutorial. Captures some neutrals slowly,
@@ -22,6 +22,7 @@ impl BotStrategy for TutorialBotBrain {
         neighbor_map: &HashMap<String, Vec<String>>,
         settings: &GameSettings,
         current_tick: i64,
+        _diplomacy: &DiplomacyState,
     ) -> Vec<Action> {
         let player = match players.get(&self.player_id) {
             Some(p) if p.is_alive => p,
@@ -326,7 +327,7 @@ mod tests {
             let regions = HashMap::new();
             let neighbor_map = HashMap::new();
             let settings = default_settings();
-            let actions = bot.decide(&players, &regions, &neighbor_map, &settings, 50);
+            let actions = bot.decide(&players, &regions, &neighbor_map, &settings, 50, &DiplomacyState::default());
             assert!(
                 actions.is_empty(),
                 "unknown player should produce no actions"
@@ -363,21 +364,21 @@ mod tests {
         #[test]
         fn tick_0_returns_no_actions() {
             let (bot, players, regions, nm, settings) = setup();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 0);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 0, &DiplomacyState::default());
             assert!(actions.is_empty());
         }
 
         #[test]
         fn tick_1_returns_no_actions() {
             let (bot, players, regions, nm, settings) = setup();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 1);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 1, &DiplomacyState::default());
             assert!(actions.is_empty());
         }
 
         #[test]
         fn tick_29_returns_no_actions() {
             let (bot, players, regions, nm, settings) = setup();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 29);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 29, &DiplomacyState::default());
             assert!(actions.is_empty());
         }
 
@@ -391,7 +392,7 @@ mod tests {
             let regions = HashMap::new();
             let nm = HashMap::new();
             let settings = default_settings();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 50);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 50, &DiplomacyState::default());
             assert!(actions.is_empty());
         }
 
@@ -405,7 +406,7 @@ mod tests {
             regions.insert("r1".to_string(), neutral_region(3));
             let nm = HashMap::new();
             let settings = default_settings();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 50);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 50, &DiplomacyState::default());
             assert!(actions.is_empty());
         }
     }
@@ -438,7 +439,7 @@ mod tests {
         #[test]
         fn tick_30_produces_attack_action() {
             let (bot, players, regions, nm, settings) = setup_with_adjacent_neutral();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 30);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 30, &DiplomacyState::default());
             assert_eq!(actions.len(), 1);
             assert_eq!(actions[0].action_type, "attack");
         }
@@ -446,14 +447,14 @@ mod tests {
         #[test]
         fn tick_31_produces_no_actions_off_interval() {
             let (bot, players, regions, nm, settings) = setup_with_adjacent_neutral();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 31);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 31, &DiplomacyState::default());
             assert!(actions.is_empty(), "off-interval tick should be idle");
         }
 
         #[test]
         fn tick_40_produces_attack_action() {
             let (bot, players, regions, nm, settings) = setup_with_adjacent_neutral();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 40);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 40, &DiplomacyState::default());
             assert_eq!(actions.len(), 1);
             assert_eq!(actions[0].action_type, "attack");
         }
@@ -461,7 +462,7 @@ mod tests {
         #[test]
         fn attack_targets_neutral_region() {
             let (bot, players, regions, nm, settings) = setup_with_adjacent_neutral();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 30);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 30, &DiplomacyState::default());
             let action = &actions[0];
             assert_eq!(action.target_region_id.as_deref(), Some("r2"));
         }
@@ -469,7 +470,7 @@ mod tests {
         #[test]
         fn attack_sends_positive_unit_count() {
             let (bot, players, regions, nm, settings) = setup_with_adjacent_neutral();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 30);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 30, &DiplomacyState::default());
             let units = actions[0].units.expect("units should be set");
             assert!(units > 0);
         }
@@ -477,7 +478,7 @@ mod tests {
         #[test]
         fn attack_uses_default_unit_type() {
             let (bot, players, regions, nm, settings) = setup_with_adjacent_neutral();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 30);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 30, &DiplomacyState::default());
             assert_eq!(actions[0].unit_type.as_deref(), Some("infantry"));
         }
 
@@ -492,7 +493,7 @@ mod tests {
             regions.insert("r2".to_string(), neutral_region(1));
             let mut nm = HashMap::new();
             nm.insert("r1".to_string(), vec!["r2".to_string()]);
-            let actions = bot.decide(&players, &regions, &nm, &default_settings(), 30);
+            let actions = bot.decide(&players, &regions, &nm, &default_settings(), 30, &DiplomacyState::default());
             assert!(actions.is_empty(), "too few units should prevent attack");
         }
     }
@@ -526,7 +527,7 @@ mod tests {
             let nm = HashMap::new();
             let settings = settings_with_barracks(50);
 
-            let actions = bot.decide(&players, &regions, &nm, &settings, 80);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 80, &DiplomacyState::default());
             assert_eq!(actions.len(), 1);
             assert_eq!(actions[0].action_type, "build");
             assert_eq!(actions[0].building_type.as_deref(), Some("barracks"));
@@ -542,7 +543,7 @@ mod tests {
             let nm = HashMap::new();
             let settings = settings_with_barracks(100);
 
-            let actions = bot.decide(&players, &regions, &nm, &settings, 80);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 80, &DiplomacyState::default());
             assert!(actions.is_empty(), "cannot afford barracks — no action");
         }
 
@@ -561,7 +562,7 @@ mod tests {
             let nm = HashMap::new();
             let settings = settings_with_barracks(50);
 
-            let actions = bot.decide(&players, &regions, &nm, &settings, 80);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 80, &DiplomacyState::default());
             assert!(actions.is_empty(), "barracks already built — skip");
         }
 
@@ -576,7 +577,7 @@ mod tests {
             let settings = settings_with_barracks(50);
 
             // tick 81 is in phase 4, not on a multiple-of-12
-            let actions = bot.decide(&players, &regions, &nm, &settings, 81);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 81, &DiplomacyState::default());
             assert!(actions.is_empty());
         }
     }
@@ -610,7 +611,7 @@ mod tests {
         fn tick_130_attacks_on_15_tick_interval() {
             let (bot, players, regions, nm, settings) = setup();
             // 130 % 15 == 10 — NOT on interval, should be idle
-            let actions = bot.decide(&players, &regions, &nm, &settings, 130);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 130, &DiplomacyState::default());
             assert!(actions.is_empty(), "tick 130 is not a multiple of 15");
         }
 
@@ -618,7 +619,7 @@ mod tests {
         fn tick_135_attacks_on_15_tick_interval() {
             let (bot, players, regions, nm, settings) = setup();
             // 135 % 15 == 0
-            let actions = bot.decide(&players, &regions, &nm, &settings, 135);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 135, &DiplomacyState::default());
             assert_eq!(actions.len(), 1);
             assert_eq!(actions[0].action_type, "attack");
         }
@@ -627,14 +628,14 @@ mod tests {
         fn tick_150_attacks_on_15_tick_interval() {
             let (bot, players, regions, nm, settings) = setup();
             // 150 % 15 == 0
-            let actions = bot.decide(&players, &regions, &nm, &settings, 150);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 150, &DiplomacyState::default());
             assert_eq!(actions.len(), 1);
         }
 
         #[test]
         fn tick_136_is_idle() {
             let (bot, players, regions, nm, settings) = setup();
-            let actions = bot.decide(&players, &regions, &nm, &settings, 136);
+            let actions = bot.decide(&players, &regions, &nm, &settings, 136, &DiplomacyState::default());
             assert!(actions.is_empty());
         }
     }

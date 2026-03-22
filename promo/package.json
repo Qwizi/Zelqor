@@ -1,0 +1,25 @@
+{
+  "name": "maplord-promo",
+  "version": "1.0.0",
+  "description": "Promotional videos for MapLord",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts MapLordTrailer out/trailer.mp4",
+    "render:gif": "remotion render src/index.ts MapLordTrailer out/trailer.gif --image-format png"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.1",
+  "dependencies": {
+    "@remotion/cli": "^4.0.438",
+    "@remotion/google-fonts": "^4.0.438",
+    "@remotion/player": "^4.0.438",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "remotion": "^4.0.438",
+    "typescript": "^5.9.3"
+  }
+}

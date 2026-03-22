@@ -38,6 +38,7 @@ import VoicePanel from "@/components/chat/VoicePanel";
 import DesktopChatVoice from "@/components/game/DesktopChatVoice";
 // WeatherIndicator removed — weather/day-night not used
 import { useVoiceChat } from "@/hooks/useVoiceChat";
+import DiplomacyPanel from "@/components/game/DiplomacyPanel";
 
 const BOOST_EFFECT_LABELS: Record<string, string> = {
   unit_bonus: "Mobilizacja (+jednostki)",
@@ -126,6 +127,7 @@ export default function GamePage({
     voiceUrl,
     bannedReason,
     ping,
+    diplomacy,
     selectCapital,
     attack,
     move,
@@ -137,6 +139,12 @@ export default function GamePage({
     leaveMatch,
     send,
     sendChat,
+    proposePact,
+    respondPact,
+    proposePeace,
+    respondPeace,
+    breakPact,
+    declareWar,
   } = useGameSocket(matchId);
 
   // Expose combat actions for UI components
@@ -711,6 +719,8 @@ export default function GamePage({
   const regions = useMemo(() => gameState?.regions || {}, [gameState?.regions]);
   const currentTick = parseInt(gameState?.meta?.current_tick || "0", 10);
   const tickIntervalMs = parseInt(gameState?.meta?.tick_interval_ms || "1000", 10);
+  const capitalProtectionTicks = parseInt(gameState?.meta?.capital_protection_ticks || "0", 10);
+  const diplomacyEnabled = gameState?.meta?.diplomacy_enabled === "1";
 
   // My stats
   const { myRegionCount, myUnitCount, myEnergy } = useMemo(() => {
@@ -1866,6 +1876,106 @@ export default function GamePage({
       if (e.type === "server_error") {
         toast.error(e.message as string);
       }
+      // ── Diplomacy events ──────────────────────────────────────
+      if (e.type === "war_declared") {
+        const aggressorId = e.aggressor_id as string;
+        const aggressorName = gameStateRef.current?.players[aggressorId]?.username ?? "Gracz";
+        if (aggressorId !== myUserId) {
+          toast.error(`⚔️ Wojna z ${aggressorName}!`, { duration: 6000 });
+        } else {
+          const targetId = (e.player_a === myUserId ? e.player_b : e.player_a) as string;
+          const targetName = gameStateRef.current?.players[targetId]?.username ?? "Gracz";
+          toast.warning(`⚔️ Wypowiedziałeś wojnę graczowi ${targetName}!`, { duration: 6000 });
+        }
+      }
+      if (e.type === "pact_proposed") {
+        const fromId = e.from_player_id as string;
+        if (fromId !== myUserId) {
+          const fromName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
+          toast.info(`🤝 ${fromName} proponuje pakt o nieagresji`, { duration: 6000 });
+        }
+      }
+      if (e.type === "pact_accepted") {
+        const fromId = e.from_player_id as string;
+        const toId = e.to_player_id as string;
+        const otherId = fromId === myUserId ? toId : fromId;
+        const otherName = gameStateRef.current?.players[otherId]?.username ?? "Gracz";
+        if (fromId === myUserId || toId === myUserId) {
+          toast.success(`✅ Pakt zaakceptowany z ${otherName}`, { duration: 5000 });
+        }
+      }
+      if (e.type === "pact_broken") {
+        const breakerId = e.breaker_id as string;
+        if (breakerId !== myUserId) {
+          const breakerName = gameStateRef.current?.players[breakerId]?.username ?? "Gracz";
+          toast.error(`❌ ${breakerName} zerwał pakt!`, { duration: 6000 });
+        }
+      }
+      if (e.type === "peace_proposed") {
+        const fromId = e.from_player_id as string;
+        if (fromId !== myUserId) {
+          const fromName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
+          toast.info(`🕊️ ${fromName} proponuje pokój`, { duration: 6000 });
+        }
+      }
+      if (e.type === "peace_accepted") {
+        const fromId = e.from_player_id as string;
+        const toId = e.to_player_id as string;
+        const otherId = fromId === myUserId ? toId : fromId;
+        const otherName = gameStateRef.current?.players[otherId]?.username ?? "Gracz";
+        if (fromId === myUserId || toId === myUserId) {
+          toast.success(`✅ Pokój zawarty z ${otherName}`, { duration: 5000 });
+        }
+      }
+      if (e.type === "peace_rejected") {
+        const fromId = e.from_player_id as string;
+        const toId = e.to_player_id as string;
+        if (fromId === myUserId) {
+          const otherName = gameStateRef.current?.players[toId]?.username ?? "Gracz";
+          toast.error(`❌ ${otherName} odrzucił propozycję pokoju`, { duration: 5000 });
+        }
+        if (toId === myUserId) {
+          const otherName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
+          toast.info(`Odrzucono propozycję pokoju od ${otherName}`, { duration: 3000 });
+        }
+      }
+      if (e.type === "pact_rejected") {
+        const fromId = e.from_player_id as string;
+        const toId = e.to_player_id as string;
+        if (fromId === myUserId) {
+          const otherName = gameStateRef.current?.players[toId]?.username ?? "Gracz";
+          toast.error(`❌ ${otherName} odrzucił propozycję paktu`, { duration: 5000 });
+        }
+      }
+      if (e.type === "pact_expired") {
+        const pa = e.player_a as string;
+        const pb = e.player_b as string;
+        if (pa === myUserId || pb === myUserId) {
+          const otherId = pa === myUserId ? pb : pa;
+          const otherName = gameStateRef.current?.players[otherId]?.username ?? "Gracz";
+          toast.warning(`Pakt o nieagresji z ${otherName} wygasł`, { duration: 5000 });
+        }
+      }
+      if (e.type === "proposal_expired") {
+        const fromId = e.from_player_id as string;
+        const toId = e.to_player_id as string;
+        const proposalType = e.proposal_type as string;
+        const label = proposalType === "peace" ? "pokoju" : "paktu";
+        if (fromId === myUserId) {
+          const otherName = gameStateRef.current?.players[toId]?.username ?? "Gracz";
+          toast.warning(`Propozycja ${label} do ${otherName} wygasła`, { duration: 4000 });
+        }
+        if (toId === myUserId) {
+          const otherName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
+          toast.info(`Propozycja ${label} od ${otherName} wygasła`, { duration: 4000 });
+        }
+      }
+      if (e.type === "capital_protected") {
+        const ticksRemaining = e.ticks_remaining as number;
+        if (e.player_id === myUserId) {
+          toast.info(`🛡️ Stolica chroniona! Pozostało ${ticksRemaining} tur`, { duration: 4000 });
+        }
+      }
     }
   }, [events, myUserId, neighborMap, gameState?.players, playSound]);
 
@@ -2193,6 +2303,7 @@ export default function GamePage({
           airTransitQueue={gameState?.air_transit_queue}
           unitManpowerMap={unitManpowerMap}
           plannedMoves={plannedMoves}
+          diplomacy={diplomacy}
           onFlightClick={(flightId) => {
             // Find a source region with fighters to intercept
             if (!gameState) return;
@@ -2278,6 +2389,14 @@ export default function GamePage({
         fps={fps}
         ping={ping}
         connected={connected}
+        diplomacy={diplomacy}
+        capitalProtectionTicks={capitalProtectionTicks}
+        onProposePact={proposePact}
+        onRespondPact={respondPact}
+        onBreakPact={breakPact}
+        onDeclareWar={declareWar}
+        onProposePeace={proposePeace}
+        onRespondPeace={respondPeace}
       />
 
       {/* Weather indicator removed — weather/day-night not used */}
@@ -2376,6 +2495,23 @@ export default function GamePage({
           unlockedBuildings={gameState?.players[myUserId]?.unlocked_buildings}
           unlockedUnits={gameState?.players[myUserId]?.unlocked_units}
           buildingLevels={gameState?.players[myUserId]?.building_levels}
+        />
+      )}
+
+      {/* Peace proposal dialog (full-screen modal) */}
+      {status === "in_progress" && (
+        <DiplomacyPanel
+          players={players}
+          currentPlayerId={myUserId}
+          diplomacy={diplomacy}
+          currentTick={currentTick}
+          onProposePact={proposePact}
+          onRespondPact={respondPact}
+          onProposePeace={proposePeace}
+          onRespondPeace={respondPeace}
+          onBreakPact={breakPact}
+          onDeclareWar={declareWar}
+          renderMode="dialog-only"
         />
       )}
 

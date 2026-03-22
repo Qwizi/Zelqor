@@ -351,6 +351,7 @@ async fn handle_game_message(
     if matches!(
         action,
         "attack" | "move" | "build" | "produce_unit" | "use_ability" | "intercept" | "bombard" | "activate_boost" | "select_capital"
+        | "propose_pact" | "respond_pact" | "propose_peace" | "respond_peace" | "break_pact" | "declare_war"
     ) {
         if check_action_rate_limit(state, user_id) {
             let _ = tx.try_send(Message::Text(
@@ -388,7 +389,8 @@ async fn handle_game_message(
                 let _ = state_mgr.set_meta_field("tick_multiplier", &multiplier.to_string()).await;
             }
         }
-        "attack" | "move" | "build" | "produce_unit" | "use_ability" | "intercept" | "bombard" | "activate_boost" => {
+        "attack" | "move" | "build" | "produce_unit" | "use_ability" | "intercept" | "bombard" | "activate_boost"
+        | "propose_pact" | "respond_pact" | "propose_peace" | "respond_peace" | "break_pact" | "declare_war" => {
             let mut action_data: serde_json::Map<String, serde_json::Value> =
                 content.as_object().cloned().unwrap_or_default();
             action_data.remove("action");
@@ -1021,6 +1023,7 @@ async fn game_loop(
                     &neighbor_map,
                     &settings,
                     tick,
+                    &tick_data.diplomacy,
                 );
                 tick_data.actions.extend(bot_actions);
             }
@@ -1194,6 +1197,7 @@ async fn game_loop(
             &mut tick_data.air_transit_queue,
             tick,
             &mut tick_data.active_effects,
+            &mut tick_data.diplomacy,
         );
 
         if !timeout_events.is_empty() {
@@ -1226,6 +1230,7 @@ async fn game_loop(
                 &tick_data.transit_queue,
                 &tick_data.air_transit_queue,
                 &tick_data.active_effects,
+                &tick_data.diplomacy,
                 Some(&dirty_ids),
             )
             .await?;
@@ -1261,6 +1266,7 @@ async fn game_loop(
             "air_transit_queue": tick_data.air_transit_queue,
             "active_effects": tick_data.active_effects,
             "weather": weather,
+            "diplomacy": tick_data.diplomacy,
         });
         broadcast_to_match(match_id, &tick_msg, &state.game_connections);
 
@@ -1281,6 +1287,7 @@ async fn game_loop(
                             &neighbor_map,
                             &settings,
                             extra_tick_num,
+                            &extra_tick.diplomacy,
                         );
                         extra_tick.actions.extend(bot_actions);
                     }
@@ -1310,6 +1317,7 @@ async fn game_loop(
                     &mut extra_tick.air_transit_queue,
                     extra_tick_num,
                     &mut extra_tick.active_effects,
+                    &mut extra_tick.diplomacy,
                 );
 
                 if !extra_timeout_events.is_empty() {
@@ -1338,6 +1346,7 @@ async fn game_loop(
                     &extra_tick.transit_queue,
                     &extra_tick.air_transit_queue,
                     &extra_tick.active_effects,
+                    &extra_tick.diplomacy,
                     Some(&extra_dirty),
                 ).await?;
 
@@ -1360,6 +1369,7 @@ async fn game_loop(
                     "air_transit_queue": extra_tick.air_transit_queue,
                     "active_effects": extra_tick.active_effects,
                     "weather": extra_weather,
+                    "diplomacy": extra_tick.diplomacy,
                 });
                 broadcast_to_match(match_id, &extra_msg, &state.game_connections);
 
@@ -1808,6 +1818,12 @@ async fn initialize_game(
     state_mgr
         .set_meta_field("disconnect_grace_seconds", &settings.disconnect_grace_seconds.to_string())
         .await?;
+    state_mgr
+        .set_meta_field("capital_protection_ticks", &settings.capital_protection_ticks.to_string())
+        .await?;
+    if settings.diplomacy_enabled {
+        state_mgr.set_meta_field("diplomacy_enabled", "1").await?;
+    }
     if !settings.weather_enabled {
         state_mgr.set_meta_field("weather_enabled", "0").await?;
     }

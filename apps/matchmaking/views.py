@@ -192,6 +192,11 @@ class TutorialController:
             'unit_types': unit_types,
             'ability_types': ability_types,
             'default_unit_type_slug': default_unit_type_slug,
+            'capital_protection_ticks': tutorial_mode.capital_protection_ticks,
+            'nap_minimum_duration_ticks': tutorial_mode.nap_minimum_duration_ticks,
+            'peace_cooldown_ticks': tutorial_mode.peace_cooldown_ticks,
+            'proposal_timeout_ticks': tutorial_mode.proposal_timeout_ticks,
+            'diplomacy_enabled': tutorial_mode.diplomacy_enabled,
         }
 
         COLORS = ['#22d3ee', '#f43f5e', '#a3e635', '#fbbf24', '#c084fc', '#fb923c']

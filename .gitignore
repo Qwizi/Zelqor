@@ -26,6 +26,13 @@ celerybeat-schedule
 celerybeat-schedule-shm
 celerybeat-schedule-wal
 
+# Promo / Remotion
+promo/node_modules/
+promo/out/
+promo/public/assets
+frontend/public/assets/audio/music/
+frontend/public/assets/trailer.mp3
+
 # OS
 .DS_Store
 pixi/

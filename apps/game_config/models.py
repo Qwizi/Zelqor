@@ -60,6 +60,23 @@ class GameSettings(models.Model):
     # ELO
     elo_k_factor = models.PositiveIntegerField(default=32, help_text='K-factor for ELO calculation')
 
+    # Diplomacy
+    capital_protection_ticks = models.PositiveIntegerField(
+        default=300, help_text='Ticks of capital immunity at game start (0=disabled, 300=5min at 1s/tick)'
+    )
+    nap_minimum_duration_ticks = models.PositiveIntegerField(
+        default=300, help_text='Minimum non-aggression pact duration in ticks'
+    )
+    peace_cooldown_ticks = models.PositiveIntegerField(
+        default=120, help_text='Cooldown ticks before peace can be re-proposed after rejection'
+    )
+    proposal_timeout_ticks = models.PositiveIntegerField(
+        default=60, help_text='Ticks before a diplomacy proposal auto-expires (0=no timeout)'
+    )
+    diplomacy_enabled = models.BooleanField(
+        default=True, help_text='Enable diplomacy system (wars, pacts, peace treaties)'
+    )
+
     class Meta:
         verbose_name = 'Game Settings'
         verbose_name_plural = 'Game Settings'
@@ -248,6 +265,23 @@ class GameMode(models.Model):
 
     # ELO
     elo_k_factor = models.PositiveIntegerField(default=32, help_text='K-factor for ELO calculation')
+
+    # Diplomacy
+    capital_protection_ticks = models.PositiveIntegerField(
+        default=300, help_text='Ticks of capital immunity at game start (0=disabled, 300=5min at 1s/tick)'
+    )
+    nap_minimum_duration_ticks = models.PositiveIntegerField(
+        default=300, help_text='Minimum non-aggression pact duration in ticks'
+    )
+    peace_cooldown_ticks = models.PositiveIntegerField(
+        default=120, help_text='Cooldown ticks before peace can be re-proposed after rejection'
+    )
+    proposal_timeout_ticks = models.PositiveIntegerField(
+        default=60, help_text='Ticks before a diplomacy proposal auto-expires (0=no timeout)'
+    )
+    diplomacy_enabled = models.BooleanField(
+        default=True, help_text='Enable diplomacy system (wars, pacts, peace treaties)'
+    )
 
     # Map
     map_config = models.ForeignKey(

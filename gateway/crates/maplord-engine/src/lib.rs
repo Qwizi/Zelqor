@@ -128,6 +128,114 @@ fn default_unit_types() -> HashMap<String, UnitConfig> {
     m
 }
 
+impl DiplomacyState {
+    /// Get sorted player pair key.
+    fn war_key(a: &str, b: &str) -> (String, String) {
+        if a < b {
+            (a.to_string(), b.to_string())
+        } else {
+            (b.to_string(), a.to_string())
+        }
+    }
+
+    /// Check if two players are at war.
+    pub fn are_at_war(&self, a: &str, b: &str) -> bool {
+        let (pa, pb) = Self::war_key(a, b);
+        self.wars.iter().any(|w| w.player_a == pa && w.player_b == pb)
+    }
+
+    /// Check if two players have an active pact (any type).
+    pub fn have_pact(&self, a: &str, b: &str) -> bool {
+        let (pa, pb) = Self::war_key(a, b);
+        self.pacts.iter().any(|p| p.player_a == pa && p.player_b == pb)
+    }
+
+    /// Find the pact between two players if any.
+    pub fn find_pact(&self, a: &str, b: &str) -> Option<&Pact> {
+        let (pa, pb) = Self::war_key(a, b);
+        self.pacts.iter().find(|p| p.player_a == pa && p.player_b == pb)
+    }
+
+    /// Find the war between two players if any.
+    pub fn find_war(&self, a: &str, b: &str) -> Option<&War> {
+        let (pa, pb) = Self::war_key(a, b);
+        self.wars.iter().find(|w| w.player_a == pa && w.player_b == pb)
+    }
+
+    /// Declare war between two players. Removes any existing pact.
+    /// Returns events (pact_broken if applicable, then war_declared).
+    pub fn declare_war(&mut self, aggressor: &str, defender: &str, tick: i64) -> Vec<Event> {
+        let mut events = Vec::new();
+        let (pa, pb) = Self::war_key(aggressor, defender);
+
+        // Already at war? No-op.
+        if self.are_at_war(aggressor, defender) {
+            return events;
+        }
+
+        // Break any existing pact first.
+        if let Some(pact) = self.find_pact(aggressor, defender).cloned() {
+            self.pacts.retain(|p| p.id != pact.id);
+            events.push(Event::PactBroken {
+                pact_id: pact.id,
+                broken_by: aggressor.to_string(),
+                player_a: pact.player_a,
+                player_b: pact.player_b,
+            });
+        }
+
+        // Remove any pending proposals between them.
+        self.proposals.retain(|p| {
+            !((p.from_player_id == aggressor && p.to_player_id == defender)
+                || (p.from_player_id == defender && p.to_player_id == aggressor))
+                || p.status != "pending"
+        });
+
+        self.wars.push(War {
+            player_a: pa.clone(),
+            player_b: pb.clone(),
+            started_tick: tick,
+            aggressor_id: aggressor.to_string(),
+            provinces_changed: Vec::new(),
+        });
+
+        events.push(Event::WarDeclared {
+            aggressor_id: aggressor.to_string(),
+            defender_id: defender.to_string(),
+            tick,
+        });
+
+        events
+    }
+
+    /// Record a province ownership change during a war.
+    pub fn record_province_change(
+        &mut self,
+        attacker: &str,
+        defender: &str,
+        region_id: &str,
+        from: &str,
+        to: &str,
+        tick: i64,
+    ) {
+        let (pa, pb) = Self::war_key(attacker, defender);
+        if let Some(war) = self.wars.iter_mut().find(|w| w.player_a == pa && w.player_b == pb) {
+            war.provinces_changed.push(ProvinceChange {
+                region_id: region_id.to_string(),
+                from_player_id: from.to_string(),
+                to_player_id: to.to_string(),
+                tick,
+            });
+        }
+    }
+
+    /// End a war between two players.
+    pub fn end_war(&mut self, a: &str, b: &str) {
+        let (pa, pb) = Self::war_key(a, b);
+        self.wars.retain(|w| !(w.player_a == pa && w.player_b == pb));
+    }
+}
+
 /// Compute the current weather state from a UTC Unix timestamp using default settings.
 pub fn compute_weather(timestamp_secs: i64) -> WeatherState {
     let defaults = GameSettings {
@@ -309,6 +417,7 @@ impl GameEngine {
         air_transit_queue: &mut Vec<AirTransitItem>,
         current_tick: i64,
         active_effects: &mut Vec<ActiveEffect>,
+        diplomacy: &mut DiplomacyState,
     ) -> Vec<Event> {
         let mut events = Vec::new();
 
@@ -329,7 +438,7 @@ impl GameEngine {
         events.extend(unit_events);
 
         let (remaining_transit, transit_events) =
-            self.process_transit_queue_with_shield(players, regions, transit_queue, active_effects);
+            self.process_transit_queue_with_shield(players, regions, transit_queue, active_effects, diplomacy, current_tick);
         *transit_queue = remaining_transit;
         events.extend(transit_events);
 
@@ -387,6 +496,8 @@ impl GameEngine {
                     unit_queue,
                     transit_queue,
                     air_transit_queue,
+                    diplomacy,
+                    current_tick,
                 ));
             }
         }
@@ -406,6 +517,54 @@ impl GameEngine {
 
         // Unit generation AFTER actions, skipping bombarded provinces.
         events.extend(self.generate_units_with_effects_skip(players, regions, active_effects, &bombarded));
+
+        // Diplomacy tick processing: expire pacts that have reached their expiry tick.
+        if self.settings.diplomacy_enabled {
+            let mut expired_pacts = Vec::new();
+            diplomacy.pacts.retain(|pact| {
+                if let Some(expires) = pact.expires_tick {
+                    if current_tick >= expires {
+                        expired_pacts.push(pact.clone());
+                        return false;
+                    }
+                }
+                true
+            });
+            for pact in expired_pacts {
+                events.push(Event::PactExpired {
+                    pact_id: pact.id,
+                    player_a: pact.player_a,
+                    player_b: pact.player_b,
+                });
+            }
+
+            // Expire pending proposals that have timed out.
+            let mut expired_proposals = Vec::new();
+            for proposal in diplomacy.proposals.iter_mut() {
+                if proposal.status == "pending" {
+                    if let Some(expires) = proposal.expires_tick {
+                        if current_tick >= expires {
+                            proposal.status = "expired".to_string();
+                            expired_proposals.push(proposal.clone());
+                        }
+                    }
+                }
+            }
+            for proposal in &expired_proposals {
+                events.push(Event::ProposalExpired {
+                    proposal_id: proposal.id.clone(),
+                    proposal_type: proposal.proposal_type.clone(),
+                    from_player_id: proposal.from_player_id.clone(),
+                    to_player_id: proposal.to_player_id.clone(),
+                });
+            }
+
+            // Clean up old resolved/expired proposals.
+            let cleanup_threshold = self.settings.peace_cooldown_ticks * 2;
+            diplomacy.proposals.retain(|p| {
+                p.status == "pending" || (current_tick - p.created_tick < cleanup_threshold)
+            });
+        }
 
         events.extend(self.check_conditions(players, regions, air_transit_queue));
 
@@ -756,6 +915,8 @@ impl GameEngine {
         regions: &mut HashMap<String, Region>,
         transit_queue: &[TransitQueueItem],
         active_effects: &[ActiveEffect],
+        diplomacy: &mut DiplomacyState,
+        current_tick: i64,
     ) -> (Vec<TransitQueueItem>, Vec<Event>) {
         let mut events = Vec::new();
         let mut remaining = Vec::new();
@@ -783,7 +944,7 @@ impl GameEngine {
                             units: item.units,
                         });
                     } else {
-                        events.extend(self.resolve_attack_arrival(&item, players, regions));
+                        events.extend(self.resolve_attack_arrival(&item, players, regions, diplomacy, current_tick));
                     }
                 }
                 _ => {}
@@ -1386,14 +1547,335 @@ impl GameEngine {
         unit_queue: &mut Vec<UnitQueueItem>,
         transit_queue: &mut Vec<TransitQueueItem>,
         air_transit_queue: &mut Vec<AirTransitItem>,
+        diplomacy: &mut DiplomacyState,
+        current_tick: i64,
     ) -> Vec<Event> {
         match action.action_type.as_str() {
-            "attack" => self.process_attack(action, players, regions, transit_queue, air_transit_queue),
+            "attack" => self.process_attack(action, players, regions, transit_queue, air_transit_queue, diplomacy, current_tick),
             "move" => self.process_move(action, regions, transit_queue, air_transit_queue),
             "build" | "upgrade_building" => self.process_build(action, players, regions, buildings_queue),
             "produce_unit" => self.process_unit_production(action, players, regions, unit_queue),
             "bombard" => self.process_bombard(action, players, regions),
             "intercept" => self.process_intercept(action, players, regions, air_transit_queue),
+            "propose_pact" | "respond_pact" | "propose_peace" | "respond_peace" | "break_pact" | "declare_war" => {
+                self.process_diplomacy_action(action, players, regions, diplomacy, current_tick)
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    fn process_diplomacy_action(
+        &self,
+        action: &Action,
+        players: &HashMap<String, Player>,
+        regions: &mut HashMap<String, Region>,
+        diplomacy: &mut DiplomacyState,
+        current_tick: i64,
+    ) -> Vec<Event> {
+        if !self.settings.diplomacy_enabled {
+            return Vec::new();
+        }
+
+        let player_id = match &action.player_id {
+            Some(id) => id.as_str(),
+            None => return Vec::new(),
+        };
+
+        // Verify player exists and is alive.
+        match players.get(player_id) {
+            Some(p) if p.is_alive => {}
+            _ => return Vec::new(),
+        }
+
+        match action.action_type.as_str() {
+            "declare_war" => {
+                let target = match &action.target_player_id {
+                    Some(id) => id.as_str(),
+                    None => return vec![reject_action(player_id, "Brak celu", action)],
+                };
+                if player_id == target {
+                    return vec![reject_action(player_id, "Nie mozesz wypowiedziec wojny sobie", action)];
+                }
+                match players.get(target) {
+                    Some(p) if p.is_alive => {}
+                    _ => return vec![reject_action(player_id, "Gracz nie istnieje lub jest wyeliminowany", action)],
+                }
+                if diplomacy.are_at_war(player_id, target) {
+                    return vec![reject_action(player_id, "Juz jestescie w stanie wojny", action)];
+                }
+                diplomacy.declare_war(player_id, target, current_tick)
+            }
+
+            "propose_pact" => {
+                let target = match &action.target_player_id {
+                    Some(id) => id.as_str(),
+                    None => return vec![reject_action(player_id, "Brak celu", action)],
+                };
+                if player_id == target {
+                    return vec![reject_action(player_id, "Nie mozesz podpisac paktu z soba", action)];
+                }
+                match players.get(target) {
+                    Some(p) if p.is_alive => {}
+                    _ => return vec![reject_action(player_id, "Gracz nie istnieje lub jest wyeliminowany", action)],
+                }
+                // Can't propose NAP while at war.
+                if diplomacy.are_at_war(player_id, target) {
+                    return vec![reject_action(player_id, "Nie mozna zaproponowac paktu w trakcie wojny — najpierw zaproponuj pokoj", action)];
+                }
+                // Already have a pact?
+                if diplomacy.have_pact(player_id, target) {
+                    return vec![reject_action(player_id, "Pakt juz istnieje", action)];
+                }
+                // Already pending proposal?
+                let has_pending = diplomacy.proposals.iter().any(|p| {
+                    p.status == "pending"
+                        && p.proposal_type == "nap"
+                        && ((p.from_player_id == player_id && p.to_player_id == target)
+                            || (p.from_player_id == target && p.to_player_id == player_id))
+                });
+                if has_pending {
+                    return vec![reject_action(player_id, "Propozycja paktu juz oczekuje", action)];
+                }
+
+                let proposal_id = uuid_v4();
+                let timeout = self.settings.proposal_timeout_ticks;
+                let expires = if timeout > 0 { Some(current_tick + timeout) } else { None };
+                diplomacy.proposals.push(DiplomacyProposal {
+                    id: proposal_id.clone(),
+                    proposal_type: "nap".to_string(),
+                    from_player_id: player_id.to_string(),
+                    to_player_id: target.to_string(),
+                    created_tick: current_tick,
+                    conditions: None,
+                    status: "pending".to_string(),
+                    rejected_tick: None,
+                    expires_tick: expires,
+                });
+
+                vec![Event::PactProposed {
+                    proposal_id,
+                    from_player_id: player_id.to_string(),
+                    to_player_id: target.to_string(),
+                    pact_type: "nap".to_string(),
+                }]
+            }
+
+            "respond_pact" => {
+                let proposal_id = match &action.proposal_id {
+                    Some(id) => id.as_str(),
+                    None => return vec![reject_action(player_id, "Brak ID propozycji", action)],
+                };
+                let accept = action.accept.unwrap_or(false);
+
+                let proposal = match diplomacy.proposals.iter_mut().find(|p| {
+                    p.id == proposal_id && p.to_player_id == player_id && p.status == "pending"
+                }) {
+                    Some(p) => p,
+                    None => return vec![reject_action(player_id, "Propozycja nie znaleziona lub nie do ciebie", action)],
+                };
+
+                if accept {
+                    proposal.status = "accepted".to_string();
+                    let (pa, pb) = DiplomacyState::war_key(&proposal.from_player_id, &proposal.to_player_id);
+                    let pact_id = uuid_v4();
+                    let expires_tick = if self.settings.nap_minimum_duration_ticks > 0 {
+                        Some(current_tick + self.settings.nap_minimum_duration_ticks)
+                    } else {
+                        None
+                    };
+
+                    diplomacy.pacts.push(Pact {
+                        id: pact_id.clone(),
+                        pact_type: "nap".to_string(),
+                        player_a: pa.clone(),
+                        player_b: pb.clone(),
+                        created_tick: current_tick,
+                        expires_tick,
+                    });
+
+                    vec![Event::PactAccepted {
+                        pact_id,
+                        player_a: pa,
+                        player_b: pb,
+                        pact_type: "nap".to_string(),
+                    }]
+                } else {
+                    let from = proposal.from_player_id.clone();
+                    let to = proposal.to_player_id.clone();
+                    proposal.status = "rejected".to_string();
+                    proposal.rejected_tick = Some(current_tick);
+
+                    vec![Event::PactRejected {
+                        proposal_id: proposal_id.to_string(),
+                        from_player_id: from,
+                        to_player_id: to,
+                    }]
+                }
+            }
+
+            "break_pact" => {
+                let pact_id = match &action.pact_id {
+                    Some(id) => id.as_str(),
+                    None => return vec![reject_action(player_id, "Brak ID paktu", action)],
+                };
+                let pact = match diplomacy.pacts.iter().find(|p| {
+                    p.id == pact_id && (p.player_a == player_id || p.player_b == player_id)
+                }) {
+                    Some(p) => p.clone(),
+                    None => return vec![reject_action(player_id, "Pakt nie znaleziony", action)],
+                };
+
+                diplomacy.pacts.retain(|p| p.id != pact_id);
+
+                vec![Event::PactBroken {
+                    pact_id: pact.id,
+                    broken_by: player_id.to_string(),
+                    player_a: pact.player_a,
+                    player_b: pact.player_b,
+                }]
+            }
+
+            "propose_peace" => {
+                let target = match &action.target_player_id {
+                    Some(id) => id.as_str(),
+                    None => return vec![reject_action(player_id, "Brak celu", action)],
+                };
+                // Must be at war to propose peace.
+                if !diplomacy.are_at_war(player_id, target) {
+                    return vec![reject_action(player_id, "Nie jestescie w stanie wojny", action)];
+                }
+                // Check peace cooldown.
+                let has_recent_rejected = diplomacy.proposals.iter().any(|p| {
+                    p.proposal_type == "peace"
+                        && p.status == "rejected"
+                        && p.from_player_id == player_id
+                        && p.to_player_id == target
+                        && p.rejected_tick
+                            .map(|t| current_tick - t < self.settings.peace_cooldown_ticks)
+                            .unwrap_or(false)
+                });
+                if has_recent_rejected {
+                    return vec![reject_action(player_id, "Musisz poczekac przed ponowna propozycja pokoju", action)];
+                }
+                // Already pending?
+                let has_pending = diplomacy.proposals.iter().any(|p| {
+                    p.status == "pending"
+                        && p.proposal_type == "peace"
+                        && p.from_player_id == player_id
+                        && p.to_player_id == target
+                });
+                if has_pending {
+                    return vec![reject_action(player_id, "Propozycja pokoju juz oczekuje", action)];
+                }
+
+                let condition_type = action
+                    .condition_type
+                    .clone()
+                    .unwrap_or_else(|| "status_quo".to_string());
+                let provinces_to_return = action.provinces_to_return.clone().unwrap_or_default();
+
+                let conditions = PeaceConditions {
+                    condition_type,
+                    provinces_to_return,
+                };
+
+                let proposal_id = uuid_v4();
+                let timeout = self.settings.proposal_timeout_ticks;
+                let expires = if timeout > 0 { Some(current_tick + timeout) } else { None };
+                diplomacy.proposals.push(DiplomacyProposal {
+                    id: proposal_id.clone(),
+                    proposal_type: "peace".to_string(),
+                    from_player_id: player_id.to_string(),
+                    to_player_id: target.to_string(),
+                    created_tick: current_tick,
+                    conditions: Some(conditions.clone()),
+                    status: "pending".to_string(),
+                    rejected_tick: None,
+                    expires_tick: expires,
+                });
+
+                vec![Event::PeaceProposed {
+                    proposal_id,
+                    from_player_id: player_id.to_string(),
+                    to_player_id: target.to_string(),
+                    conditions,
+                }]
+            }
+
+            "respond_peace" => {
+                let proposal_id = match &action.proposal_id {
+                    Some(id) => id.as_str(),
+                    None => return vec![reject_action(player_id, "Brak ID propozycji", action)],
+                };
+                let accept = action.accept.unwrap_or(false);
+
+                let proposal = match diplomacy.proposals.iter_mut().find(|p| {
+                    p.id == proposal_id
+                        && p.to_player_id == player_id
+                        && p.status == "pending"
+                        && p.proposal_type == "peace"
+                }) {
+                    Some(p) => p,
+                    None => return vec![reject_action(player_id, "Propozycja pokoju nie znaleziona", action)],
+                };
+
+                if accept {
+                    proposal.status = "accepted".to_string();
+                    let from = proposal.from_player_id.clone();
+                    let to = proposal.to_player_id.clone();
+                    let conditions = proposal.conditions.clone().unwrap_or(PeaceConditions {
+                        condition_type: "status_quo".to_string(),
+                        provinces_to_return: Vec::new(),
+                    });
+
+                    // Apply peace conditions.
+                    if conditions.condition_type == "return_provinces" {
+                        let war = diplomacy.find_war(&from, &to).cloned();
+                        if let Some(war) = war {
+                            for region_id in &conditions.provinces_to_return {
+                                let original_owner = war
+                                    .provinces_changed
+                                    .iter()
+                                    .filter(|pc| pc.region_id == *region_id)
+                                    .last()
+                                    .map(|pc| pc.from_player_id.clone());
+
+                                if let Some(original) = original_owner {
+                                    if let Some(region) = regions.get_mut(region_id) {
+                                        let current_owner = region.owner_id.clone();
+                                        if current_owner.as_deref() == Some(&from)
+                                            || current_owner.as_deref() == Some(&to)
+                                        {
+                                            region.owner_id = Some(original);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // End the war.
+                    diplomacy.end_war(&from, &to);
+
+                    vec![Event::PeaceAccepted {
+                        from_player_id: from,
+                        to_player_id: to,
+                        conditions,
+                    }]
+                } else {
+                    let from = proposal.from_player_id.clone();
+                    let to = proposal.to_player_id.clone();
+                    proposal.status = "rejected".to_string();
+                    proposal.rejected_tick = Some(current_tick);
+
+                    vec![Event::PeaceRejected {
+                        proposal_id: proposal_id.to_string(),
+                        from_player_id: from,
+                        to_player_id: to,
+                    }]
+                }
+            }
+
             _ => Vec::new(),
         }
     }
@@ -1405,6 +1887,8 @@ impl GameEngine {
         regions: &mut HashMap<String, Region>,
         transit_queue: &mut Vec<TransitQueueItem>,
         air_transit_queue: &mut Vec<AirTransitItem>,
+        diplomacy: &mut DiplomacyState,
+        current_tick: i64,
     ) -> Vec<Event> {
         let source_id = match &action.source_region_id {
             Some(id) => id,
@@ -1448,6 +1932,29 @@ impl GameEngine {
                 "Nie mozesz atakowac wlasnego regionu",
                 action,
             )];
+        }
+
+        // Capital protection — reject attacks on capitals during protection period.
+        if self.settings.capital_protection_ticks > 0
+            && target.is_capital
+            && target.owner_id.is_some()
+            && current_tick < self.settings.capital_protection_ticks
+        {
+            return vec![Event::CapitalProtected {
+                target_region_id: target_id.clone(),
+                attacker_id: player_id.clone(),
+                ticks_remaining: self.settings.capital_protection_ticks - current_tick,
+            }];
+        }
+
+        // Diplomacy: auto-declare war if attacking a player-owned region.
+        let mut diplomacy_events = Vec::new();
+        if self.settings.diplomacy_enabled {
+            if let Some(defender_id) = target.owner_id.as_deref() {
+                if !diplomacy.are_at_war(player_id, defender_id) {
+                    diplomacy_events.extend(diplomacy.declare_war(player_id, defender_id, current_tick));
+                }
+            }
         }
 
         let unit_config = self.get_unit_config(&unit_type);
@@ -1520,7 +2027,8 @@ impl GameEngine {
                 flight_path,
                 last_bombed_hop: 0,
             });
-            return vec![Event::AirMissionLaunched {
+            let mut result_events = diplomacy_events;
+            result_events.push(Event::AirMissionLaunched {
                 flight_id,
                 mission_type: mission_type.to_string(),
                 player_id: player_id.clone(),
@@ -1530,7 +2038,8 @@ impl GameEngine {
                 units,
                 escort_fighters,
                 speed_per_tick,
-            }];
+            });
+            return result_events;
         }
 
         let travel_ticks = get_travel_ticks(distance, &unit_config);
@@ -1546,7 +2055,8 @@ impl GameEngine {
             travel_ticks,
         });
 
-        vec![Event::TroopsSent {
+        let mut result_events = diplomacy_events;
+        result_events.push(Event::TroopsSent {
             action_type: "attack".into(),
             source_region_id: source_id.clone(),
             target_region_id: target_id.clone(),
@@ -1554,7 +2064,8 @@ impl GameEngine {
             units,
             unit_type,
             travel_ticks,
-        }]
+        });
+        result_events
     }
 
     fn process_move(
@@ -2948,6 +3459,8 @@ impl GameEngine {
         item: &TransitQueueItem,
         players: &mut HashMap<String, Player>,
         regions: &mut HashMap<String, Region>,
+        diplomacy: &mut DiplomacyState,
+        current_tick: i64,
     ) -> Vec<Event> {
         let mut events = Vec::new();
 
@@ -3293,6 +3806,20 @@ impl GameEngine {
                 old_owner_id: old_owner_id.clone(),
                 surviving_units: surviving,
             });
+
+            // Record province change in war for peace treaty tracking.
+            if self.settings.diplomacy_enabled {
+                if let Some(ref prev_owner) = old_owner_id {
+                    diplomacy.record_province_change(
+                        &item.player_id,
+                        prev_owner,
+                        &item.target_region_id,
+                        prev_owner,
+                        &item.player_id,
+                        current_tick,
+                    );
+                }
+            }
 
             let target = regions.get_mut(&item.target_region_id).unwrap();
             if target.is_capital && old_owner_id.is_some() {
@@ -4692,6 +5219,7 @@ mod tests {
 
         let initial_energy = players["p1"].energy;
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action,
             &mut players,
@@ -4700,6 +5228,8 @@ mod tests {
             &mut unit_queue,
             &mut transit_queue,
             &mut air_transit_queue,
+            &mut diplomacy,
+            1,
         );
 
         assert_eq!(buildings_queue.len(), 1);
@@ -4728,10 +5258,11 @@ mod tests {
         };
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action, &mut players, &mut regions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
         );
         assert!(buildings_queue.is_empty());
         assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
@@ -4754,10 +5285,11 @@ mod tests {
         };
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action, &mut players, &mut regions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
         );
         assert!(buildings_queue.is_empty());
         assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
@@ -4783,10 +5315,11 @@ mod tests {
         };
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action, &mut players, &mut regions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
         );
         assert!(buildings_queue.is_empty());
         assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
@@ -4818,10 +5351,11 @@ mod tests {
         };
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action, &mut players, &mut regions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
         );
 
         assert_eq!(unit_queue.len(), 1);
@@ -4847,10 +5381,11 @@ mod tests {
         };
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action, &mut players, &mut regions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
         );
         assert!(unit_queue.is_empty());
         assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
@@ -4936,7 +5471,8 @@ mod tests {
         regions.get_mut("C").unwrap().units.insert("infantry".into(), 1);
         regions.get_mut("C").unwrap().unit_count = 1;
 
-        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
 
         assert!(has_event(&events, |e| matches!(e, Event::AttackSuccess { target_region_id, .. }
             if target_region_id == "C")),
@@ -4963,7 +5499,8 @@ mod tests {
         regions.get_mut("C").unwrap().units.insert("infantry".into(), 100);
         regions.get_mut("C").unwrap().unit_count = 100;
 
-        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
 
         assert!(has_event(&events, |e| matches!(e, Event::AttackFailed { target_region_id, .. }
             if target_region_id == "C")),
@@ -4988,7 +5525,8 @@ mod tests {
         };
         regions.get_mut("C").unwrap().units.insert("infantry".into(), 1);
 
-        engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+        let mut diplomacy = DiplomacyState::default();
+        engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
 
         // Defender's units_lost should be recorded
         assert!(players["p2"].total_units_lost >= 1);
@@ -5013,7 +5551,8 @@ mod tests {
         };
         regions.get_mut("C").unwrap().units.insert("infantry".into(), 1);
 
-        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
 
         assert!(has_event(&events, |e| matches!(e, Event::CapitalCaptured { region_id, lost_by, .. }
             if region_id == "C" && lost_by == "p2")),
@@ -5038,7 +5577,8 @@ mod tests {
             travel_ticks: 1,
         };
 
-        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
 
         // With randomness=0, the massive defense bonus ensures defender wins
         assert!(has_event(&events, |e| matches!(e, Event::AttackFailed { .. })),
@@ -5068,7 +5608,8 @@ mod tests {
             travel_ticks: 1,
         };
 
-        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions);
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
 
         // 5 tanks vs 2 infantry — tanks should overwhelm
         assert!(has_event(&events, |e| matches!(e, Event::AttackSuccess { unit_type, .. }
@@ -5099,10 +5640,11 @@ mod tests {
         regions.get_mut("B").unwrap().owner_id = Some("p2".into());
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action, &mut players, &mut regions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
         );
 
         assert_eq!(transit_queue.len(), 1);
@@ -5130,10 +5672,11 @@ mod tests {
         };
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action, &mut players, &mut regions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
         );
 
         assert_eq!(transit_queue.len(), 1);
@@ -5181,17 +5724,18 @@ mod tests {
             travel_ticks: 3,
         }];
 
+        let mut diplomacy = DiplomacyState::default();
         let (remaining, _events) = engine.process_transit_queue_with_shield(
-            &mut players, &mut regions, &transit_queue, &[],
+            &mut players, &mut regions, &transit_queue, &[], &mut diplomacy, 1,
         );
         assert_eq!(remaining.len(), 1);
         assert_eq!(remaining[0].ticks_remaining, 2);
         transit_queue = remaining;
 
         // Two more ticks to arrival
-        for _ in 0..2 {
+        for tick in 2..=3 {
             let (rem, _) = engine.process_transit_queue_with_shield(
-                &mut players, &mut regions, &transit_queue, &[],
+                &mut players, &mut regions, &transit_queue, &[], &mut diplomacy, tick,
             );
             transit_queue = rem;
         }
@@ -5320,8 +5864,9 @@ mod tests {
             travel_ticks: 1,
         }];
 
+        let mut diplomacy = DiplomacyState::default();
         let (remaining, events) = engine.process_transit_queue_with_shield(
-            &mut players, &mut regions, &transit_queue, &active_effects,
+            &mut players, &mut regions, &transit_queue, &active_effects, &mut diplomacy, 1,
         );
 
         assert!(remaining.is_empty());
@@ -5346,7 +5891,8 @@ mod tests {
         // Simulate p1 capturing C
         regions.get_mut("C").unwrap().owner_id = Some("p1".into());
 
-        let events = engine.check_conditions(&mut players, &mut regions);
+        let mut air_transit_queue = vec![];
+        let events = engine.check_conditions(&mut players, &mut regions, &mut air_transit_queue);
 
         assert!(has_event(&events, |e| matches!(e, Event::PlayerEliminated { player_id, .. }
             if player_id == "p2")),
@@ -5362,7 +5908,8 @@ mod tests {
         players.get_mut("p2").unwrap().capital_region_id = Some("C".into());
         regions.get_mut("C").unwrap().owner_id = Some("p1".into());
 
-        engine.check_conditions(&mut players, &mut regions);
+        let mut air_transit_queue = vec![];
+        engine.check_conditions(&mut players, &mut regions, &mut air_transit_queue);
 
         // D was owned by p2; should now be unowned and empty
         let region_d = &regions["D"];
@@ -5378,7 +5925,8 @@ mod tests {
         regions.get_mut("A").unwrap().is_capital = true;
         // A still owned by p1
 
-        let events = engine.check_conditions(&mut players, &mut regions);
+        let mut air_transit_queue = vec![];
+        let events = engine.check_conditions(&mut players, &mut regions, &mut air_transit_queue);
 
         assert!(!has_event(&events, |e| matches!(e, Event::PlayerEliminated { .. })));
         assert!(players["p1"].is_alive);
@@ -5392,7 +5940,8 @@ mod tests {
         players.get_mut("p2").unwrap().capital_region_id = Some("C".into());
         regions.get_mut("C").unwrap().owner_id = Some("p1".into());
 
-        let events = engine.check_conditions(&mut players, &mut regions);
+        let mut air_transit_queue = vec![];
+        let events = engine.check_conditions(&mut players, &mut regions, &mut air_transit_queue);
 
         assert!(has_event(&events, |e| matches!(e, Event::GameOver { winner_id: Some(w) }
             if w == "p1")),
@@ -5412,6 +5961,7 @@ mod tests {
         let mut air_transit_queue = vec![];
         let mut active_effects = vec![];
 
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_tick(
             &mut players,
             &mut regions,
@@ -5422,6 +5972,7 @@ mod tests {
             &mut air_transit_queue,
             1,
             &mut active_effects,
+            &mut diplomacy,
         );
 
         assert!(!has_event(&events, |e| matches!(e, Event::PlayerEliminated { .. })));
@@ -5444,10 +5995,11 @@ mod tests {
         let mut air_transit_queue = vec![];
         let mut active_effects = vec![];
 
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_tick(
             &mut players, &mut regions, &[],
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue, 1, &mut active_effects,
+            &mut air_transit_queue, 1, &mut active_effects, &mut diplomacy,
         );
 
         assert!(buildings_queue.is_empty());
@@ -5476,10 +6028,11 @@ mod tests {
         }];
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_tick(
             &mut players, &mut regions, &actions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue, 1, &mut active_effects,
+            &mut air_transit_queue, 1, &mut active_effects, &mut diplomacy,
         );
 
         assert_eq!(transit_queue.len(), 1);
@@ -5537,10 +6090,11 @@ mod tests {
         };
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action, &mut players, &mut regions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
         );
         assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
         assert!(buildings_queue.is_empty());
@@ -5562,10 +6116,11 @@ mod tests {
         regions.get_mut("A").unwrap().unit_count = 999;
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         engine.process_tick(
             &mut players, &mut regions, &[],
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue, 1, &mut active_effects,
+            &mut air_transit_queue, 1, &mut active_effects, &mut diplomacy,
         );
 
         // After tick, unit_count should reflect actual units in the map
@@ -5597,10 +6152,11 @@ mod tests {
         };
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action, &mut players, &mut regions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
         );
 
         assert!(transit_queue.is_empty());
@@ -5631,10 +6187,11 @@ mod tests {
         };
 
         let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
         let events = engine.process_action(
             &action, &mut players, &mut regions,
             &mut buildings_queue, &mut unit_queue, &mut transit_queue,
-            &mut air_transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
         );
         assert!(transit_queue.is_empty(), "Should not create transit for out-of-range attack");
         assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
