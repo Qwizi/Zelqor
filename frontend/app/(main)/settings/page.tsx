@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useLinkedSocialAccounts } from "@/hooks/queries";
@@ -10,10 +13,11 @@ import { queryKeys } from "@/lib/queryKeys";
 import {
   getSocialAuthURL,
   unlinkSocialAccount,
+  setPassword,
+  changePassword,
   type SocialAccountOut,
 } from "@/lib/api";
 import { requireToken } from "@/lib/queryClient";
-import Image from "next/image";
 import { toast } from "sonner";
 import {
   User,
@@ -26,11 +30,191 @@ import {
   Link2,
   Unlink,
   Loader2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { SettingsSkeleton } from "@/components/skeletons/SettingsSkeleton";
 
+// --- Zod schemas ---
+
+const setPasswordSchema = z
+  .object({
+    new_password: z.string().min(8, "Hasło musi mieć co najmniej 8 znaków"),
+    confirm_password: z.string(),
+  })
+  .refine((d) => d.new_password === d.confirm_password, {
+    message: "Hasła nie są identyczne",
+    path: ["confirm_password"],
+  });
+
+const changePasswordSchema = z
+  .object({
+    current_password: z.string().min(1, "Podaj aktualne hasło"),
+    new_password: z.string().min(8, "Hasło musi mieć co najmniej 8 znaków"),
+    confirm_password: z.string(),
+  })
+  .refine((d) => d.new_password === d.confirm_password, {
+    message: "Hasła nie są identyczne",
+    path: ["confirm_password"],
+  });
+
+type SetPasswordValues = z.infer<typeof setPasswordSchema>;
+type ChangePasswordValues = z.infer<typeof changePasswordSchema>;
+
+// --- Sub-components ---
+
+function PasswordInput({
+  id,
+  placeholder,
+  disabled,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { id: string }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        {...props}
+        id={id}
+        type={visible ? "text" : "password"}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-50"
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={() => setVisible((v) => !v)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+        aria-label={visible ? "Ukryj hasło" : "Pokaż hasło"}
+      >
+        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-1 text-xs text-red-400">{message}</p>;
+}
+
+function SetPasswordForm({ onSuccess }: { onSuccess: () => void }) {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<SetPasswordValues>({ resolver: zodResolver(setPasswordSchema) });
+
+  async function onSubmit(values: SetPasswordValues) {
+    try {
+      await setPassword(requireToken(), values.new_password);
+      toast.success("Hasło zostało ustawione.");
+      reset();
+      onSuccess();
+    } catch {
+      toast.error("Nie udało się ustawić hasła. Spróbuj ponownie.");
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
+      <div>
+        <label htmlFor="new_password" className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">
+          Nowe hasło
+        </label>
+        <div className="mt-1.5">
+          <PasswordInput id="new_password" placeholder="co najmniej 8 znaków" disabled={isSubmitting} {...register("new_password")} />
+        </div>
+        <FieldError message={errors.new_password?.message} />
+      </div>
+
+      <div>
+        <label htmlFor="confirm_password" className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">
+          Potwierdź hasło
+        </label>
+        <div className="mt-1.5">
+          <PasswordInput id="confirm_password" placeholder="powtórz hasło" disabled={isSubmitting} {...register("confirm_password")} />
+        </div>
+        <FieldError message={errors.confirm_password?.message} />
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/15 px-4 py-2 text-sm font-medium text-amber-300 hover:bg-amber-500/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
+        Ustaw hasło
+      </button>
+    </form>
+  );
+}
+
+function ChangePasswordForm() {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<ChangePasswordValues>({ resolver: zodResolver(changePasswordSchema) });
+
+  async function onSubmit(values: ChangePasswordValues) {
+    try {
+      await changePassword(requireToken(), values.current_password, values.new_password);
+      toast.success("Hasło zostało zmienione.");
+      reset();
+    } catch {
+      toast.error("Nie udało się zmienić hasła. Sprawdź aktualne hasło i spróbuj ponownie.");
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
+      <div>
+        <label htmlFor="current_password" className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">
+          Aktualne hasło
+        </label>
+        <div className="mt-1.5">
+          <PasswordInput id="current_password" placeholder="twoje aktualne hasło" disabled={isSubmitting} {...register("current_password")} />
+        </div>
+        <FieldError message={errors.current_password?.message} />
+      </div>
+
+      <div>
+        <label htmlFor="new_password" className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">
+          Nowe hasło
+        </label>
+        <div className="mt-1.5">
+          <PasswordInput id="new_password" placeholder="co najmniej 8 znaków" disabled={isSubmitting} {...register("new_password")} />
+        </div>
+        <FieldError message={errors.new_password?.message} />
+      </div>
+
+      <div>
+        <label htmlFor="confirm_password" className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">
+          Potwierdź nowe hasło
+        </label>
+        <div className="mt-1.5">
+          <PasswordInput id="confirm_password" placeholder="powtórz nowe hasło" disabled={isSubmitting} {...register("confirm_password")} />
+        </div>
+        <FieldError message={errors.confirm_password?.message} />
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/15 px-4 py-2 text-sm font-medium text-amber-300 hover:bg-amber-500/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
+        Zmień hasło
+      </button>
+    </form>
+  );
+}
+
 export default function SettingsPage() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, refreshUser } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { permission, subscribed, subscribe, unsubscribe } = usePushNotifications();
@@ -143,19 +327,22 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            Zmień hasło do swojego konta
-          </p>
-          <button
-            disabled
-            className="flex w-fit items-center gap-2 rounded-xl border border-border bg-secondary px-4 py-2 text-sm text-muted-foreground cursor-not-allowed"
-            title="Wkrótce dostępne"
-          >
-            <Lock className="h-3.5 w-3.5" />
-            Zmień hasło
-          </button>
-        </div>
+        {user.has_password ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Zmień hasło do swojego konta
+            </p>
+            <ChangePasswordForm />
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Twoje konto nie ma jeszcze hasła. Ustaw hasło, aby móc logować się
+              bezpośrednio emailem i hasłem.
+            </p>
+            <SetPasswordForm onSuccess={refreshUser} />
+          </>
+        )}
       </section>
 
       {/* Connected accounts section */}

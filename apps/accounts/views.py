@@ -14,7 +14,14 @@ from apps.accounts.auth import ActiveUserJWTAuth
 from apps.game_config.modules import get_module_config
 
 from apps.accounts.models import PushSubscription
-from apps.accounts.schemas import LeaderboardEntrySchema, PushSubscriptionSchema, RegisterSchema, UserOutSchema
+from apps.accounts.schemas import (
+    ChangePasswordSchema,
+    LeaderboardEntrySchema,
+    PushSubscriptionSchema,
+    RegisterSchema,
+    SetPasswordSchema,
+    UserOutSchema,
+)
 from apps.game_config.decorators import require_module
 from apps.pagination import paginate_qs
 
@@ -89,7 +96,42 @@ class AuthController:
 
     @route.get('/me', response=UserOutSchema, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def me(self, request):
-        return request.auth
+        from apps.game.models import PlayerResult
+
+        user = request.auth
+        matches_played = PlayerResult.objects.filter(user=user).count()
+        wins = PlayerResult.objects.filter(user=user, placement=1).count()
+        win_rate = wins / matches_played if matches_played > 0 else 0.0
+        avg_placement = (
+            PlayerResult.objects.filter(user=user).aggregate(avg=Avg('placement'))['avg'] or 0.0
+        )
+
+        # Attach computed stats directly so the schema resolver picks them up.
+        user.matches_played = matches_played
+        user.wins = wins
+        user.win_rate = win_rate
+        user.average_placement = avg_placement
+        return user
+
+    @route.post('/set-password/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def set_password(self, request, payload: SetPasswordSchema):
+        user = request.auth
+        if user.has_usable_password():
+            raise HttpError(400, 'Konto ma juz ustawione haslo. Uzyj zmiany hasla.')
+        user.set_password(payload.new_password)
+        user.save(update_fields=['password'])
+        return {'ok': True}
+
+    @route.post('/change-password/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def change_password(self, request, payload: ChangePasswordSchema):
+        user = request.auth
+        if not user.has_usable_password():
+            raise HttpError(400, 'Konto nie ma ustawionego hasla. Uzyj ustawienia hasla.')
+        if not user.check_password(payload.current_password):
+            raise HttpError(400, 'Nieprawidlowe aktualne haslo.')
+        user.set_password(payload.new_password)
+        user.save(update_fields=['password'])
+        return {'ok': True}
 
     @route.post('/tutorial/complete/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def complete_tutorial(self, request):

@@ -104,6 +104,90 @@ function LeaderboardContent() {
         </div>
       )}
 
+      {/* ── Podium top 3 ── */}
+      {entries.length >= 3 && safePage === 1 && (
+        <div className="px-4 md:px-0">
+          <div className="flex items-end justify-center gap-3 md:gap-4">
+            {/* 2nd place */}
+            {(() => {
+              const entry = entries[1];
+              return (
+                <button
+                  key={entry.id}
+                  onClick={() => router.push(`/profile/${entry.id}`)}
+                  className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card px-4 py-4 md:px-6 md:py-5 w-[30%] md:w-48 transition-all hover-lift"
+                  style={{ height: "clamp(140px, 18vw, 176px)" }}
+                >
+                  <div className="flex h-12 w-12 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-full border-2 border-[#C0C0C0] bg-[#C0C0C0]/10 overflow-hidden">
+                    {entry.avatar_url ? (
+                      <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover rounded-full" />
+                    ) : (
+                      <span className="font-display text-lg md:text-xl font-bold text-[#C0C0C0]">{entry.username[0].toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div className="text-center min-w-0 w-full">
+                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.username}</p>
+                    <p className="font-display text-base md:text-lg text-[#C0C0C0] tabular-nums">{entry.elo_rating}</p>
+                    <p className="text-[10px] md:text-xs text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
+                  </div>
+                </button>
+              );
+            })()}
+            {/* 1st place */}
+            {(() => {
+              const entry = entries[0];
+              return (
+                <button
+                  key={entry.id}
+                  onClick={() => router.push(`/profile/${entry.id}`)}
+                  className="flex flex-col items-center gap-2 rounded-2xl border border-[#FFD700]/40 bg-[#FFD700]/5 px-4 py-4 md:px-6 md:py-5 w-[36%] md:w-56 transition-all hover-lift"
+                  style={{ height: "clamp(180px, 22vw, 224px)" }}
+                >
+                  <Crown className="h-5 w-5 text-[#FFD700] shrink-0" />
+                  <div className="flex h-14 w-14 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-full border-2 border-[#FFD700] bg-[#FFD700]/10 overflow-hidden">
+                    {entry.avatar_url ? (
+                      <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover rounded-full" />
+                    ) : (
+                      <span className="font-display text-xl md:text-2xl font-bold text-[#FFD700]">{entry.username[0].toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div className="text-center min-w-0 w-full">
+                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.username}</p>
+                    <p className="font-display text-lg md:text-xl text-[#FFD700] tabular-nums">{entry.elo_rating}</p>
+                    <p className="text-[10px] md:text-xs text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
+                  </div>
+                </button>
+              );
+            })()}
+            {/* 3rd place */}
+            {(() => {
+              const entry = entries[2];
+              return (
+                <button
+                  key={entry.id}
+                  onClick={() => router.push(`/profile/${entry.id}`)}
+                  className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card px-4 py-4 md:px-6 md:py-5 w-[30%] md:w-48 transition-all hover-lift"
+                  style={{ height: "clamp(120px, 15vw, 156px)" }}
+                >
+                  <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-full border-2 border-[#CD7F32] bg-[#CD7F32]/10 overflow-hidden">
+                    {entry.avatar_url ? (
+                      <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover rounded-full" />
+                    ) : (
+                      <span className="font-display text-base md:text-lg font-bold text-[#CD7F32]">{entry.username[0].toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div className="text-center min-w-0 w-full">
+                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.username}</p>
+                    <p className="font-display text-sm md:text-base text-[#CD7F32] tabular-nums">{entry.elo_rating}</p>
+                    <p className="text-[10px] md:text-xs text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
+                  </div>
+                </button>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* ── Lista/Tabela ── */}
       <div className="px-4 md:px-0">
         {/* Mobile: clean list */}
@@ -124,6 +208,13 @@ function LeaderboardContent() {
                   isTop3 ? "bg-accent/15 text-accent" : "bg-secondary text-muted-foreground"
                 }`}>
                   {isTop3 ? <Medal className="h-4 w-4" /> : placement}
+                </div>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden bg-secondary">
+                  {entry.avatar_url ? (
+                    <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-bold text-muted-foreground">{entry.username[0].toUpperCase()}</span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
@@ -184,7 +275,14 @@ function LeaderboardContent() {
                       </div>
                     </TableCell>
                     <TableCell className="py-3.5">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden bg-secondary">
+                          {entry.avatar_url ? (
+                            <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-sm font-bold text-muted-foreground">{entry.username[0].toUpperCase()}</span>
+                          )}
+                        </div>
                         <Link href={`/profile/${entry.id}`} className={`text-base font-semibold text-foreground hover:text-primary transition-colors ${entry.is_banned ? "line-through opacity-60" : ""}`}>{entry.username}</Link>
                         {isMe && <Badge className="border-0 bg-primary/15 text-xs text-primary hover:bg-primary/15">Ty</Badge>}
                         {isFriend && <Badge className="border-0 bg-muted text-xs text-muted-foreground hover:bg-muted gap-1"><Users className="h-3 w-3" />Znajomy</Badge>}

@@ -161,9 +161,9 @@ export default function DashboardPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentMode = gameModes.find((m) => m.slug === selectedMode);
   const selectedDeck = decks.find((d) => d.id === selectedDeckId);
-  const wins = recentMatches.filter((m) => m.status === "finished" && m.winner_id === user?.id).length;
-  const finished = recentMatches.filter((m) => m.status === "finished").length;
-  const winRate = finished > 0 ? Math.round((wins / finished) * 100) : 0;
+  const wins = user?.wins ?? 0;
+  const finished = user?.matches_played ?? 0;
+  const winRate = Math.round((user?.win_rate ?? 0) * 100);
 
   const [mountId] = useState(() => Math.random());
 

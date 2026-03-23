@@ -127,6 +127,12 @@ export interface User {
   date_joined: string;
   tutorial_completed: boolean;
   is_banned: boolean;
+  matches_played: number;
+  wins: number;
+  win_rate: number;
+  average_placement: number;
+  has_password: boolean;
+  avatar_url: string | null;
 }
 
 export class BannedError extends Error {
@@ -176,6 +182,32 @@ export async function register(data: {
 
 export async function getMe(token: string): Promise<User> {
   return fetchAPI<User>("/auth/me", { token });
+}
+
+export async function setPassword(
+  token: string,
+  newPassword: string
+): Promise<{ ok: boolean }> {
+  return fetchAPI("/auth/set-password/", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ new_password: newPassword }),
+  });
+}
+
+export async function changePassword(
+  token: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ ok: boolean }> {
+  return fetchAPI("/auth/change-password/", {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  });
 }
 
 // --- Social Auth ---
@@ -301,6 +333,7 @@ export interface LeaderboardEntry {
   win_rate: number;
   average_placement: number;
   is_banned: boolean;
+  avatar_url: string | null;
 }
 
 export async function getLeaderboard(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<LeaderboardEntry>> {
