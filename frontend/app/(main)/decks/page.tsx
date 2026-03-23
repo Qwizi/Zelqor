@@ -31,6 +31,7 @@ import {
   useDeleteDeck,
   useSetDefaultDeck,
 } from "@/hooks/queries";
+import { DecksSkeleton } from "@/components/skeletons/DecksSkeleton";
 
 export default function DecksPage() {
   const { enabled } = useModuleConfig("cosmetics");
@@ -89,10 +90,10 @@ function DecksContent() {
 
   const saving = createMutation.isPending;
 
-  if (authLoading || !user) return null;
+  if (authLoading || !user) return <DecksSkeleton />;
 
   return (
-    <div className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* Header */}
       <div className="flex items-center justify-between px-4 md:px-0">
         <div>
@@ -149,9 +150,7 @@ function DecksContent() {
 
       {/* Deck list */}
       {loading ? (
-        <div className="px-4 md:px-0 py-10 text-center text-sm md:text-lg text-muted-foreground">
-          Ładowanie...
-        </div>
+        <DecksSkeleton />
       ) : decks.length === 0 ? (
         <div className="flex flex-col items-center gap-3 md:gap-5 px-4 md:px-0 py-12 md:py-16 text-center">
           <Layers className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground/30" />
@@ -168,7 +167,7 @@ function DecksContent() {
                 <div
                   role="button"
                   tabIndex={0}
-                  className={`flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 md:hidden cursor-pointer ${
+                  className={`hover-lift flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 md:hidden cursor-pointer ${
                     deck.is_default ? "bg-accent/5" : ""
                   }`}
                   onClick={() => router.push(`/decks/${deck.id}`)}
@@ -218,7 +217,7 @@ function DecksContent() {
 
                 {/* Desktop: full card */}
                 <Card
-                  className={`hidden md:block rounded-2xl transition-all hover:border-border/60 ${
+                  className={`hover-lift hidden md:block rounded-2xl transition-all hover:border-border/60 ${
                     deck.is_default ? "border-accent/25" : ""
                   }`}
                 >

@@ -350,7 +350,7 @@ function APIKeysTab({ appId }: APIKeysTabProps) {
           {keys.map((key) => (
             <div
               key={key.id}
-              className="rounded-2xl border border-white/10 bg-white/[0.05] p-4"
+              className="hover-lift rounded-2xl border border-white/10 bg-white/[0.05] p-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -744,7 +744,7 @@ function WebhookRow({
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.05] overflow-hidden">
+    <div className="hover-lift rounded-2xl border border-white/10 bg-white/[0.05] overflow-hidden">
       <div className="p-4">
         <div className="flex items-start gap-3">
           {/* Expand toggle */}
@@ -1245,7 +1245,7 @@ export default function DeveloperAppDetailPage() {
   if (!app) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="animate-page-in space-y-6">
       {/* Header */}
       <div>
         <Link

@@ -32,6 +32,7 @@ import {
   Check,
   Zap,
 } from "lucide-react";
+import { MatchDetailSkeleton } from "@/components/skeletons/MatchDetailSkeleton";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 
@@ -81,11 +82,7 @@ export default function MatchDetailPage() {
   }
 
   if (loading || !match) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <MatchDetailSkeleton />;
   }
 
   const handleShare = async () => {
@@ -234,17 +231,17 @@ export default function MatchDetailPage() {
 
       {/* Stats — horizontal scroll on mobile, grid on desktop */}
       <div className="animate-stagger flex gap-2.5 overflow-x-auto px-4 pb-1 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-4 md:overflow-visible scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
-        <div className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[120px] md:min-w-0">
+        <div className="hover-lift flex shrink-0 items-center gap-2.5 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[120px] md:min-w-0">
           <Swords className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           <span className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-muted-foreground font-medium">Status</span>
           <span className={`font-display text-lg md:text-3xl ml-auto md:ml-0 ${status.color}`}>{status.label}</span>
         </div>
-        <div className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[100px] md:min-w-0">
+        <div className="hover-lift flex shrink-0 items-center gap-2.5 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[100px] md:min-w-0">
           <Users className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           <span className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-muted-foreground font-medium">Gracze</span>
           <span className="font-display text-lg md:text-3xl text-foreground ml-auto md:ml-0">{match.players.length}/{match.max_players}</span>
         </div>
-        <div className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[100px] md:min-w-0">
+        <div className="hover-lift flex shrink-0 items-center gap-2.5 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[100px] md:min-w-0">
           <Clock className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           <span className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-muted-foreground font-medium">Czas</span>
           <span className="font-display text-lg md:text-3xl text-foreground ml-auto md:ml-0">
@@ -252,7 +249,7 @@ export default function MatchDetailPage() {
           </span>
         </div>
         {winner && (
-          <div className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-accent/5 md:bg-card border border-accent/20 md:border-accent/25 px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[120px] md:min-w-0">
+          <div className="hover-lift flex shrink-0 items-center gap-2.5 rounded-2xl bg-accent/5 md:bg-card border border-accent/20 md:border-accent/25 px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[120px] md:min-w-0">
             <Crown className="h-4 w-4 md:h-5 md:w-5 text-accent" />
             <span className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-accent/70 font-medium">Zwycięzca</span>
             <span className="font-display text-lg md:text-3xl text-accent ml-auto md:ml-0">{winner.username}</span>
@@ -386,7 +383,7 @@ export default function MatchDetailPage() {
             return (
               <button
                 key={player.id}
-                className={`flex w-full items-center gap-3 rounded-xl p-3 text-left transition-all active:scale-[0.98] ${
+                className={`hover-lift flex w-full items-center gap-3 rounded-xl p-3 text-left transition-all active:scale-[0.98] ${
                   isWinner ? "bg-accent/5 border border-accent/15" : "bg-card/60 border border-transparent"
                 }`}
                 onClick={() => router.push(`/profile/${player.user_id}`)}
@@ -449,7 +446,7 @@ export default function MatchDetailPage() {
                 return (
                   <TableRow
                     key={player.id}
-                    className={`cursor-pointer ${
+                    className={`hover-lift cursor-pointer ${
                       isWinner ? "bg-accent/5 hover:bg-accent/10" : isMe ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/50"
                     }`}
                     onClick={() => router.push(`/profile/${player.user_id}`)}

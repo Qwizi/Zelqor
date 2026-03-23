@@ -332,7 +332,7 @@ export default function ProfilePage() {
               { value: wins, label: "Wygrane", color: "text-emerald-300", isNum: true },
               { value: winRate, label: "Win Rate", color: "text-violet-300", isNum: true, suffix: "%" },
             ].map((s) => (
-              <div key={s.label} className="flex shrink-0 items-center gap-2.5 rounded-xl bg-secondary/50 border border-border px-3 py-2 md:p-4 md:flex-col md:items-start md:gap-1.5 min-w-[100px] md:min-w-0">
+              <div key={s.label} className="hover-lift flex shrink-0 items-center gap-2.5 rounded-xl bg-secondary/50 border border-border px-3 py-2 md:p-4 md:flex-col md:items-start md:gap-1.5 min-w-[100px] md:min-w-0">
                 <span className="text-[9px] md:text-xs uppercase tracking-[0.15em] md:tracking-[0.2em] text-muted-foreground font-medium">{s.label}</span>
                 <span data-counter={s.isNum ? s.value : undefined} data-suffix={s.suffix ?? ""} className={`font-display text-base md:text-3xl tabular-nums ${s.color} ml-auto md:ml-0`}>{s.isNum ? "0" + (s.suffix ?? "") : s.value}</span>
               </div>
@@ -386,7 +386,7 @@ export default function ProfilePage() {
                     const isLoss = match.status === "finished" && !isWinner && profilePlayer && !profilePlayer.is_alive;
                     const date = new Date(match.finished_at ?? match.started_at ?? match.created_at);
                     return (
-                      <button key={match.id} className="flex w-full items-center gap-3 rounded-xl py-2.5 px-1 text-left transition-all active:bg-muted/50"
+                      <button key={match.id} className="hover-lift flex w-full items-center gap-3 rounded-xl py-2.5 px-1 text-left transition-all active:bg-muted/50"
                         onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}>
                         <div className="flex gap-0.5 shrink-0">
                           {match.players.map((p) => (<div key={p.id} className="h-4 w-4 rounded-md" style={{ backgroundColor: p.color, opacity: !p.is_alive && match.status === "finished" ? 0.3 : 1 }} />))}
@@ -424,7 +424,7 @@ export default function ProfilePage() {
                       const endDate = match.finished_at ? new Date(match.finished_at) : null;
                       const durationMin = startDate && endDate ? Math.round((endDate.getTime() - startDate.getTime()) / 60000) : null;
                       return (
-                        <TableRow key={match.id} className="cursor-pointer hover:bg-muted/30" onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}>
+                        <TableRow key={match.id} className="hover-lift cursor-pointer hover:bg-muted/30" onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}>
                           <TableCell className="py-2.5">
                             <div className="flex items-center gap-2">
                               <div className="flex gap-0.5 shrink-0">

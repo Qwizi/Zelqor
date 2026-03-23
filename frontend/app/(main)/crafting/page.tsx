@@ -115,7 +115,7 @@ function RecipeRow({ recipe, craftable, active, rarity, owned, onSelect }: {
   return (
     <button
       onClick={onSelect}
-      className={`group w-full rounded-xl border p-3 md:p-4 text-left transition-colors active:scale-[0.98] ${
+      className={`hover-lift group w-full rounded-xl border p-3 md:p-4 text-left transition-colors active:scale-[0.98] ${
         active ? "bg-secondary/50 border-primary/30" : "border-border/30 hover:bg-muted/30"
       } ${!craftable ? "opacity-50" : ""}`}
     >

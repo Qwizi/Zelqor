@@ -32,6 +32,7 @@ import {
   useUpdateDeck,
   useSetDefaultDeck,
 } from "@/hooks/queries";
+import { DeckEditorSkeleton } from "@/components/skeletons/DeckEditorSkeleton";
 import { type DeckOut, type InventoryItemOut } from "@/lib/api";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -299,7 +300,7 @@ function DeckSectionCard({
   ];
 
   return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+    <div className="hover-lift rounded-2xl border border-border bg-card overflow-hidden">
       {/* Section header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/20">
         <div className="flex items-center gap-2">
@@ -655,26 +656,10 @@ export default function DeckEditorPage() {
     0
   );
 
-  if (authLoading || !user) return null;
-
-  if (loading) {
-    return (
-      <div className="space-y-4 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-        <div className="px-4 md:px-0">
-          <div className="h-8 w-48 animate-pulse rounded-lg bg-muted/40" />
-        </div>
-        <div className="px-4 md:px-0 h-16 animate-pulse rounded-2xl border border-border bg-muted/20" />
-        <div className="px-4 md:px-0 grid grid-cols-1 gap-3 md:gap-4 sm:grid-cols-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-48 animate-pulse rounded-2xl border border-border bg-muted/20" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  if (authLoading || !user || loading) return <DeckEditorSkeleton />;
 
   return (
-    <div className="space-y-4 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-4 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* Locked deck banner */}
       {isLocked && (
         <div className="mx-4 md:mx-0 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">

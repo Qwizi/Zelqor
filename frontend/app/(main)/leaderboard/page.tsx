@@ -118,7 +118,7 @@ function LeaderboardContent() {
               <button
                 key={entry.id}
                 onClick={() => router.push(`/profile/${entry.id}`)}
-                className={`flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 ${isMe ? "bg-primary/5" : isFriend ? "bg-accent/5" : ""}`}
+                className={`flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 hover-lift ${isMe ? "bg-primary/5" : isFriend ? "bg-accent/5" : ""}`}
               >
                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
                   isTop3 ? "bg-accent/15 text-accent" : "bg-secondary text-muted-foreground"
@@ -174,7 +174,7 @@ function LeaderboardContent() {
                   <TableRow
                     key={entry.id}
                     onClick={() => router.push(`/profile/${entry.id}`)}
-                    className={`cursor-pointer ${isMe ? "bg-primary/5 hover:bg-primary/10" : isFriend ? "bg-accent/5 hover:bg-accent/10" : "hover:bg-muted/50"}`}
+                    className={`cursor-pointer hover-lift ${isMe ? "bg-primary/5 hover:bg-primary/10" : isFriend ? "bg-accent/5 hover:bg-accent/10" : "hover:bg-muted/50"}`}
                   >
                     <TableCell className="pl-6 py-3.5">
                       <div className={`flex h-9 w-9 items-center justify-center rounded-lg font-display text-sm font-bold ${

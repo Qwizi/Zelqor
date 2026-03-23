@@ -184,7 +184,7 @@ function FilledSlot({ entry, isSelected, onClick }: SlotProps) {
     <div
       onClick={onClick}
       className={[
-        "group relative aspect-square rounded-lg border border-l-2 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer",
+        "hover-lift group relative aspect-square rounded-lg border border-l-2 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer",
         RARITY_LEFT_BORDER[rarity] ?? "border-l-slate-500/50",
         RARITY_SLOT_BG[rarity] ?? "bg-slate-500/[0.07]",
         "border-border",

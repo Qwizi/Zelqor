@@ -27,6 +27,7 @@ import {
   Unlink,
   Loader2,
 } from "lucide-react";
+import { SettingsSkeleton } from "@/components/skeletons/SettingsSkeleton";
 
 export default function SettingsPage() {
   const { user, loading, logout } = useAuth();
@@ -38,19 +39,7 @@ export default function SettingsPage() {
 
   const { data: socialAccounts = [], isLoading: socialLoading } = useLinkedSocialAccounts();
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
-        <Image
-          src="/assets/match_making/circle291.webp"
-          alt=""
-          width={48}
-          height={48}
-          className="h-12 w-12 animate-spin object-contain"
-        />
-      </div>
-    );
-  }
+  if (loading) return <SettingsSkeleton />;
 
   if (!user) {
     router.replace("/login");
@@ -83,7 +72,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* Page header */}
       <div className="px-4 md:px-0">
         <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground">USTAWIENIA</p>
@@ -192,7 +181,7 @@ export default function SettingsPage() {
               {(() => {
                 const google = socialAccounts.find((a) => a.provider === "google");
                 return (
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="hover-lift flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
                       <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>

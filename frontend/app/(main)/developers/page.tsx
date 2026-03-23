@@ -31,6 +31,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { DevelopersSkeleton } from "@/components/skeletons/DevelopersSkeleton";
 
 // ── Zod schema ──────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ function AppCard({ app }: { app: DeveloperApp }) {
   return (
     <Link
       href={`/developers/${app.id}`}
-      className="group relative flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.05] p-5 backdrop-blur-xl transition-all hover:border-white/25 hover:bg-white/[0.10]"
+      className="hover-lift group relative flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.05] p-5 backdrop-blur-xl transition-all hover:border-white/25 hover:bg-white/[0.10]"
     >
       {/* Status indicator */}
       <div className="absolute right-4 top-4">
@@ -386,21 +387,11 @@ function DevelopersContent() {
   };
 
   if (authLoading || appsLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Image
-          src="/assets/match_making/circle291.webp"
-          alt=""
-          width={48}
-          height={48}
-          className="h-12 w-12 animate-spin object-contain"
-        />
-      </div>
-    );
+    return <DevelopersSkeleton />;
   }
 
   return (
-    <div className="space-y-6">
+    <div className="animate-page-in space-y-6">
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">

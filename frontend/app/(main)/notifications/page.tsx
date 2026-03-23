@@ -221,7 +221,7 @@ export default function NotificationsPage() {
                       if (href) router.push(href);
                     }}
                     className={cn(
-                      "w-full flex items-center gap-3 rounded-xl py-3 px-2 text-left transition-all active:bg-muted/50",
+                      "hover-lift w-full flex items-center gap-3 rounded-xl py-3 px-2 text-left transition-all active:bg-muted/50",
                       !n.is_read && "bg-primary/5"
                     )}
                   >
@@ -263,7 +263,7 @@ export default function NotificationsPage() {
                           if (href) router.push(href);
                         }}
                         className={cn(
-                          "cursor-pointer",
+                          "hover-lift cursor-pointer",
                           !n.is_read ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/50"
                         )}
                       >

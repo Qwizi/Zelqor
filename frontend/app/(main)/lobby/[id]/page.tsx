@@ -35,7 +35,7 @@ function PlayerSlot({ player, isHost }: { player: LobbyPlayer; isHost: boolean }
   return (
     <div
       className={cn(
-        "flex items-center gap-3 md:gap-4 rounded-xl md:rounded-2xl border md:border-2 px-3 py-3 md:px-5 md:py-4 transition-all",
+        "hover-lift flex items-center gap-3 md:gap-4 rounded-xl md:rounded-2xl border md:border-2 px-3 py-3 md:px-5 md:py-4 transition-all",
         player.is_ready
           ? "border-green-500/40 bg-green-500/5"
           : "border-border bg-card/60 md:bg-card"

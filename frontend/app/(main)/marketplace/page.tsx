@@ -207,7 +207,7 @@ function BrowseList({
                 <HoverCardTrigger render={<div />}>
                 <Link
                   href={`/marketplace/${agg.item.slug}`}
-                  className="group flex items-center gap-3 md:gap-4 rounded-xl md:border md:border-border px-1 md:px-4 py-2.5 md:py-3.5 transition-all hover:bg-muted active:bg-muted/50"
+                  className="hover-lift group flex items-center gap-3 md:gap-4 rounded-xl md:border md:border-border px-1 md:px-4 py-2.5 md:py-3.5 transition-all hover:bg-muted active:bg-muted/50"
                 >
                   {/* Item icon */}
                   <div className={`flex h-10 w-10 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-lg border border-l-2 border-border/60 ${RARITY_LEFT_BORDER_SLOT[rarity]} ${RARITY_SLOT_BG[rarity]}`}>
@@ -582,7 +582,7 @@ function MarketplaceContent() {
   if (authLoading || !user) return <MarketplaceSkeleton />;
 
   return (
-    <div className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* Header */}
       <div className="px-4 md:px-0">
         <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground">Rynek</p>

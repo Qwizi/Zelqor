@@ -314,7 +314,7 @@ function SidebarItem({
         className={cn(
           "flex items-center justify-center py-2.5 mx-1 rounded-lg transition-colors",
           active
-            ? "bg-primary/10 text-primary"
+            ? "bg-primary/10 text-primary shadow-[0_0_8px_oklch(0.8_0.15_85/0.15)]"
             : "text-muted-foreground hover:text-foreground hover:bg-muted"
         )}
       >
@@ -331,7 +331,7 @@ function SidebarItem({
       className={cn(
         "flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors rounded-lg mx-2",
         active
-          ? "bg-primary/10 text-primary"
+          ? "bg-primary/10 text-primary shadow-[inset_2px_0_0_var(--primary),0_0_8px_oklch(0.8_0.15_85/0.15)]"
           : "text-muted-foreground hover:text-foreground hover:bg-muted"
       )}
     >

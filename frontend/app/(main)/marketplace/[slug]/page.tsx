@@ -29,6 +29,7 @@ import {
   useBuyFromListing,
   useCreateListing,
 } from "@/hooks/queries";
+import { MarketplaceItemSkeleton } from "@/components/skeletons/MarketplaceItemSkeleton";
 
 // ─── Rarity / type maps ───────────────────────────────────────────────────
 
@@ -167,26 +168,13 @@ export default function MarketplaceItemPage() {
     }
   };
 
-  if (authLoading || !user) return null;
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="h-8 w-24 animate-pulse rounded-lg bg-muted/20" />
-        <div className="h-32 animate-pulse rounded-2xl border border-border/30 bg-muted/10" />
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="h-56 animate-pulse rounded-xl border border-border/30 bg-muted/10" />
-          <div className="h-56 animate-pulse rounded-xl border border-border/30 bg-muted/10" />
-        </div>
-      </div>
-    );
-  }
+  if (authLoading || !user || loading) return <MarketplaceItemSkeleton />;
 
   const buying = buyMutation.isPending;
   const selling = sellMutation.isPending;
 
   return (
-    <div className="space-y-6">
+    <div className="animate-page-in space-y-6">
       {/* Back link */}
       <Link
         href="/marketplace"
@@ -294,7 +282,7 @@ export default function MarketplaceItemPage() {
                   {sellListings.map((listing) => (
                     <TableRow
                       key={listing.id}
-                      className="transition-colors hover:bg-muted/30"
+                      className="hover-lift transition-colors hover:bg-muted/30"
                     >
                       <TableCell className="pl-4 py-4 text-base text-foreground">
                         <span className="flex items-center gap-2">
@@ -361,7 +349,7 @@ export default function MarketplaceItemPage() {
                   {buyListings.map((listing) => (
                     <TableRow
                       key={listing.id}
-                      className="transition-colors hover:bg-muted/30"
+                      className="hover-lift transition-colors hover:bg-muted/30"
                     >
                       <TableCell className="pl-4 py-4 text-base text-foreground">
                         <span className="flex items-center gap-2">

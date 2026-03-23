@@ -229,7 +229,7 @@ export default function DashboardPage() {
         ].map((s) => (
           <div
             key={s.key}
-            className="flex shrink-0 items-center gap-3 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-4 py-3 md:px-4 md:py-3.5 md:flex-col md:items-start md:gap-1.5 min-w-[140px] md:min-w-0"
+            className="flex shrink-0 items-center gap-3 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-4 py-3 md:px-4 md:py-3.5 md:flex-col md:items-start md:gap-1.5 min-w-[140px] md:min-w-0 hover-lift"
           >
             <div className="flex items-center gap-2 md:gap-2">
               <s.icon className={`h-4 w-4 text-muted-foreground ${s.desktopIcon}`} />
@@ -833,7 +833,7 @@ export default function DashboardPage() {
               return (
                 <button
                   key={match.id}
-                  className="flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50"
+                  className="flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 hover-lift"
                   onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}
                 >
                   {/* Color dots */}
@@ -905,7 +905,7 @@ export default function DashboardPage() {
                   return (
                     <TableRow
                       key={match.id}
-                          className="cursor-pointer hover:bg-muted/50"
+                          className="cursor-pointer hover:bg-muted/50 hover-lift"
                       onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}
                     >
                       <TableCell className="pl-6 py-5">

@@ -28,6 +28,7 @@ import {
   useEquipCosmetic,
   useUnequipCosmetic,
 } from "@/hooks/queries";
+import { CosmeticsSkeleton } from "@/components/skeletons/CosmeticsSkeleton";
 
 // ─── Rarity config ───────────────────────────────────────────────────────────
 
@@ -422,7 +423,7 @@ function SectionCard({
   const equippedCount = section.slots.filter((s) => equippedBySlot.has(s.key)).length;
 
   return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+    <div className="hover-lift rounded-2xl border border-border bg-card overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/20">
         <div className="flex items-center gap-2">
           <span className="text-lg leading-none">{section.icon}</span>
@@ -506,13 +507,7 @@ function CosmeticsContent() {
     }
   };
 
-  if (authLoading || !user) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (authLoading || !user) return <CosmeticsSkeleton />;
 
   // Build lookup maps
   const equippedBySlot = new Map<string, EquippedCosmeticOut>(
@@ -532,7 +527,7 @@ function CosmeticsContent() {
   const totalEquipped = equipped.length;
 
   return (
-    <div className="space-y-4 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-4 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* Header */}
       <div className="px-4 md:px-0">
         <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">
@@ -548,10 +543,7 @@ function CosmeticsContent() {
 
       {/* Loading state */}
       {loading ? (
-        <div className="px-4 md:px-0 flex h-40 items-center justify-center text-sm text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" />
-          Ładowanie...
-        </div>
+        <CosmeticsSkeleton />
       ) : (
         /* Section grid */
         <div className="px-4 md:px-0 grid grid-cols-1 gap-3 md:gap-4 sm:grid-cols-2 xl:grid-cols-3">

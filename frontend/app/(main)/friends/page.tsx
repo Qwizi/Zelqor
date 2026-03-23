@@ -310,7 +310,7 @@ export default function FriendsPage() {
                     const friend = f.from_user.id === user?.id ? f.to_user : f.from_user;
                     const busy = removeMutation.isPending && removeMutation.variables === f.id;
                     return (
-                      <div key={f.id} className="flex items-center gap-3 rounded-xl py-3 px-1">
+                      <div key={f.id} className="flex items-center gap-3 rounded-xl py-3 px-1 hover-lift">
                         <button
                           onClick={() => router.push(`/profile/${friend.id}`)}
                           className="flex flex-1 min-w-0 items-center gap-3 text-left active:opacity-70 transition-opacity"
@@ -359,7 +359,7 @@ export default function FriendsPage() {
                         const friend = f.from_user.id === user?.id ? f.to_user : f.from_user;
                         const busy = removeMutation.isPending && removeMutation.variables === f.id;
                         return (
-                          <TableRow key={f.id} className="hover:bg-muted/50">
+                          <TableRow key={f.id} className="hover:bg-muted/50 hover-lift">
                             <TableCell className="pl-6 py-4">
                               <Link href={`/profile/${friend.id}`} className="flex items-center gap-3 group">
                                 <div className="relative shrink-0">
@@ -428,7 +428,7 @@ export default function FriendsPage() {
                     const busy = (acceptMutation.isPending && acceptMutation.variables === f.id) ||
                       (rejectMutation.isPending && rejectMutation.variables === f.id);
                     return (
-                      <div key={f.id} className="flex items-center gap-3 rounded-xl py-3 px-1">
+                      <div key={f.id} className="flex items-center gap-3 rounded-xl py-3 px-1 hover-lift">
                         <div className="relative shrink-0">
                           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-xs font-bold uppercase text-foreground">
                             {f.from_user.username.charAt(0)}
@@ -472,7 +472,7 @@ export default function FriendsPage() {
                       const busy = (acceptMutation.isPending && acceptMutation.variables === f.id) ||
                         (rejectMutation.isPending && rejectMutation.variables === f.id);
                       return (
-                        <div key={f.id} className="flex items-center gap-4 px-6 py-4">
+                        <div key={f.id} className="flex items-center gap-4 px-6 py-4 hover-lift">
                           <div className="relative shrink-0">
                             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-base font-bold uppercase text-foreground">
                               {f.from_user.username.charAt(0)}
@@ -529,7 +529,7 @@ export default function FriendsPage() {
                   {sent.map((f) => {
                     const busy = rejectMutation.isPending && rejectMutation.variables === f.id;
                     return (
-                      <div key={f.id} className="flex items-center gap-3 rounded-xl py-3 px-1">
+                      <div key={f.id} className="flex items-center gap-3 rounded-xl py-3 px-1 hover-lift">
                         <div className="relative shrink-0">
                           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-sm font-bold uppercase text-foreground">
                             {f.to_user.username.charAt(0)}
@@ -562,7 +562,7 @@ export default function FriendsPage() {
                     {sent.map((f) => {
                       const busy = rejectMutation.isPending && rejectMutation.variables === f.id;
                       return (
-                        <div key={f.id} className="flex items-center gap-4 px-6 py-4">
+                        <div key={f.id} className="flex items-center gap-4 px-6 py-4 hover-lift">
                           <div className="relative shrink-0">
                             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-base font-bold uppercase text-foreground">
                               {f.to_user.username.charAt(0)}
