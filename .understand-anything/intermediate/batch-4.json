@@ -1,0 +1,1077 @@
+{
+  "batch_index": 4,
+  "nodes": [
+    {
+      "id": "file:frontend/components/__tests__/MatchCharts.test.tsx",
+      "type": "file",
+      "summary": "Unit tests for MatchCharts component, testing bar chart and radar chart rendering with player comparison data.",
+      "tags": ["test", "charts", "match-results"],
+      "complexity": "low",
+      "lines": 239
+    },
+    {
+      "id": "file:frontend/components/__tests__/MatchChatPanel.test.tsx",
+      "type": "file",
+      "summary": "Unit tests for MatchChatPanel component, testing mobile/desktop chat views and notification sounds.",
+      "tags": ["test", "chat", "match"],
+      "complexity": "low",
+      "lines": 214
+    },
+    {
+      "id": "file:frontend/components/__tests__/MatchIntroOverlay.test.tsx",
+      "type": "file",
+      "summary": "Unit tests for MatchIntroOverlay component, testing duel/FFA layouts and loading progress.",
+      "tags": ["test", "overlay", "intro"],
+      "complexity": "low",
+      "lines": 200
+    },
+    {
+      "id": "file:frontend/components/__tests__/MobileBuildSheet.test.tsx",
+      "type": "file",
+      "summary": "Unit tests for MobileBuildSheet component, testing building/unit production UI on mobile.",
+      "tags": ["test", "mobile", "build"],
+      "complexity": "low",
+      "lines": 355
+    },
+    {
+      "id": "file:frontend/components/__tests__/ProfileCharts.test.tsx",
+      "type": "file",
+      "summary": "Unit tests for ProfileCharts component, testing ELO history, win/loss charts, and activity charts.",
+      "tags": ["test", "charts", "profile"],
+      "complexity": "low",
+      "lines": 269
+    },
+    {
+      "id": "file:frontend/components/__tests__/RegionPanel.test.tsx",
+      "type": "file",
+      "summary": "Unit tests for RegionPanel component, testing building/unit display, build actions, and tab navigation.",
+      "tags": ["test", "region", "panel"],
+      "complexity": "medium",
+      "lines": 486
+    },
+    {
+      "id": "file:frontend/components/__tests__/TutorialOverlay.test.tsx",
+      "type": "file",
+      "summary": "Unit tests for TutorialOverlay component, testing step display, navigation, and skip functionality.",
+      "tags": ["test", "tutorial"],
+      "complexity": "low",
+      "lines": 187
+    },
+    {
+      "id": "file:frontend/components/__tests__/VoicePanel.test.tsx",
+      "type": "file",
+      "summary": "Unit tests for VoicePanel component, testing voice chat join/leave and mic toggle states.",
+      "tags": ["test", "voice", "chat"],
+      "complexity": "low",
+      "lines": 267
+    },
+    {
+      "id": "file:frontend/components/auth/AuthScreen.tsx",
+      "type": "file",
+      "summary": "Reusable auth layout component with branding, card container, and alt-link footer for login/register pages.",
+      "tags": ["auth", "layout", "ui"],
+      "complexity": "low",
+      "lines": 81
+    },
+    {
+      "id": "func:frontend/components/auth/AuthScreen.tsx:AuthScreen",
+      "type": "function",
+      "summary": "Auth page layout wrapper with logo, card, and alternate action link.",
+      "exported": true,
+      "lines": 63
+    },
+    {
+      "id": "file:frontend/components/auth/SocialLoginButtons.tsx",
+      "type": "file",
+      "summary": "Google and Discord OAuth login buttons with loading states and social auth URL redirect.",
+      "tags": ["auth", "oauth", "social-login"],
+      "complexity": "low",
+      "lines": 79
+    },
+    {
+      "id": "func:frontend/components/auth/SocialLoginButtons.tsx:SocialLoginButtons",
+      "type": "function",
+      "summary": "Renders Google and Discord OAuth buttons, handles redirect to provider auth URL.",
+      "exported": true,
+      "lines": 52
+    },
+    {
+      "id": "file:frontend/components/chat/ChatInput.tsx",
+      "type": "file",
+      "summary": "Chat text input with send button, character limit (500), and Enter key handling.",
+      "tags": ["chat", "input", "ui"],
+      "complexity": "low",
+      "lines": 52
+    },
+    {
+      "id": "func:frontend/components/chat/ChatInput.tsx:ChatInput",
+      "type": "function",
+      "summary": "Controlled text input for chat messages with Enter-to-send and 500-char limit.",
+      "exported": true,
+      "lines": 40
+    },
+    {
+      "id": "file:frontend/components/chat/ChatWidget.tsx",
+      "type": "file",
+      "summary": "Floating chat widget with global chat and DM tabs, unread badges, and real-time messaging via WebSocket.",
+      "tags": ["chat", "widget", "dm", "websocket"],
+      "complexity": "high",
+      "lines": 320
+    },
+    {
+      "id": "func:frontend/components/chat/ChatWidget.tsx:DMChatView",
+      "type": "function",
+      "summary": "Direct message conversation view with message loading, real-time updates, and send functionality.",
+      "exported": false,
+      "lines": 125
+    },
+    {
+      "id": "func:frontend/components/chat/ChatWidget.tsx:ChatWidget",
+      "type": "function",
+      "summary": "Main floating chat widget with global/DM tabs, unread counts, and toggle button.",
+      "exported": true,
+      "lines": 158
+    },
+    {
+      "id": "file:frontend/components/chat/MatchChatPanel.tsx",
+      "type": "file",
+      "summary": "In-game match chat panel with mobile bottom sheet and desktop collapsible panel, notification sounds.",
+      "tags": ["chat", "match", "mobile", "desktop"],
+      "complexity": "medium",
+      "lines": 155
+    },
+    {
+      "id": "func:frontend/components/chat/MatchChatPanel.tsx:MatchChatPanel",
+      "type": "function",
+      "summary": "Match chat with mobile FAB + bottom sheet and desktop collapsible panel, tracks unread messages.",
+      "exported": true,
+      "lines": 131
+    },
+    {
+      "id": "file:frontend/components/chat/MessageList.tsx",
+      "type": "file",
+      "summary": "Scrollable message list component with auto-scroll, grouped messages by user, and timestamps.",
+      "tags": ["chat", "messages", "ui"],
+      "complexity": "low",
+      "lines": 61
+    },
+    {
+      "id": "func:frontend/components/chat/MessageList.tsx:MessageList",
+      "type": "function",
+      "summary": "Renders chat messages with user grouping, timestamps, and auto-scroll to bottom.",
+      "exported": true,
+      "lines": 44
+    },
+    {
+      "id": "file:frontend/components/chat/VoicePanel.tsx",
+      "type": "file",
+      "summary": "Voice chat panel showing connection state, mic controls, peer speaking indicators, and join/leave buttons.",
+      "tags": ["voice", "chat", "webrtc"],
+      "complexity": "medium",
+      "lines": 149
+    },
+    {
+      "id": "func:frontend/components/chat/VoicePanel.tsx:VoicePanel",
+      "type": "function",
+      "summary": "Voice chat UI with mobile/desktop variants, mic toggle, peer list with speaking indicators.",
+      "exported": true,
+      "lines": 121
+    },
+    {
+      "id": "file:frontend/components/game/AbilityBar.tsx",
+      "type": "file",
+      "summary": "Ability bar with radial cooldown sweeps, energy costs, level badges, boost indicators, and cosmetic icon overrides.",
+      "tags": ["game", "abilities", "hud", "cooldown"],
+      "complexity": "high",
+      "lines": 354
+    },
+    {
+      "id": "func:frontend/components/game/AbilityBar.tsx:AbilityBar",
+      "type": "function",
+      "summary": "Memoized ability bar rendering sorted abilities and boosts with cooldown overlays and energy cost badges.",
+      "exported": true,
+      "lines": 167
+    },
+    {
+      "id": "func:frontend/components/game/AbilityBar.tsx:AbilityButton",
+      "type": "function",
+      "summary": "Individual ability button with radial cooldown SVG, remaining uses badge, level badge, and cosmetic icon resolution.",
+      "exported": false,
+      "lines": 133
+    },
+    {
+      "id": "func:frontend/components/game/AbilityBar.tsx:describeArc",
+      "type": "function",
+      "summary": "Generates SVG arc path string for radial cooldown sweep visualization.",
+      "exported": false,
+      "lines": 18
+    },
+    {
+      "id": "file:frontend/components/game/ActionBar.tsx",
+      "type": "file",
+      "summary": "Unit movement/attack action bar with unit type selection, slider for unit count, target allocation, and mobile/desktop layouts.",
+      "tags": ["game", "action", "units", "movement", "attack"],
+      "complexity": "high",
+      "lines": 386
+    },
+    {
+      "id": "func:frontend/components/game/ActionBar.tsx:ActionBar",
+      "type": "function",
+      "summary": "Memoized action bar for sending troops with unit type tabs, count slider, target chips, and confirm button.",
+      "exported": true,
+      "lines": 316
+    },
+    {
+      "id": "file:frontend/components/game/ActiveBoosts.tsx",
+      "type": "file",
+      "summary": "Displays active boost pills (permanent and time-limited) with icons, percentage values, and remaining time.",
+      "tags": ["game", "boosts", "hud"],
+      "complexity": "low",
+      "lines": 103
+    },
+    {
+      "id": "func:frontend/components/game/ActiveBoosts.tsx:ActiveBoosts",
+      "type": "function",
+      "summary": "Memoized boost display rendering permanent and timed boost pills with color-coded icons.",
+      "exported": true,
+      "lines": 47
+    },
+    {
+      "id": "file:frontend/components/game/BuildQueue.tsx",
+      "type": "file",
+      "summary": "Build and unit production queue display with progress bars, desktop cards, and mobile compact icons.",
+      "tags": ["game", "build", "queue", "hud"],
+      "complexity": "medium",
+      "lines": 188
+    },
+    {
+      "id": "func:frontend/components/game/BuildQueue.tsx:BuildQueue",
+      "type": "function",
+      "summary": "Memoized build queue rendering building and unit production items with progress percentages.",
+      "exported": true,
+      "lines": 115
+    },
+    {
+      "id": "file:frontend/components/game/DesktopChatVoice.tsx",
+      "type": "file",
+      "summary": "Desktop-only combined chat and voice panel positioned at bottom-left of game view.",
+      "tags": ["game", "chat", "voice", "desktop"],
+      "complexity": "medium",
+      "lines": 130
+    },
+    {
+      "id": "func:frontend/components/game/DesktopChatVoice.tsx:DesktopChatVoice",
+      "type": "function",
+      "summary": "Desktop chat panel with collapsible message list and voice pill for in-game communication.",
+      "exported": true,
+      "lines": 44
+    },
+    {
+      "id": "file:frontend/components/game/DiplomacyPanel.tsx",
+      "type": "file",
+      "summary": "Diplomacy panel with peace proposal dialog supporting status quo and province return conditions.",
+      "tags": ["game", "diplomacy", "peace", "dialog"],
+      "complexity": "medium",
+      "lines": 178
+    },
+    {
+      "id": "func:frontend/components/game/DiplomacyPanel.tsx:DiplomacyPanel",
+      "type": "function",
+      "summary": "Memoized diplomacy panel managing peace dialog state and war lookup for peace proposals.",
+      "exported": true,
+      "lines": 45
+    },
+    {
+      "id": "func:frontend/components/game/DiplomacyPanel.tsx:PeaceDialog",
+      "type": "function",
+      "summary": "Peace negotiation dialog with condition type selection (status quo / return provinces) and province checkboxes.",
+      "exported": false,
+      "lines": 70
+    },
+    {
+      "id": "file:frontend/components/game/GameHUD.tsx",
+      "type": "file",
+      "summary": "Main game HUD with clock, energy/AP stats, player ranking with diplomacy actions, incoming proposals, and capital protection timer.",
+      "tags": ["game", "hud", "ranking", "diplomacy", "stats"],
+      "complexity": "high",
+      "lines": 514
+    },
+    {
+      "id": "func:frontend/components/game/GameHUD.tsx:GameHUD",
+      "type": "function",
+      "summary": "Memoized main HUD showing clock, energy, AP, region/unit counts, ranking, diplomacy actions, and proposals.",
+      "exported": true,
+      "lines": 233
+    },
+    {
+      "id": "func:frontend/components/game/GameHUD.tsx:CompactStat",
+      "type": "function",
+      "summary": "Compact stat tile with icon and value for regions/units display.",
+      "exported": false,
+      "lines": 15
+    },
+    {
+      "id": "func:frontend/components/game/GameHUD.tsx:LargeStat",
+      "type": "function",
+      "summary": "Large prominent stat tile for energy/AP with low-value pulse animation.",
+      "exported": false,
+      "lines": 14
+    },
+    {
+      "id": "func:frontend/components/game/GameHUD.tsx:APStat",
+      "type": "function",
+      "summary": "Action points stat tile with progress bar and color-coded value based on AP level.",
+      "exported": false,
+      "lines": 31
+    },
+    {
+      "id": "file:frontend/components/game/GameNotification.tsx",
+      "type": "file",
+      "summary": "In-game notification system with animated toast pills, auto-dismiss, and useGameNotifications hook.",
+      "tags": ["game", "notification", "toast", "hook"],
+      "complexity": "medium",
+      "lines": 177
+    },
+    {
+      "id": "func:frontend/components/game/GameNotification.tsx:useGameNotifications",
+      "type": "function",
+      "summary": "Hook managing game notification state with notify, dismiss, and clearAll functions.",
+      "exported": true,
+      "lines": 25
+    },
+    {
+      "id": "func:frontend/components/game/GameNotification.tsx:GameNotificationOverlay",
+      "type": "function",
+      "summary": "Overlay rendering positioned notification pills below the capital selection banner.",
+      "exported": true,
+      "lines": 17
+    },
+    {
+      "id": "file:frontend/components/game/MatchIntroOverlay.tsx",
+      "type": "file",
+      "summary": "Match intro overlay with GSAP animations, player cards (1v1 VS or FFA grid), and loading progress steps.",
+      "tags": ["game", "intro", "animation", "gsap", "overlay"],
+      "complexity": "high",
+      "lines": 367
+    },
+    {
+      "id": "func:frontend/components/game/MatchIntroOverlay.tsx:MatchIntroOverlay",
+      "type": "function",
+      "summary": "Full-screen match intro with animated player cards, VS text, progress bar, and GSAP entrance/exit transitions.",
+      "exported": true,
+      "lines": 128
+    },
+    {
+      "id": "func:frontend/components/game/MatchIntroOverlay.tsx:PlayerCard",
+      "type": "function",
+      "summary": "Player card with color-coded avatar circle, animated ping ring, username, and bot badge.",
+      "exported": false,
+      "lines": 57
+    },
+    {
+      "id": "func:frontend/components/game/MatchIntroOverlay.tsx:DuelLayout",
+      "type": "function",
+      "summary": "1v1 duel layout with left player, VS center, and right player.",
+      "exported": false,
+      "lines": 22
+    },
+    {
+      "id": "func:frontend/components/game/MatchIntroOverlay.tsx:FFALayout",
+      "type": "function",
+      "summary": "Free-for-all grid layout showing all player cards in a 2-4 column grid.",
+      "exported": false,
+      "lines": 19
+    },
+    {
+      "id": "file:frontend/components/game/MobileBuildSheet.tsx",
+      "type": "file",
+      "summary": "Mobile build/production sheet with floating action buttons and bottom sheet for building and unit production.",
+      "tags": ["game", "mobile", "build", "production", "sheet"],
+      "complexity": "high",
+      "lines": 310
+    },
+    {
+      "id": "func:frontend/components/game/MobileBuildSheet.tsx:MobileBuildSheet",
+      "type": "function",
+      "summary": "Memoized mobile build sheet with FAB triggers, building/unit lists with lock states, levels, and energy costs.",
+      "exported": true,
+      "lines": 280
+    },
+    {
+      "id": "file:frontend/components/game/QuickActionBar.tsx",
+      "type": "file",
+      "summary": "Quick action bar for selected region with unit type selector, percent presets, building/production panels, and unit tooltips.",
+      "tags": ["game", "action", "build", "production", "tooltip"],
+      "complexity": "high",
+      "lines": 843
+    },
+    {
+      "id": "file:frontend/components/game/RegionPanel.tsx",
+      "type": "file",
+      "summary": "Desktop region info panel with tabs for info, build, and produce, showing region details, buildings, and unit production.",
+      "tags": ["game", "region", "panel", "build", "production"],
+      "complexity": "high",
+      "lines": 511
+    },
+    {
+      "id": "func:frontend/components/game/RegionPanel.tsx:RegionPanel",
+      "type": "function",
+      "summary": "Memoized region panel with three tabs (info/build/produce) showing owned buildings, available constructions, and unit production.",
+      "exported": true,
+      "lines": 480
+    },
+    {
+      "id": "file:frontend/components/game/TutorialOverlay.tsx",
+      "type": "file",
+      "summary": "Tutorial overlay with floating instruction card, progress dots, red pulsing pointer to UI elements, and step navigation.",
+      "tags": ["game", "tutorial", "overlay", "onboarding"],
+      "complexity": "medium",
+      "lines": 147
+    },
+    {
+      "id": "func:frontend/components/game/TutorialOverlay.tsx:TutorialOverlay",
+      "type": "function",
+      "summary": "Tutorial step display with floating card, progress bar, skip/back/next controls, and action-required indicator.",
+      "exported": true,
+      "lines": 75
+    },
+    {
+      "id": "func:frontend/components/game/TutorialOverlay.tsx:TutorialPointer",
+      "type": "function",
+      "summary": "Animated red pointer that tracks a data-tutorial DOM element with pulsing border and bouncing arrow.",
+      "exported": false,
+      "lines": 42
+    },
+    {
+      "id": "file:frontend/components/game/WeatherIndicator.tsx",
+      "type": "file",
+      "summary": "Weather and day/night phase indicator showing condition icons, labels, and gameplay modifier percentages.",
+      "tags": ["game", "weather", "hud"],
+      "complexity": "low",
+      "lines": 72
+    },
+    {
+      "id": "func:frontend/components/game/WeatherIndicator.tsx:WeatherIndicator",
+      "type": "function",
+      "summary": "Displays weather condition, day phase, and active gameplay modifiers (defense, chaos, energy, recruitment).",
+      "exported": true,
+      "lines": 33
+    },
+    {
+      "id": "file:frontend/components/inventory/CrateOpenModal.tsx",
+      "type": "file",
+      "summary": "Loot crate opening modal with GSAP-animated strip roller, rarity-colored items, and reveal animation.",
+      "tags": ["inventory", "crate", "animation", "gsap", "modal"],
+      "complexity": "high",
+      "lines": 663
+    },
+    {
+      "id": "file:frontend/components/map/GameCanvas.tsx",
+      "type": "file",
+      "summary": "PixiJS game canvas with province rendering, terrain chunk loading, troop animations, ability effects, air transit, and weather overlays.",
+      "tags": ["map", "pixi", "canvas", "rendering", "provinces", "animations"],
+      "complexity": "very-high",
+      "lines": 2130
+    },
+    {
+      "id": "file:frontend/components/map/GameMap.tsx",
+      "type": "file",
+      "summary": "MapLibre GL game map with region markers, troop movement animations, building icons, ability effects, and cosmetic overrides.",
+      "tags": ["map", "maplibre", "rendering", "animations", "markers"],
+      "complexity": "very-high",
+      "lines": 1915
+    },
+    {
+      "id": "file:frontend/components/match/MatchCharts.tsx",
+      "type": "file",
+      "summary": "Post-match statistics charts with comparison bar chart and radar chart for player performance metrics.",
+      "tags": ["match", "charts", "recharts", "statistics"],
+      "complexity": "medium",
+      "lines": 156
+    },
+    {
+      "id": "func:frontend/components/match/MatchCharts.tsx:MatchCharts",
+      "type": "function",
+      "summary": "Match result charts with tab switching between comparison bar chart and radar chart of player stats.",
+      "exported": true,
+      "lines": 123
+    },
+    {
+      "id": "file:frontend/components/profile/ProfileCharts.tsx",
+      "type": "file",
+      "summary": "Profile statistics charts with ELO history area chart, win/loss bar, and 14-day activity bar chart.",
+      "tags": ["profile", "charts", "recharts", "elo", "statistics"],
+      "complexity": "medium",
+      "lines": 221
+    },
+    {
+      "id": "func:frontend/components/profile/ProfileCharts.tsx:ProfileCharts",
+      "type": "function",
+      "summary": "Profile charts with ELO history, win rate display with stacked bar, and daily activity chart.",
+      "exported": true,
+      "lines": 172
+    },
+    {
+      "id": "file:frontend/components/ui/ItemIcon.tsx",
+      "type": "file",
+      "summary": "Item icon resolver with SVG map for materials/crates/cosmetics/blueprints, prefix matching, and emoji fallback.",
+      "tags": ["ui", "icons", "items", "svg"],
+      "complexity": "low",
+      "lines": 132
+    },
+    {
+      "id": "func:frontend/components/ui/ItemIcon.tsx:ItemIcon",
+      "type": "function",
+      "summary": "Renders item icon from SVG map lookup or emoji fallback based on item slug.",
+      "exported": true,
+      "lines": 25
+    },
+    {
+      "id": "func:frontend/components/ui/ItemIcon.tsx:getItemSvg",
+      "type": "function",
+      "summary": "Resolves item slug to SVG path via exact match then prefix match, returns null if not found.",
+      "exported": true,
+      "lines": 10
+    },
+    {
+      "id": "file:frontend/components/ui/avatar.tsx",
+      "type": "file",
+      "summary": "Avatar component wrapping base-ui Avatar primitive with size variants (sm/default/lg).",
+      "tags": ["ui", "avatar", "base-ui"],
+      "complexity": "low",
+      "lines": 109
+    },
+    {
+      "id": "file:frontend/components/ui/badge.tsx",
+      "type": "file",
+      "summary": "Badge component with CVA variants (default, secondary, destructive, outline, ghost).",
+      "tags": ["ui", "badge", "cva"],
+      "complexity": "low",
+      "lines": 52
+    },
+    {
+      "id": "file:frontend/components/ui/banned-badge.tsx",
+      "type": "file",
+      "summary": "Simple banned user badge component displaying a red 'Zbanowany' indicator.",
+      "tags": ["ui", "badge", "banned"],
+      "complexity": "low",
+      "lines": 18
+    },
+    {
+      "id": "file:frontend/components/ui/button.tsx",
+      "type": "file",
+      "summary": "Button component wrapping base-ui Button with CVA variants and sizes.",
+      "tags": ["ui", "button", "base-ui", "cva"],
+      "complexity": "low",
+      "lines": 60
+    },
+    {
+      "id": "file:frontend/components/ui/card.tsx",
+      "type": "file",
+      "summary": "Card component set (Card, CardHeader, CardTitle, CardDescription, CardAction, CardContent, CardFooter).",
+      "tags": ["ui", "card"],
+      "complexity": "low",
+      "lines": 103
+    },
+    {
+      "id": "file:frontend/components/ui/chart.tsx",
+      "type": "file",
+      "summary": "Chart infrastructure wrapping Recharts with theme-aware config, ChartContainer, ChartTooltip, and ChartLegend.",
+      "tags": ["ui", "chart", "recharts", "theme"],
+      "complexity": "medium",
+      "lines": 356
+    },
+    {
+      "id": "file:frontend/components/ui/dialog.tsx",
+      "type": "file",
+      "summary": "Dialog component wrapping base-ui Dialog with overlay, title, description, and close button.",
+      "tags": ["ui", "dialog", "modal"],
+      "complexity": "low",
+      "lines": 157
+    },
+    {
+      "id": "file:frontend/components/ui/dropdown-menu.tsx",
+      "type": "file",
+      "summary": "Dropdown menu component wrapping base-ui Menu with items, checkboxes, radio groups, and submenus.",
+      "tags": ["ui", "dropdown", "menu"],
+      "complexity": "medium",
+      "lines": 268
+    },
+    {
+      "id": "file:frontend/components/ui/hover-card.tsx",
+      "type": "file",
+      "summary": "Hover card component wrapping base-ui Popover with trigger and content panels.",
+      "tags": ["ui", "hover-card", "popover"],
+      "complexity": "low",
+      "lines": 51
+    },
+    {
+      "id": "file:frontend/components/ui/input.tsx",
+      "type": "file",
+      "summary": "Styled text input component with consistent border and focus styles.",
+      "tags": ["ui", "input", "form"],
+      "complexity": "low",
+      "lines": 20
+    },
+    {
+      "id": "file:frontend/components/ui/label.tsx",
+      "type": "file",
+      "summary": "Form label component wrapping base-ui Field.Label.",
+      "tags": ["ui", "label", "form"],
+      "complexity": "low",
+      "lines": 20
+    },
+    {
+      "id": "file:frontend/components/ui/popover.tsx",
+      "type": "file",
+      "summary": "Popover component wrapping base-ui Popover with trigger, anchor, and positioned content.",
+      "tags": ["ui", "popover"],
+      "complexity": "low",
+      "lines": 90
+    },
+    {
+      "id": "file:frontend/components/ui/separator.tsx",
+      "type": "file",
+      "summary": "Horizontal/vertical separator component using base-ui Separator.",
+      "tags": ["ui", "separator"],
+      "complexity": "low",
+      "lines": 25
+    },
+    {
+      "id": "file:frontend/components/ui/sheet.tsx",
+      "type": "file",
+      "summary": "Sheet (side drawer) component with slide-in animation from left/right/top/bottom.",
+      "tags": ["ui", "sheet", "drawer"],
+      "complexity": "low",
+      "lines": 135
+    },
+    {
+      "id": "file:frontend/components/ui/sonner.tsx",
+      "type": "file",
+      "summary": "Sonner toast provider component configured with theme-aware styling.",
+      "tags": ["ui", "toast", "sonner"],
+      "complexity": "low",
+      "lines": 34
+    },
+    {
+      "id": "file:frontend/components/ui/table.tsx",
+      "type": "file",
+      "summary": "Table component set (Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell, TableCaption).",
+      "tags": ["ui", "table"],
+      "complexity": "low",
+      "lines": 116
+    },
+    {
+      "id": "file:frontend/components/ui/tabs.tsx",
+      "type": "file",
+      "summary": "Tabs component wrapping base-ui Tabs with styled tab list, trigger, and content.",
+      "tags": ["ui", "tabs"],
+      "complexity": "low",
+      "lines": 82
+    },
+    {
+      "id": "file:frontend/e2e/auth.spec.ts",
+      "type": "file",
+      "summary": "E2E tests for authentication flows: login, register, and error handling with Playwright.",
+      "tags": ["e2e", "test", "auth", "playwright"],
+      "complexity": "medium",
+      "lines": 149
+    },
+    {
+      "id": "file:frontend/e2e/dashboard.spec.ts",
+      "type": "file",
+      "summary": "E2E tests for dashboard page including navigation, user info display, and matchmaking button.",
+      "tags": ["e2e", "test", "dashboard", "playwright"],
+      "complexity": "low",
+      "lines": 101
+    },
+    {
+      "id": "file:frontend/e2e/fixtures.ts",
+      "type": "file",
+      "summary": "Playwright test fixtures providing authenticated page context with stored auth state.",
+      "tags": ["e2e", "fixtures", "playwright", "auth"],
+      "complexity": "medium",
+      "lines": 146
+    },
+    {
+      "id": "file:frontend/e2e/game.spec.ts",
+      "type": "file",
+      "summary": "E2E tests for game page including map rendering, HUD display, and WebSocket connection.",
+      "tags": ["e2e", "test", "game", "playwright"],
+      "complexity": "medium",
+      "lines": 301
+    },
+    {
+      "id": "file:frontend/e2e/matchmaking.spec.ts",
+      "type": "file",
+      "summary": "E2E tests for matchmaking flow including queue join/leave, lobby, and match start.",
+      "tags": ["e2e", "test", "matchmaking", "playwright"],
+      "complexity": "medium",
+      "lines": 201
+    },
+    {
+      "id": "file:frontend/hooks/SocialSocketContext.tsx",
+      "type": "file",
+      "summary": "React context for social WebSocket providing notification and direct message event handlers.",
+      "tags": ["hook", "context", "websocket", "social"],
+      "complexity": "low",
+      "lines": 22
+    },
+    {
+      "id": "func:frontend/hooks/SocialSocketContext.tsx:useSocialSocketContext",
+      "type": "function",
+      "summary": "Hook to consume SocialSocketContext for notification and DM event subscriptions.",
+      "exported": true,
+      "lines": 3
+    },
+    {
+      "id": "file:frontend/hooks/__tests__/useAudio.test.ts",
+      "type": "file",
+      "summary": "Unit tests for useAudio hook testing music playback, mute toggle, sound effects, and jingles.",
+      "tags": ["test", "hook", "audio"],
+      "complexity": "medium",
+      "lines": 236
+    },
+    {
+      "id": "file:frontend/hooks/__tests__/useAuth.test.tsx",
+      "type": "file",
+      "summary": "Unit tests for useAuth hook testing login, register, logout, token refresh, and banned user handling.",
+      "tags": ["test", "hook", "auth"],
+      "complexity": "medium",
+      "lines": 270
+    },
+    {
+      "id": "file:frontend/hooks/__tests__/useChat.test.tsx",
+      "type": "file",
+      "summary": "Unit tests for useChat hook testing WebSocket chat connection, message handling, and DM tab management.",
+      "tags": ["test", "hook", "chat"],
+      "complexity": "medium",
+      "lines": 357
+    },
+    {
+      "id": "file:frontend/hooks/__tests__/useGameSocket.test.ts",
+      "type": "file",
+      "summary": "Unit tests for useGameSocket hook testing WebSocket game state sync, actions, and reconnection.",
+      "tags": ["test", "hook", "game", "websocket"],
+      "complexity": "high",
+      "lines": 541
+    },
+    {
+      "id": "file:frontend/hooks/__tests__/useMatchmaking.test.ts",
+      "type": "file",
+      "summary": "Unit tests for useMatchmaking hook testing queue join/leave, lobby state, and match creation.",
+      "tags": ["test", "hook", "matchmaking"],
+      "complexity": "medium",
+      "lines": 364
+    },
+    {
+      "id": "file:frontend/hooks/__tests__/usePushNotifications.test.ts",
+      "type": "file",
+      "summary": "Unit tests for usePushNotifications hook testing push subscription, permission handling, and dismissal.",
+      "tags": ["test", "hook", "push-notifications"],
+      "complexity": "medium",
+      "lines": 371
+    },
+    {
+      "id": "file:frontend/hooks/useAudio.ts",
+      "type": "file",
+      "summary": "Audio management hook with in-game music playlist, menu music, jingles (victory/defeat), sound effects with cooldown, and mute toggle.",
+      "tags": ["hook", "audio", "music", "sound-effects"],
+      "complexity": "medium",
+      "lines": 193
+    },
+    {
+      "id": "func:frontend/hooks/useAudio.ts:useAudio",
+      "type": "function",
+      "summary": "Hook managing music playlist, menu music, jingles, sound effects with concurrency limits and cooldowns, and mute persistence.",
+      "exported": true,
+      "lines": 134
+    },
+    {
+      "id": "file:frontend/hooks/useAuth.tsx",
+      "type": "file",
+      "summary": "Auth context provider and hook with JWT login, register, token refresh, banned user detection, and logout.",
+      "tags": ["hook", "context", "auth", "jwt"],
+      "complexity": "medium",
+      "lines": 172
+    },
+    {
+      "id": "func:frontend/hooks/useAuth.tsx:AuthProvider",
+      "type": "function",
+      "summary": "Auth context provider managing user state, JWT token refresh, login/register/logout, and ban detection.",
+      "exported": true,
+      "lines": 120
+    },
+    {
+      "id": "func:frontend/hooks/useAuth.tsx:useAuth",
+      "type": "function",
+      "summary": "Hook consuming AuthContext, throws if used outside AuthProvider.",
+      "exported": true,
+      "lines": 4
+    },
+    {
+      "id": "file:frontend/hooks/useChat.tsx",
+      "type": "file",
+      "summary": "Chat context provider with WebSocket global chat, DM tab management, unread tracking, and PoW-authenticated connection.",
+      "tags": ["hook", "context", "chat", "websocket", "pow"],
+      "complexity": "high",
+      "lines": 217
+    },
+    {
+      "id": "func:frontend/hooks/useChat.tsx:ChatProvider",
+      "type": "function",
+      "summary": "Chat context provider managing WebSocket chat connection with PoW auth, message dedup, unread counts, and DM tabs.",
+      "exported": true,
+      "lines": 162
+    },
+    {
+      "id": "func:frontend/hooks/useChat.tsx:useChat",
+      "type": "function",
+      "summary": "Hook consuming ChatContext, throws if used outside ChatProvider.",
+      "exported": true,
+      "lines": 4
+    },
+    {
+      "id": "file:frontend/hooks/useGameSocket.ts",
+      "type": "file",
+      "summary": "Core game WebSocket hook managing real-time game state (regions, players, effects, weather, diplomacy, air transit) with tick-based updates.",
+      "tags": ["hook", "websocket", "game", "state", "real-time"],
+      "complexity": "very-high",
+      "lines": 665
+    },
+    {
+      "id": "file:frontend/hooks/useMatchmaking.ts",
+      "type": "file",
+      "summary": "Matchmaking context/hook with queue management, lobby state, WebSocket connection, voice tokens, and session persistence.",
+      "tags": ["hook", "context", "matchmaking", "websocket", "lobby"],
+      "complexity": "high",
+      "lines": 431
+    },
+    {
+      "id": "file:frontend/hooks/useNotifications.ts",
+      "type": "file",
+      "summary": "Notifications hook for fetching, marking read, and handling real-time incoming notifications.",
+      "tags": ["hook", "notifications", "api"],
+      "complexity": "low",
+      "lines": 65
+    },
+    {
+      "id": "func:frontend/hooks/useNotifications.ts:useNotifications",
+      "type": "function",
+      "summary": "Hook managing notification list with fetch, mark read, mark all read, and incoming notification handler.",
+      "exported": true,
+      "lines": 54
+    },
+    {
+      "id": "file:frontend/hooks/usePushNotifications.ts",
+      "type": "file",
+      "summary": "Push notification hook managing browser push subscription with VAPID key, permission state, and dismiss.",
+      "tags": ["hook", "push-notifications", "service-worker"],
+      "complexity": "medium",
+      "lines": 100
+    },
+    {
+      "id": "func:frontend/hooks/usePushNotifications.ts:usePushNotifications",
+      "type": "function",
+      "summary": "Hook managing Web Push subscription lifecycle with VAPID, service worker, and session-based dismiss.",
+      "exported": true,
+      "lines": 82
+    },
+    {
+      "id": "file:frontend/hooks/useShapesData.ts",
+      "type": "file",
+      "summary": "Hook fetching pre-projected province shapes from backend API for PixiJS canvas rendering.",
+      "tags": ["hook", "shapes", "api", "geo"],
+      "complexity": "low",
+      "lines": 60
+    },
+    {
+      "id": "func:frontend/hooks/useShapesData.ts:useShapesData",
+      "type": "function",
+      "summary": "Hook fetching province shape polygons from /api/v1/geo/regions/shapes/ with optional match scoping.",
+      "exported": true,
+      "lines": 44
+    }
+  ],
+  "edges": [
+    {"from": "file:frontend/components/auth/AuthScreen.tsx", "to": "file:frontend/components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/auth/SocialLoginButtons.tsx", "to": "file:frontend/components/ui/button.tsx", "type": "imports", "weight": 0.7},
+
+    {"from": "file:frontend/components/chat/ChatWidget.tsx", "to": "file:frontend/hooks/useAuth.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/chat/ChatWidget.tsx", "to": "file:frontend/hooks/useChat.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/chat/ChatWidget.tsx", "to": "file:frontend/hooks/useSystemModules.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/chat/ChatWidget.tsx", "to": "file:frontend/hooks/SocialSocketContext.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/chat/ChatWidget.tsx", "to": "file:frontend/components/chat/MessageList.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/chat/ChatWidget.tsx", "to": "file:frontend/components/chat/ChatInput.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/chat/ChatWidget.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/chat/ChatWidget.tsx", "type": "contains", "to": "func:frontend/components/chat/ChatWidget.tsx:DMChatView", "weight": 1.0},
+    {"from": "file:frontend/components/chat/ChatWidget.tsx", "type": "contains", "to": "func:frontend/components/chat/ChatWidget.tsx:ChatWidget", "weight": 1.0},
+
+    {"from": "file:frontend/components/chat/MatchChatPanel.tsx", "to": "file:frontend/components/chat/MessageList.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/chat/MatchChatPanel.tsx", "to": "file:frontend/components/chat/ChatInput.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/chat/MatchChatPanel.tsx", "type": "contains", "to": "func:frontend/components/chat/MatchChatPanel.tsx:MatchChatPanel", "weight": 1.0},
+
+    {"from": "file:frontend/components/chat/VoicePanel.tsx", "to": "file:frontend/hooks/useVoiceChat.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/chat/VoicePanel.tsx", "type": "contains", "to": "func:frontend/components/chat/VoicePanel.tsx:VoicePanel", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/AbilityBar.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/AbilityBar.tsx", "to": "file:frontend/lib/assetOverrides.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/AbilityBar.tsx", "type": "contains", "to": "func:frontend/components/game/AbilityBar.tsx:AbilityBar", "weight": 1.0},
+    {"from": "file:frontend/components/game/AbilityBar.tsx", "type": "contains", "to": "func:frontend/components/game/AbilityBar.tsx:AbilityButton", "weight": 1.0},
+    {"from": "file:frontend/components/game/AbilityBar.tsx", "type": "contains", "to": "func:frontend/components/game/AbilityBar.tsx:describeArc", "weight": 1.0},
+    {"from": "func:frontend/components/game/AbilityBar.tsx:AbilityBar", "to": "func:frontend/components/game/AbilityBar.tsx:AbilityButton", "type": "calls", "weight": 0.8},
+
+    {"from": "file:frontend/components/game/ActionBar.tsx", "to": "file:frontend/components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/ActionBar.tsx", "to": "file:frontend/hooks/useGameSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/ActionBar.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/ActionBar.tsx", "to": "file:frontend/lib/gameAssets.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/ActionBar.tsx", "type": "contains", "to": "func:frontend/components/game/ActionBar.tsx:ActionBar", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/ActiveBoosts.tsx", "type": "contains", "to": "func:frontend/components/game/ActiveBoosts.tsx:ActiveBoosts", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/BuildQueue.tsx", "to": "file:frontend/hooks/useGameSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/BuildQueue.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/BuildQueue.tsx", "to": "file:frontend/lib/gameAssets.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/BuildQueue.tsx", "type": "contains", "to": "func:frontend/components/game/BuildQueue.tsx:BuildQueue", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/DesktopChatVoice.tsx", "to": "file:frontend/hooks/useVoiceChat.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/DesktopChatVoice.tsx", "to": "file:frontend/components/chat/MessageList.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/DesktopChatVoice.tsx", "to": "file:frontend/components/chat/ChatInput.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/DesktopChatVoice.tsx", "type": "contains", "to": "func:frontend/components/game/DesktopChatVoice.tsx:DesktopChatVoice", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/DiplomacyPanel.tsx", "to": "file:frontend/components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/DiplomacyPanel.tsx", "to": "file:frontend/hooks/useGameSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/DiplomacyPanel.tsx", "to": "file:frontend/lib/gameTypes.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/DiplomacyPanel.tsx", "type": "contains", "to": "func:frontend/components/game/DiplomacyPanel.tsx:DiplomacyPanel", "weight": 1.0},
+    {"from": "file:frontend/components/game/DiplomacyPanel.tsx", "type": "contains", "to": "func:frontend/components/game/DiplomacyPanel.tsx:PeaceDialog", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/GameHUD.tsx", "to": "file:frontend/hooks/useGameSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/GameHUD.tsx", "to": "file:frontend/components/ui/badge.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/GameHUD.tsx", "to": "file:frontend/components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/GameHUD.tsx", "to": "file:frontend/lib/animationConfig.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/GameHUD.tsx", "to": "file:frontend/lib/gameTypes.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/GameHUD.tsx", "to": "file:frontend/components/game/ActiveBoosts.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/GameHUD.tsx", "type": "contains", "to": "func:frontend/components/game/GameHUD.tsx:GameHUD", "weight": 1.0},
+    {"from": "file:frontend/components/game/GameHUD.tsx", "type": "contains", "to": "func:frontend/components/game/GameHUD.tsx:CompactStat", "weight": 1.0},
+    {"from": "file:frontend/components/game/GameHUD.tsx", "type": "contains", "to": "func:frontend/components/game/GameHUD.tsx:LargeStat", "weight": 1.0},
+    {"from": "file:frontend/components/game/GameHUD.tsx", "type": "contains", "to": "func:frontend/components/game/GameHUD.tsx:APStat", "weight": 1.0},
+    {"from": "func:frontend/components/game/GameHUD.tsx:GameHUD", "to": "func:frontend/components/game/ActiveBoosts.tsx:ActiveBoosts", "type": "calls", "weight": 0.8},
+
+    {"from": "file:frontend/components/game/GameNotification.tsx", "type": "contains", "to": "func:frontend/components/game/GameNotification.tsx:useGameNotifications", "weight": 1.0},
+    {"from": "file:frontend/components/game/GameNotification.tsx", "type": "contains", "to": "func:frontend/components/game/GameNotification.tsx:GameNotificationOverlay", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/MatchIntroOverlay.tsx", "type": "contains", "to": "func:frontend/components/game/MatchIntroOverlay.tsx:MatchIntroOverlay", "weight": 1.0},
+    {"from": "file:frontend/components/game/MatchIntroOverlay.tsx", "type": "contains", "to": "func:frontend/components/game/MatchIntroOverlay.tsx:PlayerCard", "weight": 1.0},
+    {"from": "file:frontend/components/game/MatchIntroOverlay.tsx", "type": "contains", "to": "func:frontend/components/game/MatchIntroOverlay.tsx:DuelLayout", "weight": 1.0},
+    {"from": "file:frontend/components/game/MatchIntroOverlay.tsx", "type": "contains", "to": "func:frontend/components/game/MatchIntroOverlay.tsx:FFALayout", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/MobileBuildSheet.tsx", "to": "file:frontend/hooks/useGameSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/MobileBuildSheet.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/MobileBuildSheet.tsx", "to": "file:frontend/lib/gameAssets.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/MobileBuildSheet.tsx", "type": "contains", "to": "func:frontend/components/game/MobileBuildSheet.tsx:MobileBuildSheet", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/QuickActionBar.tsx", "to": "file:frontend/hooks/useGameSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/QuickActionBar.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/QuickActionBar.tsx", "to": "file:frontend/lib/gameAssets.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/QuickActionBar.tsx", "to": "file:frontend/lib/gameTypes.ts", "type": "imports", "weight": 0.7},
+
+    {"from": "file:frontend/components/game/RegionPanel.tsx", "to": "file:frontend/hooks/useGameSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/RegionPanel.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/RegionPanel.tsx", "to": "file:frontend/lib/gameAssets.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/RegionPanel.tsx", "to": "file:frontend/components/ui/badge.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/RegionPanel.tsx", "type": "contains", "to": "func:frontend/components/game/RegionPanel.tsx:RegionPanel", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/TutorialOverlay.tsx", "to": "file:frontend/lib/tutorialSteps.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/TutorialOverlay.tsx", "to": "file:frontend/components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/TutorialOverlay.tsx", "type": "contains", "to": "func:frontend/components/game/TutorialOverlay.tsx:TutorialOverlay", "weight": 1.0},
+    {"from": "file:frontend/components/game/TutorialOverlay.tsx", "type": "contains", "to": "func:frontend/components/game/TutorialOverlay.tsx:TutorialPointer", "weight": 1.0},
+
+    {"from": "file:frontend/components/game/WeatherIndicator.tsx", "to": "file:frontend/hooks/useGameSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/game/WeatherIndicator.tsx", "type": "contains", "to": "func:frontend/components/game/WeatherIndicator.tsx:WeatherIndicator", "weight": 1.0},
+
+    {"from": "file:frontend/components/inventory/CrateOpenModal.tsx", "to": "file:frontend/components/ui/dialog.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/inventory/CrateOpenModal.tsx", "to": "file:frontend/components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/inventory/CrateOpenModal.tsx", "to": "file:frontend/components/ui/ItemIcon.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/inventory/CrateOpenModal.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+
+    {"from": "file:frontend/components/map/GameCanvas.tsx", "to": "file:frontend/hooks/useGameSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/map/GameCanvas.tsx", "to": "file:frontend/lib/gameTypes.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/map/GameCanvas.tsx", "to": "file:frontend/lib/pixiAnimations.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/map/GameCanvas.tsx", "to": "file:frontend/lib/animationConfig.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/map/GameCanvas.tsx", "to": "file:frontend/lib/gameAssets.ts", "type": "imports", "weight": 0.7},
+
+    {"from": "file:frontend/components/map/GameMap.tsx", "to": "file:frontend/hooks/useGameSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/map/GameMap.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/map/GameMap.tsx", "to": "file:frontend/lib/gameAssets.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/map/GameMap.tsx", "to": "file:frontend/lib/animationConfig.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/map/GameMap.tsx", "to": "file:frontend/lib/gameTypes.ts", "type": "imports", "weight": 0.7},
+
+    {"from": "file:frontend/components/match/MatchCharts.tsx", "to": "file:frontend/components/ui/chart.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/match/MatchCharts.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/match/MatchCharts.tsx", "type": "contains", "to": "func:frontend/components/match/MatchCharts.tsx:MatchCharts", "weight": 1.0},
+
+    {"from": "file:frontend/components/profile/ProfileCharts.tsx", "to": "file:frontend/components/ui/chart.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/profile/ProfileCharts.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/components/profile/ProfileCharts.tsx", "type": "contains", "to": "func:frontend/components/profile/ProfileCharts.tsx:ProfileCharts", "weight": 1.0},
+
+    {"from": "file:frontend/components/ui/ItemIcon.tsx", "type": "contains", "to": "func:frontend/components/ui/ItemIcon.tsx:ItemIcon", "weight": 1.0},
+    {"from": "file:frontend/components/ui/ItemIcon.tsx", "type": "contains", "to": "func:frontend/components/ui/ItemIcon.tsx:getItemSvg", "weight": 1.0},
+
+    {"from": "file:frontend/components/ui/chart.tsx", "to": "file:frontend/lib/utils.ts", "type": "imports", "weight": 0.7},
+
+    {"from": "file:frontend/hooks/SocialSocketContext.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/SocialSocketContext.tsx", "to": "file:frontend/hooks/useSocialSocket.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/SocialSocketContext.tsx", "type": "contains", "to": "func:frontend/hooks/SocialSocketContext.tsx:useSocialSocketContext", "weight": 1.0},
+
+    {"from": "file:frontend/hooks/useAudio.ts", "type": "contains", "to": "func:frontend/hooks/useAudio.ts:useAudio", "weight": 1.0},
+
+    {"from": "file:frontend/hooks/useAuth.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useAuth.tsx", "to": "file:frontend/lib/auth.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useAuth.tsx", "type": "contains", "to": "func:frontend/hooks/useAuth.tsx:AuthProvider", "weight": 1.0},
+    {"from": "file:frontend/hooks/useAuth.tsx", "type": "contains", "to": "func:frontend/hooks/useAuth.tsx:useAuth", "weight": 1.0},
+
+    {"from": "file:frontend/hooks/useChat.tsx", "to": "file:frontend/lib/ws.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useChat.tsx", "to": "file:frontend/lib/auth.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useChat.tsx", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useChat.tsx", "to": "file:frontend/lib/pow.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useChat.tsx", "to": "file:frontend/hooks/useAuth.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useChat.tsx", "type": "contains", "to": "func:frontend/hooks/useChat.tsx:ChatProvider", "weight": 1.0},
+    {"from": "file:frontend/hooks/useChat.tsx", "type": "contains", "to": "func:frontend/hooks/useChat.tsx:useChat", "weight": 1.0},
+
+    {"from": "file:frontend/hooks/useGameSocket.ts", "to": "file:frontend/lib/ws.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useGameSocket.ts", "to": "file:frontend/lib/auth.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useGameSocket.ts", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useGameSocket.ts", "to": "file:frontend/lib/pow.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useGameSocket.ts", "to": "file:frontend/lib/gameTypes.ts", "type": "imports", "weight": 0.7},
+
+    {"from": "file:frontend/hooks/useMatchmaking.ts", "to": "file:frontend/lib/ws.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useMatchmaking.ts", "to": "file:frontend/lib/auth.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useMatchmaking.ts", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useMatchmaking.ts", "to": "file:frontend/lib/pow.ts", "type": "imports", "weight": 0.7},
+
+    {"from": "file:frontend/hooks/useNotifications.ts", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useNotifications.ts", "type": "contains", "to": "func:frontend/hooks/useNotifications.ts:useNotifications", "weight": 1.0},
+
+    {"from": "file:frontend/hooks/usePushNotifications.ts", "to": "file:frontend/lib/auth.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/usePushNotifications.ts", "to": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/usePushNotifications.ts", "type": "contains", "to": "func:frontend/hooks/usePushNotifications.ts:usePushNotifications", "weight": 1.0},
+
+    {"from": "file:frontend/hooks/useShapesData.ts", "to": "file:frontend/components/map/GameCanvas.tsx", "type": "imports", "weight": 0.7},
+    {"from": "file:frontend/hooks/useShapesData.ts", "type": "contains", "to": "func:frontend/hooks/useShapesData.ts:useShapesData", "weight": 1.0},
+
+    {"from": "file:frontend/components/__tests__/MatchCharts.test.tsx", "to": "file:frontend/components/match/MatchCharts.tsx", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/components/__tests__/MatchChatPanel.test.tsx", "to": "file:frontend/components/chat/MatchChatPanel.tsx", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/components/__tests__/MatchIntroOverlay.test.tsx", "to": "file:frontend/components/game/MatchIntroOverlay.tsx", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/components/__tests__/MobileBuildSheet.test.tsx", "to": "file:frontend/components/game/MobileBuildSheet.tsx", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/components/__tests__/ProfileCharts.test.tsx", "to": "file:frontend/components/profile/ProfileCharts.tsx", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/components/__tests__/RegionPanel.test.tsx", "to": "file:frontend/components/game/RegionPanel.tsx", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/components/__tests__/TutorialOverlay.test.tsx", "to": "file:frontend/components/game/TutorialOverlay.tsx", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/components/__tests__/VoicePanel.test.tsx", "to": "file:frontend/components/chat/VoicePanel.tsx", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/hooks/__tests__/useAudio.test.ts", "to": "file:frontend/hooks/useAudio.ts", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/hooks/__tests__/useAuth.test.tsx", "to": "file:frontend/hooks/useAuth.tsx", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/hooks/__tests__/useChat.test.tsx", "to": "file:frontend/hooks/useChat.tsx", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/hooks/__tests__/useGameSocket.test.ts", "to": "file:frontend/hooks/useGameSocket.ts", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/hooks/__tests__/useMatchmaking.test.ts", "to": "file:frontend/hooks/useMatchmaking.ts", "type": "tested_by", "weight": 0.5},
+    {"from": "file:frontend/hooks/__tests__/usePushNotifications.test.ts", "to": "file:frontend/hooks/usePushNotifications.ts", "type": "tested_by", "weight": 0.5}
+  ]
+}

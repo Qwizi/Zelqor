@@ -1,0 +1,2851 @@
+{
+  "nodes": [
+    {
+      "id": "file:apps/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/__init__.py",
+      "summary": "Django apps package init.",
+      "tags": [
+        "django",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/accounts/__init__.py",
+      "summary": "Accounts app package init.",
+      "tags": [
+        "django",
+        "init",
+        "accounts"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/admin.py",
+      "type": "file",
+      "name": "admin.py",
+      "filePath": "apps/accounts/admin.py",
+      "summary": "Django admin configuration for User, SocialAccount, DirectMessage, and Friendship models with merge-user action and Unfold UI.",
+      "tags": [
+        "django-admin",
+        "user-management",
+        "unfold-ui",
+        "accounts"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/accounts/admin.py:UserAdmin",
+      "type": "class",
+      "name": "UserAdmin",
+      "filePath": "apps/accounts/admin.py",
+      "summary": "Class UserAdmin with 4 methods spanning 97 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/accounts/apps.py",
+      "type": "file",
+      "name": "apps.py",
+      "filePath": "apps/accounts/apps.py",
+      "summary": "Django app config for the accounts app.",
+      "tags": [
+        "django",
+        "config",
+        "accounts"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/auth.py",
+      "type": "file",
+      "name": "auth.py",
+      "filePath": "apps/accounts/auth.py",
+      "summary": "Custom JWT authentication class that rejects banned users even if their token is valid.",
+      "tags": [
+        "jwt",
+        "authentication",
+        "ban-check"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/backends.py",
+      "type": "file",
+      "name": "backends.py",
+      "filePath": "apps/accounts/backends.py",
+      "summary": "Custom authentication backend allowing login with either username or email address.",
+      "tags": [
+        "authentication",
+        "login",
+        "backend"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/accounts/backends.py:UsernameOrEmailBackend",
+      "type": "class",
+      "name": "UsernameOrEmailBackend",
+      "filePath": "apps/accounts/backends.py",
+      "summary": "Class UsernameOrEmailBackend with 1 methods spanning 20 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/friends_api.py",
+      "type": "file",
+      "name": "friends_api.py",
+      "filePath": "apps/accounts/friends_api.py",
+      "summary": "REST API controller for friend requests, friend list, game invites via lobby creation, and invite accept/reject flows.",
+      "tags": [
+        "api",
+        "friends",
+        "lobby",
+        "game-invite",
+        "social"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/accounts/friends_api.py:FriendsController",
+      "type": "class",
+      "name": "FriendsController",
+      "filePath": "apps/accounts/friends_api.py",
+      "summary": "Class FriendsController with 10 methods spanning 217 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/accounts/management/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/accounts/management/__init__.py",
+      "summary": "Management commands package init.",
+      "tags": [
+        "django",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/management/commands/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/accounts/management/commands/__init__.py",
+      "summary": "Management commands package init.",
+      "tags": [
+        "django",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/management/commands/create_bots.py",
+      "type": "file",
+      "name": "create_bots.py",
+      "filePath": "apps/accounts/management/commands/create_bots.py",
+      "summary": "Management command to create up to 8 AI bot users and a tutorial bot with deterministic UUIDs.",
+      "tags": [
+        "management-command",
+        "bots",
+        "seeding"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/accounts/management/commands/create_bots.py:Command",
+      "type": "class",
+      "name": "Command",
+      "filePath": "apps/accounts/management/commands/create_bots.py",
+      "summary": "Class Command with 2 methods spanning 51 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/accounts/messages_api.py",
+      "type": "file",
+      "name": "messages_api.py",
+      "filePath": "apps/accounts/messages_api.py",
+      "summary": "REST API controller for direct messaging between friends, including conversation listing, message history, and real-time push via Redis.",
+      "tags": [
+        "api",
+        "messaging",
+        "direct-messages",
+        "redis-pubsub"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/accounts/messages_api.py:MessagesController",
+      "type": "class",
+      "name": "MessagesController",
+      "filePath": "apps/accounts/messages_api.py",
+      "summary": "Class MessagesController with 4 methods spanning 103 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/accounts/middleware.py",
+      "type": "file",
+      "name": "middleware.py",
+      "filePath": "apps/accounts/middleware.py",
+      "summary": "Middleware that throttle-updates user.last_active timestamp on each authenticated request (max once per 60s).",
+      "tags": [
+        "middleware",
+        "last-active",
+        "throttle"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/accounts/middleware.py:LastActiveMiddleware",
+      "type": "class",
+      "name": "LastActiveMiddleware",
+      "filePath": "apps/accounts/middleware.py",
+      "summary": "Class LastActiveMiddleware with 3 methods spanning 22 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/migrations/0001_initial.py",
+      "type": "file",
+      "name": "0001_initial.py",
+      "filePath": "apps/accounts/migrations/0001_initial.py",
+      "summary": "Initial migration creating the custom User model with UUID PK, email login, role, and ELO rating.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/accounts/migrations/0001_initial.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/accounts/migrations/0001_initial.py",
+      "summary": "Class Migration with 0 methods spanning 39 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/accounts/migrations/0002_user_is_bot.py",
+      "type": "file",
+      "name": "0002_user_is_bot.py",
+      "filePath": "apps/accounts/migrations/0002_user_is_bot.py",
+      "summary": "Adds is_bot boolean field to User model for AI opponent accounts.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/migrations/0003_user_tutorial_completed.py",
+      "type": "file",
+      "name": "0003_user_tutorial_completed.py",
+      "filePath": "apps/accounts/migrations/0003_user_tutorial_completed.py",
+      "summary": "Adds tutorial_completed boolean field to User model.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/migrations/0004_user_banned_reason_user_is_banned.py",
+      "type": "file",
+      "name": "0004_user_banned_reason_user_is_banned.py",
+      "filePath": "apps/accounts/migrations/0004_user_banned_reason_user_is_banned.py",
+      "summary": "Adds is_banned and banned_reason fields to User model.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/migrations/0005_push_subscription.py",
+      "type": "file",
+      "name": "0005_push_subscription.py",
+      "filePath": "apps/accounts/migrations/0005_push_subscription.py",
+      "summary": "Creates PushSubscription model for Web Push notifications.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/accounts/migrations/0005_push_subscription.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/accounts/migrations/0005_push_subscription.py",
+      "summary": "Class Migration with 0 methods spanning 22 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/migrations/0006_socialaccount.py",
+      "type": "file",
+      "name": "0006_socialaccount.py",
+      "filePath": "apps/accounts/migrations/0006_socialaccount.py",
+      "summary": "Creates SocialAccount model for Google/Discord OAuth linking.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/accounts/migrations/0006_socialaccount.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/accounts/migrations/0006_socialaccount.py",
+      "summary": "Class Migration with 0 methods spanning 35 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/accounts/migrations/0007_friendship.py",
+      "type": "file",
+      "name": "0007_friendship.py",
+      "filePath": "apps/accounts/migrations/0007_friendship.py",
+      "summary": "Creates Friendship model with pending/accepted status.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/accounts/migrations/0007_friendship.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/accounts/migrations/0007_friendship.py",
+      "summary": "Class Migration with 0 methods spanning 23 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/migrations/0008_user_last_active.py",
+      "type": "file",
+      "name": "0008_user_last_active.py",
+      "filePath": "apps/accounts/migrations/0008_user_last_active.py",
+      "summary": "Adds last_active datetime field to User model for online status tracking.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/migrations/0009_directmessage.py",
+      "type": "file",
+      "name": "0009_directmessage.py",
+      "filePath": "apps/accounts/migrations/0009_directmessage.py",
+      "summary": "Creates DirectMessage model for friend-to-friend messaging.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/accounts/migrations/0009_directmessage.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/accounts/migrations/0009_directmessage.py",
+      "summary": "Class Migration with 0 methods spanning 23 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/migrations/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/accounts/migrations/__init__.py",
+      "summary": "Migrations package init.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/models.py",
+      "type": "file",
+      "name": "models.py",
+      "filePath": "apps/accounts/models.py",
+      "summary": "Core User model (UUID PK, ELO rating, ban status, Redis-backed activity status) plus SocialAccount, PushSubscription, DirectMessage, and Friendship models.",
+      "tags": [
+        "models",
+        "user",
+        "social-account",
+        "friendship",
+        "push-notification"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/accounts/models.py:User",
+      "type": "class",
+      "name": "User",
+      "filePath": "apps/accounts/models.py",
+      "summary": "Class User with 5 methods spanning 50 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/accounts/models.py:SocialAccount",
+      "type": "class",
+      "name": "SocialAccount",
+      "filePath": "apps/accounts/models.py",
+      "summary": "Class SocialAccount with 1 methods spanning 23 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/accounts/models.py:PushSubscription",
+      "type": "class",
+      "name": "PushSubscription",
+      "filePath": "apps/accounts/models.py",
+      "summary": "Class PushSubscription with 2 methods spanning 22 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:apps/accounts/models.py:_get_game_redis",
+      "type": "function",
+      "name": "_get_game_redis",
+      "filePath": "apps/accounts/models.py",
+      "summary": "Function _get_game_redis (13 lines, params: ).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:apps/accounts/models.py:_get_player_status_from_redis",
+      "type": "function",
+      "name": "_get_player_status_from_redis",
+      "filePath": "apps/accounts/models.py",
+      "summary": "Function _get_player_status_from_redis (17 lines, params: user_id).",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/accounts/push.py",
+      "type": "file",
+      "name": "push.py",
+      "filePath": "apps/accounts/push.py",
+      "summary": "Web push notification delivery using pywebpush with VAPID keys, including stale subscription cleanup.",
+      "tags": [
+        "push-notification",
+        "vapid",
+        "webpush"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:apps/accounts/push.py:send_push",
+      "type": "function",
+      "name": "send_push",
+      "filePath": "apps/accounts/push.py",
+      "summary": "Function send_push (35 lines, params: user_id, title, body, url, tag).",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:apps/accounts/push.py:send_push_to_users",
+      "type": "function",
+      "name": "send_push_to_users",
+      "filePath": "apps/accounts/push.py",
+      "summary": "Function send_push_to_users (4 lines, params: user_ids, title, body, url, tag).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/accounts/schemas.py",
+      "type": "file",
+      "name": "schemas.py",
+      "filePath": "apps/accounts/schemas.py",
+      "summary": "Pydantic v2 schemas for registration, user output, leaderboard entries, friend relationships, and direct messages.",
+      "tags": [
+        "schemas",
+        "pydantic",
+        "validation",
+        "serialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/accounts/social_auth.py",
+      "type": "file",
+      "name": "social_auth.py",
+      "filePath": "apps/accounts/social_auth.py",
+      "summary": "OAuth2 social login/link controller for Google and Discord, handling token exchange, user creation with starter items, and account linking.",
+      "tags": [
+        "oauth",
+        "social-login",
+        "google",
+        "discord",
+        "jwt"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/accounts/social_auth.py:SocialAuthController",
+      "type": "class",
+      "name": "SocialAuthController",
+      "filePath": "apps/accounts/social_auth.py",
+      "summary": "Class SocialAuthController with 8 methods spanning 279 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "func:apps/accounts/social_auth.py:_provision_starter_items",
+      "type": "function",
+      "name": "_provision_starter_items",
+      "filePath": "apps/accounts/social_auth.py",
+      "summary": "Function _provision_starter_items (29 lines, params: user).",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:apps/accounts/social_auth.py:_build_username",
+      "type": "function",
+      "name": "_build_username",
+      "filePath": "apps/accounts/social_auth.py",
+      "summary": "Function _build_username (13 lines, params: display_name, email).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:apps/accounts/social_auth.py:_get_or_create_user",
+      "type": "function",
+      "name": "_get_or_create_user",
+      "filePath": "apps/accounts/social_auth.py",
+      "summary": "Function _get_or_create_user (50 lines, params: provider, provider_user_id, email, display_name, avatar_url).",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/accounts/tests.py",
+      "type": "file",
+      "name": "tests.py",
+      "filePath": "apps/accounts/tests.py",
+      "summary": "Unit tests for User model properties and the registration API endpoint including validation and duplicate checks.",
+      "tags": [
+        "tests",
+        "user-model",
+        "registration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/accounts/tests.py:UserModelTests",
+      "type": "class",
+      "name": "UserModelTests",
+      "filePath": "apps/accounts/tests.py",
+      "summary": "Class UserModelTests with 10 methods spanning 95 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/accounts/tests.py:RegistrationEndpointTests",
+      "type": "class",
+      "name": "RegistrationEndpointTests",
+      "filePath": "apps/accounts/tests.py",
+      "summary": "Class RegistrationEndpointTests with 12 methods spanning 73 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/accounts/views.py",
+      "type": "file",
+      "name": "views.py",
+      "filePath": "apps/accounts/views.py",
+      "summary": "Main auth API controller with register, me, tutorial completion, leaderboard, WS ticket (with PoW challenge), push subscribe/unsubscribe, and online stats endpoints.",
+      "tags": [
+        "api",
+        "auth",
+        "registration",
+        "leaderboard",
+        "websocket-ticket"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/accounts/views.py:AuthController",
+      "type": "class",
+      "name": "AuthController",
+      "filePath": "apps/accounts/views.py",
+      "summary": "Class AuthController with 9 methods spanning 178 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/assets/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/assets/__init__.py",
+      "summary": "Assets app package init.",
+      "tags": [
+        "django",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/assets/admin.py",
+      "type": "file",
+      "name": "admin.py",
+      "filePath": "apps/assets/admin.py",
+      "summary": "Django admin for GameAsset with drag-and-drop ordering, inline preview, bulk import from well-known registry, and seed-from-registry action.",
+      "tags": [
+        "django-admin",
+        "game-assets",
+        "unfold-ui"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/assets/admin.py:GameAssetAdmin",
+      "type": "class",
+      "name": "GameAssetAdmin",
+      "filePath": "apps/assets/admin.py",
+      "summary": "Class GameAssetAdmin with 4 methods spanning 50 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:apps/assets/admin.py:_get_available_keys",
+      "type": "function",
+      "name": "_get_available_keys",
+      "filePath": "apps/assets/admin.py",
+      "summary": "Function _get_available_keys (32 lines, params: ).",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/assets/api.py",
+      "type": "file",
+      "name": "api.py",
+      "filePath": "apps/assets/api.py",
+      "summary": "Public API endpoint returning active GameAsset overrides as a key-to-URL map, excluding cosmetic-only assets.",
+      "tags": [
+        "api",
+        "assets",
+        "overrides"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/assets/apps.py",
+      "type": "file",
+      "name": "apps.py",
+      "filePath": "apps/assets/apps.py",
+      "summary": "Django app config for the assets app.",
+      "tags": [
+        "django",
+        "config",
+        "assets"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/assets/management/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/assets/management/__init__.py",
+      "summary": "Management package init.",
+      "tags": [
+        "django",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/assets/management/commands/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/assets/management/commands/__init__.py",
+      "summary": "Management commands package init.",
+      "tags": [
+        "django",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/assets/management/commands/resize_assets.py",
+      "type": "file",
+      "name": "resize_assets.py",
+      "filePath": "apps/assets/management/commands/resize_assets.py",
+      "summary": "Management command to batch-resize all GameAsset images to a max dimension as WebP.",
+      "tags": [
+        "management-command",
+        "image-resize",
+        "batch-processing"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/assets/management/commands/resize_assets.py:Command",
+      "type": "class",
+      "name": "Command",
+      "filePath": "apps/assets/management/commands/resize_assets.py",
+      "summary": "Class Command with 2 methods spanning 62 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/assets/migrations/0001_initial.py",
+      "type": "file",
+      "name": "0001_initial.py",
+      "filePath": "apps/assets/migrations/0001_initial.py",
+      "summary": "Initial migration creating GameAsset model.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/assets/migrations/0001_initial.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/assets/migrations/0001_initial.py",
+      "summary": "Class Migration with 0 methods spanning 28 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/assets/migrations/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/assets/migrations/__init__.py",
+      "summary": "Migrations package init.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/assets/models.py",
+      "type": "file",
+      "name": "models.py",
+      "filePath": "apps/assets/models.py",
+      "summary": "GameAsset model with UUID PK, slug key, category enum (building/unit/ability/music/sound/icon/texture/animation), file upload, and auto-resize on save.",
+      "tags": [
+        "models",
+        "game-assets",
+        "file-upload",
+        "image-resize"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/assets/models.py:GameAsset",
+      "type": "class",
+      "name": "GameAsset",
+      "filePath": "apps/assets/models.py",
+      "summary": "Class GameAsset with 2 methods spanning 28 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/assets/registry.py",
+      "type": "file",
+      "name": "registry.py",
+      "filePath": "apps/assets/registry.py",
+      "summary": "Static registry of ~90 well-known asset keys organized by category (buildings, units, abilities, icons, textures, music, sound effects) for frontend override.",
+      "tags": [
+        "registry",
+        "asset-keys",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/assets/tests.py",
+      "type": "file",
+      "name": "tests.py",
+      "filePath": "apps/assets/tests.py",
+      "summary": "Tests for the assets app including GameAsset model, admin, API, registry completeness, and resize command.",
+      "tags": [
+        "tests",
+        "assets",
+        "admin"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/assets/tests.py:GameAssetModelTest",
+      "type": "class",
+      "name": "GameAssetModelTest",
+      "filePath": "apps/assets/tests.py",
+      "summary": "Class GameAssetModelTest with 12 methods spanning 145 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/assets/tests.py:AssetAPITest",
+      "type": "class",
+      "name": "AssetAPITest",
+      "filePath": "apps/assets/tests.py",
+      "summary": "Class AssetAPITest with 3 methods spanning 36 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/assets/tests.py:AssetRegistryTest",
+      "type": "class",
+      "name": "AssetRegistryTest",
+      "filePath": "apps/assets/tests.py",
+      "summary": "Class AssetRegistryTest with 6 methods spanning 36 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:apps/assets/tests.py:make_fake_file",
+      "type": "function",
+      "name": "make_fake_file",
+      "filePath": "apps/assets/tests.py",
+      "summary": "Function make_fake_file (2 lines, params: name, content).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/chat/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/chat/__init__.py",
+      "summary": "Chat app package init.",
+      "tags": [
+        "django",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/chat/admin.py",
+      "type": "file",
+      "name": "admin.py",
+      "filePath": "apps/chat/admin.py",
+      "summary": "Django admin for ChatMessage and MatchChatMessage models.",
+      "tags": [
+        "django-admin",
+        "chat"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/chat/apps.py",
+      "type": "file",
+      "name": "apps.py",
+      "filePath": "apps/chat/apps.py",
+      "summary": "Django app config for the chat app.",
+      "tags": [
+        "django",
+        "config",
+        "chat"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/chat/internal_api.py",
+      "type": "file",
+      "name": "internal_api.py",
+      "filePath": "apps/chat/internal_api.py",
+      "summary": "Internal API for the Rust gateway to save/retrieve global and per-match chat messages, secured by X-Internal-Secret header.",
+      "tags": [
+        "internal-api",
+        "chat",
+        "gateway-integration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/chat/internal_api.py:ChatInternalController",
+      "type": "class",
+      "name": "ChatInternalController",
+      "filePath": "apps/chat/internal_api.py",
+      "summary": "Class ChatInternalController with 4 methods spanning 101 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/chat/migrations/0001_initial.py",
+      "type": "file",
+      "name": "0001_initial.py",
+      "filePath": "apps/chat/migrations/0001_initial.py",
+      "summary": "Initial migration creating ChatMessage and MatchChatMessage models.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/chat/migrations/0001_initial.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/chat/migrations/0001_initial.py",
+      "summary": "Class Migration with 0 methods spanning 36 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/chat/migrations/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/chat/migrations/__init__.py",
+      "summary": "Migrations package init.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/chat/models.py",
+      "type": "file",
+      "name": "models.py",
+      "filePath": "apps/chat/models.py",
+      "summary": "ChatMessage and MatchChatMessage models for global and per-match chat with user FK and timestamps.",
+      "tags": [
+        "models",
+        "chat",
+        "match-chat"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/chat/models.py:MatchChatMessage",
+      "type": "class",
+      "name": "MatchChatMessage",
+      "filePath": "apps/chat/models.py",
+      "summary": "Class MatchChatMessage with 1 methods spanning 20 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/chat/tests.py",
+      "type": "file",
+      "name": "tests.py",
+      "filePath": "apps/chat/tests.py",
+      "summary": "Tests for global and match chat internal API endpoints and ChatMessage model.",
+      "tags": [
+        "tests",
+        "chat",
+        "internal-api"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/chat/tests.py:ChatMessageModelTest",
+      "type": "class",
+      "name": "ChatMessageModelTest",
+      "filePath": "apps/chat/tests.py",
+      "summary": "Class ChatMessageModelTest with 11 methods spanning 65 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/chat/tests.py:MatchChatMessageModelTest",
+      "type": "class",
+      "name": "MatchChatMessageModelTest",
+      "filePath": "apps/chat/tests.py",
+      "summary": "Class MatchChatMessageModelTest with 5 methods spanning 31 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/chat/tests.py:ChatInternalAPITest",
+      "type": "class",
+      "name": "ChatInternalAPITest",
+      "filePath": "apps/chat/tests.py",
+      "summary": "Class ChatInternalAPITest with 10 methods spanning 89 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "func:apps/chat/tests.py:make_user",
+      "type": "function",
+      "name": "make_user",
+      "filePath": "apps/chat/tests.py",
+      "summary": "Function make_user (2 lines, params: username, email, password).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:apps/chat/tests.py:make_match",
+      "type": "function",
+      "name": "make_match",
+      "filePath": "apps/chat/tests.py",
+      "summary": "Function make_match (4 lines, params: user).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/crafting/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/crafting/__init__.py",
+      "summary": "Crafting app package init.",
+      "tags": [
+        "django",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/crafting/admin.py",
+      "type": "file",
+      "name": "admin.py",
+      "filePath": "apps/crafting/admin.py",
+      "summary": "Django admin for Recipe, RecipeIngredient, and CraftingLog with inline ingredients.",
+      "tags": [
+        "django-admin",
+        "crafting",
+        "recipes"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/crafting/apps.py",
+      "type": "file",
+      "name": "apps.py",
+      "filePath": "apps/crafting/apps.py",
+      "summary": "Django app config for the crafting app.",
+      "tags": [
+        "django",
+        "config",
+        "crafting"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/crafting/migrations/0001_initial.py",
+      "type": "file",
+      "name": "0001_initial.py",
+      "filePath": "apps/crafting/migrations/0001_initial.py",
+      "summary": "Initial migration creating Recipe and RecipeIngredient models.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/crafting/migrations/0001_initial.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/crafting/migrations/0001_initial.py",
+      "summary": "Class Migration with 0 methods spanning 49 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/crafting/migrations/0002_initial.py",
+      "type": "file",
+      "name": "0002_initial.py",
+      "filePath": "apps/crafting/migrations/0002_initial.py",
+      "summary": "Creates CraftingLog model for tracking crafting actions.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/crafting/migrations/0002_initial.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/crafting/migrations/0002_initial.py",
+      "summary": "Class Migration with 0 methods spanning 46 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/crafting/migrations/0003_craftinglog_instance.py",
+      "type": "file",
+      "name": "0003_craftinglog_instance.py",
+      "filePath": "apps/crafting/migrations/0003_craftinglog_instance.py",
+      "summary": "Adds instance FK to CraftingLog for non-stackable item tracking.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/crafting/migrations/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/crafting/migrations/__init__.py",
+      "summary": "Migrations package init.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/crafting/models.py",
+      "type": "file",
+      "name": "models.py",
+      "filePath": "apps/crafting/models.py",
+      "summary": "Recipe, RecipeIngredient, and CraftingLog models defining the item crafting system with gold costs and ingredient requirements.",
+      "tags": [
+        "models",
+        "crafting",
+        "recipes",
+        "economy"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/crafting/models.py:Recipe",
+      "type": "class",
+      "name": "Recipe",
+      "filePath": "apps/crafting/models.py",
+      "summary": "Class Recipe with 1 methods spanning 22 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/crafting/schemas.py",
+      "type": "file",
+      "name": "schemas.py",
+      "filePath": "apps/crafting/schemas.py",
+      "summary": "Pydantic schemas for crafting recipes, ingredients, crafting input/output, and crafting log entries.",
+      "tags": [
+        "schemas",
+        "pydantic",
+        "crafting"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/crafting/tests.py",
+      "type": "file",
+      "name": "tests.py",
+      "filePath": "apps/crafting/tests.py",
+      "summary": "Comprehensive tests for the crafting system including recipe listing, crafting with gold/ingredients, insufficient resources, and history.",
+      "tags": [
+        "tests",
+        "crafting",
+        "economy"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/crafting/tests.py:RecipeModelTests",
+      "type": "class",
+      "name": "RecipeModelTests",
+      "filePath": "apps/crafting/tests.py",
+      "summary": "Class RecipeModelTests with 13 methods spanning 67 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/crafting/tests.py:RecipeIngredientTests",
+      "type": "class",
+      "name": "RecipeIngredientTests",
+      "filePath": "apps/crafting/tests.py",
+      "summary": "Class RecipeIngredientTests with 7 methods spanning 61 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/crafting/tests.py:CraftingLogTests",
+      "type": "class",
+      "name": "CraftingLogTests",
+      "filePath": "apps/crafting/tests.py",
+      "summary": "Class CraftingLogTests with 9 methods spanning 89 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/crafting/tests.py:CraftingInventoryHelpersTests",
+      "type": "class",
+      "name": "CraftingInventoryHelpersTests",
+      "filePath": "apps/crafting/tests.py",
+      "summary": "Class CraftingInventoryHelpersTests with 6 methods spanning 37 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:apps/crafting/tests.py:make_category",
+      "type": "function",
+      "name": "make_category",
+      "filePath": "apps/crafting/tests.py",
+      "summary": "Function make_category (2 lines, params: name, slug).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:apps/crafting/tests.py:make_item",
+      "type": "function",
+      "name": "make_item",
+      "filePath": "apps/crafting/tests.py",
+      "summary": "Function make_item (13 lines, params: name, slug, item_type, rarity).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:apps/crafting/tests.py:make_user",
+      "type": "function",
+      "name": "make_user",
+      "filePath": "apps/crafting/tests.py",
+      "summary": "Function make_user (2 lines, params: email, username).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:apps/crafting/tests.py:make_recipe",
+      "type": "function",
+      "name": "make_recipe",
+      "filePath": "apps/crafting/tests.py",
+      "summary": "Function make_recipe (9 lines, params: result_item, name, slug, gold_cost, result_quantity, crafting_time_seconds).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/crafting/views.py",
+      "type": "file",
+      "name": "views.py",
+      "filePath": "apps/crafting/views.py",
+      "summary": "Crafting API controller with endpoints for listing recipes, crafting items (with gold deduction, ingredient consumption, inventory updates), and viewing crafting history.",
+      "tags": [
+        "api",
+        "crafting",
+        "economy",
+        "transactions"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/crafting/views.py:CraftingController",
+      "type": "class",
+      "name": "CraftingController",
+      "filePath": "apps/crafting/views.py",
+      "summary": "Class CraftingController with 3 methods spanning 86 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/dashboard.py",
+      "type": "file",
+      "name": "dashboard.py",
+      "filePath": "apps/dashboard.py",
+      "summary": "Admin dashboard callback injecting KPI stats (users, matches, queue, gold, listings) and chart components for 7-day match/registration trends.",
+      "tags": [
+        "admin-dashboard",
+        "kpi",
+        "charts",
+        "analytics"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/dashboard.py:MatchesChartComponent",
+      "type": "class",
+      "name": "MatchesChartComponent",
+      "filePath": "apps/dashboard.py",
+      "summary": "Class MatchesChartComponent with 1 methods spanning 40 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/dashboard.py:UserRegistrationsChartComponent",
+      "type": "class",
+      "name": "UserRegistrationsChartComponent",
+      "filePath": "apps/dashboard.py",
+      "summary": "Class UserRegistrationsChartComponent with 1 methods spanning 43 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:apps/dashboard.py:dashboard_callback",
+      "type": "function",
+      "name": "dashboard_callback",
+      "filePath": "apps/dashboard.py",
+      "summary": "Function dashboard_callback (43 lines, params: request, context).",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/developers/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/developers/__init__.py",
+      "summary": "Developers app package init.",
+      "tags": [
+        "django",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/developers/admin.py",
+      "type": "file",
+      "name": "admin.py",
+      "filePath": "apps/developers/admin.py",
+      "summary": "Django admin for DeveloperApp, APIKey, Webhook, WebhookDelivery, and OAuth models.",
+      "tags": [
+        "django-admin",
+        "developer-portal"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/developers/apps.py",
+      "type": "file",
+      "name": "apps.py",
+      "filePath": "apps/developers/apps.py",
+      "summary": "Django app config for the developers app with ready() signal import.",
+      "tags": [
+        "django",
+        "config",
+        "developers"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/developers/auth.py",
+      "type": "file",
+      "name": "auth.py",
+      "filePath": "apps/developers/auth.py",
+      "summary": "API key authentication (X-API-Key header) with SHA-256 hashing, Redis-backed rate limiting, usage tracking, and scope checking.",
+      "tags": [
+        "authentication",
+        "api-key",
+        "rate-limiting",
+        "security"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/developers/auth.py:APIKeyAuth",
+      "type": "class",
+      "name": "APIKeyAuth",
+      "filePath": "apps/developers/auth.py",
+      "summary": "Class APIKeyAuth with 1 methods spanning 57 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:apps/developers/auth.py:check_scope",
+      "type": "function",
+      "name": "check_scope",
+      "filePath": "apps/developers/auth.py",
+      "summary": "Function check_scope (3 lines, params: request, scope).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/developers/middleware.py",
+      "type": "file",
+      "name": "middleware.py",
+      "filePath": "apps/developers/middleware.py",
+      "summary": "Middleware that attaches X-RateLimit-* response headers for API key authenticated requests.",
+      "tags": [
+        "middleware",
+        "rate-limiting",
+        "headers"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/developers/middleware.py:RateLimitHeadersMiddleware",
+      "type": "class",
+      "name": "RateLimitHeadersMiddleware",
+      "filePath": "apps/developers/middleware.py",
+      "summary": "Class RateLimitHeadersMiddleware with 2 methods spanning 16 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/developers/migrations/0001_initial.py",
+      "type": "file",
+      "name": "0001_initial.py",
+      "filePath": "apps/developers/migrations/0001_initial.py",
+      "summary": "Initial migration creating DeveloperApp, APIKey, Webhook, and WebhookDelivery models.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/developers/migrations/0001_initial.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/developers/migrations/0001_initial.py",
+      "summary": "Class Migration with 0 methods spanning 66 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/developers/migrations/0002_oauthaccesstoken_oauthauthorizationcode.py",
+      "type": "file",
+      "name": "0002_oauthaccesstoken_oauthauthorizationcode.py",
+      "filePath": "apps/developers/migrations/0002_oauthaccesstoken_oauthauthorizationcode.py",
+      "summary": "Creates OAuthAuthorizationCode and OAuthAccessToken models for OAuth2 server.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/developers/migrations/0002_oauthaccesstoken_oauthauthorizationcode.py:Migration",
+      "type": "class",
+      "name": "Migration",
+      "filePath": "apps/developers/migrations/0002_oauthaccesstoken_oauthauthorizationcode.py",
+      "summary": "Class Migration with 0 methods spanning 37 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/developers/migrations/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/developers/migrations/__init__.py",
+      "summary": "Migrations package init.",
+      "tags": [
+        "migration",
+        "database",
+        "django"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/developers/models.py",
+      "type": "file",
+      "name": "models.py",
+      "filePath": "apps/developers/models.py",
+      "summary": "Developer platform models: DeveloperApp, APIKey, Webhook, WebhookDelivery, OAuthAuthorizationCode, and OAuthAccessToken with secure secret/token generation.",
+      "tags": [
+        "models",
+        "developer-portal",
+        "oauth",
+        "webhooks",
+        "api-keys"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/developers/models.py:DeveloperApp",
+      "type": "class",
+      "name": "DeveloperApp",
+      "filePath": "apps/developers/models.py",
+      "summary": "Class DeveloperApp with 3 methods spanning 27 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/developers/models.py:APIKey",
+      "type": "class",
+      "name": "APIKey",
+      "filePath": "apps/developers/models.py",
+      "summary": "Class APIKey with 2 methods spanning 24 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/developers/models.py:Webhook",
+      "type": "class",
+      "name": "Webhook",
+      "filePath": "apps/developers/models.py",
+      "summary": "Class Webhook with 3 methods spanning 26 lines.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/developers/models.py:OAuthAuthorizationCode",
+      "type": "class",
+      "name": "OAuthAuthorizationCode",
+      "filePath": "apps/developers/models.py",
+      "summary": "Class OAuthAuthorizationCode with 3 methods spanning 31 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/developers/models.py:OAuthAccessToken",
+      "type": "class",
+      "name": "OAuthAccessToken",
+      "filePath": "apps/developers/models.py",
+      "summary": "Class OAuthAccessToken with 3 methods spanning 33 lines.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/developers/oauth_views.py",
+      "type": "file",
+      "name": "oauth_views.py",
+      "filePath": "apps/developers/oauth_views.py",
+      "summary": "OAuth2 authorization server controller implementing authorization code grant, token exchange, refresh, revoke, userinfo, and app-info endpoints.",
+      "tags": [
+        "api",
+        "oauth",
+        "authorization-server",
+        "token-exchange"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/developers/oauth_views.py:OAuthController",
+      "type": "class",
+      "name": "OAuthController",
+      "filePath": "apps/developers/oauth_views.py",
+      "summary": "Class OAuthController with 7 methods spanning 201 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "func:apps/developers/oauth_views.py:_verify_client",
+      "type": "function",
+      "name": "_verify_client",
+      "filePath": "apps/developers/oauth_views.py",
+      "summary": "Function _verify_client (10 lines, params: client_id, client_secret).",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/developers/public_views.py",
+      "type": "file",
+      "name": "public_views.py",
+      "filePath": "apps/developers/public_views.py",
+      "summary": "Public API controller for third-party developers providing leaderboard, match history, player stats, snapshots, and game config endpoints with scope-based access control.",
+      "tags": [
+        "api",
+        "public-api",
+        "developer-platform",
+        "scope-based-access"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/developers/public_views.py:PublicAPIController",
+      "type": "class",
+      "name": "PublicAPIController",
+      "filePath": "apps/developers/public_views.py",
+      "summary": "Class PublicAPIController with 7 methods spanning 148 lines.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/developers/schemas.py",
+      "type": "file",
+      "name": "schemas.py",
+      "filePath": "apps/developers/schemas.py",
+      "summary": "Pydantic schemas for the developer platform: app CRUD, API keys, webhooks, OAuth2 flows, public API responses, and usage statistics.",
+      "tags": [
+        "schemas",
+        "pydantic",
+        "developer-portal",
+        "oauth"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/developers/schemas.py:PublicLeaderboardEntrySchema",
+      "type": "class",
+      "name": "PublicLeaderboardEntrySchema",
+      "filePath": "apps/developers/schemas.py",
+      "summary": "Class PublicLeaderboardEntrySchema with 1 methods spanning 29 lines.",
+      "tags": [],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:apps/accounts/admin.py",
+      "target": "class:apps/accounts/admin.py:UserAdmin",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/admin.py",
+      "target": "file:apps/accounts/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/admin.py",
+      "target": "file:apps/inventory/admin.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/admin.py",
+      "target": "class:apps/accounts/admin.py:UserAdmin",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/backends.py",
+      "target": "class:apps/accounts/backends.py:UsernameOrEmailBackend",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/backends.py",
+      "target": "class:apps/accounts/backends.py:UsernameOrEmailBackend",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/friends_api.py",
+      "target": "class:apps/accounts/friends_api.py:FriendsController",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/friends_api.py",
+      "target": "file:apps/accounts/auth.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/friends_api.py",
+      "target": "file:apps/accounts/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/friends_api.py",
+      "target": "file:apps/accounts/schemas.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/friends_api.py",
+      "target": "file:apps/pagination.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/friends_api.py",
+      "target": "class:apps/accounts/friends_api.py:FriendsController",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/management/commands/create_bots.py",
+      "target": "class:apps/accounts/management/commands/create_bots.py:Command",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/management/commands/create_bots.py",
+      "target": "file:apps/accounts/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/management/commands/create_bots.py",
+      "target": "class:apps/accounts/management/commands/create_bots.py:Command",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/messages_api.py",
+      "target": "class:apps/accounts/messages_api.py:MessagesController",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/messages_api.py",
+      "target": "file:apps/accounts/auth.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/messages_api.py",
+      "target": "file:apps/accounts/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/messages_api.py",
+      "target": "file:apps/accounts/schemas.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/messages_api.py",
+      "target": "file:apps/pagination.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/messages_api.py",
+      "target": "class:apps/accounts/messages_api.py:MessagesController",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/middleware.py",
+      "target": "class:apps/accounts/middleware.py:LastActiveMiddleware",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/middleware.py",
+      "target": "class:apps/accounts/middleware.py:LastActiveMiddleware",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/migrations/0001_initial.py",
+      "target": "class:apps/accounts/migrations/0001_initial.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/migrations/0001_initial.py",
+      "target": "class:apps/accounts/migrations/0001_initial.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/migrations/0005_push_subscription.py",
+      "target": "class:apps/accounts/migrations/0005_push_subscription.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/migrations/0005_push_subscription.py",
+      "target": "class:apps/accounts/migrations/0005_push_subscription.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/migrations/0006_socialaccount.py",
+      "target": "class:apps/accounts/migrations/0006_socialaccount.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/migrations/0006_socialaccount.py",
+      "target": "class:apps/accounts/migrations/0006_socialaccount.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/migrations/0007_friendship.py",
+      "target": "class:apps/accounts/migrations/0007_friendship.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/migrations/0007_friendship.py",
+      "target": "class:apps/accounts/migrations/0007_friendship.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/migrations/0009_directmessage.py",
+      "target": "class:apps/accounts/migrations/0009_directmessage.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/migrations/0009_directmessage.py",
+      "target": "class:apps/accounts/migrations/0009_directmessage.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/models.py",
+      "target": "class:apps/accounts/models.py:User",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/models.py",
+      "target": "class:apps/accounts/models.py:SocialAccount",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/models.py",
+      "target": "class:apps/accounts/models.py:PushSubscription",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/models.py",
+      "target": "func:apps/accounts/models.py:_get_game_redis",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/models.py",
+      "target": "func:apps/accounts/models.py:_get_player_status_from_redis",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/models.py",
+      "target": "class:apps/accounts/models.py:User",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/models.py",
+      "target": "class:apps/accounts/models.py:SocialAccount",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/models.py",
+      "target": "class:apps/accounts/models.py:PushSubscription",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/push.py",
+      "target": "func:apps/accounts/push.py:send_push",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/push.py",
+      "target": "func:apps/accounts/push.py:send_push_to_users",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/push.py",
+      "target": "func:apps/accounts/push.py:send_push",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/push.py",
+      "target": "func:apps/accounts/push.py:send_push_to_users",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/social_auth.py",
+      "target": "class:apps/accounts/social_auth.py:SocialAuthController",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/social_auth.py",
+      "target": "func:apps/accounts/social_auth.py:_provision_starter_items",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/social_auth.py",
+      "target": "func:apps/accounts/social_auth.py:_build_username",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/social_auth.py",
+      "target": "func:apps/accounts/social_auth.py:_get_or_create_user",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/social_auth.py",
+      "target": "file:apps/accounts/auth.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/social_auth.py",
+      "target": "file:apps/accounts/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/social_auth.py",
+      "target": "file:apps/accounts/schemas.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/social_auth.py",
+      "target": "file:apps/game_config/decorators.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/social_auth.py",
+      "target": "class:apps/accounts/social_auth.py:SocialAuthController",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/tests.py",
+      "target": "class:apps/accounts/tests.py:UserModelTests",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/tests.py",
+      "target": "class:apps/accounts/tests.py:RegistrationEndpointTests",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/tests.py",
+      "target": "class:apps/accounts/tests.py:UserModelTests",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/tests.py",
+      "target": "class:apps/accounts/tests.py:RegistrationEndpointTests",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/views.py",
+      "target": "class:apps/accounts/views.py:AuthController",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/accounts/views.py",
+      "target": "file:apps/accounts/auth.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/views.py",
+      "target": "file:apps/game_config/modules.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/views.py",
+      "target": "file:apps/accounts/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/views.py",
+      "target": "file:apps/accounts/schemas.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/views.py",
+      "target": "file:apps/game_config/decorators.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/views.py",
+      "target": "file:apps/pagination.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/accounts/views.py",
+      "target": "class:apps/accounts/views.py:AuthController",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/assets/admin.py",
+      "target": "class:apps/assets/admin.py:GameAssetAdmin",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/assets/admin.py",
+      "target": "func:apps/assets/admin.py:_get_available_keys",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/assets/admin.py",
+      "target": "file:apps/assets/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/assets/admin.py",
+      "target": "class:apps/assets/admin.py:GameAssetAdmin",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/assets/api.py",
+      "target": "file:apps/assets/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/assets/management/commands/resize_assets.py",
+      "target": "class:apps/assets/management/commands/resize_assets.py:Command",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/assets/management/commands/resize_assets.py",
+      "target": "file:apps/assets/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/assets/management/commands/resize_assets.py",
+      "target": "class:apps/assets/management/commands/resize_assets.py:Command",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/assets/migrations/0001_initial.py",
+      "target": "class:apps/assets/migrations/0001_initial.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/assets/migrations/0001_initial.py",
+      "target": "class:apps/assets/migrations/0001_initial.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/assets/models.py",
+      "target": "class:apps/assets/models.py:GameAsset",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/assets/models.py",
+      "target": "file:apps/utils.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/assets/models.py",
+      "target": "class:apps/assets/models.py:GameAsset",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/assets/tests.py",
+      "target": "class:apps/assets/tests.py:GameAssetModelTest",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/assets/tests.py",
+      "target": "class:apps/assets/tests.py:AssetAPITest",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/assets/tests.py",
+      "target": "class:apps/assets/tests.py:AssetRegistryTest",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/assets/tests.py",
+      "target": "func:apps/assets/tests.py:make_fake_file",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/assets/tests.py",
+      "target": "file:apps/assets/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/assets/tests.py",
+      "target": "func:apps/assets/tests.py:make_fake_file",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/assets/tests.py",
+      "target": "class:apps/assets/tests.py:GameAssetModelTest",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/assets/tests.py",
+      "target": "class:apps/assets/tests.py:AssetAPITest",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/assets/tests.py",
+      "target": "class:apps/assets/tests.py:AssetRegistryTest",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/chat/admin.py",
+      "target": "file:apps/chat/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/chat/internal_api.py",
+      "target": "class:apps/chat/internal_api.py:ChatInternalController",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/chat/internal_api.py",
+      "target": "file:apps/internal_auth.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/chat/internal_api.py",
+      "target": "file:apps/game_config/decorators.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/chat/internal_api.py",
+      "target": "class:apps/chat/internal_api.py:ChatInternalController",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/chat/migrations/0001_initial.py",
+      "target": "class:apps/chat/migrations/0001_initial.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/chat/migrations/0001_initial.py",
+      "target": "class:apps/chat/migrations/0001_initial.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/chat/models.py",
+      "target": "class:apps/chat/models.py:MatchChatMessage",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/chat/models.py",
+      "target": "class:apps/chat/models.py:MatchChatMessage",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "class:apps/chat/tests.py:ChatMessageModelTest",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "class:apps/chat/tests.py:MatchChatMessageModelTest",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "class:apps/chat/tests.py:ChatInternalAPITest",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "func:apps/chat/tests.py:make_user",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "func:apps/chat/tests.py:make_match",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "file:apps/chat/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "func:apps/chat/tests.py:make_user",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "func:apps/chat/tests.py:make_match",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "class:apps/chat/tests.py:ChatMessageModelTest",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "class:apps/chat/tests.py:MatchChatMessageModelTest",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/chat/tests.py",
+      "target": "class:apps/chat/tests.py:ChatInternalAPITest",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/admin.py",
+      "target": "file:apps/crafting/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/migrations/0001_initial.py",
+      "target": "class:apps/crafting/migrations/0001_initial.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/migrations/0001_initial.py",
+      "target": "class:apps/crafting/migrations/0001_initial.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/migrations/0002_initial.py",
+      "target": "class:apps/crafting/migrations/0002_initial.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/migrations/0002_initial.py",
+      "target": "class:apps/crafting/migrations/0002_initial.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/models.py",
+      "target": "class:apps/crafting/models.py:Recipe",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/models.py",
+      "target": "class:apps/crafting/models.py:Recipe",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/schemas.py",
+      "target": "file:apps/inventory/schemas.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "class:apps/crafting/tests.py:RecipeModelTests",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "class:apps/crafting/tests.py:RecipeIngredientTests",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "class:apps/crafting/tests.py:CraftingLogTests",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "class:apps/crafting/tests.py:CraftingInventoryHelpersTests",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "func:apps/crafting/tests.py:make_category",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "func:apps/crafting/tests.py:make_item",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "func:apps/crafting/tests.py:make_user",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "func:apps/crafting/tests.py:make_recipe",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "file:apps/crafting/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "file:apps/inventory/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "func:apps/crafting/tests.py:make_category",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "func:apps/crafting/tests.py:make_item",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "func:apps/crafting/tests.py:make_user",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "func:apps/crafting/tests.py:make_recipe",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "class:apps/crafting/tests.py:RecipeModelTests",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "class:apps/crafting/tests.py:RecipeIngredientTests",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "class:apps/crafting/tests.py:CraftingLogTests",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/tests.py",
+      "target": "class:apps/crafting/tests.py:CraftingInventoryHelpersTests",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "class:apps/crafting/views.py:CraftingController",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "file:apps/accounts/auth.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "file:apps/game_config/decorators.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "file:apps/pagination.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "file:apps/crafting/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "file:apps/crafting/schemas.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "file:apps/inventory/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "file:apps/inventory/views.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "class:apps/crafting/views.py:CraftingController",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/dashboard.py",
+      "target": "class:apps/dashboard.py:MatchesChartComponent",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/dashboard.py",
+      "target": "class:apps/dashboard.py:UserRegistrationsChartComponent",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/dashboard.py",
+      "target": "func:apps/dashboard.py:dashboard_callback",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/dashboard.py",
+      "target": "func:apps/dashboard.py:dashboard_callback",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/dashboard.py",
+      "target": "class:apps/dashboard.py:MatchesChartComponent",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/dashboard.py",
+      "target": "class:apps/dashboard.py:UserRegistrationsChartComponent",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/admin.py",
+      "target": "file:apps/developers/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/auth.py",
+      "target": "class:apps/developers/auth.py:APIKeyAuth",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/auth.py",
+      "target": "func:apps/developers/auth.py:check_scope",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/auth.py",
+      "target": "file:apps/game_config/modules.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/auth.py",
+      "target": "class:apps/developers/auth.py:APIKeyAuth",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/auth.py",
+      "target": "func:apps/developers/auth.py:check_scope",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/middleware.py",
+      "target": "class:apps/developers/middleware.py:RateLimitHeadersMiddleware",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/middleware.py",
+      "target": "class:apps/developers/middleware.py:RateLimitHeadersMiddleware",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/migrations/0001_initial.py",
+      "target": "class:apps/developers/migrations/0001_initial.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/migrations/0001_initial.py",
+      "target": "class:apps/developers/migrations/0001_initial.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/migrations/0002_oauthaccesstoken_oauthauthorizationcode.py",
+      "target": "class:apps/developers/migrations/0002_oauthaccesstoken_oauthauthorizationcode.py:Migration",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/migrations/0002_oauthaccesstoken_oauthauthorizationcode.py",
+      "target": "class:apps/developers/migrations/0002_oauthaccesstoken_oauthauthorizationcode.py:Migration",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "class:apps/developers/models.py:DeveloperApp",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "class:apps/developers/models.py:APIKey",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "class:apps/developers/models.py:Webhook",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "class:apps/developers/models.py:OAuthAuthorizationCode",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "class:apps/developers/models.py:OAuthAccessToken",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "class:apps/developers/models.py:DeveloperApp",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "class:apps/developers/models.py:APIKey",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "class:apps/developers/models.py:Webhook",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "class:apps/developers/models.py:OAuthAuthorizationCode",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "class:apps/developers/models.py:OAuthAccessToken",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/oauth_views.py",
+      "target": "class:apps/developers/oauth_views.py:OAuthController",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/oauth_views.py",
+      "target": "func:apps/developers/oauth_views.py:_verify_client",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/oauth_views.py",
+      "target": "file:apps/accounts/auth.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/oauth_views.py",
+      "target": "file:apps/game_config/decorators.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/oauth_views.py",
+      "target": "file:apps/developers/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/oauth_views.py",
+      "target": "file:apps/developers/schemas.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/oauth_views.py",
+      "target": "class:apps/developers/oauth_views.py:OAuthController",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/public_views.py",
+      "target": "class:apps/developers/public_views.py:PublicAPIController",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/public_views.py",
+      "target": "file:apps/game_config/decorators.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/public_views.py",
+      "target": "file:apps/developers/auth.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/public_views.py",
+      "target": "file:apps/developers/schemas.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/public_views.py",
+      "target": "file:apps/pagination.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/public_views.py",
+      "target": "file:apps/game/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/public_views.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/public_views.py",
+      "target": "file:apps/game_config/schemas.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/public_views.py",
+      "target": "file:apps/matchmaking/models.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/public_views.py",
+      "target": "class:apps/developers/public_views.py:PublicAPIController",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/schemas.py",
+      "target": "class:apps/developers/schemas.py:PublicLeaderboardEntrySchema",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/schemas.py",
+      "target": "class:apps/developers/schemas.py:PublicLeaderboardEntrySchema",
+      "type": "exports",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/models.py",
+      "target": "file:apps/accounts/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/accounts/views.py",
+      "target": "file:apps/accounts/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/assets/models.py",
+      "target": "file:apps/assets/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/assets/api.py",
+      "target": "file:apps/assets/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/assets/registry.py",
+      "target": "file:apps/assets/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/chat/models.py",
+      "target": "file:apps/chat/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/chat/internal_api.py",
+      "target": "file:apps/chat/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/crafting/models.py",
+      "target": "file:apps/crafting/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "file:apps/crafting/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/developers/models.py",
+      "target": "file:apps/developers/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/developers/views.py",
+      "target": "file:apps/developers/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/developers/oauth_views.py",
+      "target": "file:apps/developers/tests.py",
+      "type": "tested_by",
+      "weight": 0.5
+    },
+    {
+      "source": "func:apps/accounts/friends_api.py:FriendsController.send_request",
+      "target": "file:apps/notifications/services.py",
+      "type": "calls",
+      "weight": 0.8
+    },
+    {
+      "source": "func:apps/accounts/social_auth.py:_provision_starter_items",
+      "target": "file:apps/inventory/models.py",
+      "type": "calls",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/views.py",
+      "target": "file:apps/pagination.py",
+      "type": "calls",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/accounts/messages_api.py",
+      "target": "file:apps/notifications/publisher.py",
+      "type": "calls",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/chat/internal_api.py",
+      "target": "file:apps/internal_auth.py",
+      "type": "calls",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/crafting/views.py",
+      "target": "file:apps/inventory/views.py",
+      "type": "calls",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/developers/signals.py",
+      "target": "file:apps/developers/tasks.py",
+      "type": "calls",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/assets/models.py",
+      "target": "file:apps/utils.py",
+      "type": "calls",
+      "weight": 0.8
+    }
+  ]
+}

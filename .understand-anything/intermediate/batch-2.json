@@ -1,0 +1,578 @@
+{
+  "batchIndex": 2,
+  "nodes": [
+    {
+      "id": "file:apps/geo/models.py",
+      "type": "file",
+      "label": "geo/models.py",
+      "language": "python",
+      "path": "apps/geo/models.py",
+      "description": "Geospatial data models: Country (ISO countries with MultiPolygon geometry) and Region (provinces with PostGIS geometry, game map fields, neighbors, sea distances, buildings/capital data)"
+    },
+    {
+      "id": "class:apps/geo/models.py:Country",
+      "type": "class",
+      "label": "Country",
+      "path": "apps/geo/models.py",
+      "description": "Django model for countries with UUID PK, name, ISO 3166-1 alpha-3 code, and MultiPolygon geometry (SRID 4326)"
+    },
+    {
+      "id": "class:apps/geo/models.py:Region",
+      "type": "class",
+      "label": "Region",
+      "path": "apps/geo/models.py",
+      "description": "Django model for map regions/provinces with PostGIS geometry, game-coordinate polygon data, centroid, neighbors (M2M self), tiles, buildings, capital data, sea distances, coastal flag, and population weight"
+    },
+    {
+      "id": "file:apps/geo/views.py",
+      "type": "file",
+      "label": "geo/views.py",
+      "language": "python",
+      "path": "apps/geo/views.py",
+      "description": "Geo API controller providing endpoints for countries, regions (GeoJSON), region shapes (pixel-space for Pixi.js), MVT vector tiles, and neighbor graph. Uses PostGIS spatial queries and Redis caching."
+    },
+    {
+      "id": "class:apps/geo/views.py:GeoController",
+      "type": "class",
+      "label": "GeoController",
+      "path": "apps/geo/views.py",
+      "description": "API controller (/geo/) with endpoints: list_countries, regions_graph, region_shapes (game coords to pixel space), get_tile (MVT vector tiles via PostGIS), list_regions (GeoJSON), get_region. All public (no auth)."
+    },
+    {
+      "id": "func:apps/geo/views.py:GeoController.region_shapes",
+      "type": "function",
+      "label": "GeoController.region_shapes",
+      "path": "apps/geo/views.py",
+      "description": "Returns region polygons in normalized pixel space for Pixi.js rendering. Maps game coordinates to canvas using texture-aligned bounds (27x16 chunk grid). Includes world_texture rect for chunk placement. Cached 24h."
+    },
+    {
+      "id": "func:apps/geo/views.py:GeoController.get_tile",
+      "type": "function",
+      "label": "GeoController.get_tile",
+      "path": "apps/geo/views.py",
+      "description": "Serves MVT (Mapbox Vector Tiles) via raw PostGIS SQL (ST_AsMVT/ST_AsMVTGeom). Supports match-specific country filtering. Cached 24h in Redis."
+    },
+    {
+      "id": "file:apps/geo/schemas.py",
+      "type": "file",
+      "label": "geo/schemas.py",
+      "language": "python",
+      "path": "apps/geo/schemas.py",
+      "description": "Pydantic schemas for geo API: CountryOutSchema, RegionOutSchema (with centroid lat/lng resolvers), RegionPixelShape, PixelBounds, RegionShapesOutSchema, GeoJSON feature schemas"
+    },
+    {
+      "id": "file:apps/geo/management/commands/import_geo.py",
+      "type": "file",
+      "label": "import_geo.py",
+      "language": "python",
+      "path": "apps/geo/management/commands/import_geo.py",
+      "description": "Django management command to import Natural Earth countries and regions (admin level 1) from GeoJSON URLs. Calculates region neighbors via PostGIS ST_Touches."
+    },
+    {
+      "id": "file:apps/geo/management/commands/import_provinces_v2.py",
+      "type": "file",
+      "label": "import_provinces_v2.py",
+      "language": "python",
+      "path": "apps/geo/management/commands/import_provinces_v2.py",
+      "description": "Django management command to import game provinces from provinces_source_v2.json. Converts game pixel coordinates to WGS-84, builds PostGIS MultiPolygons, sets neighbor relationships and sea distance bands."
+    },
+    {
+      "id": "file:apps/internal_auth.py",
+      "type": "file",
+      "label": "internal_auth.py",
+      "language": "python",
+      "path": "apps/internal_auth.py",
+      "description": "Utility function check_internal_secret() that verifies X-Internal-Secret header for securing internal API endpoints between Rust gateway and Django"
+    },
+    {
+      "id": "func:apps/internal_auth.py:check_internal_secret",
+      "type": "function",
+      "label": "check_internal_secret",
+      "path": "apps/internal_auth.py",
+      "description": "Verifies X-Internal-Secret header matches configured INTERNAL_SECRET setting. Used by all /api/internal/ endpoints."
+    },
+    {
+      "id": "file:apps/inventory/models.py",
+      "type": "file",
+      "label": "inventory/models.py",
+      "language": "python",
+      "path": "apps/inventory/models.py",
+      "description": "Inventory system models: ItemCategory, Item (with rarity, types: material/blueprint/boost/crate/key/cosmetic), UserInventory (stackable stacks), ItemDrop, Wallet (gold), Deck, DeckItem, ItemInstance (CS2-style unique items with wear/pattern/StatTrak), EquippedCosmetic, CosmeticSlot choices"
+    },
+    {
+      "id": "class:apps/inventory/models.py:Item",
+      "type": "class",
+      "label": "Item",
+      "path": "apps/inventory/models.py",
+      "description": "Core item definition model with rarity (common-legendary), item types (material, blueprint_building/unit, tactical_package, boost, crate, key, cosmetic), crate loot tables, boost params, blueprint refs, cosmetic slots/assets"
+    },
+    {
+      "id": "class:apps/inventory/models.py:ItemInstance",
+      "type": "class",
+      "label": "ItemInstance",
+      "path": "apps/inventory/models.py",
+      "description": "CS2-style unique item instance with pattern_seed (0-999), wear (0.0-1.0 mapped to Factory New through Battle-Scarred), StatTrak counters (matches/kills/units), nametag, provenance tracking (first_owner, crafted_by, dropped_from_match)"
+    },
+    {
+      "id": "class:apps/inventory/models.py:Wallet",
+      "type": "class",
+      "label": "Wallet",
+      "path": "apps/inventory/models.py",
+      "description": "Persistent gold wallet (OneToOne with User). Tracks gold balance, total_earned, total_spent."
+    },
+    {
+      "id": "class:apps/inventory/models.py:Deck",
+      "type": "class",
+      "label": "Deck",
+      "path": "apps/inventory/models.py",
+      "description": "Pre-match loadout of items (blueprints, boosts, ability scrolls). Has is_default flag with unique enforcement in save()."
+    },
+    {
+      "id": "class:apps/inventory/models.py:EquippedCosmetic",
+      "type": "class",
+      "label": "EquippedCosmetic",
+      "path": "apps/inventory/models.py",
+      "description": "Tracks equipped cosmetic per user per slot. Unique constraint on (user, slot)."
+    },
+    {
+      "id": "class:apps/inventory/models.py:CosmeticSlot",
+      "type": "class",
+      "label": "CosmeticSlot",
+      "path": "apps/inventory/models.py",
+      "description": "TextChoices enum defining all cosmetic slots: unit skins, building skins, VFX (attack/move/nuke/capture/defend/elimination/victory), ability skins, profile (emblem/frame/title/flag), audio (sound/music)"
+    },
+    {
+      "id": "file:apps/inventory/views.py",
+      "type": "file",
+      "label": "inventory/views.py",
+      "language": "python",
+      "path": "apps/inventory/views.py",
+      "description": "Inventory API controllers: InventoryController (/inventory/) for items, inventory, wallet, drops, crate opening, cosmetics; DeckController (/inventory/decks/) for deck CRUD with validation. Helper functions: add_item_to_inventory, remove_item_from_inventory, create_item_instance."
+    },
+    {
+      "id": "class:apps/inventory/views.py:InventoryController",
+      "type": "class",
+      "label": "InventoryController",
+      "path": "apps/inventory/views.py",
+      "description": "API controller (/inventory/) with endpoints: list_items, my_inventory (unified stacks+instances), get_instance, rename_instance, my_wallet, my_drops, open_crate, equipped_cosmetics, equip_cosmetic, unequip_cosmetic. Module-gated by 'inventory'."
+    },
+    {
+      "id": "class:apps/inventory/views.py:DeckController",
+      "type": "class",
+      "label": "DeckController",
+      "path": "apps/inventory/views.py",
+      "description": "API controller (/inventory/decks/) with endpoints: list_decks, create_deck, get_deck, update_deck (with item type/quantity/blueprint_ref validation), delete_deck, set_default_deck. Module-gated by 'cosmetics'."
+    },
+    {
+      "id": "func:apps/inventory/views.py:add_item_to_inventory",
+      "type": "function",
+      "label": "add_item_to_inventory",
+      "path": "apps/inventory/views.py",
+      "description": "Adds items to user inventory. Stackable: increments UserInventory.quantity. Non-stackable: creates ItemInstance(s) with random pattern/wear/StatTrak."
+    },
+    {
+      "id": "func:apps/inventory/views.py:remove_item_from_inventory",
+      "type": "function",
+      "label": "remove_item_from_inventory",
+      "path": "apps/inventory/views.py",
+      "description": "Removes items from user inventory. Stackable: decrements quantity. Non-stackable: deletes oldest instances."
+    },
+    {
+      "id": "func:apps/inventory/views.py:create_item_instance",
+      "type": "function",
+      "label": "create_item_instance",
+      "path": "apps/inventory/views.py",
+      "description": "Creates a new unique ItemInstance with random pattern_seed (0-999), wear (range varies by rarity), and StatTrak chance (varies by rarity)."
+    },
+    {
+      "id": "file:apps/inventory/schemas.py",
+      "type": "file",
+      "label": "inventory/schemas.py",
+      "language": "python",
+      "path": "apps/inventory/schemas.py",
+      "description": "Pydantic schemas for inventory API: ItemOutSchema, ItemInstanceOutSchema (with wear_condition/is_rare_pattern resolvers), ItemCategoryOutSchema, InventoryItemOutSchema, WalletOutSchema, ItemDropOutSchema, DeckOutSchema, EquippedCosmeticOutSchema, input schemas for crate/deck/cosmetic operations"
+    },
+    {
+      "id": "file:apps/inventory/tasks.py",
+      "type": "file",
+      "label": "inventory/tasks.py",
+      "language": "python",
+      "path": "apps/inventory/tasks.py",
+      "description": "Post-match item drop generation. Winners get 80 gold + 4-7 drops, losers get 35 gold + 2-4 drops. Drops weighted: 70% materials (qty 2-4), 20% equipment (qty 1), 10% any. Rarity weights favor winners. Celery task wrapper."
+    },
+    {
+      "id": "func:apps/inventory/tasks.py:generate_match_drops",
+      "type": "function",
+      "label": "generate_match_drops",
+      "path": "apps/inventory/tasks.py",
+      "description": "Generates item drops and gold rewards for all human players after a match. Called from finalize_match_results_sync. Uses weighted rarity rolls across material/equipment/other pools."
+    },
+    {
+      "id": "file:apps/inventory/admin.py",
+      "type": "file",
+      "label": "inventory/admin.py",
+      "language": "python",
+      "path": "apps/inventory/admin.py",
+      "description": "Django admin registration for all inventory models with Unfold-based ModelAdmin classes, tabular inlines, display decorators, and filters"
+    },
+    {
+      "id": "file:apps/marketplace/models.py",
+      "type": "file",
+      "label": "marketplace/models.py",
+      "language": "python",
+      "path": "apps/marketplace/models.py",
+      "description": "Marketplace models: MarketListing (buy/sell orders with status, expiry, bot flag, instance support), MarketTransaction (trade records with fee), MarketConfig (singleton with fee %, duration, limits, bot restock config)"
+    },
+    {
+      "id": "class:apps/marketplace/models.py:MarketListing",
+      "type": "class",
+      "label": "MarketListing",
+      "path": "apps/marketplace/models.py",
+      "description": "Buy or sell order on the marketplace. Has listing_type (sell/buy), status (active/fulfilled/cancelled/expired), price_per_unit, quantity_remaining, expiry, bot_listing flag, optional ItemInstance FK."
+    },
+    {
+      "id": "class:apps/marketplace/models.py:MarketTransaction",
+      "type": "class",
+      "label": "MarketTransaction",
+      "path": "apps/marketplace/models.py",
+      "description": "Record of a completed marketplace trade. Tracks buyer, seller, item, quantity, price, fee (gold sink)."
+    },
+    {
+      "id": "class:apps/marketplace/models.py:MarketConfig",
+      "type": "class",
+      "label": "MarketConfig",
+      "path": "apps/marketplace/models.py",
+      "description": "Singleton marketplace config with transaction_fee_percent, listing_duration_hours, max_active_listings_per_user, bot restock settings. Uses fixed UUID PK."
+    },
+    {
+      "id": "file:apps/marketplace/views.py",
+      "type": "file",
+      "label": "marketplace/views.py",
+      "language": "python",
+      "path": "apps/marketplace/views.py",
+      "description": "Marketplace API controller (/marketplace/) with endpoints: get_config, list_active listings, my_listings, history, create_listing (sell/buy with escrow), buy_from_listing (with fee calculation and atomic gold transfer), cancel_listing (return items/gold). Module-gated."
+    },
+    {
+      "id": "class:apps/marketplace/views.py:MarketplaceController",
+      "type": "class",
+      "label": "MarketplaceController",
+      "path": "apps/marketplace/views.py",
+      "description": "API controller handling marketplace operations. Sell orders escrow items, buy orders escrow gold. Transactions use select_for_update for concurrency safety. Fee calculated from MarketConfig."
+    },
+    {
+      "id": "file:apps/marketplace/tasks.py",
+      "type": "file",
+      "label": "marketplace/tasks.py",
+      "language": "python",
+      "path": "apps/marketplace/tasks.py",
+      "description": "Celery tasks: bot_restock_marketplace (ensures 3 sell listings per tradeable item from MarketBot with price variance), expire_old_listings (returns items/gold to sellers on expiry)"
+    },
+    {
+      "id": "file:apps/marketplace/schemas.py",
+      "type": "file",
+      "label": "marketplace/schemas.py",
+      "language": "python",
+      "path": "apps/marketplace/schemas.py",
+      "description": "Pydantic schemas for marketplace: MarketListingOutSchema, CreateListingInSchema, BuyFromListingInSchema, MarketTransactionOutSchema, MarketConfigOutSchema"
+    },
+    {
+      "id": "file:apps/matchmaking/models.py",
+      "type": "file",
+      "label": "matchmaking/models.py",
+      "language": "python",
+      "path": "apps/matchmaking/models.py",
+      "description": "Matchmaking models: Match (status workflow: waiting->selecting->in_progress->finished/cancelled, game_mode, map_config, settings_snapshot), MatchPlayer (color, alive status, capital_region, deck/cosmetic snapshots), MatchQueue, Lobby (with status flow), LobbyPlayer"
+    },
+    {
+      "id": "class:apps/matchmaking/models.py:Match",
+      "type": "class",
+      "label": "Match",
+      "path": "apps/matchmaking/models.py",
+      "description": "Core match model with status (waiting/selecting/in_progress/finished/cancelled), FK to GameMode and MapConfig, winner, settings_snapshot JSON, is_tutorial flag, timestamps"
+    },
+    {
+      "id": "class:apps/matchmaking/models.py:MatchPlayer",
+      "type": "class",
+      "label": "MatchPlayer",
+      "path": "apps/matchmaking/models.py",
+      "description": "Player in a match. Tracks color, is_alive, capital_region FK, deck_snapshot (consumed items), cosmetic_snapshot (frozen asset URLs), eliminated_at"
+    },
+    {
+      "id": "class:apps/matchmaking/models.py:Lobby",
+      "type": "class",
+      "label": "Lobby",
+      "path": "apps/matchmaking/models.py",
+      "description": "Pre-match lobby with status (waiting/full/ready/starting/cancelled), host_user, max_players, optional Match FK, full_at for ready timeout tracking"
+    },
+    {
+      "id": "class:apps/matchmaking/models.py:MatchQueue",
+      "type": "class",
+      "label": "MatchQueue",
+      "path": "apps/matchmaking/models.py",
+      "description": "Matchmaking queue entry (OneToOne with User). Tracks game_mode and join time."
+    },
+    {
+      "id": "file:apps/matchmaking/views.py",
+      "type": "file",
+      "label": "matchmaking/views.py",
+      "language": "python",
+      "path": "apps/matchmaking/views.py",
+      "description": "Match and Tutorial API controllers: MatchController (/matches/) for listing/viewing matches; TutorialController (/matches/tutorial/) for starting/cleaning up tutorial matches with overridden cheap costs"
+    },
+    {
+      "id": "class:apps/matchmaking/views.py:MatchController",
+      "type": "class",
+      "label": "MatchController",
+      "path": "apps/matchmaking/views.py",
+      "description": "API controller (/matches/) with list_my_matches, list_player_matches, get_match. Excludes tutorial matches. Module-gated by 'matchmaking'."
+    },
+    {
+      "id": "class:apps/matchmaking/views.py:TutorialController",
+      "type": "class",
+      "label": "TutorialController",
+      "path": "apps/matchmaking/views.py",
+      "description": "API controller (/matches/tutorial/) for tutorial match lifecycle. start_tutorial creates a match with cheap building/unit costs, assigns TutorialBot, sets status to SELECTING. cleanup_tutorial deletes user's tutorial matches."
+    },
+    {
+      "id": "file:apps/matchmaking/internal_api.py",
+      "type": "file",
+      "label": "matchmaking/internal_api.py",
+      "language": "python",
+      "path": "apps/matchmaking/internal_api.py",
+      "description": "Internal API for Rust gateway. Endpoints: queue add/remove/count, try_match (creates Match with full settings snapshot), fill_with_bots, active-match lookup, lobby CRUD (create/join/leave/ready/start/kick/invite), get_game_config. Also: _consume_default_deck and _build_cosmetic_snapshot helpers."
+    },
+    {
+      "id": "class:apps/matchmaking/internal_api.py:MatchmakingInternalController",
+      "type": "class",
+      "label": "MatchmakingInternalController",
+      "path": "apps/matchmaking/internal_api.py",
+      "description": "Internal API controller (/internal/matchmaking/) secured by X-Internal-Secret. Handles queue management, match creation with full game config snapshots, bot filling, lobby operations, and active match lookup."
+    },
+    {
+      "id": "func:apps/matchmaking/internal_api.py:_consume_default_deck",
+      "type": "function",
+      "label": "_consume_default_deck",
+      "path": "apps/matchmaking/internal_api.py",
+      "description": "Consumes items from user's default deck at match start. Non-consumables verified but not removed; consumables removed from inventory and deck. Returns snapshot with unlocked_buildings, building_levels, unlocked_units, ability_scrolls, active_boosts, instance_ids."
+    },
+    {
+      "id": "func:apps/matchmaking/internal_api.py:_build_cosmetic_snapshot",
+      "type": "function",
+      "label": "_build_cosmetic_snapshot",
+      "path": "apps/matchmaking/internal_api.py",
+      "description": "Builds cosmetic snapshot for match. Static skins stored as {slot: url}, VFX slots as {slot: {url, params, instance_id}}. Frozen at match start."
+    },
+    {
+      "id": "file:apps/matchmaking/schemas.py",
+      "type": "file",
+      "label": "matchmaking/schemas.py",
+      "language": "python",
+      "path": "apps/matchmaking/schemas.py",
+      "description": "Pydantic schemas: MatchPlayerOutSchema (with username/is_banned resolvers), MatchOutSchema, MatchQueueOutSchema"
+    },
+    {
+      "id": "file:apps/matchmaking/tasks.py",
+      "type": "file",
+      "label": "matchmaking/tasks.py",
+      "language": "python",
+      "path": "apps/matchmaking/tasks.py",
+      "description": "Celery task cleanup_stale_lobbies: kicks unready players from full lobbies past 2min timeout, cancels stale waiting lobbies (>10min), cancels empty lobbies. Publishes events to Redis for gateway notification."
+    },
+    {
+      "id": "file:apps/matchmaking/events.py",
+      "type": "file",
+      "label": "matchmaking/events.py",
+      "language": "python",
+      "path": "apps/matchmaking/events.py",
+      "description": "Publishes lobby events to Redis pub/sub channel 'lobby:events' for the Rust gateway to consume and broadcast via WebSocket"
+    },
+    {
+      "id": "func:apps/matchmaking/events.py:publish_lobby_event",
+      "type": "function",
+      "label": "publish_lobby_event",
+      "path": "apps/matchmaking/events.py",
+      "description": "Publishes JSON event to 'lobby:events' Redis channel. Used for lobby state changes (players_kicked, lobby_cancelled, etc.)."
+    },
+    {
+      "id": "file:apps/matchmaking/admin.py",
+      "type": "file",
+      "label": "matchmaking/admin.py",
+      "language": "python",
+      "path": "apps/matchmaking/admin.py",
+      "description": "Django admin for Match (with cancel action via Redis), MatchPlayer, MatchQueue, Lobby, LobbyPlayer. Uses Unfold-based admin with status display labels."
+    },
+    {
+      "id": "file:apps/notifications/models.py",
+      "type": "file",
+      "label": "notifications/models.py",
+      "language": "python",
+      "path": "apps/notifications/models.py",
+      "description": "Notification model with types: friend_request_received/accepted, match_won/lost, player_eliminated, game_invite. Tracks user, title, body, data JSON, is_read flag."
+    },
+    {
+      "id": "class:apps/notifications/models.py:Notification",
+      "type": "class",
+      "label": "Notification",
+      "path": "apps/notifications/models.py",
+      "description": "Notification model with type choices, title, body, JSON data, is_read flag. Indexed on (user, is_read, -created_at)."
+    },
+    {
+      "id": "file:apps/notifications/publisher.py",
+      "type": "file",
+      "label": "notifications/publisher.py",
+      "language": "python",
+      "path": "apps/notifications/publisher.py",
+      "description": "Publishes social events to Redis 'social:events' channel for Rust gateway to forward to user WebSocket connections"
+    },
+    {
+      "id": "func:apps/notifications/publisher.py:publish_social_event",
+      "type": "function",
+      "label": "publish_social_event",
+      "path": "apps/notifications/publisher.py",
+      "description": "Publishes JSON event (type, user_id, payload) to 'social:events' Redis channel. Gateway subscribes and forwards to user's WebSocket."
+    },
+    {
+      "id": "file:apps/notifications/services.py",
+      "type": "file",
+      "label": "notifications/services.py",
+      "language": "python",
+      "path": "apps/notifications/services.py",
+      "description": "Notification service functions: create_notification (DB + real-time via Redis), notify_friend_request_received/accepted, notify_match_result, notify_player_eliminated, notify_game_invite. Polish-language notification titles."
+    },
+    {
+      "id": "func:apps/notifications/services.py:create_notification",
+      "type": "function",
+      "label": "create_notification",
+      "path": "apps/notifications/services.py",
+      "description": "Creates DB notification and pushes real-time via publish_social_event to Redis -> Rust gateway -> WebSocket"
+    },
+    {
+      "id": "file:apps/notifications/views.py",
+      "type": "file",
+      "label": "notifications/views.py",
+      "language": "python",
+      "path": "apps/notifications/views.py",
+      "description": "Notification API controller (/notifications/) with list, unread_count, mark_read, mark_all_read endpoints. JWT auth required."
+    },
+    {
+      "id": "class:apps/notifications/views.py:NotificationController",
+      "type": "class",
+      "label": "NotificationController",
+      "path": "apps/notifications/views.py",
+      "description": "API controller for notification CRUD. Endpoints: list (paginated), unread_count, mark_read (single), mark_all_read."
+    },
+    {
+      "id": "file:apps/notifications/schemas.py",
+      "type": "file",
+      "label": "notifications/schemas.py",
+      "language": "python",
+      "path": "apps/notifications/schemas.py",
+      "description": "Pydantic schema: NotificationOutSchema (id, type, title, body, data, is_read, created_at)"
+    }
+  ],
+  "edges": [
+    {"source": "file:apps/geo/models.py", "target": "class:apps/geo/models.py:Country", "type": "contains"},
+    {"source": "file:apps/geo/models.py", "target": "class:apps/geo/models.py:Region", "type": "contains"},
+    {"source": "class:apps/geo/models.py:Region", "target": "class:apps/geo/models.py:Country", "type": "references", "label": "ForeignKey country"},
+    {"source": "class:apps/geo/models.py:Region", "target": "class:apps/geo/models.py:Region", "type": "references", "label": "M2M neighbors (self)"},
+
+    {"source": "file:apps/geo/views.py", "target": "class:apps/geo/views.py:GeoController", "type": "contains"},
+    {"source": "class:apps/geo/views.py:GeoController", "target": "func:apps/geo/views.py:GeoController.region_shapes", "type": "contains"},
+    {"source": "class:apps/geo/views.py:GeoController", "target": "func:apps/geo/views.py:GeoController.get_tile", "type": "contains"},
+    {"source": "file:apps/geo/views.py", "target": "file:apps/geo/models.py", "type": "imports", "label": "Country, Region"},
+    {"source": "file:apps/geo/views.py", "target": "file:apps/geo/schemas.py", "type": "imports", "label": "CountryOutSchema, RegionOutSchema, RegionShapesOutSchema"},
+    {"source": "class:apps/geo/views.py:GeoController", "target": "class:apps/matchmaking/models.py:Match", "type": "references", "label": "_country_codes_for_match queries Match"},
+
+    {"source": "file:apps/geo/management/commands/import_geo.py", "target": "class:apps/geo/models.py:Country", "type": "references", "label": "creates Country records"},
+    {"source": "file:apps/geo/management/commands/import_geo.py", "target": "class:apps/geo/models.py:Region", "type": "references", "label": "creates Region records with PostGIS ST_Touches neighbors"},
+    {"source": "file:apps/geo/management/commands/import_provinces_v2.py", "target": "class:apps/geo/models.py:Country", "type": "references", "label": "creates/gets GAM country"},
+    {"source": "file:apps/geo/management/commands/import_provinces_v2.py", "target": "class:apps/geo/models.py:Region", "type": "references", "label": "creates Region records from game province data"},
+
+    {"source": "file:apps/internal_auth.py", "target": "func:apps/internal_auth.py:check_internal_secret", "type": "contains"},
+
+    {"source": "file:apps/inventory/models.py", "target": "class:apps/inventory/models.py:Item", "type": "contains"},
+    {"source": "file:apps/inventory/models.py", "target": "class:apps/inventory/models.py:ItemInstance", "type": "contains"},
+    {"source": "file:apps/inventory/models.py", "target": "class:apps/inventory/models.py:Wallet", "type": "contains"},
+    {"source": "file:apps/inventory/models.py", "target": "class:apps/inventory/models.py:Deck", "type": "contains"},
+    {"source": "file:apps/inventory/models.py", "target": "class:apps/inventory/models.py:EquippedCosmetic", "type": "contains"},
+    {"source": "file:apps/inventory/models.py", "target": "class:apps/inventory/models.py:CosmeticSlot", "type": "contains"},
+    {"source": "class:apps/inventory/models.py:ItemInstance", "target": "class:apps/inventory/models.py:Item", "type": "references", "label": "ForeignKey item"},
+    {"source": "class:apps/inventory/models.py:EquippedCosmetic", "target": "class:apps/inventory/models.py:Item", "type": "references", "label": "ForeignKey item (cosmetic only)"},
+    {"source": "class:apps/inventory/models.py:EquippedCosmetic", "target": "class:apps/inventory/models.py:ItemInstance", "type": "references", "label": "ForeignKey instance"},
+
+    {"source": "file:apps/inventory/views.py", "target": "class:apps/inventory/views.py:InventoryController", "type": "contains"},
+    {"source": "file:apps/inventory/views.py", "target": "class:apps/inventory/views.py:DeckController", "type": "contains"},
+    {"source": "file:apps/inventory/views.py", "target": "func:apps/inventory/views.py:add_item_to_inventory", "type": "contains"},
+    {"source": "file:apps/inventory/views.py", "target": "func:apps/inventory/views.py:remove_item_from_inventory", "type": "contains"},
+    {"source": "file:apps/inventory/views.py", "target": "func:apps/inventory/views.py:create_item_instance", "type": "contains"},
+    {"source": "file:apps/inventory/views.py", "target": "file:apps/inventory/models.py", "type": "imports"},
+    {"source": "file:apps/inventory/views.py", "target": "file:apps/inventory/schemas.py", "type": "imports"},
+    {"source": "func:apps/inventory/views.py:add_item_to_inventory", "target": "func:apps/inventory/views.py:create_item_instance", "type": "calls"},
+
+    {"source": "file:apps/inventory/tasks.py", "target": "func:apps/inventory/tasks.py:generate_match_drops", "type": "contains"},
+    {"source": "func:apps/inventory/tasks.py:generate_match_drops", "target": "func:apps/inventory/views.py:add_item_to_inventory", "type": "calls"},
+    {"source": "func:apps/inventory/tasks.py:generate_match_drops", "target": "class:apps/inventory/models.py:Wallet", "type": "references", "label": "adds gold to wallet"},
+    {"source": "func:apps/inventory/tasks.py:generate_match_drops", "target": "class:apps/inventory/models.py:Item", "type": "references", "label": "queries droppable items"},
+
+    {"source": "file:apps/marketplace/models.py", "target": "class:apps/marketplace/models.py:MarketListing", "type": "contains"},
+    {"source": "file:apps/marketplace/models.py", "target": "class:apps/marketplace/models.py:MarketTransaction", "type": "contains"},
+    {"source": "file:apps/marketplace/models.py", "target": "class:apps/marketplace/models.py:MarketConfig", "type": "contains"},
+    {"source": "class:apps/marketplace/models.py:MarketListing", "target": "class:apps/inventory/models.py:Item", "type": "references", "label": "ForeignKey item"},
+    {"source": "class:apps/marketplace/models.py:MarketListing", "target": "class:apps/inventory/models.py:ItemInstance", "type": "references", "label": "ForeignKey instance (optional)"},
+    {"source": "class:apps/marketplace/models.py:MarketTransaction", "target": "class:apps/marketplace/models.py:MarketListing", "type": "references", "label": "ForeignKey listing"},
+
+    {"source": "file:apps/marketplace/views.py", "target": "class:apps/marketplace/views.py:MarketplaceController", "type": "contains"},
+    {"source": "file:apps/marketplace/views.py", "target": "file:apps/marketplace/models.py", "type": "imports"},
+    {"source": "file:apps/marketplace/views.py", "target": "file:apps/inventory/views.py", "type": "imports", "label": "add_item_to_inventory, remove_item_from_inventory, get_or_create_wallet"},
+    {"source": "file:apps/marketplace/views.py", "target": "file:apps/inventory/models.py", "type": "imports", "label": "Item, UserInventory, Wallet"},
+    {"source": "class:apps/marketplace/views.py:MarketplaceController", "target": "class:apps/inventory/models.py:Wallet", "type": "references", "label": "gold transfer"},
+
+    {"source": "file:apps/marketplace/tasks.py", "target": "file:apps/marketplace/models.py", "type": "imports"},
+    {"source": "file:apps/marketplace/tasks.py", "target": "file:apps/inventory/models.py", "type": "imports", "label": "Item"},
+    {"source": "file:apps/marketplace/tasks.py", "target": "func:apps/inventory/views.py:add_item_to_inventory", "type": "calls", "label": "expire_old_listings returns items"},
+
+    {"source": "file:apps/matchmaking/models.py", "target": "class:apps/matchmaking/models.py:Match", "type": "contains"},
+    {"source": "file:apps/matchmaking/models.py", "target": "class:apps/matchmaking/models.py:MatchPlayer", "type": "contains"},
+    {"source": "file:apps/matchmaking/models.py", "target": "class:apps/matchmaking/models.py:MatchQueue", "type": "contains"},
+    {"source": "file:apps/matchmaking/models.py", "target": "class:apps/matchmaking/models.py:Lobby", "type": "contains"},
+    {"source": "class:apps/matchmaking/models.py:MatchPlayer", "target": "class:apps/matchmaking/models.py:Match", "type": "references", "label": "ForeignKey match"},
+    {"source": "class:apps/matchmaking/models.py:MatchPlayer", "target": "class:apps/geo/models.py:Region", "type": "references", "label": "ForeignKey capital_region"},
+    {"source": "class:apps/matchmaking/models.py:Lobby", "target": "class:apps/matchmaking/models.py:Match", "type": "references", "label": "OneToOne match"},
+
+    {"source": "file:apps/matchmaking/views.py", "target": "class:apps/matchmaking/views.py:MatchController", "type": "contains"},
+    {"source": "file:apps/matchmaking/views.py", "target": "class:apps/matchmaking/views.py:TutorialController", "type": "contains"},
+    {"source": "file:apps/matchmaking/views.py", "target": "file:apps/matchmaking/models.py", "type": "imports"},
+    {"source": "class:apps/matchmaking/views.py:TutorialController", "target": "class:apps/matchmaking/models.py:Match", "type": "references", "label": "creates tutorial match"},
+    {"source": "class:apps/matchmaking/views.py:TutorialController", "target": "class:apps/matchmaking/models.py:MatchPlayer", "type": "references", "label": "creates player entries"},
+
+    {"source": "file:apps/matchmaking/internal_api.py", "target": "class:apps/matchmaking/internal_api.py:MatchmakingInternalController", "type": "contains"},
+    {"source": "file:apps/matchmaking/internal_api.py", "target": "func:apps/matchmaking/internal_api.py:_consume_default_deck", "type": "contains"},
+    {"source": "file:apps/matchmaking/internal_api.py", "target": "func:apps/matchmaking/internal_api.py:_build_cosmetic_snapshot", "type": "contains"},
+    {"source": "file:apps/matchmaking/internal_api.py", "target": "file:apps/internal_auth.py", "type": "imports", "label": "check_internal_secret"},
+    {"source": "func:apps/matchmaking/internal_api.py:_consume_default_deck", "target": "class:apps/inventory/models.py:Deck", "type": "references", "label": "reads default deck"},
+    {"source": "func:apps/matchmaking/internal_api.py:_consume_default_deck", "target": "class:apps/inventory/models.py:Item", "type": "references", "label": "classifies items into snapshot"},
+    {"source": "func:apps/matchmaking/internal_api.py:_build_cosmetic_snapshot", "target": "class:apps/inventory/models.py:EquippedCosmetic", "type": "references", "label": "queries equipped cosmetics"},
+    {"source": "class:apps/matchmaking/internal_api.py:MatchmakingInternalController", "target": "class:apps/matchmaking/models.py:Match", "type": "references", "label": "creates Match with settings snapshot"},
+    {"source": "class:apps/matchmaking/internal_api.py:MatchmakingInternalController", "target": "class:apps/matchmaking/models.py:MatchQueue", "type": "references", "label": "manages queue entries"},
+    {"source": "class:apps/matchmaking/internal_api.py:MatchmakingInternalController", "target": "class:apps/matchmaking/models.py:Lobby", "type": "references", "label": "lobby CRUD operations"},
+
+    {"source": "file:apps/matchmaking/tasks.py", "target": "file:apps/matchmaking/models.py", "type": "imports", "label": "Lobby"},
+    {"source": "file:apps/matchmaking/tasks.py", "target": "func:apps/matchmaking/events.py:publish_lobby_event", "type": "calls"},
+
+    {"source": "file:apps/matchmaking/events.py", "target": "func:apps/matchmaking/events.py:publish_lobby_event", "type": "contains"},
+
+    {"source": "file:apps/notifications/models.py", "target": "class:apps/notifications/models.py:Notification", "type": "contains"},
+
+    {"source": "file:apps/notifications/publisher.py", "target": "func:apps/notifications/publisher.py:publish_social_event", "type": "contains"},
+
+    {"source": "file:apps/notifications/services.py", "target": "func:apps/notifications/services.py:create_notification", "type": "contains"},
+    {"source": "file:apps/notifications/services.py", "target": "file:apps/notifications/models.py", "type": "imports"},
+    {"source": "file:apps/notifications/services.py", "target": "func:apps/notifications/publisher.py:publish_social_event", "type": "calls"},
+    {"source": "func:apps/notifications/services.py:create_notification", "target": "class:apps/notifications/models.py:Notification", "type": "references", "label": "creates Notification"},
+    {"source": "func:apps/notifications/services.py:create_notification", "target": "func:apps/notifications/publisher.py:publish_social_event", "type": "calls", "label": "pushes real-time via Redis"},
+
+    {"source": "file:apps/notifications/views.py", "target": "class:apps/notifications/views.py:NotificationController", "type": "contains"},
+    {"source": "file:apps/notifications/views.py", "target": "file:apps/notifications/models.py", "type": "imports"},
+    {"source": "file:apps/notifications/views.py", "target": "file:apps/notifications/schemas.py", "type": "imports"}
+  ]
+}

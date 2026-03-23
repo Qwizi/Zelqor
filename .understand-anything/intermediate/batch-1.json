@@ -1,0 +1,751 @@
+{
+  "nodes": [
+    {
+      "id": "file:apps/developers/signals.py",
+      "type": "file",
+      "name": "signals.py",
+      "filePath": "apps/developers/signals.py",
+      "summary": "Django signal handler that dispatches webhook events when match status changes via post_save signal on Match model.",
+      "tags": ["django", "signals", "webhooks"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/developers/tasks.py",
+      "type": "file",
+      "name": "tasks.py",
+      "filePath": "apps/developers/tasks.py",
+      "summary": "Celery tasks for webhook delivery: dispatch_webhook_event fans out to all active webhooks, deliver_webhook performs HMAC-signed HTTP POST with retry logic and failure tracking.",
+      "tags": ["celery", "webhooks", "tasks", "hmac"],
+      "complexity": "medium"
+    },
+    {
+      "id": "func:apps/developers/tasks.py:deliver_webhook",
+      "type": "function",
+      "name": "deliver_webhook",
+      "filePath": "apps/developers/tasks.py",
+      "summary": "Celery task that delivers a webhook payload via HTTP POST with HMAC signature, records delivery status, and tracks failures.",
+      "tags": ["celery", "webhook", "hmac"],
+      "complexity": "medium"
+    },
+    {
+      "id": "file:apps/developers/tests.py",
+      "type": "file",
+      "name": "tests.py",
+      "filePath": "apps/developers/tests.py",
+      "summary": "Comprehensive test suite for the developers app: model tests (DeveloperApp, APIKey, Webhook, OAuth), API endpoint tests, API key auth tests, OAuth flow tests, and usage stats tests.",
+      "tags": ["tests", "django", "oauth", "api-keys", "webhooks"],
+      "complexity": "high"
+    },
+    {
+      "id": "file:apps/developers/views.py",
+      "type": "file",
+      "name": "views.py",
+      "filePath": "apps/developers/views.py",
+      "summary": "Django Ninja Extra controller for the developer platform API: CRUD for apps, API keys, webhooks, webhook testing/delivery listing, usage stats, and scope/event enumeration.",
+      "tags": ["django", "api", "controller", "developers"],
+      "complexity": "high"
+    },
+    {
+      "id": "class:apps/developers/views.py:DeveloperController",
+      "type": "class",
+      "name": "DeveloperController",
+      "filePath": "apps/developers/views.py",
+      "summary": "API controller with 18 endpoints for managing developer apps, API keys, webhooks, usage stats, and available scopes/events. Requires JWT authentication.",
+      "tags": ["controller", "api", "developers"],
+      "complexity": "high"
+    },
+    {
+      "id": "file:apps/game/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/game/__init__.py",
+      "summary": "Empty package init for the game Django app.",
+      "tags": ["init"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game/admin.py",
+      "type": "file",
+      "name": "admin.py",
+      "filePath": "apps/game/admin.py",
+      "summary": "Django admin configuration for game models: GameStateSnapshot, MatchResult, and PlayerResult with Unfold admin styling.",
+      "tags": ["django", "admin"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game/apps.py",
+      "type": "file",
+      "name": "apps.py",
+      "filePath": "apps/game/apps.py",
+      "summary": "Django app configuration for the game app.",
+      "tags": ["django", "config"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game/internal_api.py",
+      "type": "file",
+      "name": "internal_api.py",
+      "filePath": "apps/game/internal_api.py",
+      "summary": "Internal API controller for Rust gateway communication: snapshot save/retrieve, match finalization/cleanup, user verification, match data retrieval, anti-cheat reporting, player banning, ELO compensation, neighbor maps, and system modules. Secured by X-Internal-Secret header.",
+      "tags": ["django", "internal-api", "gateway", "anti-cheat", "elo"],
+      "complexity": "high"
+    },
+    {
+      "id": "class:apps/game/internal_api.py:GameInternalController",
+      "type": "class",
+      "name": "GameInternalController",
+      "filePath": "apps/game/internal_api.py",
+      "summary": "Internal API controller with 18 endpoints used by the Rust gateway: snapshot management, match lifecycle, user/player verification, anti-cheat, banning, ELO compensation, and geo data.",
+      "tags": ["controller", "internal-api", "gateway"],
+      "complexity": "high"
+    },
+    {
+      "id": "file:apps/game/management/commands/flush_game_redis.py",
+      "type": "file",
+      "name": "flush_game_redis.py",
+      "filePath": "apps/game/management/commands/flush_game_redis.py",
+      "summary": "Django management command to flush all game-related Redis keys (match state, queues, caches).",
+      "tags": ["management-command", "redis", "cleanup"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game/models.py",
+      "type": "file",
+      "name": "models.py",
+      "filePath": "apps/game/models.py",
+      "summary": "Game data models: GameStateSnapshot (tick-based state persistence), MatchResult (match outcome), PlayerResult (per-player stats and ELO changes), ShareLink (shareable match links), AnticheatViolation (recorded cheating violations).",
+      "tags": ["django", "models", "game", "elo", "anti-cheat"],
+      "complexity": "medium"
+    },
+    {
+      "id": "class:apps/game/models.py:GameStateSnapshot",
+      "type": "class",
+      "name": "GameStateSnapshot",
+      "filePath": "apps/game/models.py",
+      "summary": "Stores periodic snapshots of game state at a given tick for a match, enabling replay and recovery.",
+      "tags": ["model", "snapshot"],
+      "complexity": "low"
+    },
+    {
+      "id": "class:apps/game/models.py:MatchResult",
+      "type": "class",
+      "name": "MatchResult",
+      "filePath": "apps/game/models.py",
+      "summary": "Records final match outcome including duration and total ticks played.",
+      "tags": ["model", "match-result"],
+      "complexity": "low"
+    },
+    {
+      "id": "class:apps/game/models.py:PlayerResult",
+      "type": "class",
+      "name": "PlayerResult",
+      "filePath": "apps/game/models.py",
+      "summary": "Per-player match statistics: placement, regions conquered, units produced/lost, buildings built, and ELO change.",
+      "tags": ["model", "player-stats", "elo"],
+      "complexity": "low"
+    },
+    {
+      "id": "class:apps/game/models.py:AnticheatViolation",
+      "type": "class",
+      "name": "AnticheatViolation",
+      "filePath": "apps/game/models.py",
+      "summary": "Records anti-cheat violations with match, player, violation kind, severity, detail, and tick information.",
+      "tags": ["model", "anti-cheat"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game/schemas.py",
+      "type": "file",
+      "name": "schemas.py",
+      "filePath": "apps/game/schemas.py",
+      "summary": "Pydantic/Ninja schemas for game API responses: match results, player results, snapshots, share links, and shared resource schemas for public match viewing.",
+      "tags": ["schemas", "pydantic", "api"],
+      "complexity": "medium"
+    },
+    {
+      "id": "file:apps/game/tasks.py",
+      "type": "file",
+      "name": "tasks.py",
+      "filePath": "apps/game/tasks.py",
+      "summary": "Celery tasks and sync functions for game lifecycle: ELO calculation with zero-sum balancing, match result finalization (stats extraction, item drops, webhook dispatch, notifications), snapshot saving, Redis state cleanup, stale match cleanup, and stale queue entry cleanup.",
+      "tags": ["celery", "tasks", "elo", "match-finalization", "cleanup"],
+      "complexity": "high"
+    },
+    {
+      "id": "func:apps/game/tasks.py:finalize_match_results_sync",
+      "type": "function",
+      "name": "finalize_match_results_sync",
+      "filePath": "apps/game/tasks.py",
+      "summary": "Core match finalization logic (303 lines): extracts player stats from final game state, calculates ELO changes with zero-sum balancing, creates MatchResult/PlayerResult records, handles item drops, dispatches webhooks, and sends notifications.",
+      "tags": ["elo", "match-finalization", "stats"],
+      "complexity": "high"
+    },
+    {
+      "id": "func:apps/game/tasks.py:cleanup_stale_matches",
+      "type": "function",
+      "name": "cleanup_stale_matches",
+      "filePath": "apps/game/tasks.py",
+      "summary": "Periodic Celery task that cancels matches stuck in selecting/in_progress status beyond configured timeout, cleans up Redis state.",
+      "tags": ["celery", "cleanup"],
+      "complexity": "medium"
+    },
+    {
+      "id": "file:apps/game/tests.py",
+      "type": "file",
+      "name": "tests.py",
+      "filePath": "apps/game/tests.py",
+      "summary": "Extensive test suite (1206 lines) for the game app: ELO calculation tests, match finalization tests, stale match cleanup tests, Redis cleanup tests, model string representation tests, and comprehensive internal API endpoint tests.",
+      "tags": ["tests", "elo", "internal-api"],
+      "complexity": "high"
+    },
+    {
+      "id": "file:apps/game/views.py",
+      "type": "file",
+      "name": "views.py",
+      "filePath": "apps/game/views.py",
+      "summary": "Public API controllers: GameController for match results and snapshots, ShareController for creating and resolving shareable match/replay links.",
+      "tags": ["django", "api", "controller", "sharing"],
+      "complexity": "medium"
+    },
+    {
+      "id": "class:apps/game/views.py:GameController",
+      "type": "class",
+      "name": "GameController",
+      "filePath": "apps/game/views.py",
+      "summary": "Public API controller for viewing match results, listing snapshot ticks, and retrieving specific snapshots.",
+      "tags": ["controller", "api"],
+      "complexity": "low"
+    },
+    {
+      "id": "class:apps/game/views.py:ShareController",
+      "type": "class",
+      "name": "ShareController",
+      "filePath": "apps/game/views.py",
+      "summary": "API controller for creating shareable match links and resolving shared resources (matches, replays) by token.",
+      "tags": ["controller", "api", "sharing"],
+      "complexity": "medium"
+    },
+    {
+      "id": "file:apps/game_config/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/game_config/__init__.py",
+      "summary": "Empty package init for the game_config Django app.",
+      "tags": ["init"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game_config/admin.py",
+      "type": "file",
+      "name": "admin.py",
+      "filePath": "apps/game_config/admin.py",
+      "summary": "Django admin configuration for all game config models: GameSettings (singleton), GameMode, BuildingType, UnitType, AbilityType, MapConfig, and SystemModule with Unfold styling, inline overrides, and dynamic form generation.",
+      "tags": ["django", "admin", "game-config"],
+      "complexity": "high"
+    },
+    {
+      "id": "file:apps/game_config/apps.py",
+      "type": "file",
+      "name": "apps.py",
+      "filePath": "apps/game_config/apps.py",
+      "summary": "Django app configuration for the game_config app.",
+      "tags": ["django", "config"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game_config/decorators.py",
+      "type": "file",
+      "name": "decorators.py",
+      "filePath": "apps/game_config/decorators.py",
+      "summary": "Decorators for feature-gating endpoints based on SystemModule enabled status: require_module for views, require_module_controller for Ninja Extra controllers.",
+      "tags": ["decorators", "feature-flags", "system-modules"],
+      "complexity": "medium"
+    },
+    {
+      "id": "func:apps/game_config/decorators.py:require_module",
+      "type": "function",
+      "name": "require_module",
+      "filePath": "apps/game_config/decorators.py",
+      "summary": "Decorator that gates a view function behind a SystemModule slug check, returning 403 if the module is disabled.",
+      "tags": ["decorator", "feature-flag"],
+      "complexity": "medium"
+    },
+    {
+      "id": "func:apps/game_config/decorators.py:require_module_controller",
+      "type": "function",
+      "name": "require_module_controller",
+      "filePath": "apps/game_config/decorators.py",
+      "summary": "Decorator variant for Ninja Extra controllers that gates endpoints behind SystemModule enabled status.",
+      "tags": ["decorator", "feature-flag"],
+      "complexity": "medium"
+    },
+    {
+      "id": "file:apps/game_config/forms.py",
+      "type": "file",
+      "name": "forms.py",
+      "filePath": "apps/game_config/forms.py",
+      "summary": "Dynamic Django ModelForm for SystemModule admin: generates config fields from JSON schema, handles validation and serialization of module-specific configuration.",
+      "tags": ["django", "forms", "system-modules"],
+      "complexity": "high"
+    },
+    {
+      "id": "class:apps/game_config/forms.py:SystemModuleForm",
+      "type": "class",
+      "name": "SystemModuleForm",
+      "filePath": "apps/game_config/forms.py",
+      "summary": "Dynamic ModelForm that generates form fields from SystemModule JSON config schema, validates and serializes config values back to JSON.",
+      "tags": ["form", "dynamic", "system-modules"],
+      "complexity": "high"
+    },
+    {
+      "id": "file:apps/game_config/management/commands/load_game_config.py",
+      "type": "file",
+      "name": "load_game_config.py",
+      "filePath": "apps/game_config/management/commands/load_game_config.py",
+      "summary": "Management command (693 lines) to load/merge game configuration from JSON files: settings, buildings, units, abilities, maps, and game modes with dev override support and smart merging of new default fields.",
+      "tags": ["management-command", "game-config", "data-loading"],
+      "complexity": "high"
+    },
+    {
+      "id": "file:apps/game_config/management/commands/seed_game_data.py",
+      "type": "file",
+      "name": "seed_game_data.py",
+      "filePath": "apps/game_config/management/commands/seed_game_data.py",
+      "summary": "Management command to seed initial game data: creates default GameSettings, BuildingTypes, UnitTypes, AbilityTypes, and GameMode with hardcoded default values.",
+      "tags": ["management-command", "seeding", "game-config"],
+      "complexity": "medium"
+    },
+    {
+      "id": "file:apps/game_config/models.py",
+      "type": "file",
+      "name": "models.py",
+      "filePath": "apps/game_config/models.py",
+      "summary": "Core game configuration models (585 lines): GameSettings (singleton), BuildingType, UnitType (with combat stats, level scaling), AbilityType (with level stats), MapConfig, GameMode (with AP costs, combat fatigue, region cooldowns), SystemModule (feature flags with JSON config), and module override models.",
+      "tags": ["django", "models", "game-config", "feature-flags"],
+      "complexity": "high"
+    },
+    {
+      "id": "file:apps/game_config/modules.py",
+      "type": "file",
+      "name": "modules.py",
+      "filePath": "apps/game_config/modules.py",
+      "summary": "SystemModule utility functions: get_module_config retrieves cached module configuration, is_module_enabled checks module status, and defines MODULE_REGISTRY with default configs for all system modules.",
+      "tags": ["system-modules", "feature-flags", "caching"],
+      "complexity": "medium"
+    },
+    {
+      "id": "file:apps/game_config/schemas.py",
+      "type": "file",
+      "name": "schemas.py",
+      "filePath": "apps/game_config/schemas.py",
+      "summary": "Pydantic schemas for game config API responses: GameSettings, BuildingType, UnitType, AbilityType, MapConfig, GameMode, and SystemModule output schemas with nested relationships.",
+      "tags": ["schemas", "pydantic", "game-config"],
+      "complexity": "medium"
+    },
+    {
+      "id": "file:apps/game_config/tests.py",
+      "type": "file",
+      "name": "tests.py",
+      "filePath": "apps/game_config/tests.py",
+      "summary": "Tests for game_config: model creation tests, API endpoint tests for settings/units/buildings/abilities/maps/game-modes, and system module decorator tests.",
+      "tags": ["tests", "game-config"],
+      "complexity": "medium"
+    },
+    {
+      "id": "file:apps/game_config/views.py",
+      "type": "file",
+      "name": "views.py",
+      "filePath": "apps/game_config/views.py",
+      "summary": "Public API controller for game configuration: endpoints to retrieve settings, list active units/buildings/abilities/maps/game-modes, and list system modules.",
+      "tags": ["django", "api", "controller", "game-config"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/geo/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "apps/geo/__init__.py",
+      "summary": "Empty package init for the geo Django app.",
+      "tags": ["init"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/geo/admin.py",
+      "type": "file",
+      "name": "admin.py",
+      "filePath": "apps/geo/admin.py",
+      "summary": "Django admin configuration for geo models: Country and Region with Unfold admin styling, search, and filtering.",
+      "tags": ["django", "admin", "geo"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/geo/apps.py",
+      "type": "file",
+      "name": "apps.py",
+      "filePath": "apps/geo/apps.py",
+      "summary": "Django app configuration for the geo app.",
+      "tags": ["django", "config"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game/migrations/0001_initial.py",
+      "type": "file",
+      "name": "0001_initial.py",
+      "filePath": "apps/game/migrations/0001_initial.py",
+      "summary": "Initial migration creating GameStateSnapshot and MatchResult models.",
+      "tags": ["migration"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game/migrations/0002_initial.py",
+      "type": "file",
+      "name": "0002_initial.py",
+      "filePath": "apps/game/migrations/0002_initial.py",
+      "summary": "Migration creating PlayerResult model with foreign keys to MatchResult and User.",
+      "tags": ["migration"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game/migrations/0003_sharelink.py",
+      "type": "file",
+      "name": "0003_sharelink.py",
+      "filePath": "apps/game/migrations/0003_sharelink.py",
+      "summary": "Migration adding ShareLink model for shareable match links.",
+      "tags": ["migration"],
+      "complexity": "low"
+    },
+    {
+      "id": "file:apps/game/migrations/0004_anticheatviolation.py",
+      "type": "file",
+      "name": "0004_anticheatviolation.py",
+      "filePath": "apps/game/migrations/0004_anticheatviolation.py",
+      "summary": "Migration adding AnticheatViolation model for recording cheating violations.",
+      "tags": ["migration"],
+      "complexity": "low"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:apps/developers/signals.py",
+      "target": "file:apps/developers/tasks.py",
+      "type": "imports",
+      "label": "imports dispatch_webhook_event",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/tasks.py",
+      "target": "func:apps/developers/tasks.py:deliver_webhook",
+      "type": "contains",
+      "label": "contains deliver_webhook",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/views.py",
+      "target": "class:apps/developers/views.py:DeveloperController",
+      "type": "contains",
+      "label": "contains DeveloperController",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/developers/views.py",
+      "target": "file:apps/developers/tasks.py",
+      "type": "imports",
+      "label": "imports deliver_webhook",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/developers/tests.py",
+      "target": "file:apps/developers/views.py",
+      "type": "tested_by",
+      "label": "tests developer API endpoints",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/developers/tests.py",
+      "target": "file:apps/developers/tasks.py",
+      "type": "tested_by",
+      "label": "tests webhook delivery tasks",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/game/admin.py",
+      "target": "file:apps/game/models.py",
+      "type": "imports",
+      "label": "imports GameStateSnapshot, MatchResult, PlayerResult",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/internal_api.py",
+      "target": "class:apps/game/internal_api.py:GameInternalController",
+      "type": "contains",
+      "label": "contains GameInternalController",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game/internal_api.py",
+      "target": "file:apps/game/models.py",
+      "type": "imports",
+      "label": "imports GameStateSnapshot, AnticheatViolation, PlayerResult",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/internal_api.py",
+      "target": "file:apps/game/tasks.py",
+      "type": "imports",
+      "label": "imports finalize_match_results_sync, cleanup_redis_game_state",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/models.py",
+      "target": "class:apps/game/models.py:GameStateSnapshot",
+      "type": "contains",
+      "label": "contains GameStateSnapshot",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game/models.py",
+      "target": "class:apps/game/models.py:MatchResult",
+      "type": "contains",
+      "label": "contains MatchResult",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game/models.py",
+      "target": "class:apps/game/models.py:PlayerResult",
+      "type": "contains",
+      "label": "contains PlayerResult",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game/models.py",
+      "target": "class:apps/game/models.py:AnticheatViolation",
+      "type": "contains",
+      "label": "contains AnticheatViolation",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game/schemas.py",
+      "target": "file:apps/game/models.py",
+      "type": "imports",
+      "label": "schemas reference game models",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/tasks.py",
+      "target": "func:apps/game/tasks.py:finalize_match_results_sync",
+      "type": "contains",
+      "label": "contains finalize_match_results_sync",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game/tasks.py",
+      "target": "func:apps/game/tasks.py:cleanup_stale_matches",
+      "type": "contains",
+      "label": "contains cleanup_stale_matches",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game/tasks.py",
+      "target": "file:apps/game/models.py",
+      "type": "imports",
+      "label": "imports GameStateSnapshot, MatchResult, PlayerResult",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/tasks.py",
+      "target": "file:apps/game_config/modules.py",
+      "type": "imports",
+      "label": "imports get_module_config",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/tasks.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "imports",
+      "label": "imports GameSettings",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/tasks.py",
+      "target": "file:apps/developers/tasks.py",
+      "type": "calls",
+      "label": "calls dispatch_webhook_event on match finalization",
+      "weight": 0.8
+    },
+    {
+      "source": "file:apps/game/tests.py",
+      "target": "file:apps/game/tasks.py",
+      "type": "tested_by",
+      "label": "tests ELO calculations and match finalization",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/game/tests.py",
+      "target": "file:apps/game/internal_api.py",
+      "type": "tested_by",
+      "label": "tests all internal API endpoints",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/game/tests.py",
+      "target": "file:apps/game/models.py",
+      "type": "imports",
+      "label": "imports GameStateSnapshot, MatchResult, PlayerResult, AnticheatViolation",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/views.py",
+      "target": "class:apps/game/views.py:GameController",
+      "type": "contains",
+      "label": "contains GameController",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game/views.py",
+      "target": "class:apps/game/views.py:ShareController",
+      "type": "contains",
+      "label": "contains ShareController",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game/views.py",
+      "target": "file:apps/game/models.py",
+      "type": "imports",
+      "label": "imports GameStateSnapshot, MatchResult, ShareLink",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/views.py",
+      "target": "file:apps/game/schemas.py",
+      "type": "imports",
+      "label": "imports response schemas",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/views.py",
+      "target": "file:apps/game_config/decorators.py",
+      "type": "imports",
+      "label": "imports require_module_controller",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game_config/admin.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "imports",
+      "label": "imports all game config models",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game_config/admin.py",
+      "target": "file:apps/game_config/forms.py",
+      "type": "imports",
+      "label": "imports SystemModuleForm",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game_config/decorators.py",
+      "target": "func:apps/game_config/decorators.py:require_module",
+      "type": "contains",
+      "label": "contains require_module",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game_config/decorators.py",
+      "target": "func:apps/game_config/decorators.py:require_module_controller",
+      "type": "contains",
+      "label": "contains require_module_controller",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game_config/decorators.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "imports",
+      "label": "imports SystemModule",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game_config/forms.py",
+      "target": "class:apps/game_config/forms.py:SystemModuleForm",
+      "type": "contains",
+      "label": "contains SystemModuleForm",
+      "weight": 1.0
+    },
+    {
+      "source": "file:apps/game_config/forms.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "imports",
+      "label": "imports SystemModule",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game_config/management/commands/load_game_config.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "imports",
+      "label": "imports all game config model types",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game_config/management/commands/seed_game_data.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "imports",
+      "label": "imports game config models for seeding",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game_config/modules.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "imports",
+      "label": "imports SystemModule for config retrieval",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game_config/tests.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "tested_by",
+      "label": "tests game config models",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/game_config/tests.py",
+      "target": "file:apps/game_config/views.py",
+      "type": "tested_by",
+      "label": "tests game config API endpoints",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/game_config/tests.py",
+      "target": "file:apps/game_config/decorators.py",
+      "type": "tested_by",
+      "label": "tests system module decorators",
+      "weight": 0.5
+    },
+    {
+      "source": "file:apps/game_config/views.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "imports",
+      "label": "imports game config models for API",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game_config/views.py",
+      "target": "file:apps/game_config/schemas.py",
+      "type": "imports",
+      "label": "imports game config schemas",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/game/internal_api.py",
+      "target": "file:apps/game_config/models.py",
+      "type": "imports",
+      "label": "imports SystemModule for system modules endpoint",
+      "weight": 0.7
+    },
+    {
+      "source": "file:apps/geo/admin.py",
+      "target": "file:apps/geo/apps.py",
+      "type": "imports",
+      "label": "admin uses geo models",
+      "weight": 0.7
+    }
+  ]
+}

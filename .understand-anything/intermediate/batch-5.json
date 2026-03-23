@@ -1,0 +1,1244 @@
+{
+  "batchIndex": 5,
+  "nodes": [
+    {
+      "id": "file:frontend/hooks/useSocialSocket.ts",
+      "type": "file",
+      "label": "useSocialSocket.ts",
+      "path": "frontend/hooks/useSocialSocket.ts",
+      "summary": "React hook for social WebSocket connection (notifications and direct messages). Manages auto-reconnect with 3s backoff, dispatches events to registered handlers via pub/sub pattern.",
+      "tags": ["hook", "websocket", "social", "notifications", "direct-messages"],
+      "complexity": "low",
+      "lines": 99
+    },
+    {
+      "id": "func:frontend/hooks/useSocialSocket.ts:useSocialSocket",
+      "type": "function",
+      "label": "useSocialSocket",
+      "path": "frontend/hooks/useSocialSocket.ts",
+      "line": 20,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/hooks/useSystemModules.ts",
+      "type": "file",
+      "label": "useSystemModules.ts",
+      "path": "frontend/hooks/useSystemModules.ts",
+      "summary": "React context and hooks for system module feature flags. Provides isEnabled, getConfig, getConfigValue for runtime feature toggling (fail-open by default).",
+      "tags": ["hook", "feature-flags", "context", "system-modules"],
+      "complexity": "low",
+      "lines": 90
+    },
+    {
+      "id": "func:frontend/hooks/useSystemModules.ts:useSystemModules",
+      "type": "function",
+      "label": "useSystemModules",
+      "path": "frontend/hooks/useSystemModules.ts",
+      "line": 36,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/hooks/useSystemModules.ts:useModuleConfig",
+      "type": "function",
+      "label": "useModuleConfig",
+      "path": "frontend/hooks/useSystemModules.ts",
+      "line": 48,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/hooks/useSystemModules.ts:buildSystemModulesValue",
+      "type": "function",
+      "label": "buildSystemModulesValue",
+      "path": "frontend/hooks/useSystemModules.ts",
+      "line": 68,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/hooks/useTutorial.ts",
+      "type": "file",
+      "label": "useTutorial.ts",
+      "path": "frontend/hooks/useTutorial.ts",
+      "summary": "React hook managing tutorial step progression. Computes step index from game state conditions, supports manual/auto advance, skip/back, and sends tick multiplier changes via WebSocket.",
+      "tags": ["hook", "tutorial", "game-state", "step-progression"],
+      "complexity": "medium",
+      "lines": 133
+    },
+    {
+      "id": "func:frontend/hooks/useTutorial.ts:useTutorial",
+      "type": "function",
+      "label": "useTutorial",
+      "path": "frontend/hooks/useTutorial.ts",
+      "line": 42,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/hooks/useTutorial.ts:computeStepIndex",
+      "type": "function",
+      "label": "computeStepIndex",
+      "path": "frontend/hooks/useTutorial.ts",
+      "line": 25
+    },
+    {
+      "id": "file:frontend/hooks/useVoiceChat.ts",
+      "type": "file",
+      "label": "useVoiceChat.ts",
+      "path": "frontend/hooks/useVoiceChat.ts",
+      "summary": "React hook wrapping LiveKit voice chat. Dynamically imports livekit-client (~500KB) only on join. Manages room connection, mic toggle, peer tracking, and audio element lifecycle.",
+      "tags": ["hook", "voice-chat", "livekit", "webrtc", "dynamic-import"],
+      "complexity": "high",
+      "lines": 196
+    },
+    {
+      "id": "func:frontend/hooks/useVoiceChat.ts:useVoiceChat",
+      "type": "function",
+      "label": "useVoiceChat",
+      "path": "frontend/hooks/useVoiceChat.ts",
+      "line": 64,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/lib/animationConfig.ts",
+      "type": "file",
+      "label": "animationConfig.ts",
+      "path": "frontend/lib/animationConfig.ts",
+      "summary": "Single source of truth for unit animation parameters (trail, icon, pulse, impact). Defines ANIMATION_DEFAULTS per unit kind (fighter, ship, tank, infantry, bomber, nuke), cosmetic VFX slot resolution, and deep-merge for player cosmetic overrides.",
+      "tags": ["animation", "config", "cosmetics", "vfx", "unit-types"],
+      "complexity": "high",
+      "lines": 686
+    },
+    {
+      "id": "func:frontend/lib/animationConfig.ts:resolveAnimConfig",
+      "type": "function",
+      "label": "resolveAnimConfig",
+      "path": "frontend/lib/animationConfig.ts",
+      "line": 653,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/animationConfig.ts:getEliminationVfx",
+      "type": "function",
+      "label": "getEliminationVfx",
+      "path": "frontend/lib/animationConfig.ts",
+      "line": 552,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/animationConfig.ts:getVictoryVfx",
+      "type": "function",
+      "label": "getVictoryVfx",
+      "path": "frontend/lib/animationConfig.ts",
+      "line": 567,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/animationConfig.ts:deepMerge",
+      "type": "function",
+      "label": "deepMerge",
+      "path": "frontend/lib/animationConfig.ts",
+      "line": 602
+    },
+    {
+      "id": "file:frontend/lib/api.ts",
+      "type": "file",
+      "label": "api.ts",
+      "path": "frontend/lib/api.ts",
+      "summary": "Central REST API client for all backend endpoints. 1481 lines covering auth, config, geo, matches, replays, tutorials, share links, developer platform, inventory, marketplace, crafting, decks, OAuth, friends, DMs, and notifications. Uses fetchAPI wrapper with JWT auth.",
+      "tags": ["api-client", "rest", "jwt", "auth", "inventory", "marketplace", "developer-platform", "social"],
+      "complexity": "high",
+      "lines": 1481
+    },
+    {
+      "id": "class:frontend/lib/api.ts:APIError",
+      "type": "class",
+      "label": "APIError",
+      "path": "frontend/lib/api.ts",
+      "line": 38,
+      "exported": true
+    },
+    {
+      "id": "class:frontend/lib/api.ts:BannedError",
+      "type": "class",
+      "label": "BannedError",
+      "path": "frontend/lib/api.ts",
+      "line": 86,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/api.ts:fetchAPI",
+      "type": "function",
+      "label": "fetchAPI",
+      "path": "frontend/lib/api.ts",
+      "line": 12
+    },
+    {
+      "id": "func:frontend/lib/api.ts:getConfig",
+      "type": "function",
+      "label": "getConfig",
+      "path": "frontend/lib/api.ts",
+      "line": 453,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/api.ts:login",
+      "type": "function",
+      "label": "login",
+      "path": "frontend/lib/api.ts",
+      "line": 93,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/api.ts:getMe",
+      "type": "function",
+      "label": "getMe",
+      "path": "frontend/lib/api.ts",
+      "line": 131,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/lib/assetOverrides.ts",
+      "type": "file",
+      "label": "assetOverrides.ts",
+      "path": "frontend/lib/assetOverrides.ts",
+      "summary": "Loads asset URL overrides from the backend API. Provides getAssetUrl and getOverrideUrl for substituting default asset paths with admin-configured URLs.",
+      "tags": ["assets", "overrides", "config"],
+      "complexity": "low",
+      "lines": 36
+    },
+    {
+      "id": "func:frontend/lib/assetOverrides.ts:loadAssetOverrides",
+      "type": "function",
+      "label": "loadAssetOverrides",
+      "path": "frontend/lib/assetOverrides.ts",
+      "line": 10,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/assetOverrides.ts:getAssetUrl",
+      "type": "function",
+      "label": "getAssetUrl",
+      "path": "frontend/lib/assetOverrides.ts",
+      "line": 34,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/lib/auth.ts",
+      "type": "file",
+      "label": "auth.ts",
+      "path": "frontend/lib/auth.ts",
+      "summary": "Client-side JWT token management using localStorage. Provides getAccessToken, getRefreshToken, setTokens, clearTokens, isLoggedIn helpers.",
+      "tags": ["auth", "jwt", "localStorage", "tokens"],
+      "complexity": "low",
+      "lines": 26
+    },
+    {
+      "id": "func:frontend/lib/auth.ts:getAccessToken",
+      "type": "function",
+      "label": "getAccessToken",
+      "path": "frontend/lib/auth.ts",
+      "line": 4,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/auth.ts:setTokens",
+      "type": "function",
+      "label": "setTokens",
+      "path": "frontend/lib/auth.ts",
+      "line": 14,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/auth.ts:clearTokens",
+      "type": "function",
+      "label": "clearTokens",
+      "path": "frontend/lib/auth.ts",
+      "line": 19,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/lib/gameAssets.ts",
+      "type": "file",
+      "label": "gameAssets.ts",
+      "path": "frontend/lib/gameAssets.ts",
+      "summary": "Asset resolution for buildings and units with cosmetic override priority. Maps building/unit slugs to SVG/WebP paths, supports per-player cosmetic overrides via slot maps.",
+      "tags": ["assets", "buildings", "units", "cosmetics", "resolution"],
+      "complexity": "medium",
+      "lines": 190
+    },
+    {
+      "id": "func:frontend/lib/gameAssets.ts:getBuildingAsset",
+      "type": "function",
+      "label": "getBuildingAsset",
+      "path": "frontend/lib/gameAssets.ts",
+      "line": 19,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/gameAssets.ts:getUnitAsset",
+      "type": "function",
+      "label": "getUnitAsset",
+      "path": "frontend/lib/gameAssets.ts",
+      "line": 28,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/gameAssets.ts:getPlayerBuildingAsset",
+      "type": "function",
+      "label": "getPlayerBuildingAsset",
+      "path": "frontend/lib/gameAssets.ts",
+      "line": 84,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/gameAssets.ts:getPlayerUnitAsset",
+      "type": "function",
+      "label": "getPlayerUnitAsset",
+      "path": "frontend/lib/gameAssets.ts",
+      "line": 134,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/gameAssets.ts:getActionAsset",
+      "type": "function",
+      "label": "getActionAsset",
+      "path": "frontend/lib/gameAssets.ts",
+      "line": 157,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/lib/gameTravel.js",
+      "type": "file",
+      "label": "gameTravel.js",
+      "path": "frontend/lib/gameTravel.js",
+      "summary": "BFS-based travel distance computation for unit movement. Handles land (BFS hop count) and sea (distance score lookup) movement types.",
+      "tags": ["pathfinding", "bfs", "travel", "sea-distance", "movement"],
+      "complexity": "medium",
+      "lines": 50
+    },
+    {
+      "id": "func:frontend/lib/gameTravel.js:getTravelDistance",
+      "type": "function",
+      "label": "getTravelDistance",
+      "path": "frontend/lib/gameTravel.js",
+      "line": 14,
+      "exported": true
+    },
+    {
+      "id": "func:frontend/lib/gameTravel.js:getSeaDistanceScore",
+      "type": "function",
+      "label": "getSeaDistanceScore",
+      "path": "frontend/lib/gameTravel.js",
+      "line": 1,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/lib/gameTypes.ts",
+      "type": "file",
+      "label": "gameTypes.ts",
+      "path": "frontend/lib/gameTypes.ts",
+      "summary": "Shared game type definitions: Action Point costs, TroopAnimation, PlannedMove, Diplomacy types (War, Pact, DiplomacyProposal, PeaceConditions). Used across map renderers and game page.",
+      "tags": ["types", "game-state", "diplomacy", "action-points", "animations"],
+      "complexity": "low",
+      "lines": 111
+    },
+    {
+      "id": "file:frontend/lib/particleSystem.ts",
+      "type": "file",
+      "label": "particleSystem.ts",
+      "path": "frontend/lib/particleSystem.ts",
+      "summary": "Custom behavior-based particle system for PixiJS 8. Sprite-based particles with object pooling for weather effects and combat VFX at 60fps. Supports alpha, scale, color, speed, direction, rotation, acceleration behaviors.",
+      "tags": ["pixi", "particles", "vfx", "weather", "animation", "object-pooling"],
+      "complexity": "high",
+      "lines": 1366
+    },
+    {
+      "id": "class:frontend/lib/particleSystem.ts:Particle",
+      "type": "class",
+      "label": "Particle",
+      "path": "frontend/lib/particleSystem.ts",
+      "line": 92,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/lib/pixiAnimations.ts",
+      "type": "file",
+      "label": "pixiAnimations.ts",
+      "path": "frontend/lib/pixiAnimations.ts",
+      "summary": "Standalone PixiJS animation manager for game unit movement. Renders trails, icons, pulse rings, impact flashes, and bombing waypoints in a Pixi Container. Replaces MapLibre GL GeoJSON-based animation loop.",
+      "tags": ["pixi", "animation", "units", "trails", "combat-vfx", "rendering"],
+      "complexity": "very-high",
+      "lines": 1880
+    },
+    {
+      "id": "file:frontend/lib/pow.ts",
+      "type": "file",
+      "label": "pow.ts",
+      "path": "frontend/lib/pow.ts",
+      "summary": "Proof-of-work challenge solver using Web Worker. Delegates SHA-256 nonce-finding to pow-worker.js with configurable timeout.",
+      "tags": ["security", "proof-of-work", "web-worker", "anti-bot"],
+      "complexity": "low",
+      "lines": 28
+    },
+    {
+      "id": "func:frontend/lib/pow.ts:solveChallenge",
+      "type": "function",
+      "label": "solveChallenge",
+      "path": "frontend/lib/pow.ts",
+      "line": 2,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/lib/projection.ts",
+      "type": "file",
+      "label": "projection.ts",
+      "path": "frontend/lib/projection.ts",
+      "summary": "Mercator projection utilities for converting geographic coordinates (lng/lat) to pixel space. Uses Web Mercator (EPSG:3857) formula matching MapLibre GL.",
+      "tags": ["geo", "projection", "mercator", "coordinates"],
+      "complexity": "low",
+      "lines": 64
+    },
+    {
+      "id": "func:frontend/lib/projection.ts:lngLatToPixel",
+      "type": "function",
+      "label": "lngLatToPixel",
+      "path": "frontend/lib/projection.ts",
+      "line": 43,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/lib/tutorialSteps.ts",
+      "type": "file",
+      "label": "tutorialSteps.ts",
+      "path": "frontend/lib/tutorialSteps.ts",
+      "summary": "Tutorial step definitions with 19 steps covering capital selection, economy, attacks, expansion, buildings, 5 abilities (conscription, shield, virus, submarine, nuke), enemy warning, and victory. Each step has conditions, highlight regions, tick multipliers.",
+      "tags": ["tutorial", "steps", "game-flow", "abilities", "onboarding"],
+      "complexity": "medium",
+      "lines": 284
+    },
+    {
+      "id": "file:frontend/lib/utils.ts",
+      "type": "file",
+      "label": "utils.ts",
+      "path": "frontend/lib/utils.ts",
+      "summary": "Utility function cn() combining clsx and tailwind-merge for conditional className joining.",
+      "tags": ["utility", "tailwind", "css"],
+      "complexity": "trivial",
+      "lines": 6
+    },
+    {
+      "id": "func:frontend/lib/utils.ts:cn",
+      "type": "function",
+      "label": "cn",
+      "path": "frontend/lib/utils.ts",
+      "line": 4,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/lib/ws.ts",
+      "type": "file",
+      "label": "ws.ts",
+      "path": "frontend/lib/ws.ts",
+      "summary": "WebSocket factory function createSocket. Auto-detects protocol from page origin, appends JWT token/ticket/nonce as query params, handles JSON parsing and error logging.",
+      "tags": ["websocket", "factory", "connection", "jwt"],
+      "complexity": "low",
+      "lines": 52
+    },
+    {
+      "id": "func:frontend/lib/ws.ts:createSocket",
+      "type": "function",
+      "label": "createSocket",
+      "path": "frontend/lib/ws.ts",
+      "line": 15,
+      "exported": true
+    },
+    {
+      "id": "file:frontend/next.config.ts",
+      "type": "file",
+      "label": "next.config.ts",
+      "path": "frontend/next.config.ts",
+      "summary": "Next.js configuration with standalone output, image remote patterns, API/WS proxy rewrites to backend, and Serwist PWA integration.",
+      "tags": ["config", "nextjs", "pwa", "proxy"],
+      "complexity": "low",
+      "lines": 34
+    },
+    {
+      "id": "file:frontend/vitest.config.ts",
+      "type": "file",
+      "label": "vitest.config.ts",
+      "path": "frontend/vitest.config.ts",
+      "summary": "Vitest test configuration: jsdom environment, React plugin, path alias @/ for frontend root.",
+      "tags": ["config", "testing", "vitest"],
+      "complexity": "trivial",
+      "lines": 22
+    },
+    {
+      "id": "file:frontend/public/pow-worker.js",
+      "type": "file",
+      "label": "pow-worker.js",
+      "path": "frontend/public/pow-worker.js",
+      "summary": "Web Worker for proof-of-work computation. Iteratively finds nonce where SHA-256(challenge+nonce) has N leading zero bits using crypto.subtle.",
+      "tags": ["web-worker", "proof-of-work", "sha256", "security"],
+      "complexity": "low",
+      "lines": 30
+    },
+    {
+      "id": "file:gateway/crates/maplord-ai/src/lib.rs",
+      "type": "file",
+      "label": "maplord-ai/lib.rs",
+      "path": "gateway/crates/maplord-ai/src/lib.rs",
+      "summary": "AI crate entry point. Defines BotStrategy trait (decide method) and re-exports BotBrain and TutorialBotBrain implementations.",
+      "tags": ["ai", "bot", "trait", "strategy"],
+      "complexity": "low",
+      "lines": 20
+    },
+    {
+      "id": "file:gateway/crates/maplord-ai/src/strategy.rs",
+      "type": "file",
+      "label": "maplord-ai/strategy.rs",
+      "path": "gateway/crates/maplord-ai/src/strategy.rs",
+      "summary": "Full AI bot decision maker (BotBrain). Capital selection with distance constraints, multi-phase strategy: expand to neutrals, build barracks/factories, produce units, attack enemies, use abilities (shield, conscription, nuke).",
+      "tags": ["ai", "bot", "strategy", "combat", "expansion", "abilities"],
+      "complexity": "very-high",
+      "lines": 1176
+    },
+    {
+      "id": "class:gateway/crates/maplord-ai/src/strategy.rs:BotBrain",
+      "type": "class",
+      "label": "BotBrain",
+      "path": "gateway/crates/maplord-ai/src/strategy.rs",
+      "line": 7,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-ai/src/tutorial.rs",
+      "type": "file",
+      "label": "maplord-ai/tutorial.rs",
+      "path": "gateway/crates/maplord-ai/src/tutorial.rs",
+      "summary": "Deliberately weak tutorial bot (TutorialBotBrain). 3 phases: passive (ticks 1-30), slow neutral capture (30-80), cautious attacks (80+). Designed to let players practice.",
+      "tags": ["ai", "tutorial", "bot", "weak"],
+      "complexity": "high",
+      "lines": 804
+    },
+    {
+      "id": "class:gateway/crates/maplord-ai/src/tutorial.rs:TutorialBotBrain",
+      "type": "class",
+      "label": "TutorialBotBrain",
+      "path": "gateway/crates/maplord-ai/src/tutorial.rs",
+      "line": 7,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-anticheat/src/lib.rs",
+      "type": "file",
+      "label": "maplord-anticheat/lib.rs",
+      "path": "gateway/crates/maplord-anticheat/src/lib.rs",
+      "summary": "Anti-cheat engine detecting ActionFlood, ImpossibleTiming, RepetitivePattern, FogOfWarAbuse. Tracks per-player behavioral profiles with violation scores. Escalates from Allow -> Warn -> FlagPlayer -> CancelMatch. Persists violations to Redis.",
+      "tags": ["anticheat", "security", "behavioral-analysis", "violation-detection"],
+      "complexity": "very-high",
+      "lines": 1199
+    },
+    {
+      "id": "class:gateway/crates/maplord-anticheat/src/lib.rs:AnticheatEngine",
+      "type": "class",
+      "label": "AnticheatEngine",
+      "path": "gateway/crates/maplord-anticheat/src/lib.rs",
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-django/src/lib.rs",
+      "type": "file",
+      "label": "maplord-django/lib.rs",
+      "path": "gateway/crates/maplord-django/src/lib.rs",
+      "summary": "HTTP client for Django internal API (/api/internal/). Provides match data, region/neighbor lookups, match lifecycle (create, status update, cleanup, results), user info, lobby management, chat relay, anti-cheat violation reporting. Secured by X-Internal-Secret.",
+      "tags": ["http-client", "django", "internal-api", "match-management", "chat"],
+      "complexity": "high",
+      "lines": 1312
+    },
+    {
+      "id": "class:gateway/crates/maplord-django/src/lib.rs:DjangoClient",
+      "type": "class",
+      "label": "DjangoClient",
+      "path": "gateway/crates/maplord-django/src/lib.rs",
+      "line": 7,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-engine/src/lib.rs",
+      "type": "file",
+      "label": "maplord-engine/lib.rs",
+      "path": "gateway/crates/maplord-engine/src/lib.rs",
+      "summary": "Core game engine (6348 lines). Implements GameEngine with tick processing: combat resolution (2-phase with fatigue), economy (unit/energy generation with weather modifiers), building/unit production queues, transit system (land/sea/air with hop-based movement), abilities (shield, virus, conscription, nuke, submarine), diplomacy (wars, NAPs, peace proposals), weather/day-night cycles, action points, region cooldowns, elimination detection.",
+      "tags": ["engine", "game-logic", "combat", "economy", "abilities", "diplomacy", "weather", "transit"],
+      "complexity": "very-high",
+      "lines": 6348
+    },
+    {
+      "id": "class:gateway/crates/maplord-engine/src/lib.rs:GameEngine",
+      "type": "class",
+      "label": "GameEngine",
+      "path": "gateway/crates/maplord-engine/src/lib.rs",
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-engine/src/types.rs",
+      "type": "file",
+      "label": "maplord-engine/types.rs",
+      "path": "gateway/crates/maplord-engine/src/types.rs",
+      "summary": "Engine type definitions: GameSettings (tick intervals, combat params, weather modifiers, AP system, fatigue), Player, Region, BuildingQueueItem, UnitQueueItem, TransitQueueItem, AirTransitItem, ActiveEffect, Action, Event, DiplomacyState, UnitConfig, BuildingConfig, AbilityConfig, WeatherState.",
+      "tags": ["types", "game-state", "settings", "serde", "combat", "diplomacy"],
+      "complexity": "high",
+      "lines": 1179
+    },
+    {
+      "id": "file:gateway/crates/maplord-gateway/src/main.rs",
+      "type": "file",
+      "label": "maplord-gateway/main.rs",
+      "path": "gateway/crates/maplord-gateway/src/main.rs",
+      "summary": "Axum WebSocket server entry point. Sets up Redis, Django client, matchmaking manager. Routes: /ws/matchmaking/, /ws/game/{id}/, /ws/game/{id}/spectate/, /ws/chat/, /ws/social/. Includes active match recovery on startup (clears stale locks or cancels orphaned matches).",
+      "tags": ["server", "axum", "websocket", "routing", "startup", "recovery"],
+      "complexity": "medium",
+      "lines": 208
+    },
+    {
+      "id": "func:gateway/crates/maplord-gateway/src/main.rs:main",
+      "type": "function",
+      "label": "main",
+      "path": "gateway/crates/maplord-gateway/src/main.rs",
+      "line": 104
+    },
+    {
+      "id": "func:gateway/crates/maplord-gateway/src/main.rs:recover_active_matches",
+      "type": "function",
+      "label": "recover_active_matches",
+      "path": "gateway/crates/maplord-gateway/src/main.rs",
+      "line": 28
+    },
+    {
+      "id": "file:gateway/crates/maplord-gateway/src/auth.rs",
+      "type": "file",
+      "label": "maplord-gateway/auth.rs",
+      "path": "gateway/crates/maplord-gateway/src/auth.rs",
+      "summary": "JWT authentication for WebSocket connections. Validates HS256 tokens (shared SECRET_KEY with Django), origin checking, and ticket-based auth with PoW nonce verification via Redis.",
+      "tags": ["auth", "jwt", "origin-check", "tickets", "pow"],
+      "complexity": "medium",
+      "lines": 483
+    },
+    {
+      "id": "func:gateway/crates/maplord-gateway/src/auth.rs:validate_token",
+      "type": "function",
+      "label": "validate_token",
+      "path": "gateway/crates/maplord-gateway/src/auth.rs",
+      "line": 18,
+      "exported": true
+    },
+    {
+      "id": "func:gateway/crates/maplord-gateway/src/auth.rs:check_origin",
+      "type": "function",
+      "label": "check_origin",
+      "path": "gateway/crates/maplord-gateway/src/auth.rs",
+      "line": 39,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-gateway/src/chat.rs",
+      "type": "file",
+      "label": "maplord-gateway/chat.rs",
+      "path": "gateway/crates/maplord-gateway/src/chat.rs",
+      "summary": "Global chat WebSocket handler. Manages chat connections registry (DashMap), message broadcast, rate limiting, and Django chat relay for persistence.",
+      "tags": ["chat", "websocket", "broadcast", "rate-limiting"],
+      "complexity": "medium",
+      "lines": 540
+    },
+    {
+      "id": "file:gateway/crates/maplord-gateway/src/config.rs",
+      "type": "file",
+      "label": "maplord-gateway/config.rs",
+      "path": "gateway/crates/maplord-gateway/src/config.rs",
+      "summary": "AppConfig loaded from environment variables: SECRET_KEY, Redis connection, Django internal URL, gateway port, LiveKit credentials, allowed WS origins.",
+      "tags": ["config", "environment", "redis", "livekit"],
+      "complexity": "low",
+      "lines": 304
+    },
+    {
+      "id": "class:gateway/crates/maplord-gateway/src/config.rs:AppConfig",
+      "type": "class",
+      "label": "AppConfig",
+      "path": "gateway/crates/maplord-gateway/src/config.rs",
+      "line": 2,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-gateway/src/game.rs",
+      "type": "file",
+      "label": "maplord-gateway/game.rs",
+      "path": "gateway/crates/maplord-gateway/src/game.rs",
+      "summary": "Game WebSocket handler (3432 lines). Manages per-match connection registry, game loop (tick processing, state sync, event broadcast), player action handling, bot AI integration, capital selection flow, spectator mode, weather computation, anti-cheat integration, match lifecycle (init, running, finished).",
+      "tags": ["game-loop", "websocket", "tick-processing", "state-sync", "bots", "spectator", "anticheat"],
+      "complexity": "very-high",
+      "lines": 3432
+    },
+    {
+      "id": "func:gateway/crates/maplord-gateway/src/game.rs:ws_game_handler",
+      "type": "function",
+      "label": "ws_game_handler",
+      "path": "gateway/crates/maplord-gateway/src/game.rs",
+      "line": 45,
+      "exported": true
+    },
+    {
+      "id": "func:gateway/crates/maplord-gateway/src/game.rs:ws_spectate_handler",
+      "type": "function",
+      "label": "ws_spectate_handler",
+      "path": "gateway/crates/maplord-gateway/src/game.rs",
+      "line": 97,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-gateway/src/matchmaking_ws.rs",
+      "type": "file",
+      "label": "maplord-gateway/matchmaking_ws.rs",
+      "path": "gateway/crates/maplord-gateway/src/matchmaking_ws.rs",
+      "summary": "Matchmaking WebSocket handler. Authenticates users, validates tickets, upgrades to WebSocket for lobby-based matchmaking flow with game mode selection.",
+      "tags": ["matchmaking", "websocket", "lobby", "auth"],
+      "complexity": "medium",
+      "lines": 518
+    },
+    {
+      "id": "func:gateway/crates/maplord-gateway/src/matchmaking_ws.rs:ws_matchmaking_handler",
+      "type": "function",
+      "label": "ws_matchmaking_handler",
+      "path": "gateway/crates/maplord-gateway/src/matchmaking_ws.rs",
+      "line": 17,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-gateway/src/social.rs",
+      "type": "file",
+      "label": "maplord-gateway/social.rs",
+      "path": "gateway/crates/maplord-gateway/src/social.rs",
+      "summary": "Social notifications WebSocket handler. Manages user connections for real-time notification and DM delivery. Includes Redis pub/sub listener for Django-originated social events.",
+      "tags": ["social", "notifications", "direct-messages", "pubsub", "websocket"],
+      "complexity": "medium",
+      "lines": 393
+    },
+    {
+      "id": "func:gateway/crates/maplord-gateway/src/social.rs:ws_social_handler",
+      "type": "function",
+      "label": "ws_social_handler",
+      "path": "gateway/crates/maplord-gateway/src/social.rs",
+      "line": 27,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-gateway/src/state.rs",
+      "type": "file",
+      "label": "maplord-gateway/state.rs",
+      "path": "gateway/crates/maplord-gateway/src/state.rs",
+      "summary": "AppState struct: shared application state with config, Redis connection, Django client, matchmaking manager, game/chat/social connection registries, username cache, and rate limiters.",
+      "tags": ["state", "shared-state", "connections", "cache"],
+      "complexity": "low",
+      "lines": 29
+    },
+    {
+      "id": "class:gateway/crates/maplord-gateway/src/state.rs:AppState",
+      "type": "class",
+      "label": "AppState",
+      "path": "gateway/crates/maplord-gateway/src/state.rs",
+      "line": 13,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-gateway/src/voice.rs",
+      "type": "file",
+      "label": "maplord-gateway/voice.rs",
+      "path": "gateway/crates/maplord-gateway/src/voice.rs",
+      "summary": "LiveKit voice token generation. Creates JWT access tokens granting room join, publish, and subscribe permissions for match voice rooms.",
+      "tags": ["voice", "livekit", "jwt", "token-generation"],
+      "complexity": "low",
+      "lines": 127
+    },
+    {
+      "id": "func:gateway/crates/maplord-gateway/src/voice.rs:generate_voice_token",
+      "type": "function",
+      "label": "generate_voice_token",
+      "path": "gateway/crates/maplord-gateway/src/voice.rs",
+      "line": 11,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-matchmaking/src/lib.rs",
+      "type": "file",
+      "label": "maplord-matchmaking/lib.rs",
+      "path": "gateway/crates/maplord-matchmaking/src/lib.rs",
+      "summary": "Matchmaking manager using DashMap for lobby-based connections. Handles WebSocket connect/disconnect, lobby lifecycle via Django API, Redis user-lobby mapping, bot fill timeout (30s), and pub/sub listener for Django/Celery events.",
+      "tags": ["matchmaking", "lobby", "redis", "pubsub", "bot-fill"],
+      "complexity": "high",
+      "lines": 1034
+    },
+    {
+      "id": "class:gateway/crates/maplord-matchmaking/src/lib.rs:MatchmakingManager",
+      "type": "class",
+      "label": "MatchmakingManager",
+      "path": "gateway/crates/maplord-matchmaking/src/lib.rs",
+      "line": 39,
+      "exported": true
+    },
+    {
+      "id": "file:gateway/crates/maplord-state/src/lib.rs",
+      "type": "file",
+      "label": "maplord-state/lib.rs",
+      "path": "gateway/crates/maplord-state/src/lib.rs",
+      "summary": "Redis game state manager using msgpack (rmp-serde) serialization. Manages meta, players, regions, build/unit/transit queues, effects, diplomacy, and action queues. Provides full state snapshot for Django snapshots. Key format: game:{match_id}:{suffix}.",
+      "tags": ["redis", "state-management", "msgpack", "serialization", "game-state"],
+      "complexity": "high",
+      "lines": 1071
+    },
+    {
+      "id": "class:gateway/crates/maplord-state/src/lib.rs:GameStateManager",
+      "type": "class",
+      "label": "GameStateManager",
+      "path": "gateway/crates/maplord-state/src/lib.rs",
+      "line": 22,
+      "exported": true
+    },
+    {
+      "id": "file:config/settings.py",
+      "type": "file",
+      "label": "settings.py",
+      "path": "config/settings.py",
+      "summary": "Django settings: python-decouple env vars, PostGIS DB, Redis cache/Celery, JWT config, CORS, installed apps (accounts, geo, game_config, matchmaking, game, chat, inventory, marketplace, crafting, developers, assets, notifications), Unfold admin.",
+      "tags": ["django", "settings", "config", "database", "redis", "jwt", "cors"],
+      "complexity": "medium",
+      "lines": 200
+    },
+    {
+      "id": "file:config/urls.py",
+      "type": "file",
+      "label": "urls.py",
+      "path": "config/urls.py",
+      "summary": "Django URL configuration. Registers 17 NinjaExtraAPI controllers for all API endpoints under /api/v1/, plus admin and health check.",
+      "tags": ["django", "urls", "api-routing", "controllers"],
+      "complexity": "low",
+      "lines": 69
+    },
+    {
+      "id": "file:config/asgi.py",
+      "type": "file",
+      "label": "asgi.py",
+      "path": "config/asgi.py",
+      "summary": "ASGI entry point for Django (HTTP only, WebSocket handled by Rust gateway).",
+      "tags": ["django", "asgi", "entry-point"],
+      "complexity": "trivial",
+      "lines": 7
+    },
+    {
+      "id": "file:config/celery.py",
+      "type": "file",
+      "label": "celery.py",
+      "path": "config/celery.py",
+      "summary": "Celery app configuration for background tasks (ELO calculation, snapshots, cleanup).",
+      "tags": ["celery", "background-tasks", "config"],
+      "complexity": "trivial",
+      "lines": 9
+    },
+    {
+      "id": "file:config/wsgi.py",
+      "type": "file",
+      "label": "wsgi.py",
+      "path": "config/wsgi.py",
+      "summary": "WSGI entry point for Django.",
+      "tags": ["django", "wsgi", "entry-point"],
+      "complexity": "trivial",
+      "lines": 16
+    },
+    {
+      "id": "file:manage.py",
+      "type": "file",
+      "label": "manage.py",
+      "path": "manage.py",
+      "summary": "Django management command-line utility entry point.",
+      "tags": ["django", "management", "entry-point"],
+      "complexity": "trivial",
+      "lines": 22
+    },
+    {
+      "id": "file:promo/src/Root.tsx",
+      "type": "file",
+      "label": "promo/Root.tsx",
+      "path": "promo/src/Root.tsx",
+      "summary": "Remotion composition root for promo videos. Registers MapLordTrailer (1920x1080, 2860 frames) and TikTok (1080x1920, 660 frames) compositions.",
+      "tags": ["promo", "remotion", "video", "composition"],
+      "complexity": "low",
+      "lines": 26
+    },
+    {
+      "id": "file:promo/src/index.ts",
+      "type": "file",
+      "label": "promo/index.ts",
+      "path": "promo/src/index.ts",
+      "summary": "Remotion entry point: registers RemotionRoot.",
+      "tags": ["promo", "remotion", "entry-point"],
+      "complexity": "trivial",
+      "lines": 4
+    },
+    {
+      "id": "file:promo/src/simulation.ts",
+      "type": "file",
+      "label": "promo/simulation.ts",
+      "path": "promo/src/simulation.ts",
+      "summary": "Deterministic game simulation for promo video. 4 players, territory expansion, troop movements, artillery shots, diplomacy (wars/pacts). Uses seeded random for reproducibility.",
+      "tags": ["promo", "simulation", "deterministic", "game-state"],
+      "complexity": "high",
+      "lines": 335
+    },
+    {
+      "id": "file:scripts/cheat_simulator.py",
+      "type": "file",
+      "label": "cheat_simulator.py",
+      "path": "scripts/cheat_simulator.py",
+      "summary": "Anti-cheat test script. Connects to game WebSocket and simulates cheating behaviors: action flood, impossible timing, repetitive patterns, fog-of-war abuse, and escalation to match cancellation.",
+      "tags": ["testing", "anticheat", "websocket", "simulation"],
+      "complexity": "high",
+      "lines": 430
+    },
+    {
+      "id": "file:scripts/convert_provinces_to_geojson.py",
+      "type": "file",
+      "label": "convert_provinces_to_geojson.py",
+      "path": "scripts/convert_provinces_to_geojson.py",
+      "summary": "Converts custom game province format to GeoJSON. Maps pixel coordinate system linearly to WGS84 (lon/lat).",
+      "tags": ["geo", "conversion", "geojson", "provinces"],
+      "complexity": "medium",
+      "lines": 145
+    },
+    {
+      "id": "file:scripts/generate_prod_env.py",
+      "type": "file",
+      "label": "generate_prod_env.py",
+      "path": "scripts/generate_prod_env.py",
+      "summary": "Generates production .env file with auto-generated secrets (Django secret, DB password, internal secret, LiveKit keys, VAPID keys).",
+      "tags": ["devops", "secrets", "environment", "production"],
+      "complexity": "medium",
+      "lines": 153
+    },
+    {
+      "id": "file:scripts/generate_vapid_keys.py",
+      "type": "file",
+      "label": "generate_vapid_keys.py",
+      "path": "scripts/generate_vapid_keys.py",
+      "summary": "Generates VAPID key pair for web push notifications using openssl CLI.",
+      "tags": ["push-notifications", "vapid", "keys", "devops"],
+      "complexity": "low",
+      "lines": 75
+    },
+    {
+      "id": "file:tests/test_integration.py",
+      "type": "file",
+      "label": "test_integration.py",
+      "path": "tests/test_integration.py",
+      "summary": "Integration/E2E tests for Django backend. Tests full API flows via Django test client: auth, config, geo, matches, inventory, marketplace, crafting, decks, developer platform, OAuth, friends, notifications, internal API.",
+      "tags": ["testing", "integration", "e2e", "django", "api"],
+      "complexity": "high",
+      "lines": 852
+    },
+    {
+      "id": "file:twa/app/src/main/java/ovh/qwizi/maplord/LauncherActivity.java",
+      "type": "file",
+      "label": "LauncherActivity.java",
+      "path": "twa/app/src/main/java/ovh/qwizi/maplord/LauncherActivity.java",
+      "summary": "TWA (Trusted Web Activity) Android launcher. Extends androidbrowserhelper LauncherActivity with config in AndroidManifest.xml.",
+      "tags": ["android", "twa", "launcher"],
+      "complexity": "trivial",
+      "lines": 6
+    },
+    {
+      "id": "file:frontend/lib/__tests__/animationConfig.test.ts",
+      "type": "file",
+      "label": "animationConfig.test.ts",
+      "path": "frontend/lib/__tests__/animationConfig.test.ts",
+      "summary": "Tests for animation config: ANIMATION_DEFAULTS structure validation, resolveAnimConfig with cosmetic overrides, deepMerge behavior, VFX helpers.",
+      "tags": ["test", "animation", "config"],
+      "complexity": "medium",
+      "lines": 356
+    },
+    {
+      "id": "file:frontend/lib/__tests__/api.test.ts",
+      "type": "file",
+      "label": "api.test.ts",
+      "path": "frontend/lib/__tests__/api.test.ts",
+      "summary": "Tests for API client: fetchAPI, login, register, getConfig, getMe, error handling, pagination.",
+      "tags": ["test", "api", "fetch"],
+      "complexity": "medium",
+      "lines": 228
+    },
+    {
+      "id": "file:frontend/lib/__tests__/auth.test.ts",
+      "type": "file",
+      "label": "auth.test.ts",
+      "path": "frontend/lib/__tests__/auth.test.ts",
+      "summary": "Tests for auth token management: getAccessToken, setTokens, clearTokens, isLoggedIn.",
+      "tags": ["test", "auth", "tokens"],
+      "complexity": "low",
+      "lines": 81
+    },
+    {
+      "id": "file:frontend/lib/__tests__/gameAssets.test.ts",
+      "type": "file",
+      "label": "gameAssets.test.ts",
+      "path": "frontend/lib/__tests__/gameAssets.test.ts",
+      "summary": "Tests for game asset resolution: building/unit asset maps, cosmetic overrides, action assets.",
+      "tags": ["test", "assets", "cosmetics"],
+      "complexity": "medium",
+      "lines": 300
+    },
+    {
+      "id": "file:frontend/lib/__tests__/pow.test.ts",
+      "type": "file",
+      "label": "pow.test.ts",
+      "path": "frontend/lib/__tests__/pow.test.ts",
+      "summary": "Tests for proof-of-work solver: Web Worker interaction, timeout handling.",
+      "tags": ["test", "pow", "security"],
+      "complexity": "low",
+      "lines": 96
+    },
+    {
+      "id": "file:frontend/lib/__tests__/tutorialSteps.test.ts",
+      "type": "file",
+      "label": "tutorialSteps.test.ts",
+      "path": "frontend/lib/__tests__/tutorialSteps.test.ts",
+      "summary": "Tests for tutorial step definitions: step structure validation, conditions, highlight regions, manual advance flags.",
+      "tags": ["test", "tutorial", "steps"],
+      "complexity": "medium",
+      "lines": 352
+    },
+    {
+      "id": "file:frontend/lib/__tests__/utils.test.ts",
+      "type": "file",
+      "label": "utils.test.ts",
+      "path": "frontend/lib/__tests__/utils.test.ts",
+      "summary": "Tests for cn() utility function.",
+      "tags": ["test", "utility"],
+      "complexity": "trivial",
+      "lines": 43
+    },
+    {
+      "id": "file:frontend/lib/__tests__/ws.test.ts",
+      "type": "file",
+      "label": "ws.test.ts",
+      "path": "frontend/lib/__tests__/ws.test.ts",
+      "summary": "Tests for WebSocket factory: createSocket URL construction, message handling, error handling.",
+      "tags": ["test", "websocket"],
+      "complexity": "low",
+      "lines": 118
+    },
+    {
+      "id": "file:frontend/playwright.config.ts",
+      "type": "file",
+      "label": "playwright.config.ts",
+      "path": "frontend/playwright.config.ts",
+      "summary": "Playwright E2E test configuration for frontend.",
+      "tags": ["config", "e2e", "playwright", "testing"],
+      "complexity": "low",
+      "lines": 65
+    },
+    {
+      "id": "file:frontend/vitest.setup.ts",
+      "type": "file",
+      "label": "vitest.setup.ts",
+      "path": "frontend/vitest.setup.ts",
+      "summary": "Vitest setup file (minimal, 1 line).",
+      "tags": ["config", "testing", "setup"],
+      "complexity": "trivial",
+      "lines": 1
+    },
+    {
+      "id": "file:promo/src/components/AbilityBar.tsx",
+      "type": "file",
+      "label": "promo/AbilityBar.tsx",
+      "path": "promo/src/components/AbilityBar.tsx",
+      "summary": "Promo video ability bar component with animated cooldown indicators.",
+      "tags": ["promo", "ui", "abilities", "animation"],
+      "complexity": "medium",
+      "lines": 145
+    },
+    {
+      "id": "file:promo/src/components/BeatEffects.tsx",
+      "type": "file",
+      "label": "promo/BeatEffects.tsx",
+      "path": "promo/src/components/BeatEffects.tsx",
+      "summary": "Promo video beat-synchronized visual effects for music-synced transitions.",
+      "tags": ["promo", "vfx", "music-sync", "animation"],
+      "complexity": "medium",
+      "lines": 210
+    },
+    {
+      "id": "file:promo/src/components/GameHUD.tsx",
+      "type": "file",
+      "label": "promo/GameHUD.tsx",
+      "path": "promo/src/components/GameHUD.tsx",
+      "summary": "Promo video game HUD overlay showing resources, player list, minimap mockup.",
+      "tags": ["promo", "ui", "hud", "overlay"],
+      "complexity": "high",
+      "lines": 448
+    },
+    {
+      "id": "file:promo/src/components/GameMap.tsx",
+      "type": "file",
+      "label": "promo/GameMap.tsx",
+      "path": "promo/src/components/GameMap.tsx",
+      "summary": "Promo video game map renderer with province ownership, troop movements, artillery animations.",
+      "tags": ["promo", "map", "rendering", "provinces", "animation"],
+      "complexity": "high",
+      "lines": 520
+    },
+    {
+      "id": "file:promo/src/components/GameToast.tsx",
+      "type": "file",
+      "label": "promo/GameToast.tsx",
+      "path": "promo/src/components/GameToast.tsx",
+      "summary": "Promo video toast notification component for game events.",
+      "tags": ["promo", "ui", "notifications", "toast"],
+      "complexity": "low",
+      "lines": 122
+    },
+    {
+      "id": "file:promo/src/components/QuickActionPanel.tsx",
+      "type": "file",
+      "label": "promo/QuickActionPanel.tsx",
+      "path": "promo/src/components/QuickActionPanel.tsx",
+      "summary": "Promo video quick action panel showing attack/move/build buttons.",
+      "tags": ["promo", "ui", "actions"],
+      "complexity": "medium",
+      "lines": 182
+    },
+    {
+      "id": "file:promo/src/sequences/TikTok.tsx",
+      "type": "file",
+      "label": "promo/TikTok.tsx",
+      "path": "promo/src/sequences/TikTok.tsx",
+      "summary": "TikTok vertical promo video sequence (22s, 1080x1920). Cinematic game showcase with zoom transitions.",
+      "tags": ["promo", "tiktok", "video", "sequence"],
+      "complexity": "high",
+      "lines": 425
+    },
+    {
+      "id": "file:promo/src/sequences/Trailer.tsx",
+      "type": "file",
+      "label": "promo/Trailer.tsx",
+      "path": "promo/src/sequences/Trailer.tsx",
+      "summary": "Full trailer promo video sequence (1920x1080, ~95s). Multi-scene game showcase with combat, diplomacy, abilities.",
+      "tags": ["promo", "trailer", "video", "sequence"],
+      "complexity": "high",
+      "lines": 636
+    }
+  ],
+  "edges": [
+    {"source": "file:frontend/hooks/useSocialSocket.ts", "target": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7, "detail": "NotificationOut type"},
+    {"source": "file:frontend/hooks/useSystemModules.ts", "target": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7, "detail": "SystemModule type"},
+    {"source": "file:frontend/hooks/useTutorial.ts", "target": "file:frontend/lib/tutorialSteps.ts", "type": "imports", "weight": 0.7, "detail": "TUTORIAL_STEPS, TutorialStep"},
+    {"source": "file:frontend/hooks/useTutorial.ts", "target": "file:frontend/lib/api.ts", "type": "imports", "weight": 0.7, "detail": "completeTutorial, cleanupTutorial"},
+    {"source": "file:frontend/hooks/useTutorial.ts", "target": "file:frontend/lib/auth.ts", "type": "imports", "weight": 0.7, "detail": "getAccessToken"},
+    {"source": "file:frontend/lib/animationConfig.ts", "target": "file:frontend/lib/pixiAnimations.ts", "type": "exports", "weight": 0.8, "detail": "AnimationConfig consumed by pixiAnimations"},
+    {"source": "file:frontend/lib/gameAssets.ts", "target": "file:frontend/lib/assetOverrides.ts", "type": "imports", "weight": 0.7, "detail": "getAssetUrl, getOverrideUrl"},
+    {"source": "file:frontend/lib/pow.ts", "target": "file:frontend/public/pow-worker.js", "type": "calls", "weight": 0.8, "detail": "spawns pow-worker.js Web Worker"},
+    {"source": "file:frontend/lib/pixiAnimations.ts", "target": "file:frontend/lib/gameTypes.ts", "type": "imports", "weight": 0.7, "detail": "TroopAnimation"},
+    {"source": "file:frontend/lib/pixiAnimations.ts", "target": "file:frontend/lib/animationConfig.ts", "type": "imports", "weight": 0.7, "detail": "resolveAnimConfig, ANIMATION_DEFAULTS_KEYS, AnimationConfig"},
+    {"source": "file:frontend/lib/pixiAnimations.ts", "target": "file:frontend/lib/particleSystem.ts", "type": "imports", "weight": 0.7, "detail": "ParticleManager, ParticleEmitter, ParticlePresets"},
+
+    {"source": "file:frontend/hooks/useSocialSocket.ts", "target": "func:frontend/hooks/useSocialSocket.ts:useSocialSocket", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/hooks/useSystemModules.ts", "target": "func:frontend/hooks/useSystemModules.ts:useSystemModules", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/hooks/useSystemModules.ts", "target": "func:frontend/hooks/useSystemModules.ts:useModuleConfig", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/hooks/useSystemModules.ts", "target": "func:frontend/hooks/useSystemModules.ts:buildSystemModulesValue", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/hooks/useTutorial.ts", "target": "func:frontend/hooks/useTutorial.ts:useTutorial", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/hooks/useTutorial.ts", "target": "func:frontend/hooks/useTutorial.ts:computeStepIndex", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/hooks/useVoiceChat.ts", "target": "func:frontend/hooks/useVoiceChat.ts:useVoiceChat", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/animationConfig.ts", "target": "func:frontend/lib/animationConfig.ts:resolveAnimConfig", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/animationConfig.ts", "target": "func:frontend/lib/animationConfig.ts:deepMerge", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/api.ts", "target": "class:frontend/lib/api.ts:APIError", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/api.ts", "target": "func:frontend/lib/api.ts:fetchAPI", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/api.ts", "target": "func:frontend/lib/api.ts:getConfig", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/api.ts", "target": "func:frontend/lib/api.ts:login", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/api.ts", "target": "func:frontend/lib/api.ts:getMe", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/assetOverrides.ts", "target": "func:frontend/lib/assetOverrides.ts:loadAssetOverrides", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/assetOverrides.ts", "target": "func:frontend/lib/assetOverrides.ts:getAssetUrl", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/auth.ts", "target": "func:frontend/lib/auth.ts:getAccessToken", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/auth.ts", "target": "func:frontend/lib/auth.ts:setTokens", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/auth.ts", "target": "func:frontend/lib/auth.ts:clearTokens", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/gameAssets.ts", "target": "func:frontend/lib/gameAssets.ts:getBuildingAsset", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/gameAssets.ts", "target": "func:frontend/lib/gameAssets.ts:getUnitAsset", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/gameAssets.ts", "target": "func:frontend/lib/gameAssets.ts:getPlayerBuildingAsset", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/gameAssets.ts", "target": "func:frontend/lib/gameAssets.ts:getPlayerUnitAsset", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/gameTravel.js", "target": "func:frontend/lib/gameTravel.js:getTravelDistance", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/pow.ts", "target": "func:frontend/lib/pow.ts:solveChallenge", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/projection.ts", "target": "func:frontend/lib/projection.ts:lngLatToPixel", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/utils.ts", "target": "func:frontend/lib/utils.ts:cn", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/ws.ts", "target": "func:frontend/lib/ws.ts:createSocket", "type": "contains", "weight": 1.0},
+    {"source": "file:frontend/lib/particleSystem.ts", "target": "class:frontend/lib/particleSystem.ts:Particle", "type": "contains", "weight": 1.0},
+
+    {"source": "file:gateway/crates/maplord-ai/src/lib.rs", "target": "file:gateway/crates/maplord-ai/src/strategy.rs", "type": "contains", "weight": 1.0, "detail": "mod strategy"},
+    {"source": "file:gateway/crates/maplord-ai/src/lib.rs", "target": "file:gateway/crates/maplord-ai/src/tutorial.rs", "type": "contains", "weight": 1.0, "detail": "mod tutorial"},
+    {"source": "file:gateway/crates/maplord-ai/src/strategy.rs", "target": "class:gateway/crates/maplord-ai/src/strategy.rs:BotBrain", "type": "contains", "weight": 1.0},
+    {"source": "file:gateway/crates/maplord-ai/src/tutorial.rs", "target": "class:gateway/crates/maplord-ai/src/tutorial.rs:TutorialBotBrain", "type": "contains", "weight": 1.0},
+    {"source": "file:gateway/crates/maplord-ai/src/strategy.rs", "target": "file:gateway/crates/maplord-engine/src/lib.rs", "type": "imports", "weight": 0.7, "detail": "Action, GameSettings, Player, Region"},
+    {"source": "file:gateway/crates/maplord-ai/src/tutorial.rs", "target": "file:gateway/crates/maplord-engine/src/lib.rs", "type": "imports", "weight": 0.7, "detail": "Action, GameSettings, Player, Region"},
+
+    {"source": "file:gateway/crates/maplord-anticheat/src/lib.rs", "target": "class:gateway/crates/maplord-anticheat/src/lib.rs:AnticheatEngine", "type": "contains", "weight": 1.0},
+    {"source": "file:gateway/crates/maplord-anticheat/src/lib.rs", "target": "file:gateway/crates/maplord-engine/src/lib.rs", "type": "imports", "weight": 0.7, "detail": "Action, Player, Region"},
+
+    {"source": "file:gateway/crates/maplord-django/src/lib.rs", "target": "class:gateway/crates/maplord-django/src/lib.rs:DjangoClient", "type": "contains", "weight": 1.0},
+
+    {"source": "file:gateway/crates/maplord-engine/src/lib.rs", "target": "file:gateway/crates/maplord-engine/src/types.rs", "type": "contains", "weight": 1.0, "detail": "mod types; pub use types::*"},
+    {"source": "file:gateway/crates/maplord-engine/src/lib.rs", "target": "class:gateway/crates/maplord-engine/src/lib.rs:GameEngine", "type": "contains", "weight": 1.0},
+
+    {"source": "file:gateway/crates/maplord-gateway/src/main.rs", "target": "file:gateway/crates/maplord-gateway/src/auth.rs", "type": "contains", "weight": 1.0, "detail": "mod auth"},
+    {"source": "file:gateway/crates/maplord-gateway/src/main.rs", "target": "file:gateway/crates/maplord-gateway/src/chat.rs", "type": "contains", "weight": 1.0, "detail": "mod chat"},
+    {"source": "file:gateway/crates/maplord-gateway/src/main.rs", "target": "file:gateway/crates/maplord-gateway/src/config.rs", "type": "contains", "weight": 1.0, "detail": "mod config"},
+    {"source": "file:gateway/crates/maplord-gateway/src/main.rs", "target": "file:gateway/crates/maplord-gateway/src/game.rs", "type": "contains", "weight": 1.0, "detail": "mod game"},
+    {"source": "file:gateway/crates/maplord-gateway/src/main.rs", "target": "file:gateway/crates/maplord-gateway/src/matchmaking_ws.rs", "type": "contains", "weight": 1.0, "detail": "mod matchmaking_ws"},
+    {"source": "file:gateway/crates/maplord-gateway/src/main.rs", "target": "file:gateway/crates/maplord-gateway/src/social.rs", "type": "contains", "weight": 1.0, "detail": "mod social"},
+    {"source": "file:gateway/crates/maplord-gateway/src/main.rs", "target": "file:gateway/crates/maplord-gateway/src/state.rs", "type": "contains", "weight": 1.0, "detail": "mod state"},
+    {"source": "file:gateway/crates/maplord-gateway/src/main.rs", "target": "file:gateway/crates/maplord-gateway/src/voice.rs", "type": "contains", "weight": 1.0, "detail": "mod voice"},
+    {"source": "file:gateway/crates/maplord-gateway/src/main.rs", "target": "func:gateway/crates/maplord-gateway/src/main.rs:main", "type": "contains", "weight": 1.0},
+    {"source": "file:gateway/crates/maplord-gateway/src/main.rs", "target": "func:gateway/crates/maplord-gateway/src/main.rs:recover_active_matches", "type": "contains", "weight": 1.0},
+
+    {"source": "file:gateway/crates/maplord-gateway/src/game.rs", "target": "file:gateway/crates/maplord-engine/src/lib.rs", "type": "imports", "weight": 0.7, "detail": "GameEngine, Action, Event, Player, Region"},
+    {"source": "file:gateway/crates/maplord-gateway/src/game.rs", "target": "file:gateway/crates/maplord-state/src/lib.rs", "type": "imports", "weight": 0.7, "detail": "GameStateManager, FullGameState"},
+    {"source": "file:gateway/crates/maplord-gateway/src/game.rs", "target": "file:gateway/crates/maplord-ai/src/lib.rs", "type": "imports", "weight": 0.7, "detail": "BotBrain, BotStrategy, TutorialBotBrain"},
+    {"source": "file:gateway/crates/maplord-gateway/src/game.rs", "target": "file:gateway/crates/maplord-anticheat/src/lib.rs", "type": "imports", "weight": 0.7, "detail": "AnticheatEngine, AnticheatVerdict"},
+    {"source": "file:gateway/crates/maplord-gateway/src/game.rs", "target": "func:gateway/crates/maplord-gateway/src/game.rs:ws_game_handler", "type": "contains", "weight": 1.0},
+    {"source": "file:gateway/crates/maplord-gateway/src/game.rs", "target": "func:gateway/crates/maplord-gateway/src/game.rs:ws_spectate_handler", "type": "contains", "weight": 1.0},
+
+    {"source": "file:gateway/crates/maplord-gateway/src/auth.rs", "target": "func:gateway/crates/maplord-gateway/src/auth.rs:validate_token", "type": "contains", "weight": 1.0},
+    {"source": "file:gateway/crates/maplord-gateway/src/auth.rs", "target": "func:gateway/crates/maplord-gateway/src/auth.rs:check_origin", "type": "contains", "weight": 1.0},
+
+    {"source": "file:gateway/crates/maplord-gateway/src/config.rs", "target": "class:gateway/crates/maplord-gateway/src/config.rs:AppConfig", "type": "contains", "weight": 1.0},
+    {"source": "file:gateway/crates/maplord-gateway/src/state.rs", "target": "class:gateway/crates/maplord-gateway/src/state.rs:AppState", "type": "contains", "weight": 1.0},
+    {"source": "file:gateway/crates/maplord-gateway/src/voice.rs", "target": "func:gateway/crates/maplord-gateway/src/voice.rs:generate_voice_token", "type": "contains", "weight": 1.0},
+
+    {"source": "file:gateway/crates/maplord-gateway/src/matchmaking_ws.rs", "target": "file:gateway/crates/maplord-matchmaking/src/lib.rs", "type": "imports", "weight": 0.7, "detail": "MatchmakingMessage"},
+    {"source": "file:gateway/crates/maplord-gateway/src/matchmaking_ws.rs", "target": "func:gateway/crates/maplord-gateway/src/matchmaking_ws.rs:ws_matchmaking_handler", "type": "contains", "weight": 1.0},
+
+    {"source": "file:gateway/crates/maplord-gateway/src/social.rs", "target": "func:gateway/crates/maplord-gateway/src/social.rs:ws_social_handler", "type": "contains", "weight": 1.0},
+
+    {"source": "file:gateway/crates/maplord-matchmaking/src/lib.rs", "target": "class:gateway/crates/maplord-matchmaking/src/lib.rs:MatchmakingManager", "type": "contains", "weight": 1.0},
+    {"source": "file:gateway/crates/maplord-matchmaking/src/lib.rs", "target": "file:gateway/crates/maplord-django/src/lib.rs", "type": "imports", "weight": 0.7, "detail": "DjangoClient"},
+
+    {"source": "file:gateway/crates/maplord-state/src/lib.rs", "target": "class:gateway/crates/maplord-state/src/lib.rs:GameStateManager", "type": "contains", "weight": 1.0},
+    {"source": "file:gateway/crates/maplord-state/src/lib.rs", "target": "file:gateway/crates/maplord-engine/src/lib.rs", "type": "imports", "weight": 0.7, "detail": "Action, Player, Region, BuildingQueueItem, etc."},
+
+    {"source": "file:config/urls.py", "target": "file:config/settings.py", "type": "imports", "weight": 0.7, "detail": "django.conf.settings"},
+
+    {"source": "file:frontend/lib/__tests__/animationConfig.test.ts", "target": "file:frontend/lib/animationConfig.ts", "type": "tested_by", "weight": 0.5},
+    {"source": "file:frontend/lib/__tests__/api.test.ts", "target": "file:frontend/lib/api.ts", "type": "tested_by", "weight": 0.5},
+    {"source": "file:frontend/lib/__tests__/auth.test.ts", "target": "file:frontend/lib/auth.ts", "type": "tested_by", "weight": 0.5},
+    {"source": "file:frontend/lib/__tests__/gameAssets.test.ts", "target": "file:frontend/lib/gameAssets.ts", "type": "tested_by", "weight": 0.5},
+    {"source": "file:frontend/lib/__tests__/pow.test.ts", "target": "file:frontend/lib/pow.ts", "type": "tested_by", "weight": 0.5},
+    {"source": "file:frontend/lib/__tests__/tutorialSteps.test.ts", "target": "file:frontend/lib/tutorialSteps.ts", "type": "tested_by", "weight": 0.5},
+    {"source": "file:frontend/lib/__tests__/utils.test.ts", "target": "file:frontend/lib/utils.ts", "type": "tested_by", "weight": 0.5},
+    {"source": "file:frontend/lib/__tests__/ws.test.ts", "target": "file:frontend/lib/ws.ts", "type": "tested_by", "weight": 0.5},
+    {"source": "file:scripts/cheat_simulator.py", "target": "file:gateway/crates/maplord-anticheat/src/lib.rs", "type": "tested_by", "weight": 0.5, "detail": "tests anticheat via WS"},
+
+    {"source": "file:promo/src/Root.tsx", "target": "file:promo/src/sequences/Trailer.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:promo/src/Root.tsx", "target": "file:promo/src/sequences/TikTok.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:promo/src/index.ts", "target": "file:promo/src/Root.tsx", "type": "imports", "weight": 0.7}
+  ]
+}

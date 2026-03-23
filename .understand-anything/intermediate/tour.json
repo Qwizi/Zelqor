@@ -1,0 +1,163 @@
+[
+  {
+    "order": 1,
+    "title": "Project Bootstrap: Django Settings and ASGI Entry Point",
+    "description": "Every request to MapLord starts here. config/settings.py wires together all Django apps (accounts, game, matchmaking, geo, etc.), configures PostGIS, Redis, Celery, and JWT auth. config/asgi.py is the ASGI entry point that Caddy proxies HTTP traffic to. Together they define the runtime environment: which databases, caches, and middleware the backend uses.",
+    "nodeIds": [
+      "file:config/settings.py",
+      "file:config/asgi.py",
+      "file:config/urls.py",
+      "file:config/celery.py"
+    ],
+    "languageLesson": "Django uses python-decouple to read environment variables with type coercion (config('DEBUG', cast=bool)). The ASGI application object is a callable that Uvicorn/Daphne invokes for each connection -- this is Python's async server gateway interface."
+  },
+  {
+    "order": 2,
+    "title": "Data Foundation: Core Django Models",
+    "description": "The data layer defines what MapLord stores persistently. accounts/models.py defines the User model with ELO ratings and ban status. game/models.py tracks Match history and snapshots. geo/models.py uses PostGIS geometry fields for countries and provinces. game_config/models.py stores admin-tunable settings like unit types, costs, and building stats -- it is the most-imported backend file (fan-in: 10), showing how deeply game configuration permeates the system.",
+    "nodeIds": [
+      "file:apps/accounts/models.py",
+      "file:apps/game/models.py",
+      "file:apps/geo/models.py",
+      "file:apps/game_config/models.py",
+      "file:apps/matchmaking/models.py"
+    ],
+    "languageLesson": "Django models use declarative field definitions (CharField, IntegerField, PointField) that automatically generate SQL migrations. PostGIS fields like MultiPolygonField enable spatial queries (e.g., 'find all provinces within 500km') directly in the ORM."
+  },
+  {
+    "order": 3,
+    "title": "Backend API Layer: REST Endpoints and Auth",
+    "description": "Built with Django Ninja Extra, the API layer exposes REST endpoints for user auth, matchmaking, game data, and game config. accounts/views.py and accounts/auth.py handle JWT authentication (the auth module has fan-in: 6, used by many views). The internal_auth.py module secures gateway-to-Django communication with X-Internal-Secret headers. This layer serves both the frontend client and the Rust gateway.",
+    "nodeIds": [
+      "file:apps/accounts/views.py",
+      "file:apps/accounts/auth.py",
+      "file:apps/internal_auth.py",
+      "file:apps/matchmaking/views.py",
+      "file:apps/game/views.py",
+      "file:apps/game_config/views.py"
+    ],
+    "languageLesson": "Django Ninja Extra uses Python type hints and Pydantic schemas for automatic request validation and OpenAPI documentation. Decorators like @api_controller and @route replace Django's traditional URL conf + view function pattern with a FastAPI-like experience."
+  },
+  {
+    "order": 4,
+    "title": "Backend Business Logic: Internal APIs, Tasks, and Feature Flags",
+    "description": "When the Rust gateway needs to create matches or save snapshots, it calls internal APIs (game/internal_api.py, matchmaking/internal_api.py). Celery tasks (game/tasks.py) handle async work like ELO calculation and stale match cleanup. The game_config/decorators.py module (fan-in: 7) provides feature flags that gate functionality across the app, and game_config/modules.py defines the modular feature system.",
+    "nodeIds": [
+      "file:apps/game/internal_api.py",
+      "file:apps/matchmaking/internal_api.py",
+      "file:apps/game/tasks.py",
+      "file:apps/game_config/decorators.py",
+      "file:apps/game_config/modules.py",
+      "file:apps/notifications/services.py"
+    ],
+    "languageLesson": "Celery tasks use the @shared_task decorator to define async functions that run in a separate worker process. The game_config decorators likely use Python's functools.wraps pattern to conditionally enable/disable API endpoints based on admin-configured feature flags."
+  },
+  {
+    "order": 5,
+    "title": "Rust Gateway: WebSocket Server and JWT Auth",
+    "description": "The Rust gateway is the real-time backbone. main.rs boots an axum HTTP/WebSocket server on port 8080, mounting routes for game, matchmaking, chat, social, and voice WebSocket endpoints. auth.rs validates JWT tokens (sharing the same HS256 secret as Django) to authenticate WebSocket connections. state.rs manages shared application state (Redis connections, config). This is where the system shifts from request-response to persistent bidirectional connections.",
+    "nodeIds": [
+      "file:gateway/crates/maplord-gateway/src/main.rs",
+      "file:gateway/crates/maplord-gateway/src/auth.rs",
+      "file:gateway/crates/maplord-gateway/src/state.rs",
+      "file:gateway/crates/maplord-gateway/src/config.rs"
+    ],
+    "languageLesson": "Axum uses Rust's type system for dependency injection: handler functions declare their dependencies as typed parameters (State<AppState>, Extension<JwtConfig>), and axum extracts them automatically. The tower middleware stack composes auth, CORS, and logging as reusable layers."
+  },
+  {
+    "order": 6,
+    "title": "Real-time Game Loop: Engine, Matchmaking, and State",
+    "description": "game.rs is the game WebSocket consumer -- it receives player actions (move units, attack, build) and feeds them to maplord-engine. The engine crate (lib.rs, types.rs) contains pure game logic: tick processing, combat resolution, economy simulation, and pathfinding. maplord-matchmaking handles the queue and player pairing with DashMap for concurrent connection groups. maplord-state manages Redis serialization using msgpack (rmp-serde) for efficient live game state storage.",
+    "nodeIds": [
+      "file:gateway/crates/maplord-gateway/src/game.rs",
+      "file:gateway/crates/maplord-gateway/src/matchmaking_ws.rs",
+      "file:gateway/crates/maplord-engine/src/lib.rs",
+      "file:gateway/crates/maplord-engine/src/types.rs",
+      "file:gateway/crates/maplord-matchmaking/src/lib.rs",
+      "file:gateway/crates/maplord-state/src/lib.rs"
+    ],
+    "languageLesson": "The engine crate is intentionally pure (no async runtime, no I/O) -- it takes game state and actions as input and returns new state. This separation makes it testable and deterministic. DashMap provides lock-free concurrent HashMap access, critical for a multi-player WebSocket server handling many simultaneous connections."
+  },
+  {
+    "order": 7,
+    "title": "Gateway Support Systems: Chat, Voice, Social, Anti-cheat, and AI",
+    "description": "Beyond the core game loop, the gateway handles several auxiliary real-time features. chat.rs and voice.rs manage in-game communication channels. social.rs powers the friends/presence system. maplord-anticheat validates player actions server-side to prevent cheating. maplord-django is the HTTP client that the gateway uses to call Django's internal API for match creation, snapshots, and ELO updates -- it bridges the two backend systems.",
+    "nodeIds": [
+      "file:gateway/crates/maplord-gateway/src/chat.rs",
+      "file:gateway/crates/maplord-gateway/src/voice.rs",
+      "file:gateway/crates/maplord-gateway/src/social.rs",
+      "file:gateway/crates/maplord-anticheat/src/lib.rs",
+      "file:gateway/crates/maplord-ai/src/lib.rs",
+      "file:gateway/crates/maplord-django/src/lib.rs"
+    ],
+    "languageLesson": "The maplord-django crate uses reqwest (Rust's HTTP client) with async/await to call Django endpoints. The anti-cheat crate likely implements server-side validation of game actions -- since the engine runs server-side in Rust, the client only sends intents, never authoritative state changes."
+  },
+  {
+    "order": 8,
+    "title": "Frontend Shell: Next.js Layout, Auth, and API Client",
+    "description": "The frontend starts at app/layout.tsx (fan-out: 6), the root Next.js layout that wraps every page with providers for auth, notifications, and social sockets. lib/api.ts is the most-imported file in the entire codebase (fan-in: 33) -- it is the central REST client that every page and hook calls. lib/auth.ts and hooks/useAuth.tsx (fan-in: 15) manage JWT token storage, refresh, and auth state across the app.",
+    "nodeIds": [
+      "file:frontend/app/layout.tsx",
+      "file:frontend/lib/api.ts",
+      "file:frontend/lib/auth.ts",
+      "file:frontend/hooks/useAuth.tsx",
+      "file:frontend/lib/gameTypes.ts"
+    ],
+    "languageLesson": "Next.js App Router uses a nested layout system where layout.tsx files wrap all child routes. React Context providers placed in the root layout (auth, socket connections) make shared state available to every component without prop drilling."
+  },
+  {
+    "order": 9,
+    "title": "The Game Page: Where Everything Comes Together",
+    "description": "app/game/[matchId]/page.tsx is the highest fan-out file in the codebase (23 imports), orchestrating the entire in-game experience. It pulls in the WebSocket hook (useGameSocket.ts, fan-in: 13), the map renderer (GameCanvas.tsx, GameMap.tsx), the HUD (GameHUD.tsx), matchmaking state, chat, voice, and audio. This single page is the convergence point where all three system layers -- Django data, Rust real-time engine, and React UI -- meet.",
+    "nodeIds": [
+      "file:frontend/app/game/[matchId]/page.tsx",
+      "file:frontend/hooks/useGameSocket.ts",
+      "file:frontend/hooks/useMatchmaking.ts",
+      "file:frontend/lib/ws.ts"
+    ],
+    "languageLesson": "The [matchId] bracket syntax is Next.js dynamic routing -- it captures the URL parameter. useGameSocket is a custom React hook that wraps WebSocket lifecycle (connect, reconnect, message parsing) into declarative React state, abstracting away imperative socket APIs."
+  },
+  {
+    "order": 10,
+    "title": "Map Rendering: PixiJS Canvas and MapLibre GL",
+    "description": "GameCanvas.tsx uses PixiJS to render the game world as a chunked texture atlas (27x16 chunks at 276x308px each) with province polygons, unit sprites, animations, and particle effects layered on top. GameMap.tsx integrates MapLibre GL for the geographic base map. Together they create the interactive world map where players see territories, troop movements, and combat in real-time. The gameAssets.ts module (fan-in: 7) manages asset loading and caching.",
+    "nodeIds": [
+      "file:frontend/components/map/GameCanvas.tsx",
+      "file:frontend/components/map/GameMap.tsx",
+      "file:frontend/lib/gameAssets.ts",
+      "file:frontend/lib/pixiAnimations.ts",
+      "file:frontend/lib/particleSystem.ts",
+      "file:frontend/lib/projection.ts"
+    ],
+    "languageLesson": "PixiJS uses a WebGL-based scene graph with a render loop (Ticker). Province chunks are loaded as Texture objects and tiled into a Container. The coordinate projection module maps between game coordinates, screen pixels, and geographic lat/lng -- three coordinate systems that must stay synchronized."
+  },
+  {
+    "order": 11,
+    "title": "In-Game UI: HUD, Build Queue, and Action Bars",
+    "description": "The game HUD layer renders on top of the map canvas. GameHUD.tsx (fan-out: 6) composes the build queue, action bars, ability bars, diplomacy panel, and region details into a responsive overlay. These components consume game state from useGameSocket and dispatch player actions (build, attack, move) back through the WebSocket. The notification and tutorial systems guide new players through their first match.",
+    "nodeIds": [
+      "file:frontend/components/game/GameHUD.tsx",
+      "file:frontend/components/game/ActionBar.tsx",
+      "file:frontend/components/game/AbilityBar.tsx",
+      "file:frontend/components/game/BuildQueue.tsx",
+      "file:frontend/components/game/RegionPanel.tsx",
+      "file:frontend/components/game/GameNotification.tsx",
+      "file:frontend/components/game/TutorialOverlay.tsx"
+    ],
+    "languageLesson": "React components in the HUD follow a unidirectional data flow: game state flows down from the WebSocket hook as props, and user interactions dispatch action messages upward through the socket. This mirrors the flux/Redux pattern but uses WebSocket as the 'store' -- the server is the single source of truth."
+  },
+  {
+    "order": 12,
+    "title": "Social Layer: Chat, Voice, Friends, and Notifications",
+    "description": "The social system runs on a separate WebSocket connection (SocialSocketContext.tsx, useSocialSocket.ts) from the game socket, so friends/presence work even outside matches. ChatWidget.tsx (fan-out: 7) handles both lobby and in-match messaging. VoicePanel provides WebRTC-based voice chat. The notification system spans the full stack: Django creates notifications (services.py, fan-in: 5), publishes them via Redis (publisher.py), and the frontend displays them in real-time through the social socket.",
+    "nodeIds": [
+      "file:frontend/hooks/SocialSocketContext.tsx",
+      "file:frontend/hooks/useSocialSocket.ts",
+      "file:frontend/components/chat/ChatWidget.tsx",
+      "file:frontend/components/chat/VoicePanel.tsx",
+      "file:frontend/hooks/useNotifications.ts",
+      "file:apps/notifications/publisher.py"
+    ],
+    "languageLesson": "The dual-socket architecture (game + social) is a deliberate design choice: the game socket carries high-frequency tick data (multiple updates per second) while the social socket handles low-frequency events (messages, friend requests). Separating them prevents chat lag during intense game moments."
+  }
+]

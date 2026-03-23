@@ -6,19 +6,37 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="${launcherName}"
+        android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.MapLord">
 
         <meta-data
             android:name="asset_statements"
-            android:value="${assetStatements}" />
+            android:value='[{ "relation": ["delegate_permission/common.handle_all_urls"], "target": { "namespace": "web", "site": "https://maplord.qwizi.ovh" } }]' />
 
         <activity
             android:name="ovh.qwizi.maplord.LauncherActivity"
-            android:exported="true"
-            android:screenOrientation="unspecified"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+            android:exported="true">
+
+            <meta-data
+                android:name="android.support.customtabs.trusted.DEFAULT_URL"
+                android:value="https://maplord.qwizi.ovh/dashboard" />
+
+            <meta-data
+                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
+                android:resource="@color/colorPrimary" />
+
+            <meta-data
+                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR"
+                android:resource="@color/colorPrimary" />
+
+            <meta-data
+                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR"
+                android:resource="@color/colorPrimary" />
+
+            <meta-data
+                android:name="android.support.customtabs.trusted.SCREEN_ORIENTATION"
+                android:value="default" />
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -29,7 +47,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="${hostName}" />
+                <data android:scheme="https" android:host="maplord.qwizi.ovh" />
             </intent-filter>
         </activity>
     </application>

@@ -1,0 +1,2171 @@
+{
+  "name": "maplord",
+  "description": "MapLord 2.0 \u2014 Real-time strategy web game on a world map Note: this project has over 200 source files; consider scoping analysis to a subdirectory for faster results.",
+  "languages": [
+    "bash",
+    "java",
+    "javascript",
+    "python",
+    "rust",
+    "typescript"
+  ],
+  "frameworks": [
+    "Celery",
+    "Django",
+    "Next.js",
+    "React",
+    "Redis",
+    "Tailwind CSS",
+    "TypeScript",
+    "Vitest"
+  ],
+  "files": [
+    {
+      "path": "apps/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/accounts/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/accounts/admin.py",
+      "language": "python",
+      "sizeLines": 144
+    },
+    {
+      "path": "apps/accounts/apps.py",
+      "language": "python",
+      "sizeLines": 5
+    },
+    {
+      "path": "apps/accounts/auth.py",
+      "language": "python",
+      "sizeLines": 17
+    },
+    {
+      "path": "apps/accounts/backends.py",
+      "language": "python",
+      "sizeLines": 27
+    },
+    {
+      "path": "apps/accounts/friends_api.py",
+      "language": "python",
+      "sizeLines": 234
+    },
+    {
+      "path": "apps/accounts/management/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/accounts/management/commands/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/accounts/management/commands/create_bots.py",
+      "language": "python",
+      "sizeLines": 71
+    },
+    {
+      "path": "apps/accounts/messages_api.py",
+      "language": "python",
+      "sizeLines": 120
+    },
+    {
+      "path": "apps/accounts/middleware.py",
+      "language": "python",
+      "sizeLines": 26
+    },
+    {
+      "path": "apps/accounts/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 48
+    },
+    {
+      "path": "apps/accounts/migrations/0002_user_is_bot.py",
+      "language": "python",
+      "sizeLines": 16
+    },
+    {
+      "path": "apps/accounts/migrations/0003_user_tutorial_completed.py",
+      "language": "python",
+      "sizeLines": 18
+    },
+    {
+      "path": "apps/accounts/migrations/0004_user_banned_reason_user_is_banned.py",
+      "language": "python",
+      "sizeLines": 23
+    },
+    {
+      "path": "apps/accounts/migrations/0005_push_subscription.py",
+      "language": "python",
+      "sizeLines": 30
+    },
+    {
+      "path": "apps/accounts/migrations/0006_socialaccount.py",
+      "language": "python",
+      "sizeLines": 41
+    },
+    {
+      "path": "apps/accounts/migrations/0007_friendship.py",
+      "language": "python",
+      "sizeLines": 31
+    },
+    {
+      "path": "apps/accounts/migrations/0008_user_last_active.py",
+      "language": "python",
+      "sizeLines": 18
+    },
+    {
+      "path": "apps/accounts/migrations/0009_directmessage.py",
+      "language": "python",
+      "sizeLines": 31
+    },
+    {
+      "path": "apps/accounts/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/accounts/models.py",
+      "language": "python",
+      "sizeLines": 177
+    },
+    {
+      "path": "apps/accounts/push.py",
+      "language": "python",
+      "sizeLines": 61
+    },
+    {
+      "path": "apps/accounts/schemas.py",
+      "language": "python",
+      "sizeLines": 109
+    },
+    {
+      "path": "apps/accounts/social_auth.py",
+      "language": "python",
+      "sizeLines": 449
+    },
+    {
+      "path": "apps/accounts/tests.py",
+      "language": "python",
+      "sizeLines": 188
+    },
+    {
+      "path": "apps/accounts/views.py",
+      "language": "python",
+      "sizeLines": 202
+    },
+    {
+      "path": "apps/assets/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/assets/admin.py",
+      "language": "python",
+      "sizeLines": 94
+    },
+    {
+      "path": "apps/assets/api.py",
+      "language": "python",
+      "sizeLines": 28
+    },
+    {
+      "path": "apps/assets/apps.py",
+      "language": "python",
+      "sizeLines": 7
+    },
+    {
+      "path": "apps/assets/management/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/assets/management/commands/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/assets/management/commands/resize_assets.py",
+      "language": "python",
+      "sizeLines": 71
+    },
+    {
+      "path": "apps/assets/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 34
+    },
+    {
+      "path": "apps/assets/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/assets/models.py",
+      "language": "python",
+      "sizeLines": 45
+    },
+    {
+      "path": "apps/assets/registry.py",
+      "language": "python",
+      "sizeLines": 93
+    },
+    {
+      "path": "apps/assets/tests.py",
+      "language": "python",
+      "sizeLines": 234
+    },
+    {
+      "path": "apps/chat/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/chat/admin.py",
+      "language": "python",
+      "sizeLines": 21
+    },
+    {
+      "path": "apps/chat/apps.py",
+      "language": "python",
+      "sizeLines": 6
+    },
+    {
+      "path": "apps/chat/internal_api.py",
+      "language": "python",
+      "sizeLines": 138
+    },
+    {
+      "path": "apps/chat/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 44
+    },
+    {
+      "path": "apps/chat/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/chat/models.py",
+      "language": "python",
+      "sizeLines": 43
+    },
+    {
+      "path": "apps/chat/tests.py",
+      "language": "python",
+      "sizeLines": 215
+    },
+    {
+      "path": "apps/crafting/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/crafting/admin.py",
+      "language": "python",
+      "sizeLines": 38
+    },
+    {
+      "path": "apps/crafting/apps.py",
+      "language": "python",
+      "sizeLines": 5
+    },
+    {
+      "path": "apps/crafting/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 55
+    },
+    {
+      "path": "apps/crafting/migrations/0002_initial.py",
+      "language": "python",
+      "sizeLines": 53
+    },
+    {
+      "path": "apps/crafting/migrations/0003_craftinglog_instance.py",
+      "language": "python",
+      "sizeLines": 20
+    },
+    {
+      "path": "apps/crafting/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/crafting/models.py",
+      "language": "python",
+      "sizeLines": 66
+    },
+    {
+      "path": "apps/crafting/schemas.py",
+      "language": "python",
+      "sizeLines": 48
+    },
+    {
+      "path": "apps/crafting/tests.py",
+      "language": "python",
+      "sizeLines": 327
+    },
+    {
+      "path": "apps/crafting/views.py",
+      "language": "python",
+      "sizeLines": 103
+    },
+    {
+      "path": "apps/dashboard.py",
+      "language": "python",
+      "sizeLines": 160
+    },
+    {
+      "path": "apps/developers/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/developers/admin.py",
+      "language": "python",
+      "sizeLines": 87
+    },
+    {
+      "path": "apps/developers/apps.py",
+      "language": "python",
+      "sizeLines": 9
+    },
+    {
+      "path": "apps/developers/auth.py",
+      "language": "python",
+      "sizeLines": 70
+    },
+    {
+      "path": "apps/developers/middleware.py",
+      "language": "python",
+      "sizeLines": 16
+    },
+    {
+      "path": "apps/developers/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 74
+    },
+    {
+      "path": "apps/developers/migrations/0002_oauthaccesstoken_oauthauthorizationcode.py",
+      "language": "python",
+      "sizeLines": 45
+    },
+    {
+      "path": "apps/developers/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/developers/models.py",
+      "language": "python",
+      "sizeLines": 196
+    },
+    {
+      "path": "apps/developers/oauth_views.py",
+      "language": "python",
+      "sizeLines": 246
+    },
+    {
+      "path": "apps/developers/public_views.py",
+      "language": "python",
+      "sizeLines": 175
+    },
+    {
+      "path": "apps/developers/schemas.py",
+      "language": "python",
+      "sizeLines": 238
+    },
+    {
+      "path": "apps/developers/signals.py",
+      "language": "python",
+      "sizeLines": 21
+    },
+    {
+      "path": "apps/developers/tasks.py",
+      "language": "python",
+      "sizeLines": 94
+    },
+    {
+      "path": "apps/developers/tests.py",
+      "language": "python",
+      "sizeLines": 930
+    },
+    {
+      "path": "apps/developers/views.py",
+      "language": "python",
+      "sizeLines": 314
+    },
+    {
+      "path": "apps/game/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/game/admin.py",
+      "language": "python",
+      "sizeLines": 47
+    },
+    {
+      "path": "apps/game/apps.py",
+      "language": "python",
+      "sizeLines": 5
+    },
+    {
+      "path": "apps/game/internal_api.py",
+      "language": "python",
+      "sizeLines": 431
+    },
+    {
+      "path": "apps/game/management/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/game/management/commands/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/game/management/commands/flush_game_redis.py",
+      "language": "python",
+      "sizeLines": 30
+    },
+    {
+      "path": "apps/game/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 53
+    },
+    {
+      "path": "apps/game/migrations/0002_initial.py",
+      "language": "python",
+      "sizeLines": 47
+    },
+    {
+      "path": "apps/game/migrations/0003_sharelink.py",
+      "language": "python",
+      "sizeLines": 31
+    },
+    {
+      "path": "apps/game/migrations/0004_anticheatviolation.py",
+      "language": "python",
+      "sizeLines": 33
+    },
+    {
+      "path": "apps/game/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/game/models.py",
+      "language": "python",
+      "sizeLines": 110
+    },
+    {
+      "path": "apps/game/schemas.py",
+      "language": "python",
+      "sizeLines": 121
+    },
+    {
+      "path": "apps/game/tasks.py",
+      "language": "python",
+      "sizeLines": 461
+    },
+    {
+      "path": "apps/game/tests.py",
+      "language": "python",
+      "sizeLines": 1206
+    },
+    {
+      "path": "apps/game/views.py",
+      "language": "python",
+      "sizeLines": 177
+    },
+    {
+      "path": "apps/game_config/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/game_config/admin.py",
+      "language": "python",
+      "sizeLines": 299
+    },
+    {
+      "path": "apps/game_config/apps.py",
+      "language": "python",
+      "sizeLines": 5
+    },
+    {
+      "path": "apps/game_config/decorators.py",
+      "language": "python",
+      "sizeLines": 55
+    },
+    {
+      "path": "apps/game_config/forms.py",
+      "language": "python",
+      "sizeLines": 146
+    },
+    {
+      "path": "apps/game_config/management/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/game_config/management/commands/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/game_config/management/commands/load_game_config.py",
+      "language": "python",
+      "sizeLines": 693
+    },
+    {
+      "path": "apps/game_config/management/commands/seed_game_data.py",
+      "language": "python",
+      "sizeLines": 470
+    },
+    {
+      "path": "apps/game_config/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 98
+    },
+    {
+      "path": "apps/game_config/migrations/0002_gamesettings_neutral_region_units.py",
+      "language": "python",
+      "sizeLines": 18
+    },
+    {
+      "path": "apps/game_config/migrations/0002_mapconfig_min_capital_distance.py",
+      "language": "python",
+      "sizeLines": 19
+    },
+    {
+      "path": "apps/game_config/migrations/0003_merge_20260311_0019.py",
+      "language": "python",
+      "sizeLines": 14
+    },
+    {
+      "path": "apps/game_config/migrations/0004_buildingtype_asset_key_unittype_asset_key.py",
+      "language": "python",
+      "sizeLines": 23
+    },
+    {
+      "path": "apps/game_config/migrations/0005_gamesettings_currency_buildingtype_currency.py",
+      "language": "python",
+      "sizeLines": 51
+    },
+    {
+      "path": "apps/game_config/migrations/0006_unittype_manpower_cost.py",
+      "language": "python",
+      "sizeLines": 19
+    },
+    {
+      "path": "apps/game_config/migrations/0007_unittype_sea_hop_distance_km.py",
+      "language": "python",
+      "sizeLines": 19
+    },
+    {
+      "path": "apps/game_config/migrations/0008_unittype_sea_range.py",
+      "language": "python",
+      "sizeLines": 19
+    },
+    {
+      "path": "apps/game_config/migrations/0009_gamemode.py",
+      "language": "python",
+      "sizeLines": 56
+    },
+    {
+      "path": "apps/game_config/migrations/0010_abilitytype.py",
+      "language": "python",
+      "sizeLines": 38
+    },
+    {
+      "path": "apps/game_config/migrations/0011_seed_ability_types.py",
+      "language": "python",
+      "sizeLines": 119
+    },
+    {
+      "path": "apps/game_config/migrations/0012_remove_abilitytype_currency_cost_and_more.py",
+      "language": "python",
+      "sizeLines": 58
+    },
+    {
+      "path": "apps/game_config/migrations/0013_alter_abilitytype_energy_cost_and_more.py",
+      "language": "python",
+      "sizeLines": 58
+    },
+    {
+      "path": "apps/game_config/migrations/0014_abilitytype_level_stats_abilitytype_max_level_and_more.py",
+      "language": "python",
+      "sizeLines": 33
+    },
+    {
+      "path": "apps/game_config/migrations/0015_add_unittype_level_fields.py",
+      "language": "python",
+      "sizeLines": 23
+    },
+    {
+      "path": "apps/game_config/migrations/0016_abilitytype_image_abilitytype_sound_and_more.py",
+      "language": "python",
+      "sizeLines": 33
+    },
+    {
+      "path": "apps/game_config/migrations/0017_remove_abilitytype_image_remove_abilitytype_sound_and_more.py",
+      "language": "python",
+      "sizeLines": 29
+    },
+    {
+      "path": "apps/game_config/migrations/0018_weather_and_day_night_toggles.py",
+      "language": "python",
+      "sizeLines": 31
+    },
+    {
+      "path": "apps/game_config/migrations/0019_configurable_weather_modifiers_and_gameplay_limits.py",
+      "language": "python",
+      "sizeLines": 155
+    },
+    {
+      "path": "apps/game_config/migrations/0020_game_modules.py",
+      "language": "python",
+      "sizeLines": 60
+    },
+    {
+      "path": "apps/game_config/migrations/0021_seed_game_modules.py",
+      "language": "python",
+      "sizeLines": 220
+    },
+    {
+      "path": "apps/game_config/migrations/0022_system_module.py",
+      "language": "python",
+      "sizeLines": 33
+    },
+    {
+      "path": "apps/game_config/migrations/0023_seed_system_modules.py",
+      "language": "python",
+      "sizeLines": 274
+    },
+    {
+      "path": "apps/game_config/migrations/0024_enrich_system_module_configs.py",
+      "language": "python",
+      "sizeLines": 276
+    },
+    {
+      "path": "apps/game_config/migrations/0025_merge_gamemodule_into_systemmodule.py",
+      "language": "python",
+      "sizeLines": 159
+    },
+    {
+      "path": "apps/game_config/migrations/0026_remove_systemmodule_is_active.py",
+      "language": "python",
+      "sizeLines": 15
+    },
+    {
+      "path": "apps/game_config/migrations/0027_unittype_aoe_damage_unittype_blockade_port_and_more.py",
+      "language": "python",
+      "sizeLines": 53
+    },
+    {
+      "path": "apps/game_config/migrations/0028_add_ticks_per_hop_fields.py",
+      "language": "python",
+      "sizeLines": 23
+    },
+    {
+      "path": "apps/game_config/migrations/0029_remove_deprecated_base_cost_fields.py",
+      "language": "python",
+      "sizeLines": 37
+    },
+    {
+      "path": "apps/game_config/migrations/0030_gamemode_capital_protection_ticks_and_more.py",
+      "language": "python",
+      "sizeLines": 53
+    },
+    {
+      "path": "apps/game_config/migrations/0031_gamemode_proposal_timeout_ticks_and_more.py",
+      "language": "python",
+      "sizeLines": 23
+    },
+    {
+      "path": "apps/game_config/migrations/0032_gamemode_ap_cost_ability_gamemode_ap_cost_attack_and_more.py",
+      "language": "python",
+      "sizeLines": 143
+    },
+    {
+      "path": "apps/game_config/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/game_config/models.py",
+      "language": "python",
+      "sizeLines": 585
+    },
+    {
+      "path": "apps/game_config/modules.py",
+      "language": "python",
+      "sizeLines": 119
+    },
+    {
+      "path": "apps/game_config/schemas.py",
+      "language": "python",
+      "sizeLines": 340
+    },
+    {
+      "path": "apps/game_config/tests.py",
+      "language": "python",
+      "sizeLines": 182
+    },
+    {
+      "path": "apps/game_config/views.py",
+      "language": "python",
+      "sizeLines": 42
+    },
+    {
+      "path": "apps/geo/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/geo/admin.py",
+      "language": "python",
+      "sizeLines": 42
+    },
+    {
+      "path": "apps/geo/apps.py",
+      "language": "python",
+      "sizeLines": 5
+    },
+    {
+      "path": "apps/geo/management/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/geo/management/commands/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/geo/management/commands/import_geo.py",
+      "language": "python",
+      "sizeLines": 199
+    },
+    {
+      "path": "apps/geo/management/commands/import_provinces.py",
+      "language": "python",
+      "sizeLines": 202
+    },
+    {
+      "path": "apps/geo/management/commands/import_provinces_v2.py",
+      "language": "python",
+      "sizeLines": 309
+    },
+    {
+      "path": "apps/geo/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 46
+    },
+    {
+      "path": "apps/geo/migrations/0002_region_map_source_id_region_sea_distances.py",
+      "language": "python",
+      "sizeLines": 21
+    },
+    {
+      "path": "apps/geo/migrations/0003_region_game_map_fields.py",
+      "language": "python",
+      "sizeLines": 68
+    },
+    {
+      "path": "apps/geo/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/geo/models.py",
+      "language": "python",
+      "sizeLines": 75
+    },
+    {
+      "path": "apps/geo/schemas.py",
+      "language": "python",
+      "sizeLines": 69
+    },
+    {
+      "path": "apps/geo/tests.py",
+      "language": "python",
+      "sizeLines": 3
+    },
+    {
+      "path": "apps/geo/views.py",
+      "language": "python",
+      "sizeLines": 307
+    },
+    {
+      "path": "apps/internal_auth.py",
+      "language": "python",
+      "sizeLines": 8
+    },
+    {
+      "path": "apps/inventory/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/inventory/admin.py",
+      "language": "python",
+      "sizeLines": 228
+    },
+    {
+      "path": "apps/inventory/apps.py",
+      "language": "python",
+      "sizeLines": 5
+    },
+    {
+      "path": "apps/inventory/management/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/inventory/management/commands/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/inventory/management/commands/cleanup_duplicate_decks.py",
+      "language": "python",
+      "sizeLines": 38
+    },
+    {
+      "path": "apps/inventory/management/commands/give_all_items.py",
+      "language": "python",
+      "sizeLines": 87
+    },
+    {
+      "path": "apps/inventory/management/commands/provision_player_defaults.py",
+      "language": "python",
+      "sizeLines": 106
+    },
+    {
+      "path": "apps/inventory/management/commands/seed_economy_data.py",
+      "language": "python",
+      "sizeLines": 1330
+    },
+    {
+      "path": "apps/inventory/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 102
+    },
+    {
+      "path": "apps/inventory/migrations/0002_deck_deckitem.py",
+      "language": "python",
+      "sizeLines": 43
+    },
+    {
+      "path": "apps/inventory/migrations/0003_item_level_alter_item_item_type.py",
+      "language": "python",
+      "sizeLines": 23
+    },
+    {
+      "path": "apps/inventory/migrations/0004_item_cosmetic_asset_equippedcosmetic.py",
+      "language": "python",
+      "sizeLines": 37
+    },
+    {
+      "path": "apps/inventory/migrations/0005_item_cosmetic_params.py",
+      "language": "python",
+      "sizeLines": 18
+    },
+    {
+      "path": "apps/inventory/migrations/0006_iteminstance_deckitem_instance_and_more.py",
+      "language": "python",
+      "sizeLines": 67
+    },
+    {
+      "path": "apps/inventory/migrations/0007_cosmetic_slot.py",
+      "language": "python",
+      "sizeLines": 108
+    },
+    {
+      "path": "apps/inventory/migrations/0008_deck_is_editable.py",
+      "language": "python",
+      "sizeLines": 18
+    },
+    {
+      "path": "apps/inventory/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/inventory/models.py",
+      "language": "python",
+      "sizeLines": 372
+    },
+    {
+      "path": "apps/inventory/schemas.py",
+      "language": "python",
+      "sizeLines": 191
+    },
+    {
+      "path": "apps/inventory/tasks.py",
+      "language": "python",
+      "sizeLines": 194
+    },
+    {
+      "path": "apps/inventory/tests.py",
+      "language": "python",
+      "sizeLines": 1122
+    },
+    {
+      "path": "apps/inventory/views.py",
+      "language": "python",
+      "sizeLines": 565
+    },
+    {
+      "path": "apps/marketplace/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/marketplace/admin.py",
+      "language": "python",
+      "sizeLines": 62
+    },
+    {
+      "path": "apps/marketplace/apps.py",
+      "language": "python",
+      "sizeLines": 5
+    },
+    {
+      "path": "apps/marketplace/management/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/marketplace/management/commands/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/marketplace/management/commands/seed_bot_marketplace.py",
+      "language": "python",
+      "sizeLines": 93
+    },
+    {
+      "path": "apps/marketplace/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 79
+    },
+    {
+      "path": "apps/marketplace/migrations/0002_marketlisting_instance_markettransaction_instance.py",
+      "language": "python",
+      "sizeLines": 25
+    },
+    {
+      "path": "apps/marketplace/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/marketplace/models.py",
+      "language": "python",
+      "sizeLines": 121
+    },
+    {
+      "path": "apps/marketplace/schemas.py",
+      "language": "python",
+      "sizeLines": 71
+    },
+    {
+      "path": "apps/marketplace/tasks.py",
+      "language": "python",
+      "sizeLines": 117
+    },
+    {
+      "path": "apps/marketplace/tests.py",
+      "language": "python",
+      "sizeLines": 941
+    },
+    {
+      "path": "apps/marketplace/views.py",
+      "language": "python",
+      "sizeLines": 215
+    },
+    {
+      "path": "apps/matchmaking/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/matchmaking/admin.py",
+      "language": "python",
+      "sizeLines": 109
+    },
+    {
+      "path": "apps/matchmaking/apps.py",
+      "language": "python",
+      "sizeLines": 5
+    },
+    {
+      "path": "apps/matchmaking/events.py",
+      "language": "python",
+      "sizeLines": 35
+    },
+    {
+      "path": "apps/matchmaking/internal_api.py",
+      "language": "python",
+      "sizeLines": 1269
+    },
+    {
+      "path": "apps/matchmaking/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 66
+    },
+    {
+      "path": "apps/matchmaking/migrations/0002_match_game_mode_matchqueue_game_mode.py",
+      "language": "python",
+      "sizeLines": 35
+    },
+    {
+      "path": "apps/matchmaking/migrations/0003_match_is_tutorial.py",
+      "language": "python",
+      "sizeLines": 18
+    },
+    {
+      "path": "apps/matchmaking/migrations/0004_matchplayer_deck_snapshot.py",
+      "language": "python",
+      "sizeLines": 18
+    },
+    {
+      "path": "apps/matchmaking/migrations/0005_matchplayer_cosmetic_snapshot.py",
+      "language": "python",
+      "sizeLines": 18
+    },
+    {
+      "path": "apps/matchmaking/migrations/0006_lobby_lobbyplayer.py",
+      "language": "python",
+      "sizeLines": 49
+    },
+    {
+      "path": "apps/matchmaking/migrations/0007_lobby_full_at.py",
+      "language": "python",
+      "sizeLines": 18
+    },
+    {
+      "path": "apps/matchmaking/migrations/0008_add_performance_indexes.py",
+      "language": "python",
+      "sizeLines": 19
+    },
+    {
+      "path": "apps/matchmaking/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/matchmaking/models.py",
+      "language": "python",
+      "sizeLines": 141
+    },
+    {
+      "path": "apps/matchmaking/schemas.py",
+      "language": "python",
+      "sizeLines": 52
+    },
+    {
+      "path": "apps/matchmaking/tasks.py",
+      "language": "python",
+      "sizeLines": 86
+    },
+    {
+      "path": "apps/matchmaking/tests.py",
+      "language": "python",
+      "sizeLines": 778
+    },
+    {
+      "path": "apps/matchmaking/views.py",
+      "language": "python",
+      "sizeLines": 246
+    },
+    {
+      "path": "apps/notifications/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/notifications/admin.py",
+      "language": "python",
+      "sizeLines": 12
+    },
+    {
+      "path": "apps/notifications/apps.py",
+      "language": "python",
+      "sizeLines": 7
+    },
+    {
+      "path": "apps/notifications/migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 35
+    },
+    {
+      "path": "apps/notifications/migrations/0002_alter_notification_type.py",
+      "language": "python",
+      "sizeLines": 18
+    },
+    {
+      "path": "apps/notifications/migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "apps/notifications/models.py",
+      "language": "python",
+      "sizeLines": 31
+    },
+    {
+      "path": "apps/notifications/publisher.py",
+      "language": "python",
+      "sizeLines": 31
+    },
+    {
+      "path": "apps/notifications/schemas.py",
+      "language": "python",
+      "sizeLines": 16
+    },
+    {
+      "path": "apps/notifications/services.py",
+      "language": "python",
+      "sizeLines": 80
+    },
+    {
+      "path": "apps/notifications/views.py",
+      "language": "python",
+      "sizeLines": 31
+    },
+    {
+      "path": "apps/pagination.py",
+      "language": "python",
+      "sizeLines": 19
+    },
+    {
+      "path": "apps/utils.py",
+      "language": "python",
+      "sizeLines": 45
+    },
+    {
+      "path": "config/__init__.py",
+      "language": "python",
+      "sizeLines": 3
+    },
+    {
+      "path": "config/asgi.py",
+      "language": "python",
+      "sizeLines": 6
+    },
+    {
+      "path": "config/celery.py",
+      "language": "python",
+      "sizeLines": 8
+    },
+    {
+      "path": "config/logging.py",
+      "language": "python",
+      "sizeLines": 40
+    },
+    {
+      "path": "config/settings.py",
+      "language": "python",
+      "sizeLines": 467
+    },
+    {
+      "path": "config/test_geo_migrations/0001_initial.py",
+      "language": "python",
+      "sizeLines": 54
+    },
+    {
+      "path": "config/test_geo_migrations/0002_region_map_source_id_region_sea_distances.py",
+      "language": "python",
+      "sizeLines": 13
+    },
+    {
+      "path": "config/test_geo_migrations/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "config/test_runner.py",
+      "language": "python",
+      "sizeLines": 14
+    },
+    {
+      "path": "config/test_settings.py",
+      "language": "python",
+      "sizeLines": 53
+    },
+    {
+      "path": "config/test_urls.py",
+      "language": "python",
+      "sizeLines": 64
+    },
+    {
+      "path": "config/unfold_callbacks.py",
+      "language": "python",
+      "sizeLines": 7
+    },
+    {
+      "path": "config/urls.py",
+      "language": "python",
+      "sizeLines": 69
+    },
+    {
+      "path": "config/wsgi.py",
+      "language": "python",
+      "sizeLines": 16
+    },
+    {
+      "path": "entrypoint.sh",
+      "language": "bash",
+      "sizeLines": 10
+    },
+    {
+      "path": "flutter_app/android/app/src/main/java/ovh/qwizi/maplord/maplord/MainActivity.java",
+      "language": "java",
+      "sizeLines": 6
+    },
+    {
+      "path": "frontend/app/(auth)/login/page.tsx",
+      "language": "typescript",
+      "sizeLines": 488
+    },
+    {
+      "path": "frontend/app/(auth)/register/page.tsx",
+      "language": "typescript",
+      "sizeLines": 244
+    },
+    {
+      "path": "frontend/app/(main)/cosmetics/page.tsx",
+      "language": "typescript",
+      "sizeLines": 604
+    },
+    {
+      "path": "frontend/app/(main)/crafting/page.tsx",
+      "language": "typescript",
+      "sizeLines": 825
+    },
+    {
+      "path": "frontend/app/(main)/dashboard/page.tsx",
+      "language": "typescript",
+      "sizeLines": 1017
+    },
+    {
+      "path": "frontend/app/(main)/decks/[id]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 822
+    },
+    {
+      "path": "frontend/app/(main)/decks/page.tsx",
+      "language": "typescript",
+      "sizeLines": 328
+    },
+    {
+      "path": "frontend/app/(main)/developers/[appId]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 1501
+    },
+    {
+      "path": "frontend/app/(main)/developers/docs/page.tsx",
+      "language": "typescript",
+      "sizeLines": 872
+    },
+    {
+      "path": "frontend/app/(main)/developers/page.tsx",
+      "language": "typescript",
+      "sizeLines": 511
+    },
+    {
+      "path": "frontend/app/(main)/friends/page.tsx",
+      "language": "typescript",
+      "sizeLines": 672
+    },
+    {
+      "path": "frontend/app/(main)/inventory/page.tsx",
+      "language": "typescript",
+      "sizeLines": 858
+    },
+    {
+      "path": "frontend/app/(main)/layout.tsx",
+      "language": "typescript",
+      "sizeLines": 1432
+    },
+    {
+      "path": "frontend/app/(main)/leaderboard/page.tsx",
+      "language": "typescript",
+      "sizeLines": 251
+    },
+    {
+      "path": "frontend/app/(main)/lobby/[id]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 509
+    },
+    {
+      "path": "frontend/app/(main)/marketplace/[slug]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 518
+    },
+    {
+      "path": "frontend/app/(main)/marketplace/page.tsx",
+      "language": "typescript",
+      "sizeLines": 703
+    },
+    {
+      "path": "frontend/app/(main)/match/[id]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 530
+    },
+    {
+      "path": "frontend/app/(main)/match/page.tsx",
+      "language": "typescript",
+      "sizeLines": 5
+    },
+    {
+      "path": "frontend/app/(main)/messages/page.tsx",
+      "language": "typescript",
+      "sizeLines": 578
+    },
+    {
+      "path": "frontend/app/(main)/notifications/page.tsx",
+      "language": "typescript",
+      "sizeLines": 363
+    },
+    {
+      "path": "frontend/app/(main)/profile/[userId]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 535
+    },
+    {
+      "path": "frontend/app/(main)/profile/page.tsx",
+      "language": "typescript",
+      "sizeLines": 26
+    },
+    {
+      "path": "frontend/app/(main)/replay/[matchId]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 357
+    },
+    {
+      "path": "frontend/app/(main)/settings/page.tsx",
+      "language": "typescript",
+      "sizeLines": 423
+    },
+    {
+      "path": "frontend/app/auth/callback/[provider]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 90
+    },
+    {
+      "path": "frontend/app/auth/link/[provider]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 99
+    },
+    {
+      "path": "frontend/app/game/[matchId]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 2644
+    },
+    {
+      "path": "frontend/app/layout.tsx",
+      "language": "typescript",
+      "sizeLines": 106
+    },
+    {
+      "path": "frontend/app/manifest.ts",
+      "language": "typescript",
+      "sizeLines": 32
+    },
+    {
+      "path": "frontend/app/oauth/authorize/page.tsx",
+      "language": "typescript",
+      "sizeLines": 333
+    },
+    {
+      "path": "frontend/app/page.tsx",
+      "language": "typescript",
+      "sizeLines": 27
+    },
+    {
+      "path": "frontend/app/serwist-provider.tsx",
+      "language": "typescript",
+      "sizeLines": 2
+    },
+    {
+      "path": "frontend/app/serwist/[path]/route.ts",
+      "language": "typescript",
+      "sizeLines": 12
+    },
+    {
+      "path": "frontend/app/share/[token]/layout.tsx",
+      "language": "typescript",
+      "sizeLines": 72
+    },
+    {
+      "path": "frontend/app/share/[token]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 485
+    },
+    {
+      "path": "frontend/app/spectate/[matchId]/page.tsx",
+      "language": "typescript",
+      "sizeLines": 221
+    },
+    {
+      "path": "frontend/app/sw.ts",
+      "language": "typescript",
+      "sizeLines": 63
+    },
+    {
+      "path": "frontend/components/ModuleGate.tsx",
+      "language": "typescript",
+      "sizeLines": 57
+    },
+    {
+      "path": "frontend/components/SystemModulesProvider.tsx",
+      "language": "typescript",
+      "sizeLines": 35
+    },
+    {
+      "path": "frontend/components/__tests__/AbilityBar.test.tsx",
+      "language": "typescript",
+      "sizeLines": 458
+    },
+    {
+      "path": "frontend/components/__tests__/ActionBar.test.tsx",
+      "language": "typescript",
+      "sizeLines": 358
+    },
+    {
+      "path": "frontend/components/__tests__/BuildQueue.test.tsx",
+      "language": "typescript",
+      "sizeLines": 302
+    },
+    {
+      "path": "frontend/components/__tests__/GameHUD.test.tsx",
+      "language": "typescript",
+      "sizeLines": 320
+    },
+    {
+      "path": "frontend/components/__tests__/GameNotification.test.tsx",
+      "language": "typescript",
+      "sizeLines": 297
+    },
+    {
+      "path": "frontend/components/__tests__/MatchCharts.test.tsx",
+      "language": "typescript",
+      "sizeLines": 239
+    },
+    {
+      "path": "frontend/components/__tests__/MatchChatPanel.test.tsx",
+      "language": "typescript",
+      "sizeLines": 214
+    },
+    {
+      "path": "frontend/components/__tests__/MatchIntroOverlay.test.tsx",
+      "language": "typescript",
+      "sizeLines": 200
+    },
+    {
+      "path": "frontend/components/__tests__/MobileBuildSheet.test.tsx",
+      "language": "typescript",
+      "sizeLines": 355
+    },
+    {
+      "path": "frontend/components/__tests__/ProfileCharts.test.tsx",
+      "language": "typescript",
+      "sizeLines": 269
+    },
+    {
+      "path": "frontend/components/__tests__/RegionPanel.test.tsx",
+      "language": "typescript",
+      "sizeLines": 486
+    },
+    {
+      "path": "frontend/components/__tests__/TutorialOverlay.test.tsx",
+      "language": "typescript",
+      "sizeLines": 187
+    },
+    {
+      "path": "frontend/components/__tests__/VoicePanel.test.tsx",
+      "language": "typescript",
+      "sizeLines": 267
+    },
+    {
+      "path": "frontend/components/auth/AuthScreen.tsx",
+      "language": "typescript",
+      "sizeLines": 81
+    },
+    {
+      "path": "frontend/components/auth/SocialLoginButtons.tsx",
+      "language": "typescript",
+      "sizeLines": 79
+    },
+    {
+      "path": "frontend/components/chat/ChatInput.tsx",
+      "language": "typescript",
+      "sizeLines": 52
+    },
+    {
+      "path": "frontend/components/chat/ChatWidget.tsx",
+      "language": "typescript",
+      "sizeLines": 320
+    },
+    {
+      "path": "frontend/components/chat/MatchChatPanel.tsx",
+      "language": "typescript",
+      "sizeLines": 155
+    },
+    {
+      "path": "frontend/components/chat/MessageList.tsx",
+      "language": "typescript",
+      "sizeLines": 61
+    },
+    {
+      "path": "frontend/components/chat/VoicePanel.tsx",
+      "language": "typescript",
+      "sizeLines": 149
+    },
+    {
+      "path": "frontend/components/game/AbilityBar.tsx",
+      "language": "typescript",
+      "sizeLines": 354
+    },
+    {
+      "path": "frontend/components/game/ActionBar.tsx",
+      "language": "typescript",
+      "sizeLines": 386
+    },
+    {
+      "path": "frontend/components/game/ActiveBoosts.tsx",
+      "language": "typescript",
+      "sizeLines": 103
+    },
+    {
+      "path": "frontend/components/game/BuildQueue.tsx",
+      "language": "typescript",
+      "sizeLines": 188
+    },
+    {
+      "path": "frontend/components/game/DesktopChatVoice.tsx",
+      "language": "typescript",
+      "sizeLines": 130
+    },
+    {
+      "path": "frontend/components/game/DiplomacyPanel.tsx",
+      "language": "typescript",
+      "sizeLines": 178
+    },
+    {
+      "path": "frontend/components/game/GameHUD.tsx",
+      "language": "typescript",
+      "sizeLines": 514
+    },
+    {
+      "path": "frontend/components/game/GameNotification.tsx",
+      "language": "typescript",
+      "sizeLines": 177
+    },
+    {
+      "path": "frontend/components/game/MatchIntroOverlay.tsx",
+      "language": "typescript",
+      "sizeLines": 367
+    },
+    {
+      "path": "frontend/components/game/MobileBuildSheet.tsx",
+      "language": "typescript",
+      "sizeLines": 310
+    },
+    {
+      "path": "frontend/components/game/QuickActionBar.tsx",
+      "language": "typescript",
+      "sizeLines": 843
+    },
+    {
+      "path": "frontend/components/game/RegionPanel.tsx",
+      "language": "typescript",
+      "sizeLines": 511
+    },
+    {
+      "path": "frontend/components/game/TutorialOverlay.tsx",
+      "language": "typescript",
+      "sizeLines": 147
+    },
+    {
+      "path": "frontend/components/game/WeatherIndicator.tsx",
+      "language": "typescript",
+      "sizeLines": 72
+    },
+    {
+      "path": "frontend/components/inventory/CrateOpenModal.tsx",
+      "language": "typescript",
+      "sizeLines": 663
+    },
+    {
+      "path": "frontend/components/map/GameCanvas.tsx",
+      "language": "typescript",
+      "sizeLines": 2130
+    },
+    {
+      "path": "frontend/components/map/GameMap.tsx",
+      "language": "typescript",
+      "sizeLines": 1915
+    },
+    {
+      "path": "frontend/components/match/MatchCharts.tsx",
+      "language": "typescript",
+      "sizeLines": 156
+    },
+    {
+      "path": "frontend/components/profile/ProfileCharts.tsx",
+      "language": "typescript",
+      "sizeLines": 221
+    },
+    {
+      "path": "frontend/components/ui/ItemIcon.tsx",
+      "language": "typescript",
+      "sizeLines": 132
+    },
+    {
+      "path": "frontend/components/ui/avatar.tsx",
+      "language": "typescript",
+      "sizeLines": 109
+    },
+    {
+      "path": "frontend/components/ui/badge.tsx",
+      "language": "typescript",
+      "sizeLines": 52
+    },
+    {
+      "path": "frontend/components/ui/banned-badge.tsx",
+      "language": "typescript",
+      "sizeLines": 18
+    },
+    {
+      "path": "frontend/components/ui/button.tsx",
+      "language": "typescript",
+      "sizeLines": 60
+    },
+    {
+      "path": "frontend/components/ui/card.tsx",
+      "language": "typescript",
+      "sizeLines": 103
+    },
+    {
+      "path": "frontend/components/ui/chart.tsx",
+      "language": "typescript",
+      "sizeLines": 356
+    },
+    {
+      "path": "frontend/components/ui/dialog.tsx",
+      "language": "typescript",
+      "sizeLines": 157
+    },
+    {
+      "path": "frontend/components/ui/dropdown-menu.tsx",
+      "language": "typescript",
+      "sizeLines": 268
+    },
+    {
+      "path": "frontend/components/ui/hover-card.tsx",
+      "language": "typescript",
+      "sizeLines": 51
+    },
+    {
+      "path": "frontend/components/ui/input.tsx",
+      "language": "typescript",
+      "sizeLines": 20
+    },
+    {
+      "path": "frontend/components/ui/label.tsx",
+      "language": "typescript",
+      "sizeLines": 20
+    },
+    {
+      "path": "frontend/components/ui/popover.tsx",
+      "language": "typescript",
+      "sizeLines": 90
+    },
+    {
+      "path": "frontend/components/ui/separator.tsx",
+      "language": "typescript",
+      "sizeLines": 25
+    },
+    {
+      "path": "frontend/components/ui/sheet.tsx",
+      "language": "typescript",
+      "sizeLines": 135
+    },
+    {
+      "path": "frontend/components/ui/sonner.tsx",
+      "language": "typescript",
+      "sizeLines": 34
+    },
+    {
+      "path": "frontend/components/ui/table.tsx",
+      "language": "typescript",
+      "sizeLines": 116
+    },
+    {
+      "path": "frontend/components/ui/tabs.tsx",
+      "language": "typescript",
+      "sizeLines": 82
+    },
+    {
+      "path": "frontend/e2e/auth.spec.ts",
+      "language": "typescript",
+      "sizeLines": 149
+    },
+    {
+      "path": "frontend/e2e/dashboard.spec.ts",
+      "language": "typescript",
+      "sizeLines": 101
+    },
+    {
+      "path": "frontend/e2e/fixtures.ts",
+      "language": "typescript",
+      "sizeLines": 146
+    },
+    {
+      "path": "frontend/e2e/game.spec.ts",
+      "language": "typescript",
+      "sizeLines": 301
+    },
+    {
+      "path": "frontend/e2e/matchmaking.spec.ts",
+      "language": "typescript",
+      "sizeLines": 201
+    },
+    {
+      "path": "frontend/hooks/SocialSocketContext.tsx",
+      "language": "typescript",
+      "sizeLines": 22
+    },
+    {
+      "path": "frontend/hooks/__tests__/useAudio.test.ts",
+      "language": "typescript",
+      "sizeLines": 236
+    },
+    {
+      "path": "frontend/hooks/__tests__/useAuth.test.tsx",
+      "language": "typescript",
+      "sizeLines": 270
+    },
+    {
+      "path": "frontend/hooks/__tests__/useChat.test.tsx",
+      "language": "typescript",
+      "sizeLines": 357
+    },
+    {
+      "path": "frontend/hooks/__tests__/useGameSocket.test.ts",
+      "language": "typescript",
+      "sizeLines": 541
+    },
+    {
+      "path": "frontend/hooks/__tests__/useMatchmaking.test.ts",
+      "language": "typescript",
+      "sizeLines": 364
+    },
+    {
+      "path": "frontend/hooks/__tests__/usePushNotifications.test.ts",
+      "language": "typescript",
+      "sizeLines": 371
+    },
+    {
+      "path": "frontend/hooks/useAudio.ts",
+      "language": "typescript",
+      "sizeLines": 193
+    },
+    {
+      "path": "frontend/hooks/useAuth.tsx",
+      "language": "typescript",
+      "sizeLines": 172
+    },
+    {
+      "path": "frontend/hooks/useChat.tsx",
+      "language": "typescript",
+      "sizeLines": 217
+    },
+    {
+      "path": "frontend/hooks/useGameSocket.ts",
+      "language": "typescript",
+      "sizeLines": 665
+    },
+    {
+      "path": "frontend/hooks/useMatchmaking.ts",
+      "language": "typescript",
+      "sizeLines": 431
+    },
+    {
+      "path": "frontend/hooks/useNotifications.ts",
+      "language": "typescript",
+      "sizeLines": 65
+    },
+    {
+      "path": "frontend/hooks/usePushNotifications.ts",
+      "language": "typescript",
+      "sizeLines": 100
+    },
+    {
+      "path": "frontend/hooks/useShapesData.ts",
+      "language": "typescript",
+      "sizeLines": 60
+    },
+    {
+      "path": "frontend/hooks/useSocialSocket.ts",
+      "language": "typescript",
+      "sizeLines": 99
+    },
+    {
+      "path": "frontend/hooks/useSystemModules.ts",
+      "language": "typescript",
+      "sizeLines": 90
+    },
+    {
+      "path": "frontend/hooks/useTutorial.ts",
+      "language": "typescript",
+      "sizeLines": 133
+    },
+    {
+      "path": "frontend/hooks/useVoiceChat.ts",
+      "language": "typescript",
+      "sizeLines": 196
+    },
+    {
+      "path": "frontend/lib/__tests__/animationConfig.test.ts",
+      "language": "typescript",
+      "sizeLines": 356
+    },
+    {
+      "path": "frontend/lib/__tests__/api.test.ts",
+      "language": "typescript",
+      "sizeLines": 228
+    },
+    {
+      "path": "frontend/lib/__tests__/auth.test.ts",
+      "language": "typescript",
+      "sizeLines": 81
+    },
+    {
+      "path": "frontend/lib/__tests__/gameAssets.test.ts",
+      "language": "typescript",
+      "sizeLines": 300
+    },
+    {
+      "path": "frontend/lib/__tests__/pow.test.ts",
+      "language": "typescript",
+      "sizeLines": 96
+    },
+    {
+      "path": "frontend/lib/__tests__/tutorialSteps.test.ts",
+      "language": "typescript",
+      "sizeLines": 352
+    },
+    {
+      "path": "frontend/lib/__tests__/utils.test.ts",
+      "language": "typescript",
+      "sizeLines": 43
+    },
+    {
+      "path": "frontend/lib/__tests__/ws.test.ts",
+      "language": "typescript",
+      "sizeLines": 118
+    },
+    {
+      "path": "frontend/lib/animationConfig.ts",
+      "language": "typescript",
+      "sizeLines": 686
+    },
+    {
+      "path": "frontend/lib/api.ts",
+      "language": "typescript",
+      "sizeLines": 1481
+    },
+    {
+      "path": "frontend/lib/assetOverrides.ts",
+      "language": "typescript",
+      "sizeLines": 36
+    },
+    {
+      "path": "frontend/lib/auth.ts",
+      "language": "typescript",
+      "sizeLines": 26
+    },
+    {
+      "path": "frontend/lib/gameAssets.ts",
+      "language": "typescript",
+      "sizeLines": 190
+    },
+    {
+      "path": "frontend/lib/gameTravel.js",
+      "language": "javascript",
+      "sizeLines": 50
+    },
+    {
+      "path": "frontend/lib/gameTypes.ts",
+      "language": "typescript",
+      "sizeLines": 111
+    },
+    {
+      "path": "frontend/lib/particleSystem.ts",
+      "language": "typescript",
+      "sizeLines": 1366
+    },
+    {
+      "path": "frontend/lib/pixiAnimations.ts",
+      "language": "typescript",
+      "sizeLines": 1880
+    },
+    {
+      "path": "frontend/lib/pow.ts",
+      "language": "typescript",
+      "sizeLines": 28
+    },
+    {
+      "path": "frontend/lib/projection.ts",
+      "language": "typescript",
+      "sizeLines": 64
+    },
+    {
+      "path": "frontend/lib/tutorialSteps.ts",
+      "language": "typescript",
+      "sizeLines": 284
+    },
+    {
+      "path": "frontend/lib/utils.ts",
+      "language": "typescript",
+      "sizeLines": 6
+    },
+    {
+      "path": "frontend/lib/ws.ts",
+      "language": "typescript",
+      "sizeLines": 52
+    },
+    {
+      "path": "frontend/next.config.ts",
+      "language": "typescript",
+      "sizeLines": 34
+    },
+    {
+      "path": "frontend/playwright.config.ts",
+      "language": "typescript",
+      "sizeLines": 65
+    },
+    {
+      "path": "frontend/public/pow-worker.js",
+      "language": "javascript",
+      "sizeLines": 30
+    },
+    {
+      "path": "frontend/vitest.config.ts",
+      "language": "typescript",
+      "sizeLines": 22
+    },
+    {
+      "path": "frontend/vitest.setup.ts",
+      "language": "typescript",
+      "sizeLines": 1
+    },
+    {
+      "path": "gateway/crates/maplord-ai/src/lib.rs",
+      "language": "rust",
+      "sizeLines": 20
+    },
+    {
+      "path": "gateway/crates/maplord-ai/src/strategy.rs",
+      "language": "rust",
+      "sizeLines": 1176
+    },
+    {
+      "path": "gateway/crates/maplord-ai/src/tutorial.rs",
+      "language": "rust",
+      "sizeLines": 804
+    },
+    {
+      "path": "gateway/crates/maplord-anticheat/src/lib.rs",
+      "language": "rust",
+      "sizeLines": 1199
+    },
+    {
+      "path": "gateway/crates/maplord-django/src/lib.rs",
+      "language": "rust",
+      "sizeLines": 1312
+    },
+    {
+      "path": "gateway/crates/maplord-engine/src/lib.rs",
+      "language": "rust",
+      "sizeLines": 6348
+    },
+    {
+      "path": "gateway/crates/maplord-engine/src/types.rs",
+      "language": "rust",
+      "sizeLines": 1179
+    },
+    {
+      "path": "gateway/crates/maplord-gateway/src/auth.rs",
+      "language": "rust",
+      "sizeLines": 483
+    },
+    {
+      "path": "gateway/crates/maplord-gateway/src/chat.rs",
+      "language": "rust",
+      "sizeLines": 540
+    },
+    {
+      "path": "gateway/crates/maplord-gateway/src/config.rs",
+      "language": "rust",
+      "sizeLines": 304
+    },
+    {
+      "path": "gateway/crates/maplord-gateway/src/game.rs",
+      "language": "rust",
+      "sizeLines": 3432
+    },
+    {
+      "path": "gateway/crates/maplord-gateway/src/main.rs",
+      "language": "rust",
+      "sizeLines": 208
+    },
+    {
+      "path": "gateway/crates/maplord-gateway/src/matchmaking_ws.rs",
+      "language": "rust",
+      "sizeLines": 518
+    },
+    {
+      "path": "gateway/crates/maplord-gateway/src/social.rs",
+      "language": "rust",
+      "sizeLines": 393
+    },
+    {
+      "path": "gateway/crates/maplord-gateway/src/state.rs",
+      "language": "rust",
+      "sizeLines": 29
+    },
+    {
+      "path": "gateway/crates/maplord-gateway/src/voice.rs",
+      "language": "rust",
+      "sizeLines": 127
+    },
+    {
+      "path": "gateway/crates/maplord-matchmaking/src/lib.rs",
+      "language": "rust",
+      "sizeLines": 1034
+    },
+    {
+      "path": "gateway/crates/maplord-state/src/lib.rs",
+      "language": "rust",
+      "sizeLines": 1071
+    },
+    {
+      "path": "manage.py",
+      "language": "python",
+      "sizeLines": 22
+    },
+    {
+      "path": "promo/src/Root.tsx",
+      "language": "typescript",
+      "sizeLines": 26
+    },
+    {
+      "path": "promo/src/components/AbilityBar.tsx",
+      "language": "typescript",
+      "sizeLines": 145
+    },
+    {
+      "path": "promo/src/components/BeatEffects.tsx",
+      "language": "typescript",
+      "sizeLines": 210
+    },
+    {
+      "path": "promo/src/components/GameHUD.tsx",
+      "language": "typescript",
+      "sizeLines": 448
+    },
+    {
+      "path": "promo/src/components/GameMap.tsx",
+      "language": "typescript",
+      "sizeLines": 520
+    },
+    {
+      "path": "promo/src/components/GameToast.tsx",
+      "language": "typescript",
+      "sizeLines": 122
+    },
+    {
+      "path": "promo/src/components/QuickActionPanel.tsx",
+      "language": "typescript",
+      "sizeLines": 182
+    },
+    {
+      "path": "promo/src/index.ts",
+      "language": "typescript",
+      "sizeLines": 4
+    },
+    {
+      "path": "promo/src/sequences/TikTok.tsx",
+      "language": "typescript",
+      "sizeLines": 425
+    },
+    {
+      "path": "promo/src/sequences/Trailer.tsx",
+      "language": "typescript",
+      "sizeLines": 636
+    },
+    {
+      "path": "promo/src/simulation.ts",
+      "language": "typescript",
+      "sizeLines": 335
+    },
+    {
+      "path": "scripts/cheat_simulator.py",
+      "language": "python",
+      "sizeLines": 430
+    },
+    {
+      "path": "scripts/convert_provinces_to_geojson.py",
+      "language": "python",
+      "sizeLines": 145
+    },
+    {
+      "path": "scripts/generate_prod_env.py",
+      "language": "python",
+      "sizeLines": 153
+    },
+    {
+      "path": "scripts/generate_vapid_keys.py",
+      "language": "python",
+      "sizeLines": 75
+    },
+    {
+      "path": "test_stubs/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "tests/__init__.py",
+      "language": "python",
+      "sizeLines": 0
+    },
+    {
+      "path": "tests/test_integration.py",
+      "language": "python",
+      "sizeLines": 852
+    },
+    {
+      "path": "twa/app/src/main/java/ovh/qwizi/maplord/LauncherActivity.java",
+      "language": "java",
+      "sizeLines": 6
+    }
+  ],
+  "totalFiles": 429,
+  "estimatedComplexity": "large"
+}
