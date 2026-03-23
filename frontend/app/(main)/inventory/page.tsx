@@ -37,6 +37,7 @@ import {
   type ItemDropOut,
 } from "@/lib/api";
 import { useMyInventory, useMyWallet, useMyDrops, useItemCategories, useOpenCrate } from "@/hooks/queries";
+import { InventorySkeleton } from "@/components/skeletons/InventorySkeleton";
 
 // ─── Wear condition config ────────────────────────────────────────────────────
 
@@ -570,7 +571,7 @@ function InventoryContent() {
   const totalSlots = Math.max(MIN_SLOTS, filteredInventory.length);
   const emptyCount = totalSlots - filteredInventory.length;
 
-  if (authLoading || !user) return null;
+  if (authLoading || !user) return <InventorySkeleton />;
 
   return (
     <div ref={containerRef} className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">

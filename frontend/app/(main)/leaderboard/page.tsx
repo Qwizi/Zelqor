@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { Trophy, Medal, ChevronLeft, ChevronRight, Loader2, Target, Swords, Crown, Users } from "lucide-react";
+import { Trophy, Medal, ChevronLeft, ChevronRight, Target, Swords, Crown, Users } from "lucide-react";
+import { LeaderboardSkeleton } from "@/components/skeletons/LeaderboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
@@ -70,11 +71,7 @@ function LeaderboardContent() {
   const myPlacement = entries.findIndex((entry) => entry.id === user?.id) + 1;
 
   if (loading || pageLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <LeaderboardSkeleton />;
   }
 
   const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));

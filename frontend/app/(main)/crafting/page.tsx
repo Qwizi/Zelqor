@@ -30,6 +30,7 @@ import {
   type WalletOut,
 } from "@/lib/api";
 import { useRecipes, useMyInventory, useMyWallet, useCraftItem } from "@/hooks/queries";
+import { CraftingSkeleton } from "@/components/skeletons/CraftingSkeleton";
 
 // ─── Wear / Rarity constants ────────────────────────────────────────────────
 
@@ -448,11 +449,7 @@ function CraftingContent() {
 
           {/* Recipe grid */}
           {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-20 animate-pulse rounded-xl border border-border bg-muted/20" />
-              ))}
-            </div>
+            <CraftingSkeleton />
           ) : filtered.length === 0 ? (
             <div className="py-12 text-center">
               <Hammer className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />

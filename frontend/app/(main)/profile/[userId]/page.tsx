@@ -19,6 +19,8 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import { ProfileSkeleton } from "@/components/skeletons/ProfileSkeleton";
+import { scaleIn, fadeInUp } from "@/lib/animations";
 import { useAuth } from "@/hooks/useAuth";
 import {
   APIError,
@@ -163,9 +165,9 @@ export default function ProfilePage() {
       });
     });
 
-    gsap.fromTo("[data-animate='identity']", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" });
-    gsap.fromTo("[data-animate='stat']", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.08, delay: 0.15, ease: "power2.out" });
-    gsap.fromTo("[data-animate='section']", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, stagger: 0.12, delay: 0.3, ease: "power2.out" });
+    fadeInUp("[data-animate='identity']", { duration: 0.5 });
+    scaleIn("[data-animate='stat']", { stagger: 0.08, delay: 0.15 });
+    fadeInUp("[data-animate='section']", { stagger: 0.12, delay: 0.3 });
   }, { scope: containerRef, dependencies: [dataLoading] });
 
   // Auth redirect
@@ -175,11 +177,7 @@ export default function ProfilePage() {
   }
 
   if (authLoading || dataLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   if (notFound && !isOwnProfile) {

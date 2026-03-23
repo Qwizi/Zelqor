@@ -24,6 +24,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
+import { NotificationsSkeleton } from "@/components/skeletons/NotificationsSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -209,9 +210,7 @@ export default function NotificationsPage() {
       {/* ── List ── */}
       <div className="px-4 md:px-0" data-animate="section">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <NotificationsSkeleton />
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-14 text-center">
             <Bell size={36} className="text-muted-foreground/30" />

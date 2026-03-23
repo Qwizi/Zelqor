@@ -42,6 +42,7 @@ import {
   useCancelListing,
 } from "@/hooks/queries";
 import ItemIcon from "@/components/ui/ItemIcon";
+import { MarketplaceSkeleton } from "@/components/skeletons/MarketplaceSkeleton";
 
 // ─── Rarity styling maps ────────────────────────────────────────────────────
 
@@ -578,7 +579,7 @@ function MarketplaceContent() {
     return Array.from(map.values()).sort((a, b) => a.cheapestPrice - b.cheapestPrice);
   }, [listingsQuery.data]);
 
-  if (authLoading || !user) return null;
+  if (authLoading || !user) return <MarketplaceSkeleton />;
 
   return (
     <div className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">

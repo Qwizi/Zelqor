@@ -16,6 +16,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { FriendsSkeleton } from "@/components/skeletons/FriendsSkeleton";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -159,11 +160,7 @@ export default function FriendsPage() {
   }
 
   if (loading || pageLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <FriendsSkeleton />;
   }
 
   return (

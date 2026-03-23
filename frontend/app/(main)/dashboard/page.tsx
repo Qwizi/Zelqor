@@ -74,6 +74,8 @@ import {
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { toast } from "sonner";
+import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
+import { scaleIn, countUp } from "@/lib/animations";
 
 const MODE_ICONS: Record<string, typeof Users> = {
   "standard-1v1": Swords,
@@ -168,22 +170,12 @@ export default function DashboardPage() {
   useGSAP(() => {
     if (!containerRef.current || !user) return;
 
-    gsap.fromTo("[data-animate='stat']",
-      { y: 24, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.5, stagger: 0.1, ease: "power2.out" }
-    );
+    scaleIn("[data-animate='stat']", { stagger: 0.08 });
 
     containerRef.current.querySelectorAll("[data-counter]").forEach((el) => {
       const target = parseInt(el.getAttribute("data-counter") || "0", 10);
-      const obj = { val: 0 };
-      gsap.to(obj, {
-        val: target,
-        duration: 1.2,
-        ease: "power2.out",
-        onUpdate: () => {
-          el.textContent = Math.round(obj.val).toString() + (el.getAttribute("data-suffix") || "");
-        },
-      });
+      const suffix = el.getAttribute("data-suffix") || "";
+      countUp(el as HTMLElement, target, { suffix });
     });
 
     gsap.fromTo("[data-animate='shortcut']",
@@ -205,11 +197,7 @@ export default function DashboardPage() {
   }, { scope: containerRef, dependencies: [mountId, !!user, recentMatches.length] });
 
   if (authLoading || !user) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   const botMode = instantBot ? 2 : fillBots ? 1 : 0;
