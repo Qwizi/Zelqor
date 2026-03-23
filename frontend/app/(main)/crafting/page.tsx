@@ -11,7 +11,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -115,7 +114,6 @@ function RecipeRow({ recipe, craftable, active, rarity, owned, onSelect }: {
 }) {
   return (
     <button
-      data-animate="recipe"
       onClick={onSelect}
       className={`group w-full rounded-xl border p-3 md:p-4 text-left transition-colors active:scale-[0.98] ${
         active ? "bg-secondary/50 border-primary/30" : "border-border/30 hover:bg-muted/30"
@@ -193,11 +191,6 @@ function CraftingContent() {
   const [selected, setSelected] = useState<string | null>(null);
   const [showOnlyCraftable, setShowOnlyCraftable] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    if (!pageRef.current || loading) return;
-    gsap.fromTo("[data-animate='recipe']", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, stagger: 0.04, ease: "power2.out" });
-  }, { scope: pageRef, dependencies: [loading, category, showOnlyCraftable] });
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -320,7 +313,7 @@ function CraftingContent() {
   if (authLoading || !user) return null;
 
   return (
-    <div ref={pageRef} className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div ref={pageRef} className="animate-page-in space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* ── Header ── */}
       <div className="px-4 md:px-0">
         <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground">Warsztat</p>
@@ -458,7 +451,7 @@ function CraftingContent() {
               </p>
             </div>
           ) : (
-            <div className="space-y-1.5 md:space-y-2">
+            <div className="animate-list-in space-y-1.5 md:space-y-2">
               {/* Available recipes */}
               {filtered.filter((r) => canCraft(r)).length > 0 && (
                 <div className="flex items-center gap-1.5 md:gap-2 px-1 pt-1 pb-1.5 md:pb-2">

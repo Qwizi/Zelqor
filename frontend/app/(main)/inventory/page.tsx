@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
 import {
   Backpack,
   Calendar,
@@ -184,7 +182,6 @@ function FilledSlot({ entry, isSelected, onClick }: SlotProps) {
 
   return (
     <div
-      data-animate="slot"
       onClick={onClick}
       className={[
         "group relative aspect-square rounded-lg border border-l-2 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer",
@@ -498,7 +495,6 @@ function InventoryContent() {
   const router = useRouter();
 
   const [filter, setFilter] = useState<string>("all");
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // Crate opening modal state
   const [crateModalOpen, setCrateModalOpen] = useState(false);
@@ -517,11 +513,6 @@ function InventoryContent() {
   const drops = dropsData?.items ?? [];
   const allItemCatalog = useMemo(() => (categories ?? []).flatMap((c) => c.items), [categories]);
   const loading = inventoryLoading || walletLoading || dropsLoading || categoriesLoading;
-
-  useGSAP(() => {
-    if (!containerRef.current || loading) return;
-    gsap.fromTo("[data-animate='slot']", { scale: 0.85, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3, stagger: 0.02, ease: "back.out(1.5)" });
-  }, { scope: containerRef, dependencies: [loading, filter] });
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -574,7 +565,7 @@ function InventoryContent() {
   if (authLoading || !user) return <InventorySkeleton />;
 
   return (
-    <div ref={containerRef} className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
 
       <CrateOpenModal
         isOpen={crateModalOpen}

@@ -20,7 +20,6 @@ import {
   Users,
 } from "lucide-react";
 import { ProfileSkeleton } from "@/components/skeletons/ProfileSkeleton";
-import { scaleIn, fadeInUp } from "@/lib/animations";
 import { useAuth } from "@/hooks/useAuth";
 import {
   APIError,
@@ -164,10 +163,6 @@ export default function ProfilePage() {
         onUpdate: () => { el.textContent = Math.round(obj.val).toString() + suffix; },
       });
     });
-
-    fadeInUp("[data-animate='identity']", { duration: 0.5 });
-    scaleIn("[data-animate='stat']", { stagger: 0.08, delay: 0.15 });
-    fadeInUp("[data-animate='section']", { stagger: 0.12, delay: 0.3 });
   }, { scope: containerRef, dependencies: [dataLoading] });
 
   // Auth redirect
@@ -233,7 +228,7 @@ export default function ProfilePage() {
   const defaultDeck = decks.find((d) => d.is_default);
 
   return (
-    <div ref={containerRef} className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div ref={containerRef} className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 md:px-0">
         {!isOwnProfile && (
@@ -300,7 +295,7 @@ export default function ProfilePage() {
 
       {/* Identity + stats */}
       <div className="px-4 md:px-0">
-        <div data-animate="identity" className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
+        <div className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
           <div className="flex items-center gap-3 md:gap-4">
             <div className="flex h-12 w-12 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-2xl border border-border bg-primary/10">
               {placement !== null && placement <= 3 ? (
@@ -330,14 +325,14 @@ export default function ProfilePage() {
           </div>
 
           {/* Stats — horizontal scroll on mobile, grid on desktop */}
-          <div className="flex gap-2 mt-3 md:mt-5 overflow-x-auto pb-0.5 md:grid md:grid-cols-4 md:gap-3 md:overflow-visible scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="animate-stagger flex gap-2 mt-3 md:mt-5 overflow-x-auto pb-0.5 md:grid md:grid-cols-4 md:gap-3 md:overflow-visible scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
             {[
               { value: elo, label: "ELO", color: "text-accent", isNum: true },
               { value: matchesPlayed, label: "Mecze", color: "text-primary", isNum: true },
               { value: wins, label: "Wygrane", color: "text-emerald-300", isNum: true },
               { value: winRate, label: "Win Rate", color: "text-violet-300", isNum: true, suffix: "%" },
             ].map((s) => (
-              <div key={s.label} data-animate="stat" className="flex shrink-0 items-center gap-2.5 rounded-xl bg-secondary/50 border border-border px-3 py-2 md:p-4 md:flex-col md:items-start md:gap-1.5 min-w-[100px] md:min-w-0">
+              <div key={s.label} className="flex shrink-0 items-center gap-2.5 rounded-xl bg-secondary/50 border border-border px-3 py-2 md:p-4 md:flex-col md:items-start md:gap-1.5 min-w-[100px] md:min-w-0">
                 <span className="text-[9px] md:text-xs uppercase tracking-[0.15em] md:tracking-[0.2em] text-muted-foreground font-medium">{s.label}</span>
                 <span data-counter={s.isNum ? s.value : undefined} data-suffix={s.suffix ?? ""} className={`font-display text-base md:text-3xl tabular-nums ${s.color} ml-auto md:ml-0`}>{s.isNum ? "0" + (s.suffix ?? "") : s.value}</span>
               </div>
@@ -358,14 +353,14 @@ export default function ProfilePage() {
 
       {/* === CHARTS — for all profiles === */}
       {matches.length > 0 && (
-        <div data-animate="section" className="px-4 md:px-0">
+        <div className="px-4 md:px-0">
           <ProfileCharts matches={matches} userId={userId} currentElo={elo} />
         </div>
       )}
 
       {/* === MATCHES — for all profiles === */}
       {matches.length > 0 && (
-          <div data-animate="section" className="px-4 md:px-0">
+          <div className="px-4 md:px-0">
             <div className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
               <div className="flex items-center justify-between mb-2 md:mb-4">
                 <p className="text-[11px] md:text-sm uppercase tracking-[0.18em] md:tracking-[0.2em] text-muted-foreground font-medium">Ostatnie mecze</p>

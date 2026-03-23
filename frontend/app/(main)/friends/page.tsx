@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
 import {
   Check,
   ChevronRight,
@@ -17,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { FriendsSkeleton } from "@/components/skeletons/FriendsSkeleton";
+import { RefreshingOverlay } from "@/components/ui/refreshing-overlay";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -73,11 +72,11 @@ export default function FriendsPage() {
   const router = useRouter();
 
   const [sendUsername, setSendUsername] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  const { data: friendsData, isLoading: friendsLoading } = useFriends();
-  const { data: receivedData, isLoading: receivedLoading } = useReceivedRequests();
-  const { data: sentData, isLoading: sentLoading } = useSentRequests();
+  const { data: friendsData, isLoading: friendsLoading, isFetching: friendsFetching } = useFriends();
+  const { data: receivedData, isLoading: receivedLoading, isFetching: receivedFetching } = useReceivedRequests();
+  const { data: sentData, isLoading: sentLoading, isFetching: sentFetching } = useSentRequests();
+  const isRefreshing = (friendsFetching || receivedFetching || sentFetching) && !friendsLoading && !receivedLoading && !sentLoading;
 
   const sendMutation = useSendFriendRequest();
   const acceptMutation = useAcceptFriendRequest();
@@ -90,20 +89,6 @@ export default function FriendsPage() {
 
   const pageLoading = friendsLoading || receivedLoading || sentLoading;
   const actionPending = acceptMutation.isPending || rejectMutation.isPending || removeMutation.isPending;
-
-  useGSAP(() => {
-    if (!containerRef.current || pageLoading) return;
-    gsap.fromTo(
-      "[data-animate='row']",
-      { x: -12, opacity: 0 },
-      { x: 0, opacity: 1, duration: 0.3, stagger: 0.04, ease: "power2.out" }
-    );
-    gsap.fromTo(
-      "[data-animate='section']",
-      { y: 20, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }
-    );
-  }, { scope: containerRef, dependencies: [pageLoading] });
 
   useEffect(() => {
     if (loading) return;
@@ -164,7 +149,8 @@ export default function FriendsPage() {
   }
 
   return (
-    <div ref={containerRef} className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <RefreshingOverlay active={isRefreshing}>
+    <div className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 px-4 md:px-0">
@@ -182,7 +168,7 @@ export default function FriendsPage() {
       </div>
 
       {/* ── Dodaj znajomego ── */}
-      <div data-animate="section" className="px-4 md:px-0">
+      <div className="px-4 md:px-0">
         {/* Mobile: flat */}
         <div className="md:hidden">
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground font-medium mb-2.5">Dodaj znajomego</p>
@@ -319,12 +305,12 @@ export default function FriendsPage() {
             ) : (
               <>
                 {/* Mobile: clickable rows */}
-                <div className="md:hidden space-y-0.5">
+                <div className="animate-list-in md:hidden space-y-0.5">
                   {friends.map((f) => {
                     const friend = f.from_user.id === user?.id ? f.to_user : f.from_user;
                     const busy = removeMutation.isPending && removeMutation.variables === f.id;
                     return (
-                      <div key={f.id} data-animate="row" className="flex items-center gap-3 rounded-xl py-3 px-1">
+                      <div key={f.id} className="flex items-center gap-3 rounded-xl py-3 px-1">
                         <button
                           onClick={() => router.push(`/profile/${friend.id}`)}
                           className="flex flex-1 min-w-0 items-center gap-3 text-left active:opacity-70 transition-opacity"
@@ -368,12 +354,12 @@ export default function FriendsPage() {
                         <TableHead className="h-14 pr-6 text-base font-semibold text-right">Akcja</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <TableBody className="animate-list-in">
                       {friends.map((f) => {
                         const friend = f.from_user.id === user?.id ? f.to_user : f.from_user;
                         const busy = removeMutation.isPending && removeMutation.variables === f.id;
                         return (
-                          <TableRow key={f.id} data-animate="row" className="hover:bg-muted/50">
+                          <TableRow key={f.id} className="hover:bg-muted/50">
                             <TableCell className="pl-6 py-4">
                               <Link href={`/profile/${friend.id}`} className="flex items-center gap-3 group">
                                 <div className="relative shrink-0">
@@ -437,12 +423,12 @@ export default function FriendsPage() {
             ) : (
               <>
                 {/* Mobile: rows with inline action buttons */}
-                <div className="md:hidden space-y-0.5">
+                <div className="animate-list-in md:hidden space-y-0.5">
                   {received.map((f) => {
                     const busy = (acceptMutation.isPending && acceptMutation.variables === f.id) ||
                       (rejectMutation.isPending && rejectMutation.variables === f.id);
                     return (
-                      <div key={f.id} data-animate="row" className="flex items-center gap-3 rounded-xl py-3 px-1">
+                      <div key={f.id} className="flex items-center gap-3 rounded-xl py-3 px-1">
                         <div className="relative shrink-0">
                           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-xs font-bold uppercase text-foreground">
                             {f.from_user.username.charAt(0)}
@@ -481,12 +467,12 @@ export default function FriendsPage() {
 
                 {/* Desktop: Card with divide-y rows */}
                 <Card className="hidden md:block rounded-2xl overflow-hidden">
-                  <div className="divide-y divide-border">
+                  <div className="animate-list-in divide-y divide-border">
                     {received.map((f) => {
                       const busy = (acceptMutation.isPending && acceptMutation.variables === f.id) ||
                         (rejectMutation.isPending && rejectMutation.variables === f.id);
                       return (
-                        <div key={f.id} data-animate="row" className="flex items-center gap-4 px-6 py-4">
+                        <div key={f.id} className="flex items-center gap-4 px-6 py-4">
                           <div className="relative shrink-0">
                             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-base font-bold uppercase text-foreground">
                               {f.from_user.username.charAt(0)}
@@ -539,11 +525,11 @@ export default function FriendsPage() {
             ) : (
               <>
                 {/* Mobile: rows with cancel button */}
-                <div className="md:hidden space-y-0.5">
+                <div className="animate-list-in md:hidden space-y-0.5">
                   {sent.map((f) => {
                     const busy = rejectMutation.isPending && rejectMutation.variables === f.id;
                     return (
-                      <div key={f.id} data-animate="row" className="flex items-center gap-3 rounded-xl py-3 px-1">
+                      <div key={f.id} className="flex items-center gap-3 rounded-xl py-3 px-1">
                         <div className="relative shrink-0">
                           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-sm font-bold uppercase text-foreground">
                             {f.to_user.username.charAt(0)}
@@ -572,11 +558,11 @@ export default function FriendsPage() {
 
                 {/* Desktop: Card with divide-y rows */}
                 <Card className="hidden md:block rounded-2xl overflow-hidden">
-                  <div className="divide-y divide-border">
+                  <div className="animate-list-in divide-y divide-border">
                     {sent.map((f) => {
                       const busy = rejectMutation.isPending && rejectMutation.variables === f.id;
                       return (
-                        <div key={f.id} data-animate="row" className="flex items-center gap-4 px-6 py-4">
+                        <div key={f.id} className="flex items-center gap-4 px-6 py-4">
                           <div className="relative shrink-0">
                             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-base font-bold uppercase text-foreground">
                               {f.to_user.username.charAt(0)}
@@ -610,6 +596,7 @@ export default function FriendsPage() {
         </Tabs>
       </div>
     </div>
+    </RefreshingOverlay>
   );
 }
 

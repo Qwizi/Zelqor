@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useMatchmaking, type LobbyPlayer } from "@/hooks/useMatchmaking";
@@ -26,8 +26,6 @@ import {
   X,
 } from "lucide-react";
 import { BannedBadge } from "@/components/ui/banned-badge";
-import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
 
 // ---------------------------------------------------------------------------
 // Player slot — mobile: compact row, desktop: card-style
@@ -36,7 +34,6 @@ import { useGSAP } from "@gsap/react";
 function PlayerSlot({ player, isHost }: { player: LobbyPlayer; isHost: boolean }) {
   return (
     <div
-      data-animate="player"
       className={cn(
         "flex items-center gap-3 md:gap-4 rounded-xl md:rounded-2xl border md:border-2 px-3 py-3 md:px-5 md:py-4 transition-all",
         player.is_ready
@@ -89,7 +86,6 @@ function PlayerSlot({ player, isHost }: { player: LobbyPlayer; isHost: boolean }
 function EmptySlot() {
   return (
     <div
-      data-animate="player"
       className="flex items-center gap-3 md:gap-4 rounded-xl md:rounded-2xl border md:border-2 border-dashed border-border/60 px-3 py-3 md:px-5 md:py-4"
     >
       <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-lg md:rounded-xl bg-secondary/50 text-muted-foreground/40">
@@ -128,7 +124,6 @@ export default function LobbyPage() {
   const { user } = useAuth();
   const voice = useVoiceChat();
   const router = useRouter();
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const effectiveVoiceUrl =
     (typeof process !== "undefined" && process.env.NEXT_PUBLIC_LIVEKIT_URL) || voiceUrl;
@@ -178,12 +173,6 @@ export default function LobbyPage() {
     if (inQueue) setWasEverInQueue(true);
   }, [inQueue]);
 
-  useGSAP(() => {
-    if (!containerRef.current) return;
-    gsap.fromTo("[data-animate='player']", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.08, ease: "power2.out" });
-    gsap.fromTo("[data-animate='action']", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, delay: 0.3, ease: "power2.out" });
-  }, { scope: containerRef, dependencies: [lobbyPlayers.length] });
-
   useEffect(() => {
     if (matchId) router.push(`/game/${matchId}`);
   }, [matchId, router]);
@@ -219,7 +208,7 @@ export default function LobbyPage() {
   const myReady = lobbyPlayers.some(p => p.user_id === myUserId && p.is_ready);
 
   return (
-    <div ref={containerRef} className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
 
       {/* ═══ HEADER ═══ */}
       <div className="px-4 md:px-0">
@@ -301,7 +290,7 @@ export default function LobbyPage() {
       <div className="px-4 md:px-0">
         {/* Desktop */}
         <Card className="hidden md:block rounded-2xl">
-          <CardContent className="p-5 space-y-3">
+          <CardContent className="animate-stagger p-5 space-y-3">
             <p className="mb-1 text-sm uppercase tracking-[0.2em] text-muted-foreground font-medium">Gracze</p>
             {lobbyPlayers.map((player) => (
               <PlayerSlot key={player.user_id} player={player} isHost={player.user_id === hostUserId} />
@@ -314,7 +303,7 @@ export default function LobbyPage() {
         </Card>
 
         {/* Mobile */}
-        <div className="md:hidden space-y-2">
+        <div className="animate-stagger md:hidden space-y-2">
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground font-medium mb-2">Gracze</p>
           {lobbyPlayers.map((player) => (
             <PlayerSlot key={player.user_id} player={player} isHost={player.user_id === hostUserId} />
@@ -402,7 +391,7 @@ export default function LobbyPage() {
       </div>
 
       {/* ═══ ACTIONS ═══ */}
-      <div className="px-4 md:px-0 space-y-3" data-animate="action">
+      <div className="px-4 md:px-0 space-y-3">
 
         {/* Desktop — Card wrapper */}
         <Card className="hidden md:block rounded-2xl">

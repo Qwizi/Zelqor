@@ -1,10 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
 import { Trophy, Medal, ChevronLeft, ChevronRight, Target, Swords, Crown, Users } from "lucide-react";
 import { LeaderboardSkeleton } from "@/components/skeletons/LeaderboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,7 +35,6 @@ function LeaderboardContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [pageOverride, setPageOverride] = useState<number | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: leaderboardData, isLoading: leaderboardLoading } = useLeaderboard();
   const { data: friendsData, isLoading: friendsLoading } = useFriends(200);
@@ -58,12 +55,6 @@ function LeaderboardContent() {
 
   const pageLoading = leaderboardLoading || friendsLoading;
 
-  useGSAP(() => {
-    if (!containerRef.current || pageLoading) return;
-    gsap.fromTo("[data-animate='row']", { x: -12, opacity: 0 }, { x: 0, opacity: 1, duration: 0.3, stagger: 0.04, ease: "power2.out" });
-    gsap.fromTo("[data-animate='section']", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" });
-  }, { scope: containerRef, dependencies: [pageLoading, pageOverride] });
-
   if (!loading && !user) {
     router.replace("/login");
   }
@@ -80,7 +71,7 @@ function LeaderboardContent() {
   const paginatedEntries = entries.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
-    <div ref={containerRef} className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 px-4 md:px-0">
         <div>
@@ -98,7 +89,7 @@ function LeaderboardContent() {
       {/* ── Twoja pozycja ── */}
       {myPlacement > 0 && user && (
         <div className="px-4 md:px-0">
-          <div data-animate="section" className="flex items-center justify-between gap-3 rounded-2xl border border-primary/20 md:border-primary/25 bg-primary/5 p-3.5 md:p-5">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-primary/20 md:border-primary/25 bg-primary/5 p-3.5 md:p-5">
             <div className="flex items-baseline gap-2 md:gap-3">
               <span className="font-display text-3xl md:text-5xl text-primary">#{myPlacement}</span>
               <span className="text-sm md:text-lg text-foreground">{user.username}</span>
@@ -116,7 +107,7 @@ function LeaderboardContent() {
       {/* ── Lista/Tabela ── */}
       <div className="px-4 md:px-0">
         {/* Mobile: clean list */}
-        <div className="md:hidden space-y-0.5">
+        <div className="animate-list-in md:hidden space-y-0.5">
           {paginatedEntries.map((entry, index) => {
             const isMe = entry.id === user?.id;
             const isFriend = !isMe && friendIds.has(entry.id);
@@ -126,7 +117,6 @@ function LeaderboardContent() {
             return (
               <button
                 key={entry.id}
-                data-animate="row"
                 onClick={() => router.push(`/profile/${entry.id}`)}
                 className={`flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 ${isMe ? "bg-primary/5" : isFriend ? "bg-accent/5" : ""}`}
               >
@@ -173,7 +163,7 @@ function LeaderboardContent() {
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className="animate-list-in">
               {paginatedEntries.map((entry, index) => {
                 const isMe = entry.id === user?.id;
                 const isFriend = !isMe && friendIds.has(entry.id);
@@ -183,7 +173,6 @@ function LeaderboardContent() {
                 return (
                   <TableRow
                     key={entry.id}
-                    data-animate="row"
                     onClick={() => router.push(`/profile/${entry.id}`)}
                     className={`cursor-pointer ${isMe ? "bg-primary/5 hover:bg-primary/10" : isFriend ? "bg-accent/5 hover:bg-accent/10" : "hover:bg-muted/50"}`}
                   >

@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocialSocketContext } from "@/hooks/SocialSocketContext";
@@ -112,7 +110,6 @@ export default function NotificationsPage() {
   const router = useRouter();
   const { onNotification } = useSocialSocketContext();
   const queryClient = useQueryClient();
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const [page, setPage] = useState(1);
 
@@ -123,12 +120,6 @@ export default function NotificationsPage() {
 
   const notifications = notificationsData?.items ?? [];
   const total = notificationsData?.count ?? 0;
-
-  useGSAP(() => {
-    if (!containerRef.current || loading) return;
-    gsap.fromTo("[data-animate='row']", { x: -12, opacity: 0 }, { x: 0, opacity: 1, duration: 0.3, stagger: 0.04, ease: "power2.out" });
-    gsap.fromTo("[data-animate='section']", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" });
-  }, { scope: containerRef, dependencies: [loading, page] });
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -165,7 +156,7 @@ export default function NotificationsPage() {
   if (!user) return null;
 
   return (
-    <div ref={containerRef} className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 px-4 md:px-0">
@@ -208,7 +199,7 @@ export default function NotificationsPage() {
       )}
 
       {/* ── List ── */}
-      <div className="px-4 md:px-0" data-animate="section">
+      <div className="px-4 md:px-0">
         {loading ? (
           <NotificationsSkeleton />
         ) : notifications.length === 0 ? (
@@ -219,13 +210,12 @@ export default function NotificationsPage() {
         ) : (
           <>
             {/* Mobile: flat list */}
-            <div className="md:hidden space-y-0.5">
+            <div className="animate-list-in md:hidden space-y-0.5">
               {notifications.map((n) => {
                 const href = notifHref(n);
                 return (
                   <button
                     key={n.id}
-                    data-animate="row"
                     onClick={() => {
                       if (!n.is_read) handleMarkRead(n.id);
                       if (href) router.push(href);
@@ -262,13 +252,12 @@ export default function NotificationsPage() {
                     <TableHead className="h-14 text-base font-semibold text-right pr-6">Czas</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <TableBody className="animate-list-in">
                   {notifications.map((n) => {
                     const href = notifHref(n);
                     return (
                       <TableRow
                         key={n.id}
-                        data-animate="row"
                         onClick={() => {
                           if (!n.is_read) handleMarkRead(n.id);
                           if (href) router.push(href);

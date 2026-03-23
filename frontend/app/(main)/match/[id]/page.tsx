@@ -1,10 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatch, useMatchResult } from "@/hooks/queries";
 import { createShareLink, type Match, type MatchResult } from "@/lib/api";
@@ -71,19 +69,11 @@ export default function MatchDetailPage() {
   const [shareLoading, setShareLoading] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: match, isLoading: matchLoading } = useMatch(id);
   const { data: result } = useMatchResult(id);
 
   const loading = matchLoading || authLoading;
-
-  useGSAP(() => {
-    if (!containerRef.current || loading) return;
-
-    gsap.fromTo("[data-animate='stat']", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.08, ease: "power2.out" });
-    gsap.fromTo("[data-animate='section']", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, stagger: 0.1, delay: 0.2, ease: "power2.out" });
-  }, { scope: containerRef, dependencies: [loading] });
 
   if (!authLoading && !user) {
     router.replace("/login");
@@ -128,7 +118,7 @@ export default function MatchDetailPage() {
   const durationMin = startDate && endDate ? Math.round((endDate.getTime() - startDate.getTime()) / 60000) : null;
 
   return (
-    <div ref={containerRef} className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* Header */}
       <div className="px-4 md:px-0">
         <div className="flex items-center gap-2 mb-1 md:mb-2">
@@ -243,13 +233,13 @@ export default function MatchDetailPage() {
       </div>
 
       {/* Stats — horizontal scroll on mobile, grid on desktop */}
-      <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-4 md:overflow-visible scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
-        <div data-animate="stat" className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[120px] md:min-w-0">
+      <div className="animate-stagger flex gap-2.5 overflow-x-auto px-4 pb-1 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-4 md:overflow-visible scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[120px] md:min-w-0">
           <Swords className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           <span className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-muted-foreground font-medium">Status</span>
           <span className={`font-display text-lg md:text-3xl ml-auto md:ml-0 ${status.color}`}>{status.label}</span>
         </div>
-        <div data-animate="stat" className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[100px] md:min-w-0">
+        <div className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[100px] md:min-w-0">
           <Users className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           <span className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-muted-foreground font-medium">Gracze</span>
           <span className="font-display text-lg md:text-3xl text-foreground ml-auto md:ml-0">{match.players.length}/{match.max_players}</span>
@@ -291,7 +281,7 @@ export default function MatchDetailPage() {
         const mvpPlayer = match.players.find((p) => p.user_id === mvp.user_id);
 
         return (
-          <div data-animate="section" className="px-4 md:px-0 space-y-3 md:space-y-4">
+          <div className="px-4 md:px-0 space-y-3 md:space-y-4">
             {/* MVP banner */}
             <div className="flex items-center gap-3 md:gap-4 rounded-2xl border border-accent/20 bg-accent/5 p-3 md:p-4">
               <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-xl bg-accent/15">

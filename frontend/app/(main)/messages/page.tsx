@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocialSocketContext } from "@/hooks/SocialSocketContext";
 import {
@@ -89,7 +87,6 @@ function ConversationItem({
   return (
     <button
       onClick={onClick}
-      data-animate="row"
       className={cn(
         "w-full flex items-center gap-3 px-3 py-3.5 rounded-xl text-left transition-all",
         active
@@ -341,18 +338,11 @@ export default function MessagesPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { onDirectMessage } = useSocialSocketContext();
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
 
   const { data: conversations = [], isLoading: loading } = useConversations();
-
-  useGSAP(() => {
-    if (!containerRef.current || loading) return;
-    gsap.fromTo("[data-animate='row']", { x: -12, opacity: 0 }, { x: 0, opacity: 1, duration: 0.3, stagger: 0.04, ease: "power2.out" });
-    gsap.fromTo("[data-animate='section']", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" });
-  }, { scope: containerRef, dependencies: [loading] });
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -390,7 +380,7 @@ export default function MessagesPage() {
   if (!user) return null;
 
   return (
-    <div ref={containerRef} className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
+    <div className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 px-4 md:px-0">
@@ -413,12 +403,12 @@ export default function MessagesPage() {
       </div>
 
       {/* ── Body ── */}
-      <div className="px-4 md:px-0" data-animate="section">
+      <div className="px-4 md:px-0">
 
         {/* ── Mobile ── */}
         <div className="md:hidden">
           {!showChat ? (
-            <div className="space-y-1">
+            <div className="animate-list-in space-y-1">
               {loading ? (
                 <div className="flex items-center justify-center py-16">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -476,7 +466,7 @@ export default function MessagesPage() {
                   <p className="text-sm text-muted-foreground/60">Użyj ikony czatu przy znajomym, aby rozpocząć.</p>
                 </div>
               ) : (
-                <div className="space-y-0.5">
+                <div className="animate-list-in space-y-0.5">
                   {conversations.map((conv) => (
                     <ConversationItem
                       key={conv.partner.id}
