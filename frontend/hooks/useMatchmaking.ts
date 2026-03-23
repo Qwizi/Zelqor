@@ -22,21 +22,21 @@ interface QueueSession {
 function saveQueueSession(session: QueueSession | null) {
   if (typeof window === "undefined") return;
   if (session) {
-    sessionStorage.setItem(QUEUE_KEY, JSON.stringify(session));
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(session));
   } else {
-    sessionStorage.removeItem(QUEUE_KEY);
+    localStorage.removeItem(QUEUE_KEY);
   }
 }
 
 function loadQueueSession(): QueueSession | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(QUEUE_KEY);
+    const raw = localStorage.getItem(QUEUE_KEY);
     if (!raw) return null;
     const session = JSON.parse(raw) as QueueSession;
     // Expire after 5 minutes
     if (Date.now() - session.joinedAt > 5 * 60 * 1000) {
-      sessionStorage.removeItem(QUEUE_KEY);
+      localStorage.removeItem(QUEUE_KEY);
       return null;
     }
     return session;
@@ -419,6 +419,41 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Cross-tab sync: when another tab writes to localStorage, reconnect or clear state
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key !== QUEUE_KEY) return;
+      if (e.newValue) {
+        // Another tab started/updated queue — reconnect if not already connected
+        const session = loadQueueSession();
+        if (session && !wsRef.current) {
+          setFillBots(session.fillBots);
+          setInstantBot(session.instantBot);
+          setGameModeSlug(session.gameModeSlug);
+          if (session.lobbyId) setLobbyId(session.lobbyId);
+          connectToQueue(session.gameModeSlug, session.fillBots, session.instantBot, session.joinedAt);
+        }
+      } else {
+        // Another tab left queue — clean up
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+        setInQueue(false);
+        setLobbyId(null);
+        setLobbyPlayers([]);
+        setLobbyFull(false);
+        setAllReady(false);
+        setLobbyFullAt(null);
+        setLobbyChatMessages([]);
+        setVoiceToken(null);
+        setVoiceUrl(null);
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [connectToQueue]);
 
   const value: MatchmakingContextValue = {
     inQueue, playersInQueue, matchId, activeMatchId, queueSeconds, gameModeSlug,
