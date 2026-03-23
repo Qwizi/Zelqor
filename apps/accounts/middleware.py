@@ -11,10 +11,13 @@ class LastActiveMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        user = getattr(request, 'auth', None) or getattr(request, 'user', None)
-        if user and getattr(user, 'is_authenticated', False) and hasattr(user, 'pk'):
+        # Ninja JWT sets request.auth to the User instance after view processing.
+        # Django's AuthenticationMiddleware sets request.user (AnonymousUser for API).
+        user = getattr(request, 'auth', None)
+        if not user or not hasattr(user, 'pk'):
+            user = getattr(request, 'user', None)
+        if user and hasattr(user, 'pk') and not getattr(user, 'is_anonymous', True):
             cache_key = f'user:last_active:{user.pk}'
-            # Only update once per THROTTLE_SECONDS (cache key acts as guard)
             if cache.get(cache_key) is None:
                 from apps.accounts.models import User
                 now = timezone.now()
