@@ -40,3 +40,4 @@ twa/local.properties
 # OS
 .DS_Store
 pixi/
+desktop/src-tauri/target/

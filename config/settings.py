@@ -183,6 +183,10 @@ GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET', default='')
 DISCORD_CLIENT_ID = config('DISCORD_CLIENT_ID', default='')
 DISCORD_CLIENT_SECRET = config('DISCORD_CLIENT_SECRET', default='')
 
+# Steam Auth
+STEAM_WEB_API_KEY = config('STEAM_WEB_API_KEY', default='')
+STEAM_APP_ID = config('STEAM_APP_ID', default='480')
+
 # CORS
 # Internal API secret for Rust gateway
 INTERNAL_SECRET = config('INTERNAL_SECRET', default='dev-internal-secret')

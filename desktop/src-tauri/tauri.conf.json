@@ -1,0 +1,54 @@
+{
+  "productName": "MapLord",
+  "version": "0.1.0",
+  "identifier": "ovh.qwizi.maplord",
+  "build": {
+    "frontendDist": "https://maplord.qwizi.ovh",
+    "devUrl": "http://localhost:3000"
+  },
+  "app": {
+    "title": "MapLord",
+    "windows": [
+      {
+        "title": "MapLord",
+        "url": "https://maplord.qwizi.ovh/dashboard",
+        "width": 1280,
+        "height": 720,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' https://maplord.qwizi.ovh; connect-src * ws: wss: http: https:; img-src * data: blob:; style-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval'; font-src * data:; frame-src https://maplord.qwizi.ovh;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libssl3"]
+      }
+    }
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}

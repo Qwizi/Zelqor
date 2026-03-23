@@ -21,6 +21,7 @@ from apps.developers.public_views import PublicAPIController
 from apps.developers.oauth_views import OAuthController
 from apps.assets.api import AssetController
 from apps.accounts.social_auth import SocialAuthController
+from apps.accounts.steam_auth import SteamAuthController
 from apps.accounts.friends_api import FriendsController
 from apps.accounts.messages_api import MessagesController
 from apps.notifications.views import NotificationController
@@ -48,6 +49,7 @@ api.register_controllers(
     OAuthController,
     AssetController,
     SocialAuthController,
+    SteamAuthController,
     FriendsController,
     MessagesController,
     NotificationController,
