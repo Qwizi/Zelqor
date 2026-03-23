@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo, use } from "react";
+import { useEffect, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useGameSocket } from "@/hooks/useGameSocket";
 import { useShapesData } from "@/hooks/useShapesData";
-import { getRegionsGraph, getConfig, type RegionGraphEntry, type BuildingType, type UnitType } from "@/lib/api";
 import { loadAssetOverrides } from "@/lib/assetOverrides";
+import { useRegionsGraph, useConfig } from "@/hooks/queries";
 import dynamic from "next/dynamic";
 import { Eye, ArrowLeft, Loader2, Users, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,24 +31,23 @@ export default function SpectatePage({
 
   // Map data
   const { shapesData: shapes } = useShapesData();
-  const [regionGraph, setRegionGraph] = useState<RegionGraphEntry[]>([]);
-  const [buildings, setBuildings] = useState<BuildingType[]>([]);
-  const [units, setUnits] = useState<UnitType[]>([]);
-  const [buildingIcons, setBuildingIcons] = useState<Record<string, string>>({});
+  const { data: regionGraphData } = useRegionsGraph();
+  const { data: configData } = useConfig();
+
+  const regionGraph = regionGraphData ?? [];
+  const buildings = configData?.buildings ?? [];
+  const units = configData?.units ?? [];
+
+  const buildingIcons = useMemo<Record<string, string>>(() => {
+    const icons: Record<string, string> = {};
+    for (const b of buildings) {
+      if (b.icon) icons[b.slug] = b.icon;
+    }
+    return icons;
+  }, [buildings]);
 
   useEffect(() => {
-    Promise.all([getRegionsGraph(), getConfig(), loadAssetOverrides()])
-      .then(([graph, config]) => {
-        setRegionGraph(graph);
-        setBuildings(config.buildings);
-        setUnits(config.units);
-        const icons: Record<string, string> = {};
-        for (const b of config.buildings) {
-          if (b.icon) icons[b.slug] = b.icon;
-        }
-        setBuildingIcons(icons);
-      })
-      .catch(() => {});
+    loadAssetOverrides().catch(() => {});
   }, []);
 
   const status = gameState?.meta?.status;

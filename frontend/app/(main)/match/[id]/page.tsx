@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useAuth } from "@/hooks/useAuth";
-import { getMatch, getMatchResult, createShareLink, type Match, type MatchResult } from "@/lib/api";
+import { useMatch, useMatchResult } from "@/hooks/queries";
+import { createShareLink, type Match, type MatchResult } from "@/lib/api";
+import { requireToken } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BannedBadge } from "@/components/ui/banned-badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   ArrowLeft,
@@ -22,7 +24,6 @@ import {
   MapPin,
   Shield,
   Skull,
-  Star,
   Swords,
   Users,
   Hammer,
@@ -65,15 +66,17 @@ function formatDate(dateStr: string): string {
 
 export default function MatchDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [match, setMatch] = useState<Match | null>(null);
-  const [result, setResult] = useState<MatchResult | null>(null);
-  const [loading, setLoading] = useState(true);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const { data: match, isLoading: matchLoading } = useMatch(id);
+  const { data: result } = useMatchResult(id);
+
+  const loading = matchLoading || authLoading;
 
   useGSAP(() => {
     if (!containerRef.current || loading) return;
@@ -82,18 +85,10 @@ export default function MatchDetailPage() {
     gsap.fromTo("[data-animate='section']", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, stagger: 0.1, delay: 0.2, ease: "power2.out" });
   }, { scope: containerRef, dependencies: [loading] });
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user || !token) { router.replace("/login"); return; }
-    Promise.all([
-      getMatch(token, id),
-      getMatchResult(token, id).catch(() => null),
-    ]).then(([matchData, resultData]) => {
-      setMatch(matchData);
-      setResult(resultData);
-      setLoading(false);
-    });
-  }, [authLoading, user, token, id, router]);
+  if (!authLoading && !user) {
+    router.replace("/login");
+    return null;
+  }
 
   if (loading || !match) {
     return (
@@ -104,11 +99,11 @@ export default function MatchDetailPage() {
   }
 
   const handleShare = async () => {
-    if (!token || !match) return;
+    if (!match) return;
     if (shareUrl) { setShareUrl(null); return; } // toggle
     setShareLoading(true);
     try {
-      const link = await createShareLink(token, "match_result", match.id);
+      const link = await createShareLink(requireToken(), "match_result", match.id);
       setShareUrl(`${window.location.origin}/share/${link.token}`);
     } catch {
       toast.error("Nie udało się utworzyć linku.");

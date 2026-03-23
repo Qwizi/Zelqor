@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocialSocketContext } from "@/hooks/SocialSocketContext";
-import { useChat } from "@/hooks/useChat";
 import {
-  getConversations,
-  getMessages,
-  sendMessage,
+  useConversations,
+  useMessages,
+  useSendMessage,
+} from "@/hooks/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
+import {
   type ConversationOut,
   type DirectMessageOut,
 } from "@/lib/api";
@@ -21,7 +24,6 @@ import {
   Loader2,
   MessageSquare,
   Send,
-  Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -181,77 +183,49 @@ function ChatView({
   partnerName,
   partnerStatus,
   currentUserId,
-  token,
   onBack,
 }: {
   partnerId: string;
   partnerName: string;
   partnerStatus: string;
   currentUserId: string;
-  token: string;
   onBack: () => void;
 }) {
-  const [messages, setMessages] = useState<DirectMessageOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
   const { onDirectMessage } = useSocialSocketContext();
 
-  const loadMessages = useCallback(async () => {
-    try {
-      const res = await getMessages(token, partnerId, 50);
-      setMessages([...res.items].reverse());
-    } catch {
-      // silently ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [token, partnerId]);
+  const { data: messagesData, isLoading: loading } = useMessages(partnerId, 50);
+  const sendMessageMutation = useSendMessage();
 
-  useEffect(() => {
-    setLoading(true);
-    setMessages([]);
-    loadMessages();
-  }, [loadMessages]);
+  const sending = sendMessageMutation.isPending;
 
+  // Messages in chronological order (API returns newest-first)
+  const messages = messagesData ? [...messagesData.items].reverse() : [];
+
+  // Invalidate message thread when a new DM arrives via WebSocket
   useEffect(() => {
     return onDirectMessage((msg) => {
       if (msg.sender.id !== partnerId) return;
-      const newMsg: DirectMessageOut = {
-        id: msg.id,
-        sender: { id: msg.sender.id, username: msg.sender.username, elo_rating: 0, is_online: true, activity_status: "online", activity_details: {} },
-        receiver: { id: currentUserId, username: "", elo_rating: 0, is_online: true, activity_status: "online", activity_details: {} },
-        content: msg.content,
-        is_read: false,
-        created_at: msg.created_at,
-      };
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === newMsg.id)) return prev;
-        return [...prev, newMsg];
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.messages.thread(partnerId),
       });
     });
-  }, [onDirectMessage, partnerId, currentUserId]);
+  }, [onDirectMessage, partnerId, queryClient]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages.length]);
 
   async function handleSend() {
     const trimmed = input.trim();
     if (!trimmed || sending) return;
-    setSending(true);
+    setInput("");
     try {
-      const sent = await sendMessage(token, partnerId, trimmed);
-      setInput("");
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === sent.id)) return prev;
-        return [...prev, sent];
-      });
+      await sendMessageMutation.mutateAsync({ userId: partnerId, content: trimmed });
     } catch {
       toast.error("Nie udało się wysłać wiadomości");
-    } finally {
-      setSending(false);
     }
   }
 
@@ -363,16 +337,16 @@ function EmptyChatPlaceholder() {
 // ---------------------------------------------------------------------------
 
 export default function MessagesPage() {
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { onDirectMessage } = useSocialSocketContext();
-  const { openDMTab } = useChat();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [conversations, setConversations] = useState<ConversationOut[]>([]);
-  const [loading, setLoading] = useState(true);
   const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
+
+  const { data: conversations = [], isLoading: loading } = useConversations();
 
   useGSAP(() => {
     if (!containerRef.current || loading) return;
@@ -384,48 +358,14 @@ export default function MessagesPage() {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
 
-  const loadConversations = useCallback(async () => {
-    if (!token) return;
-    try {
-      const data = await getConversations(token);
-      setConversations(data);
-    } catch {
-      // silently ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
+  // Invalidate conversations when a new DM arrives via WebSocket
   useEffect(() => {
-    if (!token) return;
-    loadConversations();
-  }, [loadConversations]);
-
-  // Update conversation list when a new DM arrives via WebSocket
-  useEffect(() => {
-    return onDirectMessage((msg) => {
-      setConversations((prev) => {
-        const existingIdx = prev.findIndex((c) => c.partner.id === msg.sender.id);
-        if (existingIdx === -1) {
-          loadConversations();
-          return prev;
-        }
-        const updated = [...prev];
-        const conv = { ...updated[existingIdx] };
-        conv.last_message = {
-          ...conv.last_message,
-          content: msg.content,
-          created_at: msg.created_at,
-          is_mine: false,
-        };
-        if (msg.sender.id !== activePartnerId) {
-          conv.unread_count = (conv.unread_count ?? 0) + 1;
-        }
-        updated.splice(existingIdx, 1);
-        return [conv, ...updated];
+    return onDirectMessage(() => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.messages.conversations(),
       });
     });
-  }, [onDirectMessage, activePartnerId, loadConversations]);
+  }, [onDirectMessage, queryClient]);
 
   const activeConv = conversations.find((c) => c.partner.id === activePartnerId);
   const totalUnread = conversations.reduce((s, c) => s + c.unread_count, 0);
@@ -433,10 +373,6 @@ export default function MessagesPage() {
   function openConversation(partnerId: string) {
     setActivePartnerId(partnerId);
     setShowChat(true);
-    // Clear unread in local state
-    setConversations((prev) =>
-      prev.map((c) => c.partner.id === partnerId ? { ...c, unread_count: 0 } : c)
-    );
   }
 
   function handleBack() {
@@ -451,7 +387,7 @@ export default function MessagesPage() {
     );
   }
 
-  if (!user || !token) return null;
+  if (!user) return null;
 
   return (
     <div ref={containerRef} className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
@@ -511,7 +447,6 @@ export default function MessagesPage() {
                   partnerName={activeConv.partner.username}
                   partnerStatus={activeConv.partner.activity_status}
                   currentUserId={user.id}
-                  token={token}
                   onBack={handleBack}
                 />
               ) : (
@@ -563,7 +498,6 @@ export default function MessagesPage() {
                 partnerName={activeConv.partner.username}
                 partnerStatus={activeConv.partner.activity_status}
                 currentUserId={user.id}
-                token={token}
                 onBack={handleBack}
               />
             ) : (

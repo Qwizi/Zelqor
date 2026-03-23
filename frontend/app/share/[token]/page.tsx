@@ -4,17 +4,16 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  getSharedResource,
-  getSharedSnapshot,
-  getRegionsGraph,
-  getConfig,
   getRegionTilesUrl,
   type SharedMatchData,
   type RegionGraphEntry,
   type BuildingType,
   type SnapshotTick,
 } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
+import { useSharedResource, useSharedSnapshot, useRegionsGraph, useConfig } from "@/hooks/queries";
 import { loadAssetOverrides } from "@/lib/assetOverrides";
 import type { GameState, GameRegion, GamePlayer } from "@/hooks/useGameSocket";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -62,14 +61,22 @@ function formatDate(dateStr: string): string {
 
 export default function SharePage() {
   const { token } = useParams<{ token: string }>();
+  const queryClient = useQueryClient();
 
-  const [sharedData, setSharedData] = useState<SharedMatchData | null>(null);
-  const [regionGraph, setRegionGraph] = useState<RegionGraphEntry[]>([]);
-  const [buildingTypes, setBuildingTypes] = useState<BuildingType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: sharedData, isLoading: sharedLoading, isError: sharedError } = useSharedResource(token);
+  const { data: config, isLoading: configLoading, isError: configError } = useConfig();
+  const { data: regionGraph = [], isLoading: graphLoading, isError: graphError } = useRegionsGraph(sharedData?.match.id);
 
-  const [snapshots, setSnapshots] = useState<SnapshotTick[]>([]);
+  const loading = sharedLoading || configLoading || (!!sharedData && graphLoading);
+  const error = sharedError || configError || graphError;
+
+  const buildingTypes: BuildingType[] = config?.buildings ?? [];
+
+  const snapshots = useMemo<SnapshotTick[]>(() => {
+    if (!sharedData) return [];
+    return sharedData.snapshot_ticks.map((t) => ({ tick: t, created_at: "" }));
+  }, [sharedData]);
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
@@ -81,43 +88,55 @@ export default function SharePage() {
   playingRef.current = playing;
   speedRef.current = speed;
   currentIndexRef.current = currentIndex;
-  const snapshotCache = useRef<Map<number, GameState>>(new Map());
 
   const loadSnapshot = useCallback(async (tick: number, index: number) => {
-    const cached = snapshotCache.current.get(tick);
-    if (cached) { setGameState(cached); setCurrentIndex(index); return; }
+    const queryKey = [...queryKeys.share.snapshot(token), tick];
+    const cached = queryClient.getQueryData<{ state_data: Record<string, unknown> }>(queryKey);
+    if (cached) {
+      setGameState(cached.state_data as unknown as GameState);
+      setCurrentIndex(index);
+      return;
+    }
     setSnapshotLoading(true);
     try {
-      const snap = await getSharedSnapshot(token, tick);
-      const state = snap.state_data as unknown as GameState;
-      snapshotCache.current.set(tick, state);
-      setGameState(state); setCurrentIndex(index);
+      const snap = await queryClient.fetchQuery({
+        queryKey,
+        queryFn: () => import("@/lib/api").then((m) => m.getSharedSnapshot(token, tick)),
+        staleTime: Infinity,
+      });
+      setGameState(snap.state_data as unknown as GameState);
+      setCurrentIndex(index);
     } catch { /* ignore */ } finally { setSnapshotLoading(false); }
-  }, [token]);
+  }, [token, queryClient]);
 
   useEffect(() => {
-    Promise.all([getSharedResource(token), getConfig(), loadAssetOverrides()])
-      .then(async ([data, cfg]) => {
-        setSharedData(data); setBuildingTypes(cfg.buildings);
-        const ticks: SnapshotTick[] = data.snapshot_ticks.map((t) => ({ tick: t, created_at: "" }));
-        setSnapshots(ticks);
-        const graph = await getRegionsGraph(data.match.id);
-        setRegionGraph(graph); setLoading(false);
-        if (ticks.length > 0) loadSnapshot(ticks[0].tick, 0);
-      })
-      .catch(() => { setError("Link nieprawidłowy lub wygasł."); setLoading(false); });
-  }, [token, loadSnapshot]);
+    loadAssetOverrides();
+  }, []);
 
+  // Load first snapshot once snapshots are available
+  useEffect(() => {
+    if (snapshots.length > 0 && gameState === null && !snapshotLoading) {
+      loadSnapshot(snapshots[0].tick, 0);
+    }
+  }, [snapshots, gameState, snapshotLoading, loadSnapshot]);
+
+  // Prefetch next snapshots
   useEffect(() => {
     if (snapshots.length === 0) return;
     for (let i = currentIndex + 1; i <= Math.min(currentIndex + 2, snapshots.length - 1); i++) {
       const tick = snapshots[i].tick;
-      if (!snapshotCache.current.has(tick)) {
-        getSharedSnapshot(token, tick).then((snap) => { snapshotCache.current.set(tick, snap.state_data as unknown as GameState); }).catch(() => {});
+      const queryKey = [...queryKeys.share.snapshot(token), tick];
+      if (!queryClient.getQueryData(queryKey)) {
+        queryClient.prefetchQuery({
+          queryKey,
+          queryFn: () => import("@/lib/api").then((m) => m.getSharedSnapshot(token, tick)),
+          staleTime: Infinity,
+        });
       }
     }
-  }, [currentIndex, token, snapshots]);
+  }, [currentIndex, token, snapshots, queryClient]);
 
+  // Playback interval
   useEffect(() => {
     if (!playing || snapshots.length === 0) return;
     const interval = setInterval(() => {
@@ -169,7 +188,7 @@ export default function SharePage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background text-foreground px-4">
         <Globe className="h-12 w-12 text-muted-foreground/30" />
-        <p className="text-sm md:text-lg text-muted-foreground text-center">{error ?? "Nie znaleziono zasobu."}</p>
+        <p className="text-sm md:text-lg text-muted-foreground text-center">{"Link nieprawidłowy lub wygasł."}</p>
         <Link href="/register" className={buttonVariants({ className: "h-11 gap-2 rounded-full px-6 text-sm" })}>
           <LogIn className="h-4 w-4" /> Dołącz do MapLord
         </Link>

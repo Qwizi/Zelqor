@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -30,17 +30,13 @@ import { ModuleDisabledPage } from "@/components/ModuleGate";
 import { CrateOpenModal } from "@/components/inventory/CrateOpenModal";
 import ItemIcon from "@/components/ui/ItemIcon";
 import {
-  getMyInventory,
-  getMyWallet,
-  getMyDrops,
-  getItemCategories,
-  openCrate,
   type InventoryItemOut,
   type ItemInstanceOut,
   type ItemOut,
   type WalletOut,
   type ItemDropOut,
 } from "@/lib/api";
+import { useMyInventory, useMyWallet, useMyDrops, useItemCategories, useOpenCrate } from "@/hooks/queries";
 
 // ─── Wear condition config ────────────────────────────────────────────────────
 
@@ -497,13 +493,9 @@ export default function InventoryPage() {
 }
 
 function InventoryContent() {
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [inventory, setInventory] = useState<InventoryItemOut[]>([]);
-  const [wallet, setWallet] = useState<WalletOut | null>(null);
-  const [drops, setDrops] = useState<ItemDropOut[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -513,7 +505,17 @@ function InventoryContent() {
   const [crateDrops, setCrateDrops] = useState<
     Array<{ item_name: string; item_slug: string; rarity: string; quantity: number }> | null
   >(null);
-  const [allItemCatalog, setAllItemCatalog] = useState<ItemOut[]>([]);
+
+  const { data: inventoryData, isLoading: inventoryLoading } = useMyInventory(200);
+  const { data: wallet, isLoading: walletLoading } = useMyWallet();
+  const { data: dropsData, isLoading: dropsLoading } = useMyDrops(10);
+  const { data: categories, isLoading: categoriesLoading } = useItemCategories();
+  const openCrateMutation = useOpenCrate();
+
+  const inventory = inventoryData?.items ?? [];
+  const drops = dropsData?.items ?? [];
+  const allItemCatalog = useMemo(() => (categories ?? []).flatMap((c) => c.items), [categories]);
+  const loading = inventoryLoading || walletLoading || dropsLoading || categoriesLoading;
 
   useGSAP(() => {
     if (!containerRef.current || loading) return;
@@ -524,30 +526,6 @@ function InventoryContent() {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
 
-  const loadData = useCallback(async () => {
-    if (!token) return;
-    try {
-      const [invRes, wal, drRes, categories] = await Promise.all([
-        getMyInventory(token, 200),
-        getMyWallet(token),
-        getMyDrops(token, 10),
-        getItemCategories(),
-      ]);
-      setInventory(invRes.items);
-      setWallet(wal);
-      setDrops(drRes.items);
-      setAllItemCatalog(categories.flatMap((c) => c.items));
-    } catch {
-      toast.error("Nie udało się załadować ekwipunku");
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
   const keys = inventory.filter((i) => i.item.item_type === "key");
 
   const hasMatchingKey = (crateSlug: string) =>
@@ -557,7 +535,6 @@ function InventoryContent() {
     );
 
   const handleOpenCrate = async (crateSlug: string) => {
-    if (!token) return;
     const matchingKey = keys.find((k) => {
       const keySuffix = k.item.slug.replace("key-", "");
       const crateSuffix = crateSlug.replace("crate-", "");
@@ -569,7 +546,7 @@ function InventoryContent() {
     }
     const crateEntry = inventory.find((i) => i.item.slug === crateSlug);
     try {
-      const result = await openCrate(token, crateSlug, matchingKey.item.slug);
+      const result = await openCrateMutation.mutateAsync({ crateSlug, keySlug: matchingKey.item.slug });
       setOpeningCrateItem(crateEntry?.item ?? null);
       setCrateDrops(result.drops);
       setCrateModalOpen(true);
@@ -582,7 +559,6 @@ function InventoryContent() {
     setCrateModalOpen(false);
     setOpeningCrateItem(null);
     setCrateDrops(null);
-    loadData();
   };
 
   const filteredInventory =

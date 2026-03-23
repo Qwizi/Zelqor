@@ -7,17 +7,16 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  getMatch,
-  getMatchSnapshots,
   getSnapshot,
-  getRegionsGraph,
-  getConfig,
   getRegionTilesUrl,
-  type Match,
-  type SnapshotTick,
-  type RegionGraphEntry,
-  type BuildingType,
 } from "@/lib/api";
+import { requireToken } from "@/lib/queryClient";
+import {
+  useMatch,
+  useMatchSnapshots,
+  useRegionsGraph,
+  useConfig,
+} from "@/hooks/queries";
 import { loadAssetOverrides } from "@/lib/assetOverrides";
 import type { GameState, GameRegion, GamePlayer } from "@/hooks/useGameSocket";
 import { Button } from "@/components/ui/button";
@@ -41,17 +40,18 @@ const SPEEDS = [1, 2, 4, 8];
 
 export default function ReplayPage() {
   const { matchId } = useParams<{ matchId: string }>();
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [match, setMatch] = useState<Match | null>(null);
-  const [snapshots, setSnapshots] = useState<SnapshotTick[]>([]);
-  const [regionGraph, setRegionGraph] = useState<RegionGraphEntry[]>([]);
-  const [buildingTypes, setBuildingTypes] = useState<BuildingType[]>([]);
+  const { data: match } = useMatch(matchId);
+  const { data: snapshots = [] } = useMatchSnapshots(matchId);
+  const { data: regionGraph = [] } = useRegionsGraph(matchId);
+  const { data: configData } = useConfig();
+  const buildingTypes = configData?.buildings ?? [];
+  const loading = !match || !configData;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [loading, setLoading] = useState(true);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
 
   const [playing, setPlaying] = useState(false);
@@ -66,7 +66,6 @@ export default function ReplayPage() {
   const snapshotCache = useRef<Map<number, GameState>>(new Map());
 
   const loadSnapshot = useCallback(async (tick: number, index: number) => {
-    if (!token) return;
     const cached = snapshotCache.current.get(tick);
     if (cached) {
       setGameState(cached);
@@ -75,7 +74,7 @@ export default function ReplayPage() {
     }
     setSnapshotLoading(true);
     try {
-      const snap = await getSnapshot(token, matchId, tick);
+      const snap = await getSnapshot(requireToken(), matchId, tick);
       const state = snap.state_data as unknown as GameState;
       snapshotCache.current.set(tick, state);
       setGameState(state);
@@ -85,38 +84,34 @@ export default function ReplayPage() {
     } finally {
       setSnapshotLoading(false);
     }
-  }, [token, matchId]);
+  }, [matchId]);
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !token) { router.replace("/login"); return; }
-    Promise.all([
-      getMatch(token, matchId),
-      getMatchSnapshots(token, matchId),
-      getRegionsGraph(matchId),
-      getConfig(),
-      loadAssetOverrides(),
-    ]).then(([matchData, snapshotList, graph, cfg]) => {
-      setMatch(matchData);
-      setSnapshots(snapshotList);
-      setRegionGraph(graph);
-      setBuildingTypes(cfg.buildings);
-      setLoading(false);
-      if (snapshotList.length > 0) loadSnapshot(snapshotList[0].tick, 0);
-    }).catch(() => setLoading(false));
-  }, [authLoading, user, token, matchId, router, loadSnapshot]);
+    if (!user) { router.replace("/login"); return; }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
-    if (!token || snapshots.length === 0) return;
+    loadAssetOverrides();
+  }, []);
+
+  useEffect(() => {
+    if (snapshots.length > 0 && !gameState) {
+      loadSnapshot(snapshots[0].tick, 0);
+    }
+  }, [snapshots, gameState, loadSnapshot]);
+
+  useEffect(() => {
+    if (snapshots.length === 0) return;
     for (let i = currentIndex + 1; i <= Math.min(currentIndex + 2, snapshots.length - 1); i++) {
       const tick = snapshots[i].tick;
       if (!snapshotCache.current.has(tick)) {
-        getSnapshot(token, matchId, tick)
+        getSnapshot(requireToken(), matchId, tick)
           .then((snap) => { snapshotCache.current.set(tick, snap.state_data as unknown as GameState); })
           .catch(() => {});
       }
     }
-  }, [currentIndex, token, matchId, snapshots]);
+  }, [currentIndex, matchId, snapshots]);
 
   useEffect(() => {
     if (!playing || snapshots.length === 0) return;

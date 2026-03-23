@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -13,9 +13,8 @@ import { Plus, Code, Copy, ArrowRight, KeyRound, CheckCheck, BookOpen } from "lu
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
+import { useDeveloperApps, useCreateDeveloperApp } from "@/hooks/queries";
 import {
-  getDeveloperApps,
-  createDeveloperApp,
   type DeveloperApp,
   type DeveloperAppCreated,
 } from "@/lib/api";
@@ -242,14 +241,13 @@ function SecretDialog({
 function CreateAppDialog({
   open,
   onOpenChange,
-  token,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  token: string;
   onCreated: (app: DeveloperAppCreated) => void;
 }) {
+  const createApp = useCreateDeveloperApp();
   const {
     register,
     handleSubmit,
@@ -261,7 +259,7 @@ function CreateAppDialog({
 
   const onSubmit = async (values: CreateAppFormValues) => {
     try {
-      const app = await createDeveloperApp(token, {
+      const app = await createApp.mutateAsync({
         name: values.name,
         description: values.description || undefined,
       });
@@ -331,10 +329,10 @@ function CreateAppDialog({
             </DialogClose>
             <Button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || createApp.isPending}
               className="gap-2 rounded-full border border-cyan-300/30 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] font-display uppercase tracking-[0.15em] text-slate-950 hover:opacity-90 disabled:opacity-60"
             >
-              {isSubmitting ? (
+              {isSubmitting || createApp.isPending ? (
                 "Tworzenie…"
               ) : (
                 <>
@@ -362,11 +360,12 @@ function DevelopersContent() {
   const { user, loading: authLoading, token } = useAuth();
   const router = useRouter();
 
-  const [apps, setApps] = useState<DeveloperApp[]>([]);
-  const [pageLoading, setPageLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [createdApp, setCreatedApp] = useState<DeveloperAppCreated | null>(null);
   const [secretOpen, setSecretOpen] = useState(false);
+
+  const { data: appsData, isLoading: appsLoading } = useDeveloperApps();
+  const apps: DeveloperApp[] = appsData?.items ?? [];
 
   useEffect(() => {
     if (authLoading) return;
@@ -375,40 +374,18 @@ function DevelopersContent() {
     }
   }, [user, authLoading, token, router]);
 
-  const loadApps = useCallback(async () => {
-    if (!token) return;
-    try {
-      const data = await getDeveloperApps(token);
-      setApps(data.items);
-    } catch {
-      toast.error("Nie udalo sie zaladowac aplikacji.");
-    } finally {
-      setPageLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    if (token) {
-      loadApps();
-    }
-  }, [token, loadApps]);
-
   const handleCreated = (app: DeveloperAppCreated) => {
     setCreatedApp(app);
     setSecretOpen(true);
-    // Optimistically add the new app to the list
-    setApps((prev) => [app, ...prev]);
     toast.success(`Aplikacja "${app.name}" utworzona.`);
   };
 
   const handleSecretClose = () => {
     setSecretOpen(false);
     setCreatedApp(null);
-    // Refresh list to get canonical server state
-    loadApps();
   };
 
-  if (authLoading || pageLoading) {
+  if (authLoading || appsLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Image
@@ -492,14 +469,11 @@ function DevelopersContent() {
       )}
 
       {/* ── Dialogs ────────────────────────────────────────── */}
-      {token && (
-        <CreateAppDialog
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          token={token}
-          onCreated={handleCreated}
-        />
-      )}
+      <CreateAppDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={handleCreated}
+      />
 
       <SecretDialog
         open={secretOpen}

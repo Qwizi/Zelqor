@@ -1,31 +1,24 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
-import { getConfig } from "@/lib/api";
+import { type ReactNode, useMemo } from "react";
 import {
   SystemModulesContext,
   buildSystemModulesValue,
 } from "@/hooks/useSystemModules";
+import { useConfig } from "@/hooks/queries";
 
 /**
  * Global provider for system module states.
- * Fetches module config on mount and provides it to all children.
+ * Fetches module config via TanStack Query and provides it to all children.
  * Placed in root layout so both (auth) and (main) pages have access.
  */
 export function SystemModulesProvider({ children }: { children: ReactNode }) {
-  const [contextValue, setContextValue] = useState(() =>
-    buildSystemModulesValue([])
-  );
+  const { data: config } = useConfig();
 
-  useEffect(() => {
-    getConfig()
-      .then((cfg) => {
-        if (cfg.system_modules) {
-          setContextValue(buildSystemModulesValue(cfg.system_modules));
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const contextValue = useMemo(
+    () => buildSystemModulesValue(config?.system_modules ?? []),
+    [config?.system_modules]
+  );
 
   return (
     <SystemModulesContext.Provider value={contextValue}>

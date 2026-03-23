@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocialSocketContext } from "@/hooks/SocialSocketContext";
-import {
-  getNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
-  type NotificationOut,
-} from "@/lib/api";
+import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/queries";
+import { type NotificationOut } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -111,15 +107,21 @@ function formatDate(dateStr: string): string {
 const PAGE_SIZE = 20;
 
 export default function NotificationsPage() {
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { onNotification } = useSocialSocketContext();
+  const queryClient = useQueryClient();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [notifications, setNotifications] = useState<NotificationOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+
+  const offset = (page - 1) * PAGE_SIZE;
+  const { data: notificationsData, isLoading: loading } = useNotifications(PAGE_SIZE, offset);
+  const markReadMutation = useMarkNotificationRead();
+  const markAllReadMutation = useMarkAllNotificationsRead();
+
+  const notifications = notificationsData?.items ?? [];
+  const total = notificationsData?.count ?? 0;
 
   useGSAP(() => {
     if (!containerRef.current || loading) return;
@@ -131,45 +133,20 @@ export default function NotificationsPage() {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
 
-  const loadPage = useCallback(async (p: number) => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const offset = (p - 1) * PAGE_SIZE;
-      const res = await getNotifications(token, PAGE_SIZE, offset);
-      setNotifications(res.items);
-      setTotal(res.count);
-    } catch {
-      toast.error("Nie udało się załadować powiadomień");
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
+  // Real-time: invalidate query when a new notification arrives
   useEffect(() => {
-    loadPage(page);
-  }, [loadPage, page]);
-
-  // Real-time: prepend new notifications
-  useEffect(() => {
-    return onNotification((notif) => {
-      if (page === 1) {
-        setNotifications((prev) => [notif, ...prev].slice(0, PAGE_SIZE));
-        setTotal((t) => t + 1);
-      }
+    return onNotification(() => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     });
-  }, [onNotification, page]);
+  }, [onNotification, queryClient]);
 
   async function handleMarkRead(id: string) {
-    if (!token) return;
-    await markNotificationRead(token, id);
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
+    await markReadMutation.mutateAsync(id);
+    toast.success("Oznaczono jako przeczytane");
   }
 
   async function handleMarkAllRead() {
-    if (!token) return;
-    await markAllNotificationsRead(token);
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    await markAllReadMutation.mutateAsync();
     toast.success("Wszystkie oznaczone jako przeczytane");
   }
 
@@ -184,7 +161,7 @@ export default function NotificationsPage() {
     );
   }
 
-  if (!user || !token) return null;
+  if (!user) return null;
 
   return (
     <div ref={containerRef} className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">

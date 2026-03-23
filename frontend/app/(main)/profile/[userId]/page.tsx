@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { gsap } from "gsap";
@@ -21,17 +21,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  getLeaderboard,
-  getMe,
-  getMyMatches,
-  getMyWallet,
-  getMyInventory,
-  getMyDecks,
-  getPlayerMatches,
-  sendFriendRequest,
-  getFriends,
-  getSentRequests,
-  getReceivedRequests,
   APIError,
   type LeaderboardEntry,
   type Match,
@@ -40,6 +29,19 @@ import {
   type DeckOut,
   type User as UserType,
 } from "@/lib/api";
+import {
+  useMe,
+  useMyMatches,
+  useMyWallet,
+  useMyInventory,
+  useMyDecks,
+  useLeaderboard,
+  usePlayerMatches,
+  useFriends,
+  useSentRequests,
+  useReceivedRequests,
+  useSendFriendRequest,
+} from "@/hooks/queries";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { BannedBadge } from "@/components/ui/banned-badge";
@@ -57,30 +59,96 @@ import {
 } from "@/components/ui/table";
 
 export default function ProfilePage() {
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const userId = params.userId as string;
 
   const isOwnProfile = user?.id === userId;
 
-  // Own profile data
-  const [profile, setProfile] = useState<UserType | null>(null);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [wallet, setWallet] = useState<WalletOut | null>(null);
-  const [inventory, setInventory] = useState<InventoryItemOut[]>([]);
-  const [decks, setDecks] = useState<DeckOut[]>([]);
-
-  // Other profile data
-  const [entry, setEntry] = useState<LeaderboardEntry | null>(null);
-  const [placement, setPlacement] = useState<number | null>(null);
-
-  const [dataLoading, setDataLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [friendLoading, setFriendLoading] = useState(false);
   const [friendSent, setFriendSent] = useState(false);
-  const [friendshipStatus, setFriendshipStatus] = useState<"none" | "pending" | "accepted">("none");
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Own profile queries
+  const { data: profileData } = useMe();
+  const { data: myMatchesData, isLoading: myMatchesLoading } = useMyMatches(isOwnProfile ? 50 : undefined);
+  const { data: walletData } = useMyWallet();
+  const { data: inventoryData } = useMyInventory(isOwnProfile ? 8 : undefined);
+  const { data: myDecksData } = useMyDecks();
+
+  // Other profile queries
+  const { data: playerMatchesData, isLoading: playerMatchesLoading } = usePlayerMatches(
+    isOwnProfile ? "" : userId,
+    50
+  );
+
+  // Shared queries
+  const { data: leaderboardData, isLoading: lbLoading } = useLeaderboard(1000);
+
+  // Friend status queries (only meaningful for other profiles, but hooks must be unconditional)
+  const { data: friendsData } = useFriends(isOwnProfile ? undefined : 200);
+  const { data: sentData } = useSentRequests(isOwnProfile ? undefined : 200);
+  const { data: receivedData } = useReceivedRequests(isOwnProfile ? undefined : 200);
+
+  const sendFriendMutation = useSendFriendRequest();
+
+  // Derived values
+  const profile = useMemo<UserType | null>(
+    () => (isOwnProfile ? (profileData ?? null) : null),
+    [isOwnProfile, profileData]
+  );
+
+  const matches = useMemo<Match[]>(
+    () => (isOwnProfile ? (myMatchesData?.items ?? []) : (playerMatchesData?.items ?? [])),
+    [isOwnProfile, myMatchesData, playerMatchesData]
+  );
+
+  const wallet = useMemo<WalletOut | null>(
+    () => (isOwnProfile ? (walletData ?? null) : null),
+    [isOwnProfile, walletData]
+  );
+
+  const inventory = useMemo<InventoryItemOut[]>(
+    () => (isOwnProfile ? (inventoryData?.items ?? []) : []),
+    [isOwnProfile, inventoryData]
+  );
+
+  const decks = useMemo<DeckOut[]>(
+    () => (isOwnProfile ? (myDecksData?.items ?? []) : []),
+    [isOwnProfile, myDecksData]
+  );
+
+  const { entry, placement } = useMemo<{ entry: LeaderboardEntry | null; placement: number | null }>(() => {
+    if (!leaderboardData) return { entry: null, placement: null };
+    const idx = leaderboardData.items.findIndex((e) => e.id === userId);
+    if (idx < 0) return { entry: null, placement: null };
+    return { entry: leaderboardData.items[idx], placement: idx + 1 };
+  }, [leaderboardData, userId]);
+
+  const friendshipStatus = useMemo<"none" | "pending" | "accepted">(() => {
+    if (isOwnProfile) return "none";
+    const isFriend = friendsData?.items.some(
+      (f) => f.from_user.id === userId || f.to_user.id === userId
+    ) ?? false;
+    if (isFriend) return "accepted";
+    const hasSent = sentData?.items.some((f) => f.to_user.id === userId) ?? false;
+    const hasReceived = receivedData?.items.some((f) => f.from_user.id === userId) ?? false;
+    if (hasSent || hasReceived) return "pending";
+    return "none";
+  }, [isOwnProfile, userId, friendsData, sentData, receivedData]);
+
+  const dataLoading = useMemo(() => {
+    if (authLoading) return true;
+    if (lbLoading) return true;
+    if (isOwnProfile) return myMatchesLoading;
+    return playerMatchesLoading;
+  }, [authLoading, lbLoading, isOwnProfile, myMatchesLoading, playerMatchesLoading]);
+
+  const notFound = useMemo(() => {
+    if (isOwnProfile) return false;
+    if (lbLoading) return false;
+    return entry === null;
+  }, [isOwnProfile, lbLoading, entry]);
 
   useGSAP(() => {
     if (!containerRef.current || dataLoading) return;
@@ -100,63 +168,11 @@ export default function ProfilePage() {
     gsap.fromTo("[data-animate='section']", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, stagger: 0.12, delay: 0.3, ease: "power2.out" });
   }, { scope: containerRef, dependencies: [dataLoading] });
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user || !token) { router.replace("/login"); return; }
-
-    if (isOwnProfile) {
-      Promise.allSettled([
-        getMe(token),
-        getMyMatches(token, 50),
-        getMyWallet(token),
-        getMyInventory(token, 8),
-        getMyDecks(token),
-        getLeaderboard(token, 1000),
-      ]).then(([profileRes, matchesRes, walletRes, inventoryRes, decksRes, lbRes]) => {
-        if (profileRes.status === "fulfilled") setProfile(profileRes.value);
-        if (matchesRes.status === "fulfilled") setMatches(matchesRes.value.items);
-        if (walletRes.status === "fulfilled") setWallet(walletRes.value);
-        if (inventoryRes.status === "fulfilled") setInventory(inventoryRes.value.items);
-        if (decksRes.status === "fulfilled") setDecks(decksRes.value.items);
-        if (lbRes.status === "fulfilled") {
-          const idx = lbRes.value.items.findIndex((e) => e.id === userId);
-          if (idx >= 0) { setEntry(lbRes.value.items[idx]); setPlacement(idx + 1); }
-        }
-        setDataLoading(false);
-      });
-    } else {
-      Promise.allSettled([
-        getLeaderboard(token, 1000),
-        getPlayerMatches(token, userId, 50),
-        getFriends(token, 200),
-        getSentRequests(token, 200),
-        getReceivedRequests(token, 200),
-      ]).then(([lbRes, matchesRes, friendsRes, sentRes, receivedRes]) => {
-        if (lbRes.status === "fulfilled") {
-          const idx = lbRes.value.items.findIndex((e) => e.id === userId);
-          if (idx === -1) { setNotFound(true); }
-          else { setEntry(lbRes.value.items[idx]); setPlacement(idx + 1); }
-        } else { setNotFound(true); }
-        if (matchesRes.status === "fulfilled") setMatches(matchesRes.value.items);
-        // Check friendship status
-        const isFriend = friendsRes.status === "fulfilled" && friendsRes.value.items.some(
-          (f) => f.from_user.id === userId || f.to_user.id === userId
-        );
-        if (isFriend) {
-          setFriendshipStatus("accepted");
-        } else {
-          const hasSent = sentRes.status === "fulfilled" && sentRes.value.items.some(
-            (f) => f.to_user.id === userId
-          );
-          const hasReceived = receivedRes.status === "fulfilled" && receivedRes.value.items.some(
-            (f) => f.from_user.id === userId
-          );
-          if (hasSent || hasReceived) setFriendshipStatus("pending");
-        }
-        setDataLoading(false);
-      });
-    }
-  }, [authLoading, user, token, userId, router, isOwnProfile]);
+  // Auth redirect
+  if (!authLoading && !user) {
+    router.replace("/login");
+    return null;
+  }
 
   if (authLoading || dataLoading) {
     return (
@@ -182,10 +198,9 @@ export default function ProfilePage() {
   }
 
   async function handleAddFriend() {
-    if (!token || !entry?.username || friendSent) return;
-    setFriendLoading(true);
+    if (!entry?.username || friendSent) return;
     try {
-      await sendFriendRequest(token, entry.username);
+      await sendFriendMutation.mutateAsync(entry.username);
       setFriendSent(true);
       toast.success("Zaproszenie wysłane");
     } catch (err) {
@@ -199,10 +214,10 @@ export default function ProfilePage() {
       } else {
         toast.error("Nie udało się wysłać zaproszenia");
       }
-    } finally {
-      setFriendLoading(false);
     }
   }
+
+  const friendLoading = sendFriendMutation.isPending;
 
   const currentUser = profile ?? user!;
   const displayName = isOwnProfile ? currentUser.username : (entry?.username ?? "Gracz");

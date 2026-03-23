@@ -7,13 +7,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGameSocket } from "@/hooks/useGameSocket";
 import { useAudio, MUSIC_TRACKS } from "@/hooks/useAudio";
 import {
-  getRegionsGraph,
-  getConfig,
   type RegionGraphEntry,
   type BuildingType,
   type UnitType,
   type AbilityType,
 } from "@/lib/api";
+import { useRegionsGraph, useConfig } from "@/hooks/queries";
 import { loadAssetOverrides } from "@/lib/assetOverrides";
 import { getSeaTravelRange, getTravelDistance } from "@/lib/gameTravel.js";
 import dynamic from "next/dynamic";
@@ -114,11 +113,13 @@ export default function GamePage({
   const { startMusic, stopMusic, playSound, playJingle, toggleMute, muted, currentTrackIndex, selectTrack } = useAudio();
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
 
-  const [regionGraph, setRegionGraph] = useState<RegionGraphEntry[]>([]);
+  const { data: regionGraphData } = useRegionsGraph(matchId);
+  const { data: configData } = useConfig();
+  const regionGraph = regionGraphData ?? [];
+  const buildings = configData?.buildings ?? [];
+  const unitsConfig = configData?.units ?? [];
+  const abilitiesConfig = configData?.abilities ?? [];
   const { shapesData } = useShapesData(matchId);
-  const [buildings, setBuildings] = useState<BuildingType[]>([]);
-  const [unitsConfig, setUnitsConfig] = useState<UnitType[]>([]);
-  const [abilitiesConfig, setAbilitiesConfig] = useState<AbilityType[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [selectedActionUnitType, setSelectedActionUnitType] = useState<string | null>(null);
   /** Remember last unit type selection per region so reopening keeps the choice. */
@@ -226,17 +227,8 @@ export default function GamePage({
     }
   }, [bannedReason, router]);
 
-  // Load geo graph filtered to this match's map config, plus global config
-  useEffect(() => {
-    getRegionsGraph(matchId).then(setRegionGraph).catch(console.error);
-    Promise.all([getConfig(), loadAssetOverrides()])
-      .then(([cfg]) => {
-        setBuildings(cfg.buildings);
-        setUnitsConfig(cfg.units);
-        setAbilitiesConfig(cfg.abilities || []);
-      })
-      .catch(console.error);
-  }, [matchId]);
+  // Load asset overrides once on mount
+  useEffect(() => { loadAssetOverrides(); }, []);
 
   // Prune finished animations + nuke blackout — only run when there are items to prune
   const pruneTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);

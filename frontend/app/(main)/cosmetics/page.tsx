@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -19,13 +19,15 @@ import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
 import ItemIcon from "@/components/ui/ItemIcon";
 import {
-  getMyInventory,
-  getEquippedCosmetics,
-  equipCosmetic,
-  unequipCosmetic,
   type InventoryItemOut,
   type EquippedCosmeticOut,
 } from "@/lib/api";
+import {
+  useMyInventory,
+  useEquippedCosmetics,
+  useEquipCosmetic,
+  useUnequipCosmetic,
+} from "@/hooks/queries";
 
 // ─── Rarity config ───────────────────────────────────────────────────────────
 
@@ -457,13 +459,8 @@ export default function CosmeticsPage() {
 // ─── Main content ─────────────────────────────────────────────────────────────
 
 function CosmeticsContent() {
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-
-  const [cosmetics, setCosmetics] = useState<InventoryItemOut[]>([]);
-  const [equipped, setEquipped] = useState<EquippedCosmeticOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
 
   // Sheet state
   const [activeSlot, setActiveSlot] = useState<SlotDef | null>(null);
@@ -473,54 +470,39 @@ function CosmeticsContent() {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
 
-  const loadData = useCallback(async () => {
-    if (!token) return;
-    try {
-      const [invRes, equippedRes] = await Promise.all([
-        getMyInventory(token, 200),
-        getEquippedCosmetics(token),
-      ]);
-      setCosmetics(invRes.items.filter((i) => i.item.item_type === "cosmetic"));
-      setEquipped(equippedRes);
-    } catch {
-      toast.error("Nie udało się załadować kosmetyków");
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+  const { data: inventoryData, isLoading: inventoryLoading } = useMyInventory(200);
+  const { data: equipped = [], isLoading: equippedLoading } = useEquippedCosmetics();
+  const equipMutation = useEquipCosmetic();
+  const unequipMutation = useUnequipCosmetic();
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const cosmetics = useMemo(
+    () => (inventoryData?.items ?? []).filter((i) => i.item.item_type === "cosmetic"),
+    [inventoryData]
+  );
+
+  const loading = inventoryLoading || equippedLoading;
+  const actionLoading = equipMutation.isPending || unequipMutation.isPending;
 
   const handleEquip = async (itemSlug: string, instanceId?: string) => {
-    if (!token || actionLoading) return;
-    setActionLoading(true);
+    if (actionLoading) return;
     try {
       const payload = instanceId
         ? { item_slug: itemSlug, instance_id: instanceId }
         : { item_slug: itemSlug };
-      const result = await equipCosmetic(token, payload);
+      const result = await equipMutation.mutateAsync(payload);
       toast.success(`Założono: ${result.item_name}`);
-      await loadData();
     } catch {
       toast.error("Nie udało się założyć kosmetyku");
-    } finally {
-      setActionLoading(false);
     }
   };
 
   const handleUnequip = async (slot: string) => {
-    if (!token || actionLoading) return;
-    setActionLoading(true);
+    if (actionLoading) return;
     try {
-      await unequipCosmetic(token, slot);
+      await unequipMutation.mutateAsync(slot);
       toast.success("Zdjęto kosmetyk");
-      await loadData();
     } catch {
       toast.error("Nie udało się zdjąć kosmetyku");
-    } finally {
-      setActionLoading(false);
     }
   };
 

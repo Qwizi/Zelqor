@@ -24,15 +24,12 @@ import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
 import ItemIcon from "@/components/ui/ItemIcon";
 import {
-  craftItem,
-  getMyInventory,
-  getMyWallet,
-  getRecipes,
   type CraftResult,
   type InventoryItemOut,
   type RecipeOut,
   type WalletOut,
 } from "@/lib/api";
+import { useRecipes, useMyInventory, useMyWallet, useCraftItem } from "@/hooks/queries";
 
 // ─── Wear / Rarity constants ────────────────────────────────────────────────
 
@@ -179,12 +176,15 @@ export default function CraftingPage() {
 }
 
 function CraftingContent() {
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [recipes, setRecipes] = useState<RecipeOut[]>([]);
-  const [inventory, setInventory] = useState<InventoryItemOut[]>([]);
-  const [wallet, setWallet] = useState<WalletOut | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: recipes = [], isLoading: recipesLoading } = useRecipes();
+  const { data: inventoryData, isLoading: inventoryLoading } = useMyInventory();
+  const { data: walletData, isLoading: walletLoading } = useMyWallet();
+  const wallet = walletData ?? null;
+  const craftMutation = useCraftItem();
+  const inventory = inventoryData?.items ?? [];
+  const loading = recipesLoading || inventoryLoading || walletLoading;
   const [category, setCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [crafting, setCrafting] = useState<string | null>(null);
@@ -201,28 +201,6 @@ function CraftingContent() {
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
-
-  const loadData = useCallback(async () => {
-    if (!token) return;
-    try {
-      const [rec, invRes, wal] = await Promise.all([
-        getRecipes(),
-        getMyInventory(token),
-        getMyWallet(token),
-      ]);
-      setRecipes(rec);
-      setInventory(invRes.items);
-      setWallet(wal);
-    } catch {
-      toast.error("Nie udało się załadować receptur");
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
 
   // ─── Helpers ──────────────────────────────────────────────
 
@@ -254,20 +232,18 @@ function CraftingContent() {
   const modalSparkRef = useRef<HTMLDivElement>(null);
 
   const handleCraft = async (recipe: RecipeOut) => {
-    if (!token) return;
     setCrafting(recipe.slug);
     setCraftingModal({ phase: "forging", recipe });
 
     try {
       // Wait minimum 1.5s for animation even if API is faster
       const [result] = await Promise.all([
-        craftItem(token, recipe.slug),
+        craftMutation.mutateAsync(recipe.slug),
         new Promise((r) => setTimeout(r, 1500)),
       ]);
       setCraftingModal({ phase: "result", recipe, result });
       setLastResult(result);
       setSelected(recipe.slug);
-      loadData();
       // Auto-close after 3s
       setTimeout(() => setCraftingModal(null), 3000);
     } catch (e: unknown) {

@@ -1,32 +1,32 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  getDeveloperApp,
-  updateDeveloperApp,
-  deleteDeveloperApp,
-  createAPIKey,
-  getAPIKeys,
-  deleteAPIKey,
-  createWebhook,
-  getWebhooks,
-  updateWebhook,
-  deleteWebhook,
-  testWebhook,
-  getWebhookDeliveries,
-  getAppUsage,
-  getAvailableScopes,
-  getAvailableEvents,
+  useDeveloperApp,
+  useUpdateDeveloperApp,
+  useDeleteDeveloperApp,
+  useAPIKeys,
+  useCreateAPIKey,
+  useDeleteAPIKey,
+  useWebhooks,
+  useCreateWebhook,
+  useUpdateWebhook,
+  useDeleteWebhook,
+  useTestWebhook,
+  useWebhookDeliveries,
+  useAppUsage,
+  useAvailableScopes,
+  useAvailableEvents,
+} from "@/hooks/queries";
+import {
   type DeveloperApp,
   type APIKeyOut,
   type APIKeyCreated,
   type WebhookOut,
-  type WebhookDelivery,
-  type UsageStats,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -109,7 +109,6 @@ interface CreateKeyDialogProps {
   availableScopes: string[];
   onCreated: (key: APIKeyCreated) => void;
   appId: string;
-  token: string;
 }
 
 function CreateKeyDialog({
@@ -118,11 +117,10 @@ function CreateKeyDialog({
   availableScopes,
   onCreated,
   appId,
-  token,
 }: CreateKeyDialogProps) {
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   const [rateLimit, setRateLimit] = useState(1000);
-  const [loading, setLoading] = useState(false);
+  const createAPIKey = useCreateAPIKey();
 
   const toggleScope = (scope: string) => {
     setSelectedScopes((prev) =>
@@ -135,11 +133,10 @@ function CreateKeyDialog({
       toast.error("Wybierz co najmniej jedno uprawnienie.");
       return;
     }
-    setLoading(true);
     try {
-      const created = await createAPIKey(token, appId, {
-        scopes: selectedScopes,
-        rate_limit: rateLimit,
+      const created = await createAPIKey.mutateAsync({
+        appId,
+        data: { scopes: selectedScopes, rate_limit: rateLimit },
       });
       onCreated(created);
       setSelectedScopes([]);
@@ -147,8 +144,6 @@ function CreateKeyDialog({
       onOpenChange(false);
     } catch {
       toast.error("Nie udalo sie utworzyc klucza API.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -213,10 +208,10 @@ function CreateKeyDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={loading || selectedScopes.length === 0}
+            disabled={createAPIKey.isPending || selectedScopes.length === 0}
             className="rounded-full border border-cyan-300/30 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] font-display uppercase tracking-[0.2em] text-slate-950 hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? (
+            {createAPIKey.isPending ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
             ) : (
               <>
@@ -284,52 +279,30 @@ function NewKeyAlert({ keyData, onDismiss }: NewKeyAlertProps) {
 
 interface APIKeysTabProps {
   appId: string;
-  token: string;
 }
 
-function APIKeysTab({ appId, token }: APIKeysTabProps) {
-  const [keys, setKeys] = useState<APIKeyOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [availableScopes, setAvailableScopes] = useState<string[]>([]);
+function APIKeysTab({ appId }: APIKeysTabProps) {
+  const { data: keysData, isLoading } = useAPIKeys(appId);
+  const { data: scopesData } = useAvailableScopes();
+  const deleteAPIKey = useDeleteAPIKey();
+
+  const keys: APIKeyOut[] = keysData?.items ?? [];
+  const availableScopes: string[] = scopesData?.scopes ?? [];
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newKey, setNewKey] = useState<APIKeyCreated | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const loadKeys = useCallback(async () => {
-    try {
-      const data = await getAPIKeys(token, appId);
-      setKeys(data.items);
-    } catch {
-      toast.error("Nie udalo sie zaladowac kluczy API.");
-    } finally {
-      setLoading(false);
-    }
-  }, [token, appId]);
-
-  useEffect(() => {
-    loadKeys();
-    getAvailableScopes(token)
-      .then((d) => setAvailableScopes(d.scopes))
-      .catch(() => {});
-  }, [loadKeys, token]);
-
   const handleCreated = (key: APIKeyCreated) => {
     setNewKey(key);
-    setKeys((prev) => [key, ...prev]);
     toast.success("Klucz API zostal utworzony.");
   };
 
-  const handleDelete = async (keyId: string, prefix: string) => {
-    if (
-      !window.confirm(
-        "Czy na pewno chcesz usunac ten klucz API?"
-      )
-    )
-      return;
+  const handleDelete = async (keyId: string) => {
+    if (!window.confirm("Czy na pewno chcesz usunac ten klucz API?")) return;
     setDeletingId(keyId);
     try {
-      await deleteAPIKey(token, appId, keyId);
-      setKeys((prev) => prev.filter((k) => k.id !== keyId));
+      await deleteAPIKey.mutateAsync({ appId, keyId });
       toast.success("Klucz API dezaktywowany.");
     } catch {
       toast.error("Nie udalo sie usunac klucza API.");
@@ -338,7 +311,7 @@ function APIKeysTab({ appId, token }: APIKeysTabProps) {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <RefreshCw className="h-6 w-6 animate-spin text-slate-500" />
@@ -424,7 +397,7 @@ function APIKeysTab({ appId, token }: APIKeysTabProps) {
                 </div>
 
                 <button
-                  onClick={() => handleDelete(key.id, key.prefix)}
+                  onClick={() => handleDelete(key.id)}
                   disabled={deletingId === key.id}
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-400/20 bg-red-400/5 text-red-400 transition-colors hover:border-red-400/40 hover:bg-red-400/10 disabled:opacity-50"
                   title="Usun klucz"
@@ -447,7 +420,6 @@ function APIKeysTab({ appId, token }: APIKeysTabProps) {
         availableScopes={availableScopes}
         onCreated={handleCreated}
         appId={appId}
-        token={token}
       />
     </div>
   );
@@ -459,22 +431,18 @@ interface CreateWebhookDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   availableEvents: string[];
-  onCreated: (webhook: WebhookOut) => void;
   appId: string;
-  token: string;
 }
 
 function CreateWebhookDialog({
   open,
   onOpenChange,
   availableEvents,
-  onCreated,
   appId,
-  token,
 }: CreateWebhookDialogProps) {
   const [url, setUrl] = useState("");
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const createWebhook = useCreateWebhook();
 
   const toggleEvent = (event: string) => {
     setSelectedEvents((prev) =>
@@ -493,20 +461,17 @@ function CreateWebhookDialog({
       toast.error("Wybierz co najmniej jedno zdarzenie.");
       return;
     }
-    setLoading(true);
     try {
-      const created = await createWebhook(token, appId, {
-        url: url.trim(),
-        events: selectedEvents,
+      await createWebhook.mutateAsync({
+        appId,
+        data: { url: url.trim(), events: selectedEvents },
       });
-      onCreated(created);
+      toast.success("Webhook utworzony.");
       setUrl("");
       setSelectedEvents([]);
       onOpenChange(false);
     } catch {
       toast.error("Nie udalo sie utworzyc webhooka.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -566,10 +531,10 @@ function CreateWebhookDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={loading || !url.trim() || selectedEvents.length === 0}
+            disabled={createWebhook.isPending || !url.trim() || selectedEvents.length === 0}
             className="rounded-full border border-amber-300/30 bg-[linear-gradient(135deg,#fbbf24,#f59e0b)] font-display uppercase tracking-[0.2em] text-slate-950 hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? (
+            {createWebhook.isPending ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
             ) : (
               <>
@@ -589,9 +554,7 @@ interface EditWebhookDialogProps {
   onOpenChange: (open: boolean) => void;
   webhook: WebhookOut;
   availableEvents: string[];
-  onUpdated: (webhook: WebhookOut) => void;
   appId: string;
-  token: string;
 }
 
 function EditWebhookDialog({
@@ -599,16 +562,12 @@ function EditWebhookDialog({
   onOpenChange,
   webhook,
   availableEvents,
-  onUpdated,
   appId,
-  token,
 }: EditWebhookDialogProps) {
   const [url, setUrl] = useState(webhook.url);
-  const [selectedEvents, setSelectedEvents] = useState<string[]>(
-    webhook.events
-  );
+  const [selectedEvents, setSelectedEvents] = useState<string[]>(webhook.events);
   const [isActive, setIsActive] = useState(webhook.is_active);
-  const [loading, setLoading] = useState(false);
+  const updateWebhook = useUpdateWebhook();
 
   useEffect(() => {
     setUrl(webhook.url);
@@ -629,20 +588,16 @@ function EditWebhookDialog({
       toast.error("Adres URL webhooka jest wymagany.");
       return;
     }
-    setLoading(true);
     try {
-      const updated = await updateWebhook(token, appId, webhook.id, {
-        url: url.trim(),
-        events: selectedEvents,
-        is_active: isActive,
+      await updateWebhook.mutateAsync({
+        appId,
+        webhookId: webhook.id,
+        data: { url: url.trim(), events: selectedEvents, is_active: isActive },
       });
-      onUpdated(updated);
       onOpenChange(false);
       toast.success("Webhook zaktualizowany.");
     } catch {
       toast.error("Nie udalo sie zaktualizowac webhooka.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -713,10 +668,10 @@ function EditWebhookDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={updateWebhook.isPending}
             className="rounded-full border border-cyan-300/30 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] font-display uppercase tracking-[0.2em] text-slate-950 hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? (
+            {updateWebhook.isPending ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
             ) : (
               <>
@@ -734,50 +689,36 @@ function EditWebhookDialog({
 interface WebhookRowProps {
   webhook: WebhookOut;
   appId: string;
-  token: string;
   availableEvents: string[];
-  onDeleted: (id: string) => void;
-  onUpdated: (webhook: WebhookOut) => void;
 }
 
 function WebhookRow({
   webhook,
   appId,
-  token,
   availableEvents,
-  onDeleted,
-  onUpdated,
 }: WebhookRowProps) {
   const [expanded, setExpanded] = useState(false);
-  const [deliveries, setDeliveries] = useState<WebhookDelivery[] | null>(null);
-  const [loadingDeliveries, setLoadingDeliveries] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
-  const loadDeliveries = async () => {
-    if (deliveries !== null) return;
-    setLoadingDeliveries(true);
-    try {
-      const data = await getWebhookDeliveries(token, appId, webhook.id);
-      setDeliveries(data.items);
-    } catch {
-      toast.error("Nie udalo sie zaladowac dostarczeń.");
-    } finally {
-      setLoadingDeliveries(false);
-    }
-  };
+  const deleteWebhookMutation = useDeleteWebhook();
+  const testWebhookMutation = useTestWebhook();
+
+  // Only fetch deliveries when the row is expanded — passing empty strings causes
+  // enabled: !!appId && !!webhookId to evaluate to false
+  const { data: deliveriesData, isLoading: lazyLoadingDeliveries } = useWebhookDeliveries(
+    expanded ? appId : "",
+    expanded ? webhook.id : "",
+  );
+
+  const deliveries = deliveriesData?.items ?? null;
 
   const handleExpand = () => {
-    const next = !expanded;
-    setExpanded(next);
-    if (next) loadDeliveries();
+    setExpanded((prev) => !prev);
   };
 
   const handleTest = async () => {
-    setTesting(true);
     try {
-      const result = await testWebhook(token, appId, webhook.id);
+      const result = await testWebhookMutation.mutateAsync({ appId, webhookId: webhook.id });
       if (result.success) {
         toast.success(
           `Test webhooka wyslany — HTTP ${result.status_code ?? "?"}: ${result.message}`
@@ -789,27 +730,16 @@ function WebhookRow({
       }
     } catch {
       toast.error("Nie udalo sie przetestowac webhooka.");
-    } finally {
-      setTesting(false);
     }
   };
 
   const handleDelete = async () => {
-    if (
-      !window.confirm(
-        "Czy na pewno chcesz usunac ten webhook?"
-      )
-    )
-      return;
-    setDeleting(true);
+    if (!window.confirm("Czy na pewno chcesz usunac ten webhook?")) return;
     try {
-      await deleteWebhook(token, appId, webhook.id);
-      onDeleted(webhook.id);
+      await deleteWebhookMutation.mutateAsync({ appId, webhookId: webhook.id });
       toast.success("Webhook usuniety.");
     } catch {
       toast.error("Nie udalo sie usunac webhooka.");
-    } finally {
-      setDeleting(false);
     }
   };
 
@@ -871,11 +801,11 @@ function WebhookRow({
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={handleTest}
-              disabled={testing}
+              disabled={testWebhookMutation.isPending}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-400/20 bg-cyan-400/5 text-cyan-400 transition-colors hover:border-cyan-400/40 hover:bg-cyan-400/10 disabled:opacity-50"
               title="Wyslij test"
             >
-              {testing ? (
+              {testWebhookMutation.isPending ? (
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Send className="h-3.5 w-3.5" />
@@ -890,11 +820,11 @@ function WebhookRow({
             </button>
             <button
               onClick={handleDelete}
-              disabled={deleting}
+              disabled={deleteWebhookMutation.isPending}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-400/20 bg-red-400/5 text-red-400 transition-colors hover:border-red-400/40 hover:bg-red-400/10 disabled:opacity-50"
               title="Usun webhook"
             >
-              {deleting ? (
+              {deleteWebhookMutation.isPending ? (
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Trash2 className="h-3.5 w-3.5" />
@@ -910,7 +840,7 @@ function WebhookRow({
           <p className="mb-3 text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
             Dostarczenia
           </p>
-          {loadingDeliveries ? (
+          {lazyLoadingDeliveries ? (
             <div className="flex items-center gap-2 text-sm text-slate-400">
               <RefreshCw className="h-4 w-4 animate-spin" />
               Ladowanie...
@@ -958,9 +888,7 @@ function WebhookRow({
         onOpenChange={setEditOpen}
         webhook={webhook}
         availableEvents={availableEvents}
-        onUpdated={onUpdated}
         appId={appId}
-        token={token}
       />
     </div>
   );
@@ -968,47 +896,18 @@ function WebhookRow({
 
 interface WebhooksTabProps {
   appId: string;
-  token: string;
 }
 
-function WebhooksTab({ appId, token }: WebhooksTabProps) {
-  const [webhooks, setWebhooks] = useState<WebhookOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [availableEvents, setAvailableEvents] = useState<string[]>([]);
+function WebhooksTab({ appId }: WebhooksTabProps) {
+  const { data: webhooksData, isLoading } = useWebhooks(appId);
+  const { data: eventsData } = useAvailableEvents();
+
+  const webhooks: WebhookOut[] = webhooksData?.items ?? [];
+  const availableEvents: string[] = eventsData?.events ?? [];
+
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const loadWebhooks = useCallback(async () => {
-    try {
-      const data = await getWebhooks(token, appId);
-      setWebhooks(data.items);
-    } catch {
-      toast.error("Nie udalo sie zaladowac webhookow.");
-    } finally {
-      setLoading(false);
-    }
-  }, [token, appId]);
-
-  useEffect(() => {
-    loadWebhooks();
-    getAvailableEvents(token)
-      .then((d) => setAvailableEvents(d.events))
-      .catch(() => {});
-  }, [loadWebhooks, token]);
-
-  const handleCreated = (webhook: WebhookOut) => {
-    setWebhooks((prev) => [webhook, ...prev]);
-    toast.success("Webhook utworzony.");
-  };
-
-  const handleDeleted = (id: string) => {
-    setWebhooks((prev) => prev.filter((w) => w.id !== id));
-  };
-
-  const handleUpdated = (updated: WebhookOut) => {
-    setWebhooks((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <RefreshCw className="h-6 w-6 animate-spin text-slate-500" />
@@ -1045,10 +944,7 @@ function WebhooksTab({ appId, token }: WebhooksTabProps) {
               key={webhook.id}
               webhook={webhook}
               appId={appId}
-              token={token}
               availableEvents={availableEvents}
-              onDeleted={handleDeleted}
-              onUpdated={handleUpdated}
             />
           ))}
         </div>
@@ -1058,9 +954,7 @@ function WebhooksTab({ appId, token }: WebhooksTabProps) {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         availableEvents={availableEvents}
-        onCreated={handleCreated}
         appId={appId}
-        token={token}
       />
     </div>
   );
@@ -1070,21 +964,12 @@ function WebhooksTab({ appId, token }: WebhooksTabProps) {
 
 interface UsageTabProps {
   appId: string;
-  token: string;
 }
 
-function UsageTab({ appId, token }: UsageTabProps) {
-  const [usage, setUsage] = useState<UsageStats | null>(null);
-  const [loading, setLoading] = useState(true);
+function UsageTab({ appId }: UsageTabProps) {
+  const { data: usage, isLoading } = useAppUsage(appId);
 
-  useEffect(() => {
-    getAppUsage(token, appId)
-      .then(setUsage)
-      .catch(() => toast.error("Nie udalo sie zaladowac statystyk."))
-      .finally(() => setLoading(false));
-  }, [token, appId]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <RefreshCw className="h-6 w-6 animate-spin text-slate-500" />
@@ -1217,20 +1102,16 @@ interface EditAppDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   app: DeveloperApp;
-  onUpdated: (app: DeveloperApp) => void;
-  token: string;
 }
 
 function EditAppDialog({
   open,
   onOpenChange,
   app,
-  onUpdated,
-  token,
 }: EditAppDialogProps) {
   const [name, setName] = useState(app.name);
   const [description, setDescription] = useState(app.description);
-  const [loading, setLoading] = useState(false);
+  const updateApp = useUpdateDeveloperApp();
 
   useEffect(() => {
     setName(app.name);
@@ -1242,19 +1123,15 @@ function EditAppDialog({
       toast.error("Nazwa aplikacji jest wymagana.");
       return;
     }
-    setLoading(true);
     try {
-      const updated = await updateDeveloperApp(token, app.id, {
-        name: name.trim(),
-        description: description.trim(),
+      await updateApp.mutateAsync({
+        appId: app.id,
+        data: { name: name.trim(), description: description.trim() },
       });
-      onUpdated(updated);
       onOpenChange(false);
       toast.success("Aplikacja zaktualizowana.");
     } catch {
       toast.error("Nie udalo sie zaktualizowac aplikacji.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -1298,10 +1175,10 @@ function EditAppDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={loading || !name.trim()}
+            disabled={updateApp.isPending || !name.trim()}
             className="rounded-full border border-cyan-300/30 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] font-display uppercase tracking-[0.2em] text-slate-950 hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? (
+            {updateApp.isPending ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
             ) : (
               <>
@@ -1322,47 +1199,36 @@ export default function DeveloperAppDetailPage() {
   const { appId } = useParams<{ appId: string }>();
   const { user, loading: authLoading, token } = useAuth();
   const router = useRouter();
-  const [app, setApp] = useState<DeveloperApp | null>(null);
-  const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+
+  const { data: app, isLoading: appLoading } = useDeveloperApp(appId);
+  const deleteApp = useDeleteDeveloperApp();
 
   useEffect(() => {
     if (authLoading) return;
     if (!user || !token) {
       router.replace("/login");
-      return;
     }
-
-    getDeveloperApp(token, appId)
-      .then(setApp)
-      .catch(() => {
-        toast.error("Nie udalo sie zaladowac danych aplikacji.");
-        router.replace("/developers");
-      })
-      .finally(() => setLoading(false));
-  }, [authLoading, user, token, appId, router]);
+  }, [authLoading, user, token, router]);
 
   const handleDelete = async () => {
-    if (!token || !app) return;
+    if (!app) return;
     if (
       !window.confirm(
         "Czy na pewno chcesz usunac te aplikacje? Ta operacja jest nieodwracalna."
       )
     )
       return;
-    setDeleting(true);
     try {
-      await deleteDeveloperApp(token, app.id);
+      await deleteApp.mutateAsync(app.id);
       toast.success("Aplikacja usunieta.");
       router.replace("/developers");
     } catch {
       toast.error("Nie udalo sie usunac aplikacji.");
-      setDeleting(false);
     }
   };
 
-  if (authLoading || loading) {
+  if (authLoading || appLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Image
@@ -1376,7 +1242,7 @@ export default function DeveloperAppDetailPage() {
     );
   }
 
-  if (!app || !token) return null;
+  if (!app) return null;
 
   return (
     <div className="space-y-6">
@@ -1433,10 +1299,10 @@ export default function DeveloperAppDetailPage() {
             </button>
             <button
               onClick={handleDelete}
-              disabled={deleting}
+              disabled={deleteApp.isPending}
               className="inline-flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2 text-sm text-red-300 hover:bg-red-500/20 transition-colors disabled:opacity-50"
             >
-              {deleting ? (
+              {deleteApp.isPending ? (
                 <RefreshCw className="h-4 w-4 animate-spin" />
               ) : (
                 <Trash2 className="h-4 w-4" />
@@ -1475,15 +1341,15 @@ export default function DeveloperAppDetailPage() {
           </TabsList>
 
           <TabsContent value="keys">
-            <APIKeysTab appId={app.id} token={token} />
+            <APIKeysTab appId={app.id} />
           </TabsContent>
 
           <TabsContent value="webhooks">
-            <WebhooksTab appId={app.id} token={token} />
+            <WebhooksTab appId={app.id} />
           </TabsContent>
 
           <TabsContent value="usage">
-            <UsageTab appId={app.id} token={token} />
+            <UsageTab appId={app.id} />
           </TabsContent>
         </Tabs>
       </div>
@@ -1493,8 +1359,6 @@ export default function DeveloperAppDetailPage() {
         open={editOpen}
         onOpenChange={setEditOpen}
         app={app}
-        onUpdated={setApp}
-        token={token}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
@@ -28,13 +27,12 @@ import {
 import ItemIcon from "@/components/ui/ItemIcon";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  getDeck,
-  getMyInventory,
-  setDefaultDeck,
-  updateDeck,
-  type DeckOut,
-  type InventoryItemOut,
-} from "@/lib/api";
+  useDeck,
+  useMyInventory,
+  useUpdateDeck,
+  useSetDefaultDeck,
+} from "@/hooks/queries";
+import { type DeckOut, type InventoryItemOut } from "@/lib/api";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -136,6 +134,34 @@ function levelBadgeClass(level: number): string {
 
 function sectionForType(type: string) {
   return SECTION_CONFIG.find((s) => s.type === type);
+}
+
+function buildDraftSlotsFromDeck(deck: DeckOut): Record<SectionType, SlotItem[]> {
+  const slots: Record<SectionType, SlotItem[]> = {
+    tactical_package: [],
+    blueprint_building: [],
+    blueprint_unit: [],
+    boost: [],
+  };
+  for (const di of deck.items) {
+    const type = di.item.item_type as SectionType;
+    if (!(type in slots)) continue;
+    const section = sectionForType(type);
+    for (let i = 0; i < di.quantity; i++) {
+      if (slots[type].length < (section?.slots ?? 99)) {
+        slots[type].push({
+          item_slug: di.item.slug,
+          item_name: di.item.name,
+          item_type: di.item.item_type,
+          rarity: di.item.rarity,
+          level: di.item.level ?? 1,
+          icon: di.item.icon || "",
+          blueprint_ref: di.item.blueprint_ref || "",
+        });
+      }
+    }
+  }
+  return slots;
 }
 
 // ─── Filled slot card ─────────────────────────────────────────────────────────
@@ -482,15 +508,10 @@ function SectionPickerSheet({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DeckEditorPage() {
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const deckId = params.id;
-
-  const [deck, setDeck] = useState<DeckOut | null>(null);
-  const [inventory, setInventory] = useState<InventoryItemOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
 
   // Editor state
   const [editName, setEditName] = useState("");
@@ -501,69 +522,52 @@ export default function DeckEditorPage() {
     blueprint_unit: [],
     boost: [],
   });
+  const [initialized, setInitialized] = useState(false);
 
   // Sheet state
   const [activeSection, setActiveSection] = useState<(typeof SECTION_CONFIG)[number] | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  // Queries
+  const { data: deck, isLoading: deckLoading, isError: deckError } = useDeck(deckId);
+  const { data: inventoryData, isLoading: inventoryLoading } = useMyInventory(500);
+
+  // Mutations
+  const updateDeckMutation = useUpdateDeck();
+  const setDefaultDeckMutation = useSetDefaultDeck();
+
+  const loading = deckLoading || inventoryLoading;
+  const saving = updateDeckMutation.isPending || setDefaultDeckMutation.isPending;
+
+  // Derived inventory list filtered to deck item types
+  const inventory = (inventoryData?.items ?? []).filter((i) =>
+    DECK_ITEM_TYPES.includes(i.item.item_type)
+  );
+
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
 
-  const loadData = useCallback(async () => {
-    if (!token || !deckId) return;
-    try {
-      const [deckRes, invRes] = await Promise.all([
-        getDeck(token, deckId),
-        getMyInventory(token, 500),
-      ]);
+  // Initialize form state from deck data (once)
+  useEffect(() => {
+    if (!deck || initialized) return;
+    setEditName(deck.name);
+    setIsDefault(deck.is_default);
+    setDraftSlots(buildDraftSlotsFromDeck(deck));
+    setInitialized(true);
+  }, [deck, initialized]);
 
-      setDeck(deckRes);
-      setInventory(
-        invRes.items.filter((i) => DECK_ITEM_TYPES.includes(i.item.item_type))
-      );
-
-      setEditName(deckRes.name);
-      setIsDefault(deckRes.is_default);
-
-      const slots: Record<SectionType, SlotItem[]> = {
-        tactical_package: [],
-        blueprint_building: [],
-        blueprint_unit: [],
-        boost: [],
-      };
-      for (const di of deckRes.items) {
-        const type = di.item.item_type as SectionType;
-        if (!(type in slots)) continue;
-        const section = sectionForType(type);
-        for (let i = 0; i < di.quantity; i++) {
-          if (slots[type].length < (section?.slots ?? 99)) {
-            slots[type].push({
-              item_slug: di.item.slug,
-              item_name: di.item.name,
-              item_type: di.item.item_type,
-              rarity: di.item.rarity,
-              level: di.item.level ?? 1,
-              icon: di.item.icon || "",
-              blueprint_ref: di.item.blueprint_ref || "",
-            });
-          }
-        }
-      }
-      setDraftSlots(slots);
-    } catch {
+  // Redirect on error loading deck
+  useEffect(() => {
+    if (deckError) {
       toast.error("Nie udało się załadować talii");
       router.replace("/decks");
-    } finally {
-      setLoading(false);
     }
-  }, [token, deckId, router]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  }, [deckError, router]);
 
   // ─── Slot interactions ───────────────────────────────────────────────────────
+
+  const isLocked = deck?.is_editable === false;
 
   const addItemToSection = (invItem: InventoryItemOut) => {
     if (isLocked) return;
@@ -613,38 +617,36 @@ export default function DeckEditorPage() {
   // ─── Save ────────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
-    if (!token || !deckId) return;
-    setSaving(true);
-    try {
-      const allSlotItems = [
-        ...draftSlots.tactical_package,
-        ...draftSlots.blueprint_building,
-        ...draftSlots.blueprint_unit,
-        ...draftSlots.boost,
-      ];
-      const countMap = new Map<string, number>();
-      for (const s of allSlotItems) {
-        countMap.set(s.item_slug, (countMap.get(s.item_slug) ?? 0) + 1);
-      }
-      const items = Array.from(countMap.entries()).map(
-        ([item_slug, quantity]) => ({ item_slug, quantity })
-      );
+    if (!deckId) return;
 
-      await updateDeck(token, deckId, {
-        name: editName.trim() || undefined,
-        items,
+    const allSlotItems = [
+      ...draftSlots.tactical_package,
+      ...draftSlots.blueprint_building,
+      ...draftSlots.blueprint_unit,
+      ...draftSlots.boost,
+    ];
+    const countMap = new Map<string, number>();
+    for (const s of allSlotItems) {
+      countMap.set(s.item_slug, (countMap.get(s.item_slug) ?? 0) + 1);
+    }
+    const items = Array.from(countMap.entries()).map(
+      ([item_slug, quantity]) => ({ item_slug, quantity })
+    );
+
+    try {
+      await updateDeckMutation.mutateAsync({
+        deckId,
+        data: { name: editName.trim() || undefined, items },
       });
 
       if (isDefault && !deck?.is_default) {
-        await setDefaultDeck(token, deckId);
+        await setDefaultDeckMutation.mutateAsync(deckId);
       }
 
       toast.success("Talia zaktualizowana");
       router.push("/decks");
     } catch {
       toast.error("Nie udało się zapisać talii");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -652,8 +654,6 @@ export default function DeckEditorPage() {
     (acc, arr) => acc + arr.length,
     0
   );
-
-  const isLocked = deck?.is_editable === false;
 
   if (authLoading || !user) return null;
 

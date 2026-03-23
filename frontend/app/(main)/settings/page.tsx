@@ -1,15 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useLinkedSocialAccounts } from "@/hooks/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import {
-  getLinkedSocialAccounts,
   getSocialAuthURL,
   unlinkSocialAccount,
   type SocialAccountOut,
 } from "@/lib/api";
+import { requireToken } from "@/lib/queryClient";
 import Image from "next/image";
 import { toast } from "sonner";
 import {
@@ -26,36 +29,16 @@ import {
 } from "lucide-react";
 
 export default function SettingsPage() {
-  const { user, loading, logout, token } = useAuth();
+  const { user, loading, logout } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { permission, subscribed, subscribe, unsubscribe } = usePushNotifications();
-  const [socialAccounts, setSocialAccounts] = useState<SocialAccountOut[]>([]);
-  const [socialLoading, setSocialLoading] = useState(true);
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
-  const [linkingProvider, setLinkingProvider] = useState<string | null>(null);
+  const [linkingProvider, setLinkingProvider] = useState<"google" | "discord" | null>(null);
 
-  const fetchSocialAccounts = useCallback(async () => {
-    if (!token) return;
-    try {
-      const accounts = await getLinkedSocialAccounts(token);
-      setSocialAccounts(accounts);
-    } catch {
-      // silently fail
-    } finally {
-      setSocialLoading(false);
-    }
-  }, [token]);
+  const { data: socialAccounts = [], isLoading: socialLoading } = useLinkedSocialAccounts();
 
-  useEffect(() => {
-    if (loading) return;
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-    fetchSocialAccounts();
-  }, [loading, user, router, fetchSocialAccounts]);
-
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-950">
         <Image
@@ -67,6 +50,36 @@ export default function SettingsPage() {
         />
       </div>
     );
+  }
+
+  if (!user) {
+    router.replace("/login");
+    return null;
+  }
+
+  async function handleUnlink(account: SocialAccountOut) {
+    setUnlinkingId(account.id);
+    try {
+      await unlinkSocialAccount(requireToken(), account.id);
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.auth.all, "social-accounts"] });
+      toast.success(`Konto ${account.provider === "google" ? "Google" : "Discord"} zostało odłączone.`);
+    } catch {
+      toast.error("Nie udało się odłączyć konta.");
+    } finally {
+      setUnlinkingId(null);
+    }
+  }
+
+  async function handleLink(provider: "google" | "discord") {
+    setLinkingProvider(provider);
+    try {
+      const redirectUri = `${window.location.origin}/auth/link/${provider}`;
+      const { url } = await getSocialAuthURL(provider, redirectUri);
+      window.location.href = url;
+    } catch {
+      toast.error(`Nie udało się połączyć z ${provider === "google" ? "Google" : "Discord"}.`);
+      setLinkingProvider(null);
+    }
   }
 
   return (
@@ -200,18 +213,7 @@ export default function SettingsPage() {
                     </div>
                     {google ? (
                       <button
-                        onClick={async () => {
-                          setUnlinkingId(google.id);
-                          try {
-                            await unlinkSocialAccount(token!, google.id);
-                            setSocialAccounts((prev) => prev.filter((a) => a.id !== google.id));
-                            toast.success("Konto Google zostało odłączone.");
-                          } catch {
-                            toast.error("Nie udało się odłączyć konta.");
-                          } finally {
-                            setUnlinkingId(null);
-                          }
-                        }}
+                        onClick={() => handleUnlink(google)}
                         disabled={unlinkingId === google.id}
                         className="flex w-fit items-center gap-2 rounded-xl border border-border bg-secondary px-4 py-2 text-sm text-muted-foreground hover:bg-secondary/80 transition-colors"
                       >
@@ -220,17 +222,7 @@ export default function SettingsPage() {
                       </button>
                     ) : (
                       <button
-                        onClick={async () => {
-                          setLinkingProvider("google");
-                          try {
-                            const redirectUri = `${window.location.origin}/auth/link/google`;
-                            const { url } = await getSocialAuthURL("google", redirectUri);
-                            window.location.href = url;
-                          } catch {
-                            toast.error("Nie udało się połączyć z Google.");
-                            setLinkingProvider(null);
-                          }
-                        }}
+                        onClick={() => handleLink("google")}
                         disabled={linkingProvider !== null}
                         className="flex w-fit items-center gap-2 rounded-xl border border-indigo-400/30 bg-indigo-500/15 px-4 py-2 text-sm font-medium text-indigo-300 hover:bg-indigo-500/25 transition-colors"
                       >
@@ -264,18 +256,7 @@ export default function SettingsPage() {
                     </div>
                     {discord ? (
                       <button
-                        onClick={async () => {
-                          setUnlinkingId(discord.id);
-                          try {
-                            await unlinkSocialAccount(token!, discord.id);
-                            setSocialAccounts((prev) => prev.filter((a) => a.id !== discord.id));
-                            toast.success("Konto Discord zostało odłączone.");
-                          } catch {
-                            toast.error("Nie udało się odłączyć konta.");
-                          } finally {
-                            setUnlinkingId(null);
-                          }
-                        }}
+                        onClick={() => handleUnlink(discord)}
                         disabled={unlinkingId === discord.id}
                         className="flex w-fit items-center gap-2 rounded-xl border border-border bg-secondary px-4 py-2 text-sm text-muted-foreground hover:bg-secondary/80 transition-colors"
                       >
@@ -284,17 +265,7 @@ export default function SettingsPage() {
                       </button>
                     ) : (
                       <button
-                        onClick={async () => {
-                          setLinkingProvider("discord");
-                          try {
-                            const redirectUri = `${window.location.origin}/auth/link/discord`;
-                            const { url } = await getSocialAuthURL("discord", redirectUri);
-                            window.location.href = url;
-                          } catch {
-                            toast.error("Nie udało się połączyć z Discord.");
-                            setLinkingProvider(null);
-                          }
-                        }}
+                        onClick={() => handleLink("discord")}
                         disabled={linkingProvider !== null}
                         className="flex w-fit items-center gap-2 rounded-xl border border-indigo-400/30 bg-indigo-500/15 px-4 py-2 text-sm font-medium text-indigo-300 hover:bg-indigo-500/25 transition-colors"
                       >

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -42,7 +42,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import { MatchmakingProvider, useMatchmaking } from "@/hooks/useMatchmaking";
 import { useSystemModules } from "@/hooks/useSystemModules";
-import { getMyWallet, getFriends, type WalletOut, type FriendshipOut, type FriendUser } from "@/lib/api";
+import { type WalletOut, type FriendshipOut, type FriendUser } from "@/lib/api";
+import { useMyWallet, useOnlineStats, useFriends } from "@/hooks/queries";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAudio } from "@/hooks/useAudio";
@@ -704,41 +705,26 @@ const FRIENDS_REFRESH_INTERVAL = 15_000;
 
 function SidebarFriendsPanel({
   collapsed,
-  token,
   currentUserId,
 }: {
   collapsed: boolean;
-  token: string | null;
   currentUserId: string | undefined;
 }) {
   const { openDMTab: sidebarOpenDM } = useChat();
-  const [friends, setFriends] = useState<FriendUser[]>([]);
+  const { data: friendsData } = useFriends(100, undefined, { refetchInterval: FRIENDS_REFRESH_INTERVAL });
 
-  useEffect(() => {
-    if (!token) return;
-
-    const load = () => {
-      getFriends(token, 100, 0)
-        .then((res) => {
-          const resolved = res.items.map((f: FriendshipOut) =>
-            f.from_user.id === currentUserId ? f.to_user : f.from_user
-          );
-          // Online friends first
-          resolved.sort((a, b) => {
-            const order = { in_game: 0, in_queue: 1, online: 2, offline: 3 };
-            return (order[a.activity_status as keyof typeof order] ?? 3) - (order[b.activity_status as keyof typeof order] ?? 3);
-          });
-          setFriends(resolved);
-        })
-        .catch(() => {
-          // Silently ignore — friends panel is non-critical
-        });
-    };
-
-    load();
-    const id = setInterval(load, FRIENDS_REFRESH_INTERVAL);
-    return () => clearInterval(id);
-  }, [token, currentUserId]);
+  const friends = useMemo<FriendUser[]>(() => {
+    if (!friendsData) return [];
+    const resolved = friendsData.items.map((f: FriendshipOut) =>
+      f.from_user.id === currentUserId ? f.to_user : f.from_user
+    );
+    // Online friends first
+    resolved.sort((a, b) => {
+      const order = { in_game: 0, in_queue: 1, online: 2, offline: 3 };
+      return (order[a.activity_status as keyof typeof order] ?? 3) - (order[b.activity_status as keyof typeof order] ?? 3);
+    });
+    return resolved;
+  }, [friendsData, currentUserId]);
 
   const count = friends.length;
   const visible = friends.slice(0, FRIENDS_MAX_VISIBLE);
@@ -1089,7 +1075,7 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
   const { user, logout, token } = useAuth();
   const { inQueue: showQueueSubheader, joinQueue } = useMatchmaking();
   const pathname = usePathname();
-  const [wallet, setWallet] = useState<WalletOut | null>(null);
+  const { data: wallet } = useMyWallet();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -1168,17 +1154,7 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
   }, [startMenuMusic, stopMenuMusic]);
 
   // ── Online stats ──────────────────────────────────────────
-  const [onlineStats, setOnlineStats] = useState<{ online: number; in_queue: number; in_game: number } | null>(null);
-  useEffect(() => {
-    const load = () => {
-      import("@/lib/api").then(({ getOnlineStats }) =>
-        getOnlineStats().then(setOnlineStats).catch(() => {})
-      );
-    };
-    load();
-    const id = setInterval(load, 15_000);
-    return () => clearInterval(id);
-  }, []);
+  const { data: onlineStats } = useOnlineStats({ refetchInterval: 15_000 });
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -1187,15 +1163,6 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
       return next;
     });
   };
-
-  useEffect(() => {
-    if (!token) return;
-    getMyWallet(token)
-      .then(setWallet)
-      .catch(() => {
-        // Wallet not available — silently ignore
-      });
-  }, [token]);
 
   const sidebarWidth = collapsed ? "w-14" : "w-56";
   const contentPadding = collapsed ? "md:pl-14" : "md:pl-56";
@@ -1289,7 +1256,7 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
             <div className="border-b border-border">
               {/* Avatar + name */}
               <div className={cn(collapsed ? "px-1 pt-2.5 pb-1.5" : "px-2 pt-3 pb-1.5")}>
-                <ProfilePopover user={user} wallet={wallet} collapsed={collapsed} onLogout={logout} />
+                <ProfilePopover user={user} wallet={wallet ?? null} collapsed={collapsed} onLogout={logout} />
               </div>
               {/* Stats */}
               {!collapsed && (
@@ -1329,7 +1296,6 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
           {/* Friends panel */}
           <SidebarFriendsPanel
             collapsed={collapsed}
-            token={token}
             currentUserId={user?.id}
           />
 

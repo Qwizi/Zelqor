@@ -3,7 +3,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchmaking } from "@/hooks/useMatchmaking";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import Link from "next/link";
@@ -13,12 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import {
-  getMyMatches,
-  getConfig,
-  getMyDecks,
   startTutorial,
-  getFriends,
-  getReceivedRequests,
   inviteFriendToGame,
   type Match,
   type GameModeListItem,
@@ -26,6 +21,7 @@ import {
   type FriendshipOut,
   type FriendUser,
 } from "@/lib/api";
+import { useConfig, useMyMatches, useMyDecks, useFriends, useReceivedRequests } from "@/hooks/queries";
 import { useChat } from "@/hooks/useChat";
 
 function activityDot(status: string): string {
@@ -88,7 +84,7 @@ const MODE_ICONS: Record<string, typeof Users> = {
 };
 
 export default function DashboardPage() {
-  const { user, loading: authLoading, refreshUser, token } = useAuth();
+  const { user, loading: authLoading, token } = useAuth();
   const {
     inQueue, playersInQueue, matchId, activeMatchId, queueSeconds,
     fillBots, setFillBots, instantBot, setInstantBot, joinQueue, leaveQueue,
@@ -98,14 +94,29 @@ export default function DashboardPage() {
   const { showPrompt, subscribe, dismiss } = usePushNotifications(true);
   const { openDMTab } = useChat();
 
-  const [recentMatches, setRecentMatches] = useState<Match[]>([]);
-  const [gameModes, setGameModes] = useState<GameModeListItem[]>([]);
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
-  const [decks, setDecks] = useState<DeckOut[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [tutorialLoading, setTutorialLoading] = useState(false);
-  const [friends, setFriends] = useState<FriendshipOut[]>([]);
-  const [pendingCount, setPendingCount] = useState(0);
+
+  const { data: configData } = useConfig();
+  const { data: matchesData } = useMyMatches(5, undefined, { refetchInterval: 10_000 });
+  const { data: decksData } = useMyDecks();
+  const { data: friendsData } = useFriends(100, undefined, { refetchInterval: 15_000 });
+  const { data: receivedData } = useReceivedRequests(1, undefined, { refetchInterval: 15_000 });
+
+  const gameModes = useMemo<GameModeListItem[]>(() => configData?.game_modes ?? [], [configData]);
+  const recentMatches = useMemo<Match[]>(() => matchesData?.items ?? [], [matchesData]);
+  const decks = useMemo<DeckOut[]>(() => decksData?.items ?? [], [decksData]);
+  const friends = useMemo<FriendshipOut[]>(() => {
+    const items = friendsData?.items ?? [];
+    return [...items].sort((a, b) => {
+      const order: Record<string, number> = { in_game: 0, in_queue: 1, online: 2, offline: 3 };
+      const friendA = a.from_user.id === user?.id ? a.to_user : a.from_user;
+      const friendB = b.from_user.id === user?.id ? b.to_user : b.from_user;
+      return (order[friendA.activity_status] ?? 3) - (order[friendB.activity_status] ?? 3);
+    });
+  }, [friendsData, user?.id]);
+  const pendingCount = receivedData?.count ?? 0;
 
   const activeMatch = recentMatches.find(
     (m) =>
@@ -118,53 +129,20 @@ export default function DashboardPage() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (!token) return;
-    const load = () => {
-      refreshUser().catch(() => {});
-      getMyMatches(token, 5).then((r) => setRecentMatches(r.items)).catch(() => {});
-    };
-    load();
-    const id = setInterval(load, 10_000);
-    return () => clearInterval(id);
-  }, [token, refreshUser]);
-
-  useEffect(() => {
-    Promise.all([getConfig(), loadAssetOverrides()])
-      .then(([cfg]) => {
-        setGameModes(cfg.game_modes);
-        const def = cfg.game_modes.find((m) => m.is_default);
-        if (def) setSelectedMode((p) => p ?? def.slug);
-      })
-      .catch(() => {});
+    loadAssetOverrides().catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!token) return;
-    getMyDecks(token).then((r) => {
-      setDecks(r.items);
-      const def = r.items.find((d) => d.is_default);
-      if (def) setSelectedDeckId((p) => p ?? def.id);
-    }).catch(() => {});
-  }, [token]);
+    if (gameModes.length > 0) {
+      setSelectedMode((prev) => prev ?? gameModes.find((m) => m.is_default)?.slug ?? null);
+    }
+  }, [gameModes]);
 
   useEffect(() => {
-    if (!token) return;
-    const load = () => {
-      getFriends(token, 100).then((r) => {
-        const sorted = [...r.items].sort((a, b) => {
-          const order = { in_game: 0, in_queue: 1, online: 2, offline: 3 };
-          const friendA = a.from_user.id === user?.id ? a.to_user : a.from_user;
-          const friendB = b.from_user.id === user?.id ? b.to_user : b.from_user;
-          return (order[friendA.activity_status as keyof typeof order] ?? 3) - (order[friendB.activity_status as keyof typeof order] ?? 3);
-        });
-        setFriends(sorted);
-      }).catch(() => {});
-      getReceivedRequests(token, 1).then((r) => setPendingCount(r.count)).catch(() => {});
-    };
-    load();
-    const id = setInterval(load, 15_000);
-    return () => clearInterval(id);
-  }, [token, user?.id]);
+    if (decks.length > 0) {
+      setSelectedDeckId((prev) => prev ?? decks.find((d) => d.is_default)?.id ?? null);
+    }
+  }, [decks]);
 
   useEffect(() => { if (matchId) router.push(`/game/${matchId}`); }, [matchId, router]);
   useEffect(() => { if (activeMatchId) router.push(`/game/${activeMatchId}`); }, [activeMatchId, router]);

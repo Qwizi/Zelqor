@@ -19,16 +19,16 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { type FriendshipOut } from "@/lib/api";
 import {
-  acceptFriendRequest,
-  getFriends,
-  getReceivedRequests,
-  getSentRequests,
-  rejectFriendRequest,
-  removeFriend,
-  sendFriendRequest,
-  type FriendshipOut,
-} from "@/lib/api";
+  useFriends,
+  useReceivedRequests,
+  useSentRequests,
+  useSendFriendRequest,
+  useAcceptFriendRequest,
+  useRejectFriendRequest,
+  useRemoveFriend,
+} from "@/hooks/queries";
 
 function activityDot(status: string): string {
   switch (status) {
@@ -71,14 +71,24 @@ export default function FriendsPage() {
   const { user, loading, token } = useAuth();
   const router = useRouter();
 
-  const [friends, setFriends] = useState<FriendshipOut[]>([]);
-  const [received, setReceived] = useState<FriendshipOut[]>([]);
-  const [sent, setSent] = useState<FriendshipOut[]>([]);
-  const [pageLoading, setPageLoading] = useState(true);
   const [sendUsername, setSendUsername] = useState("");
-  const [sendLoading, setSendLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const { data: friendsData, isLoading: friendsLoading } = useFriends();
+  const { data: receivedData, isLoading: receivedLoading } = useReceivedRequests();
+  const { data: sentData, isLoading: sentLoading } = useSentRequests();
+
+  const sendMutation = useSendFriendRequest();
+  const acceptMutation = useAcceptFriendRequest();
+  const rejectMutation = useRejectFriendRequest();
+  const removeMutation = useRemoveFriend();
+
+  const friends = friendsData?.items ?? [];
+  const received = receivedData?.items ?? [];
+  const sent = sentData?.items ?? [];
+
+  const pageLoading = friendsLoading || receivedLoading || sentLoading;
+  const actionPending = acceptMutation.isPending || rejectMutation.isPending || removeMutation.isPending;
 
   useGSAP(() => {
     if (!containerRef.current || pageLoading) return;
@@ -98,105 +108,53 @@ export default function FriendsPage() {
     if (loading) return;
     if (!user || !token) {
       router.replace("/login");
-      return;
     }
-    fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user, token, router]);
 
-  async function fetchAll() {
-    if (!token) return;
-    setPageLoading(true);
-    try {
-      const [f, r, s] = await Promise.all([
-        getFriends(token),
-        getReceivedRequests(token),
-        getSentRequests(token),
-      ]);
-      setFriends(f.items);
-      setReceived(r.items);
-      setSent(s.items);
-    } catch {
-      toast.error("Nie udało się załadować znajomych.");
-    } finally {
-      setPageLoading(false);
-    }
-  }
-
   async function handleSendRequest() {
-    if (!token || !sendUsername.trim()) return;
-    setSendLoading(true);
+    if (!sendUsername.trim()) return;
     try {
-      await sendFriendRequest(token, sendUsername.trim());
+      await sendMutation.mutateAsync(sendUsername.trim());
       toast.success(`Wysłano zaproszenie do ${sendUsername.trim()}.`);
       setSendUsername("");
-      const s = await getSentRequests(token);
-      setSent(s.items);
     } catch {
       toast.error("Nie udało się wysłać zaproszenia.");
-    } finally {
-      setSendLoading(false);
     }
   }
 
   async function handleAccept(friendshipId: string) {
-    if (!token) return;
-    setActionLoading(friendshipId);
     try {
-      await acceptFriendRequest(token, friendshipId);
+      await acceptMutation.mutateAsync(friendshipId);
       toast.success("Zaproszenie zaakceptowane.");
-      const [f, r] = await Promise.all([getFriends(token), getReceivedRequests(token)]);
-      setFriends(f.items);
-      setReceived(r.items);
     } catch {
       toast.error("Nie udało się zaakceptować zaproszenia.");
-    } finally {
-      setActionLoading(null);
     }
   }
 
   async function handleReject(friendshipId: string) {
-    if (!token) return;
-    setActionLoading(friendshipId);
     try {
-      await rejectFriendRequest(token, friendshipId);
+      await rejectMutation.mutateAsync(friendshipId);
       toast.success("Zaproszenie odrzucone.");
-      const r = await getReceivedRequests(token);
-      setReceived(r.items);
     } catch {
       toast.error("Nie udało się odrzucić zaproszenia.");
-    } finally {
-      setActionLoading(null);
     }
   }
 
   async function handleCancel(friendshipId: string) {
-    if (!token) return;
-    setActionLoading(friendshipId);
     try {
-      await rejectFriendRequest(token, friendshipId);
+      await rejectMutation.mutateAsync(friendshipId);
       toast.success("Zaproszenie anulowane.");
-      const s = await getSentRequests(token);
-      setSent(s.items);
     } catch {
       toast.error("Nie udało się anulować zaproszenia.");
-    } finally {
-      setActionLoading(null);
     }
   }
 
   async function handleRemove(friendshipId: string) {
-    if (!token) return;
-    setActionLoading(friendshipId);
     try {
-      await removeFriend(token, friendshipId);
+      await removeMutation.mutateAsync(friendshipId);
       toast.success("Usunięto ze znajomych.");
-      const f = await getFriends(token);
-      setFriends(f.items);
     } catch {
       toast.error("Nie udało się usunąć znajomego.");
-    } finally {
-      setActionLoading(null);
     }
   }
 
@@ -238,14 +196,14 @@ export default function FriendsPage() {
               onChange={(e) => setSendUsername(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSendRequest(); }}
               className="flex-1 rounded-xl"
-              disabled={sendLoading}
+              disabled={sendMutation.isPending}
             />
             <button
               onClick={handleSendRequest}
-              disabled={sendLoading || !sendUsername.trim()}
+              disabled={sendMutation.isPending || !sendUsername.trim()}
               className="flex shrink-0 items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/20 disabled:opacity-40 disabled:pointer-events-none transition-colors active:scale-[0.97]"
             >
-              {sendLoading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              {sendMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
               Wyślij
             </button>
           </div>
@@ -262,15 +220,15 @@ export default function FriendsPage() {
                 onChange={(e) => setSendUsername(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSendRequest(); }}
                 className="flex-1 h-12 text-base px-4"
-                disabled={sendLoading}
+                disabled={sendMutation.isPending}
               />
               <Button
                 onClick={handleSendRequest}
-                disabled={sendLoading || !sendUsername.trim()}
+                disabled={sendMutation.isPending || !sendUsername.trim()}
                 size="lg"
                 className="shrink-0 gap-2 h-12 px-6 text-base"
               >
-                {sendLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                {sendMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                 Wyślij
               </Button>
             </div>
@@ -367,7 +325,7 @@ export default function FriendsPage() {
                 <div className="md:hidden space-y-0.5">
                   {friends.map((f) => {
                     const friend = f.from_user.id === user?.id ? f.to_user : f.from_user;
-                    const busy = actionLoading === f.id;
+                    const busy = removeMutation.isPending && removeMutation.variables === f.id;
                     return (
                       <div key={f.id} data-animate="row" className="flex items-center gap-3 rounded-xl py-3 px-1">
                         <button
@@ -390,7 +348,7 @@ export default function FriendsPage() {
                           <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
                         </button>
                         <button
-                          disabled={busy}
+                          disabled={actionPending}
                           onClick={() => handleRemove(f.id)}
                           className="shrink-0 flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors"
                           aria-label="Usuń znajomego"
@@ -416,7 +374,7 @@ export default function FriendsPage() {
                     <TableBody>
                       {friends.map((f) => {
                         const friend = f.from_user.id === user?.id ? f.to_user : f.from_user;
-                        const busy = actionLoading === f.id;
+                        const busy = removeMutation.isPending && removeMutation.variables === f.id;
                         return (
                           <TableRow key={f.id} data-animate="row" className="hover:bg-muted/50">
                             <TableCell className="pl-6 py-4">
@@ -454,7 +412,7 @@ export default function FriendsPage() {
                             <TableCell className="py-4 pr-6 text-right">
                               <Button
                                 variant="ghost"
-                                disabled={busy}
+                                disabled={actionPending}
                                 onClick={() => handleRemove(f.id)}
                                 className="gap-2 text-base text-destructive hover:text-destructive hover:bg-destructive/10"
                               >
@@ -484,7 +442,8 @@ export default function FriendsPage() {
                 {/* Mobile: rows with inline action buttons */}
                 <div className="md:hidden space-y-0.5">
                   {received.map((f) => {
-                    const busy = actionLoading === f.id;
+                    const busy = (acceptMutation.isPending && acceptMutation.variables === f.id) ||
+                      (rejectMutation.isPending && rejectMutation.variables === f.id);
                     return (
                       <div key={f.id} data-animate="row" className="flex items-center gap-3 rounded-xl py-3 px-1">
                         <div className="relative shrink-0">
@@ -502,20 +461,20 @@ export default function FriendsPage() {
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <button
-                            disabled={busy}
+                            disabled={actionPending}
                             onClick={() => handleAccept(f.id)}
                             className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors"
                             aria-label="Akceptuj"
                           >
-                            {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                            {busy && acceptMutation.variables === f.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                           </button>
                           <button
-                            disabled={busy}
+                            disabled={actionPending}
                             onClick={() => handleReject(f.id)}
                             className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors"
                             aria-label="Odrzuć"
                           >
-                            {busy ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                            {busy && rejectMutation.variables === f.id ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
                           </button>
                         </div>
                       </div>
@@ -527,7 +486,8 @@ export default function FriendsPage() {
                 <Card className="hidden md:block rounded-2xl overflow-hidden">
                   <div className="divide-y divide-border">
                     {received.map((f) => {
-                      const busy = actionLoading === f.id;
+                      const busy = (acceptMutation.isPending && acceptMutation.variables === f.id) ||
+                        (rejectMutation.isPending && rejectMutation.variables === f.id);
                       return (
                         <div key={f.id} data-animate="row" className="flex items-center gap-4 px-6 py-4">
                           <div className="relative shrink-0">
@@ -546,20 +506,20 @@ export default function FriendsPage() {
                           <div className="flex items-center gap-2 shrink-0">
                             <Button
                               variant="ghost"
-                              disabled={busy}
+                              disabled={actionPending}
                               onClick={() => handleAccept(f.id)}
                               className="gap-2 text-base text-green-400 hover:text-green-400 hover:bg-green-400/10"
                             >
-                              {busy ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                              {busy && acceptMutation.variables === f.id ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                               Akceptuj
                             </Button>
                             <Button
                               variant="ghost"
-                              disabled={busy}
+                              disabled={actionPending}
                               onClick={() => handleReject(f.id)}
                               className="gap-2 text-base text-destructive hover:text-destructive hover:bg-destructive/10"
                             >
-                              {busy ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}
+                              {busy && rejectMutation.variables === f.id ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}
                               Odrzuć
                             </Button>
                           </div>
@@ -584,7 +544,7 @@ export default function FriendsPage() {
                 {/* Mobile: rows with cancel button */}
                 <div className="md:hidden space-y-0.5">
                   {sent.map((f) => {
-                    const busy = actionLoading === f.id;
+                    const busy = rejectMutation.isPending && rejectMutation.variables === f.id;
                     return (
                       <div key={f.id} data-animate="row" className="flex items-center gap-3 rounded-xl py-3 px-1">
                         <div className="relative shrink-0">
@@ -601,7 +561,7 @@ export default function FriendsPage() {
                           <p className="text-xs text-muted-foreground">ELO: <span className="text-accent tabular-nums text-sm">{f.to_user.elo_rating}</span></p>
                         </div>
                         <button
-                          disabled={busy}
+                          disabled={actionPending}
                           onClick={() => handleCancel(f.id)}
                           className="shrink-0 flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors"
                           aria-label="Anuluj zaproszenie"
@@ -617,7 +577,7 @@ export default function FriendsPage() {
                 <Card className="hidden md:block rounded-2xl overflow-hidden">
                   <div className="divide-y divide-border">
                     {sent.map((f) => {
-                      const busy = actionLoading === f.id;
+                      const busy = rejectMutation.isPending && rejectMutation.variables === f.id;
                       return (
                         <div key={f.id} data-animate="row" className="flex items-center gap-4 px-6 py-4">
                           <div className="relative shrink-0">
@@ -635,7 +595,7 @@ export default function FriendsPage() {
                           </div>
                           <Button
                             variant="ghost"
-                            disabled={busy}
+                            disabled={actionPending}
                             onClick={() => handleCancel(f.id)}
                             className="shrink-0 gap-2 text-base text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                           >

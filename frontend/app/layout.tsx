@@ -8,6 +8,7 @@ import { ChatProvider } from "@/hooks/useChat";
 import ChatWidget from "@/components/chat/ChatWidget";
 import { SerwistProvider } from "./serwist-provider";
 import { SystemModulesProvider } from "@/components/SystemModulesProvider";
+import { QueryProvider } from "@/components/QueryProvider";
 
 const uiSans = localFont({
   src: [
@@ -90,15 +91,17 @@ export default function RootLayout({
         className={`${uiSans.variable} ${displayFont.variable} antialiased`}
       >
         <SerwistProvider swUrl="/serwist/sw.js">
-          <AuthProvider>
-            <SystemModulesProvider>
-              <ChatProvider>
-                {children}
-                <ChatWidget />
-                <Toaster />
-              </ChatProvider>
-            </SystemModulesProvider>
-          </AuthProvider>
+          <QueryProvider>
+            <AuthProvider>
+              <SystemModulesProvider>
+                <ChatProvider>
+                  {children}
+                  <ChatWidget />
+                  <Toaster />
+                </ChatProvider>
+              </SystemModulesProvider>
+            </AuthProvider>
+          </QueryProvider>
         </SerwistProvider>
       </body>
     </html>

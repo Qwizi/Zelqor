@@ -447,16 +447,8 @@ export interface FullConfig {
   system_modules: SystemModule[];
 }
 
-let _configCache: FullConfig | null = null;
-let _configCacheTime = 0;
-const CONFIG_CACHE_TTL_MS = 30_000; // refresh config every 30s
 export async function getConfig(): Promise<FullConfig> {
-  const now = Date.now();
-  if (_configCache && now - _configCacheTime < CONFIG_CACHE_TTL_MS) return _configCache;
-  const config = await fetchAPI<FullConfig>("/config/");
-  _configCache = config;
-  _configCacheTime = now;
-  return config;
+  return fetchAPI<FullConfig>("/config/");
 }
 
 /** Returns the numeric stat for a given level from level_stats, falling back to a base value. */

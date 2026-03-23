@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { gsap } from "gsap";
@@ -9,7 +9,8 @@ import { Trophy, Medal, ChevronLeft, ChevronRight, Loader2, Target, Swords, Crow
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
-import { getLeaderboard, getFriends, type LeaderboardEntry } from "@/lib/api";
+import { type LeaderboardEntry } from "@/lib/api";
+import { useLeaderboard, useFriends } from "@/hooks/queries";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BannedBadge } from "@/components/ui/banned-badge";
@@ -32,13 +33,29 @@ export default function LeaderboardPage() {
 }
 
 function LeaderboardContent() {
-  const { user, loading, token } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
-  const [pageLoading, setPageLoading] = useState(true);
   const [pageOverride, setPageOverride] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const { data: leaderboardData, isLoading: leaderboardLoading } = useLeaderboard();
+  const { data: friendsData, isLoading: friendsLoading } = useFriends(200);
+
+  const entries = useMemo<LeaderboardEntry[]>(
+    () => leaderboardData?.items ?? [],
+    [leaderboardData]
+  );
+
+  const friendIds = useMemo<Set<string>>(() => {
+    if (!friendsData || !user) return new Set();
+    return new Set<string>(
+      friendsData.items.map((f) =>
+        f.from_user.id === user.id ? f.to_user.id : f.from_user.id
+      )
+    );
+  }, [friendsData, user]);
+
+  const pageLoading = leaderboardLoading || friendsLoading;
 
   useGSAP(() => {
     if (!containerRef.current || pageLoading) return;
@@ -46,26 +63,9 @@ function LeaderboardContent() {
     gsap.fromTo("[data-animate='section']", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" });
   }, { scope: containerRef, dependencies: [pageLoading, pageOverride] });
 
-  useEffect(() => {
-    if (loading) return;
-    if (!user || !token) {
-      router.replace("/login");
-      return;
-    }
-
-    Promise.all([
-      getLeaderboard(token),
-      getFriends(token, 200, 0),
-    ]).then(([leaderboardRes, friendsRes]) => {
-      setEntries(leaderboardRes.items);
-      const ids = new Set<string>(
-        friendsRes.items.map((f) =>
-          f.from_user.id === user.id ? f.to_user.id : f.from_user.id
-        )
-      );
-      setFriendIds(ids);
-    }).finally(() => setPageLoading(false));
-  }, [loading, router, token, user]);
+  if (!loading && !user) {
+    router.replace("/login");
+  }
 
   const myPlacement = entries.findIndex((entry) => entry.id === user?.id) + 1;
 
