@@ -125,7 +125,7 @@ export function useAudio() {
 
   // ── Jingle playback (stops current music, plays once, optionally resumes) ──
   const playJingle = useCallback((key: JingleKey, { volume = 0.35, stopBgMusic = true } = {}) => {
-    if (mutedRef.current) return;
+    if (mutedRef.current || document.visibilityState === "hidden") return;
     if (stopBgMusic && musicRef.current) {
       musicRef.current.pause();
     }
@@ -157,7 +157,7 @@ export function useAudio() {
   }, [advanceTrack]);
 
   const playSound = useCallback((key: SoundKey) => {
-    if (mutedRef.current) return;
+    if (mutedRef.current || document.visibilityState === "hidden") return;
     if (activeSoundsRef.current >= MAX_CONCURRENT_SOUNDS) return;
     const now = Date.now();
     const lastTime = lastSoundTimeRef.current[key] ?? 0;
@@ -174,6 +174,17 @@ export function useAudio() {
 
   const toggleMute = useCallback(() => {
     setMuted((prev) => !prev);
+  }, []);
+
+  // Mute audio when tab is not visible to prevent duplicate sounds across tabs
+  useEffect(() => {
+    const handleVisibility = () => {
+      const hidden = document.visibilityState === "hidden";
+      if (musicRef.current) musicRef.current.muted = hidden || mutedRef.current;
+      if (jingleRef.current) jingleRef.current.muted = hidden || mutedRef.current;
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, []);
 
   useEffect(() => {
