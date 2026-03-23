@@ -263,17 +263,16 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
         const isGameOver = tickEvents.some((e) => e.type === "game_over");
         setGameState((prev) => {
           if (!prev) return prev;
-          const mergedRegions = msg.regions
-            ? Object.fromEntries(
-                Object.entries(msg.regions as Record<string, GameRegion>).map(([regionId, regionUpdate]) => [
-                  regionId,
-                  {
-                    ...prev.regions[regionId],
-                    ...regionUpdate,
-                  },
-                ])
-              )
-            : null;
+          const regionUpdates = msg.regions as Record<string, Partial<GameRegion>> | undefined;
+          let nextRegions = prev.regions;
+          if (regionUpdates) {
+            // Mutate a shallow copy — only copy the top-level object once,
+            // then patch individual region entries in-place.
+            nextRegions = { ...prev.regions };
+            for (const regionId in regionUpdates) {
+              nextRegions[regionId] = { ...nextRegions[regionId], ...regionUpdates[regionId] };
+            }
+          }
           return {
             ...prev,
             meta: {
@@ -282,9 +281,7 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
               ...(isGameOver ? { status: "finished" } : {}),
             },
             players: (msg.players as Record<string, GamePlayer>) || prev.players,
-            regions: mergedRegions
-              ? { ...prev.regions, ...mergedRegions }
-              : prev.regions,
+            regions: nextRegions,
             buildings_queue: (msg.buildings_queue as BuildingQueueItem[]) ?? prev.buildings_queue,
             unit_queue: (msg.unit_queue as UnitQueueItem[]) ?? prev.unit_queue,
             transit_queue: (msg.transit_queue as Array<Record<string, unknown>>) ?? prev.transit_queue,

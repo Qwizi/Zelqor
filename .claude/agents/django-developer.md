@@ -47,6 +47,7 @@ Everything under the Django backend:
 Use the `Skill` tool to invoke these when relevant:
 
 - **django-expert** — Django best practices, models, views, ORM optimization, security, and deployment patterns
+- **code-security-audit** — Security audits on code changes to find exploitable vulnerabilities
 
 ## Testing
 

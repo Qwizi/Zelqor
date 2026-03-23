@@ -3,188 +3,43 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Application, Graphics, Text, Container, TextStyle, Assets, Sprite, Texture } from "pixi.js";
 import { Viewport } from "pixi-viewport";
-import type { GameRegion, ActiveEffect, WeatherState, AirTransitItem } from "@/hooks/useGameSocket";
+import type { GameRegion, ActiveEffect, AirTransitItem } from "@/hooks/useGameSocket";
 import type { TroopAnimation, PlannedMove, DiplomacyState } from "@/lib/gameTypes";
 import { PixiAnimationManager, computeCurvePath } from "@/lib/pixiAnimations";
 import type { CosmeticValue } from "@/lib/animationConfig";
 import { getBuildingAsset, getUnitAsset } from "@/lib/gameAssets";
-
-// ── Shape data types ──────────────────────────────────────────
-
-export interface ProvinceShape {
-  id: string;
-  name: string;
-  /** Sub-polygons for MultiPolygon regions (e.g. islands).
-   *  Each sub-polygon: [exterior_ring, hole1?, hole2?, ...]
-   *  Each ring: [[x, y], [x, y], ...] in pixel space */
-  polygons: number[][][][];
-  /** [x, y] in pixel space (pre-projected) */
-  centroid: [number, number];
-  neighbors: string[];
-  is_coastal: boolean;
-  population_weight: number;
-  /** Texture chunk coords this province covers: ["cx,cy", ...] */
-  tile_chunks?: string[];
-}
-
-export interface ShapesBounds {
-  min_x: number;
-  min_y: number;
-  max_x: number;
-  max_y: number;
-}
-
-export interface WorldTextureMapping {
-  x: number; // pixel X of game coord origin in canvas space
-  y: number; // pixel Y of game coord origin in canvas space
-  w: number; // pixel width of full game world in canvas space
-  h: number; // pixel height of full game world in canvas space
-}
-
-export interface ShapesData {
-  regions: ProvinceShape[];
-  bounds: ShapesBounds;
-  world_texture?: WorldTextureMapping;
-}
-
-// ── Component props ───────────────────────────────────────────
-
-export interface GameCanvasProps {
-  shapesData: ShapesData | null;
-  regions: Record<string, GameRegion>;
-  players: Record<string, { color: string; username: string; cosmetics?: Record<string, unknown> }>;
-  selectedRegion: string | null;
-  targetRegions: string[];
-  highlightedNeighbors: string[];
-  dimmedRegions: string[];
-  onRegionClick: (regionId: string) => void;
-  onDoubleTap?: (regionId: string) => void;
-  myUserId: string;
-  animations: TroopAnimation[];
-  buildingIcons: Record<string, string>;
-  activeEffects?: ActiveEffect[];
-  nukeBlackout?: Array<{ rid: string; startTime: number }>;
-  onMapReady?: () => void;
-  initialZoom?: number;
-  weather?: WeatherState;
-  airTransitQueue?: AirTransitItem[];
-  onFlightClick?: (flightId: string) => void;
-  /** slug → manpower_cost for air unit display. */
-  unitManpowerMap?: Record<string, number>;
-  plannedMoves?: PlannedMove[];
-  diplomacy?: DiplomacyState;
-}
-
-// ── Internal render state ─────────────────────────────────────
-
-interface ProvinceRenderState {
-  graphics: Graphics;
-  label: Text;
-  labelBg: Graphics;
-  buildingLabel: Text;
-  /** Hex color number of the current fill — used to detect owner change */
-  fillColor: number;
-  ownerId: string | null;
-}
-
-// ── Effect config ─────────────────────────────────────────────
-
-const EFFECT_CONFIG: Record<string, { color: string; borderColor: string; icon: string; symbol: string }> = {
-  ab_virus:              { color: "#22c55e", borderColor: "#16a34a", icon: "/assets/abilities/ab_virus.webp",              symbol: "☣" },
-  ab_shield:             { color: "#3b82f6", borderColor: "#60a5fa", icon: "/assets/abilities/ab_shield.webp",             symbol: "🛡" },
-  ab_pr_submarine:       { color: "#a855f7", borderColor: "#c084fc", icon: "/assets/abilities/ab_pr_submarine.webp",       symbol: "⚓" },
-  ab_province_nuke:      { color: "#ef4444", borderColor: "#f87171", icon: "/assets/abilities/ab_province_nuke.webp",      symbol: "☢" },
-  ab_conscription_point: { color: "#f59e0b", borderColor: "#fbbf24", icon: "/assets/abilities/ab_conscription_point.webp", symbol: "⚔" },
-  ab_flash:              { color: "#fbbf24", borderColor: "#f59e0b", icon: "⚡", symbol: "💡" },
-};
-
-// ── Color constants ───────────────────────────────────────────
-
-const BG_COLOR = 0x08111d;
-const DEFAULT_FILL = 0x1a2332;
-const DEFAULT_STROKE = 0x1a3a2d;
-const SELECTED_STROKE = 0xffffff;
-const TARGET_STROKE = 0xef4444;
-const NEIGHBOR_TINT = 0x2a4060;
-const CAPITAL_FILL = 0xfbbf24;
-const DIMMED_ALPHA = 0.25;
-const NORMAL_ALPHA = 0.60; // semi-transparent so terrain texture shows through
-const UNCLAIMED_FILL_ALPHA = 0.0; // unclaimed provinces: no fill, terrain shows through
-const STROKE_WIDTH_DEFAULT = 2;
-const STROKE_WIDTH_SELECTED = 3;
-const STROKE_WIDTH_TARGET = 2;
-
-// ── Unit pulse config ─────────────────────────────────────────
-
-const UNIT_PULSE_DURATION_MS = 1200;
-
-// ── Helpers ───────────────────────────────────────────────────
-
-/**
- * Parse a CSS hex color string like "#a1b2c3" or "#abc" into a Pixi color
- * number (0xRRGGBB). Falls back to DEFAULT_FILL on invalid input.
- */
-function hexStringToNumber(hex: string): number {
-  if (!hex) return DEFAULT_FILL;
-  const clean = hex.replace("#", "");
-  if (clean.length === 3) {
-    const r = parseInt(clean[0] + clean[0], 16);
-    const g = parseInt(clean[1] + clean[1], 16);
-    const b = parseInt(clean[2] + clean[2], 16);
-    return (r << 16) | (g << 8) | b;
-  }
-  if (clean.length === 6) {
-    return parseInt(clean, 16);
-  }
-  return DEFAULT_FILL;
-}
-
-/** Lighten a packed hex color number by a given factor (0–1). */
-function lighten(color: number, factor: number): number {
-  const r = Math.min(255, ((color >> 16) & 0xff) + Math.round(factor * 255));
-  const g = Math.min(255, ((color >> 8) & 0xff) + Math.round(factor * 80));
-  const b = Math.min(255, (color & 0xff) + Math.round(factor * 80));
-  return (r << 16) | (g << 8) | b;
-}
-
-/**
- * Draw the outer ring of a polygon onto a Graphics object, then fill and
- * stroke it. Holes (additional rings) are excluded — full hole support
- * would require a custom mask or earcut, which adds complexity for minimal
- * visual gain at game-map zoom levels.
- */
-function drawPolygon(
-  gfx: Graphics,
-  outerRing: number[][],
-  fillColor: number,
-  strokeColor: number,
-  strokeWidth: number,
-  fillAlpha = 1.0
-): void {
-  if (outerRing.length < 3) return;
-
-  const flatPoints: number[] = [];
-  for (const pt of outerRing) {
-    flatPoints.push(pt[0], pt[1]);
-  }
-
-  gfx.poly(flatPoints, true).fill({ color: fillColor, alpha: fillAlpha }).stroke({
-    color: strokeColor,
-    width: strokeWidth,
-    alpha: 1.0,
-  });
-}
-
-/** Build a star/diamond capital marker centred at (cx, cy) with given half-size. */
-function drawCapitalMarker(gfx: Graphics, cx: number, cy: number, size: number): void {
-  // Outer glow ring
-  gfx.circle(cx, cy, size + 3).stroke({ color: CAPITAL_FILL, width: 1.5, alpha: 0.4 });
-  // Diamond shape
-  gfx
-    .poly([cx, cy - size, cx + size, cy, cx, cy + size, cx - size, cy], true)
-    .fill({ color: CAPITAL_FILL, alpha: 1 })
-    .stroke({ color: 0xffffff, width: 1.5, alpha: 0.9 });
-}
+import { useBombardmentEvents, type SamIntercept } from "@/hooks/useBombardmentEvents";
+import { useEffectOverlays } from "@/hooks/useEffectOverlays";
+import { useUnitPulseLabels } from "@/hooks/useUnitPulseLabels";
+import {
+  type ProvinceShape,
+  type ShapesData,
+  type GameCanvasProps,
+  type ProvinceRenderState,
+  EFFECT_CONFIG,
+  BG_COLOR,
+  DEFAULT_FILL,
+  DEFAULT_STROKE,
+  SELECTED_STROKE,
+  TARGET_STROKE,
+  NEIGHBOR_TINT,
+  CAPITAL_FILL,
+  DIMMED_ALPHA,
+  NORMAL_ALPHA,
+  UNCLAIMED_FILL_ALPHA,
+  STROKE_WIDTH_DEFAULT,
+  STROKE_WIDTH_SELECTED,
+  STROKE_WIDTH_TARGET,
+  PM_STYLE_ATTACK,
+  PM_STYLE_MOVE,
+  UNIT_PULSE_DURATION_MS,
+  hexStringToNumber,
+  lighten,
+  drawPolygon,
+  drawCapitalMarker,
+} from "@/lib/canvasTypes";
+// Re-export shape types for backwards compatibility
+export type { ProvinceShape, ShapesBounds, ShapesData, WorldTextureMapping, GameCanvasProps } from "@/lib/canvasTypes";
 
 // ── Main component ────────────────────────────────────────────
 
@@ -205,7 +60,6 @@ export default function GameCanvas({
   nukeBlackout,
   onMapReady,
   initialZoom = 1,
-  weather,
   airTransitQueue,
   onFlightClick,
   unitManpowerMap,
@@ -222,20 +76,44 @@ export default function GameCanvas({
   const effectLayerRef = useRef<Container | null>(null);
   const nukeLayerRef = useRef<Container | null>(null);
   const unitChangeLayerRef = useRef<Container | null>(null);
-  const weatherOverlayRef = useRef<Graphics | null>(null);
   const gridLayerRef = useRef<Graphics | null>(null);
   const animManagerRef = useRef<PixiAnimationManager | null>(null);
   const airTransitLayerRef = useRef<Container | null>(null);
   const capitalRadarRef = useRef<Graphics | null>(null);
-  const weatherParticlesRef = useRef<Graphics | null>(null);
   const plannedMovesLayerRef = useRef<Container | null>(null);
   const plannedMovesRef = useRef(plannedMoves);
   plannedMovesRef.current = plannedMoves;
+
+  /** Cached centroid lookup — rebuilt when shapesData changes, not per frame */
+  const centroidCacheRef = useRef<Map<string, [number, number]>>(new Map());
+
+  /** Object pools for ticker — avoid per-frame Graphics allocation */
+  const airHitPoolRef = useRef<Graphics[]>([]);
+  const airHitPoolIdxRef = useRef(0);
+  const interceptorPoolRef = useRef<Graphics[]>([]);
+  const interceptorPoolIdxRef = useRef(0);
+  const samGfxPoolRef = useRef<Graphics[]>([]);
+  const samGfxPoolIdxRef = useRef(0);
+  const pmGfxPoolRef = useRef<Graphics[]>([]);
+  const pmTextPoolRef = useRef<Text[]>([]);
+  const pmPoolIdxRef = useRef(0);
 
   /** Per-province render state — Graphics, Text, cached owner/fill */
   const stateMapRef = useRef<Map<string, ProvinceRenderState>>(new Map());
   /** Track which animation IDs have been registered with the manager */
   const registeredAnimsRef = useRef<Set<string>>(new Set());
+
+  /** Pre-built Sets for O(1) lookup inside drawProvince (avoids .some() per province) */
+  const animTargetSetRef = useRef<Set<string>>(new Set());
+  const bombedRegionSetRef = useRef<Set<string>>(new Set());
+
+  /** Pre-computed diplomacy relation map — rebuilt before each render loop (O(1) lookup per province) */
+  const diplomacyRelMapRef = useRef<Map<string, "war" | "nap" | "ally">>(new Map());
+
+  /** Persistent capital layer sprite map — keyed by region ID, values are the Container/Sprite added to capitalLayer */
+  const capitalSpriteMapRef = useRef<Map<string, Array<Container | Sprite | Graphics>>>(new Map());
+  /** Per-region capital snapshot strings used for incremental diff */
+  const capitalRegionSnapshotRef = useRef<Map<string, string>>(new Map());
 
   // Unit change pulse tracking
   const prevUnitCountsRef = useRef<Map<string, number>>(new Map());
@@ -245,19 +123,13 @@ export default function GameCanvas({
   /** Snapshot of the previous regions state — used to diff tick updates. */
   const prevRegionsRef = useRef<Record<string, GameRegion>>({});
 
+
   /** Temporary visual adjustments from bombardment — subtracted from displayed unit_count
    *  until the next tick confirms the actual state. Keyed by region ID. */
   const bombardAdjustRef = useRef<Map<string, number>>(new Map());
 
   /** Active SAM intercept animations drawn in the ticker. */
-  const samInterceptsRef = useRef<Array<{
-    startTime: number;
-    meetMs: number;
-    artFrom: [number, number];
-    samFrom: [number, number];
-    meetPoint: [number, number];
-    exploded: boolean;
-  }>>([]);
+  const samInterceptsRef = useRef<SamIntercept[]>([]);
 
   // Stable ref wrappers for props used inside Pixi event callbacks so we
   // don't have to tear down / rebuild interactivity on every render.
@@ -314,8 +186,6 @@ export default function GameCanvas({
   const shapesDataRef = useRef(shapesData);
   shapesDataRef.current = shapesData;
 
-  const weatherRef = useRef(weather);
-  weatherRef.current = weather;
 
   // Dirty-region rendering: track previous region snapshot + structural generation.
   const prevRegionSnapshotRef = useRef<Record<string, GameRegion>>({});
@@ -326,124 +196,23 @@ export default function GameCanvas({
     structuralGenRef.current++;
   }, [selectedRegion, targetRegions, highlightedNeighbors, dimmedRegions, airTransitQueue, unitManpowerMap]);
 
+  // Rebuild centroid cache when shapesData changes (used by ticker without per-frame allocation)
+  useEffect(() => {
+    const cache = new Map<string, [number, number]>();
+    if (shapesData) {
+      for (const s of shapesData.regions) cache.set(s.id, s.centroid);
+    }
+    centroidCacheRef.current = cache;
+  }, [shapesData]);
+
   // Track recently bombed provinces — keep showing unit count for 5s after bombing.
   const recentlyBombedRef = useRef<Map<string, number>>(new Map());
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const { regionId } = (e as CustomEvent<{ regionId: string; count: number }>).detail;
-      recentlyBombedRef.current.set(regionId, Date.now());
-    };
-    window.addEventListener("bomb-drop", handler);
-    // Also listen for path_damage via a dedicated event
-    const pathHandler = (e: Event) => {
-      const { regionId } = (e as CustomEvent<{ regionId: string }>).detail;
-      recentlyBombedRef.current.set(regionId, Date.now());
-    };
-    window.addEventListener("province-bombed", pathHandler);
-    // Listen for path_damage events to spawn bomb visuals at damaged provinces
-    const pathDamageBombHandler = (e: Event) => {
-      const { regionId } = (e as CustomEvent<{ regionId: string; killed: number }>).detail;
-      const sd = shapesDataRef.current;
-      const mgr = animManagerRef.current;
-      if (!sd || !mgr) return;
-      const shape = sd.regions.find((s) => s.id === regionId);
-      if (!shape) return;
-      const [cx, cy] = shape.centroid;
-      // spawnBombingSalvoAt spreads 2 bombs around the centroid
-      if (typeof mgr.spawnBombingSalvoAt === "function") {
-        mgr.spawnBombingSalvoAt(cx, cy, false);
-      } else {
-        // Fallback for HMR — use the older single-bomb method
-        mgr.spawnBombAt(cx, cy);
-      }
-    };
-    window.addEventListener("path-damage-bomb", pathDamageBombHandler);
-    // Listen for artillery bombardment damage — show floating "-N" label on target
-    // AND immediately update the Pixi label in-place (no React re-render needed).
-    const bombardDamageHandler = (e: Event) => {
-      const { regionId, killed } = (e as CustomEvent<{ regionId: string; killed: number }>).detail;
-      if (killed > 0) {
-        unitPulsesRef.current.set(regionId, { startTime: Date.now(), delta: -killed });
-        // Accumulate visual adjustment
-        const prev = bombardAdjustRef.current.get(regionId) ?? 0;
-        bombardAdjustRef.current.set(regionId, prev + killed);
-        // Directly update the Pixi Text label — parse current number and subtract
-        const state = stateMapRef.current.get(regionId);
-        if (state) {
-          const match = state.label.text.match(/(\d+)/);
-          if (match) {
-            const current = parseInt(match[1], 10);
-            const newCount = Math.max(0, current - killed);
-            state.label.text = newCount > 0 ? `▸ ${newCount}` : "";
-          }
-        }
-      }
-      recentlyBombedRef.current.set(regionId, Date.now());
-    };
-    window.addEventListener("bombard-damage", bombardDamageHandler);
-    // Clear bombardAdjust when all rockets have landed — province shows real state
-    const bombardCompleteHandler = (e: Event) => {
-      const { regionId } = (e as CustomEvent<{ regionId: string }>).detail;
-      bombardAdjustRef.current.delete(regionId);
-      recentlyBombedRef.current.delete(regionId);
-    };
-    window.addEventListener("bombard-complete", bombardCompleteHandler);
-    // SAM intercept: SAM rocket flies from samRegion to interception point + explosion
-    // Artillery rocket was already killed by page.tsx setTimeout — we just draw the SAM side.
-    const samInterceptHandler = (e: Event) => {
-      const { sourceId, targetId, samRegionId, flightMs, samFlightMs } = (e as CustomEvent<{
-        sourceId: string; targetId: string; samRegionId: string; flightMs: number; samFlightMs?: number;
-      }>).detail;
-      const sd = shapesDataRef.current;
-      if (!sd) return;
-      const artSrc = sd.regions.find((s) => s.id === sourceId)?.centroid;
-      const tgt = sd.regions.find((s) => s.id === targetId)?.centroid;
-      const samSrc = sd.regions.find((s) => s.id === samRegionId)?.centroid;
-      if (!artSrc || !tgt || !samSrc) return;
-      // Interception point = where artillery is when SAM arrives
-      // SAM flies for samFlightMs, artillery progress = samFlightMs / flightMs
-      const samMs = samFlightMs ?? 600;
-      const artProgress = Math.min(samMs / flightMs, 0.9);
-      const curvePath = computeCurvePath(artSrc, tgt, 0.55, 20);
-      const meetIdx = Math.floor(curvePath.length * artProgress);
-      const meetPt = curvePath[Math.min(meetIdx, curvePath.length - 1)] ?? artSrc;
-      const meetX = meetPt[0];
-      const meetY = meetPt[1];
-      // SAM rocket flies to where artillery will be
-      samInterceptsRef.current.push({
-        startTime: Date.now(),
-        meetMs: samMs,
-        artFrom: artSrc,
-        samFrom: samSrc,
-        meetPoint: [meetX, meetY],
-        exploded: false,
-      });
-    };
-    window.addEventListener("sam-intercept-visual", samInterceptHandler);
-    // Kill animation mid-flight (used by SAM intercept)
-    const killAnimHandler = (e: Event) => {
-      const { animId } = (e as CustomEvent<{ animId: string }>).detail;
-      animManagerRef.current?.removeAnimation(animId);
-    };
-    window.addEventListener("kill-animation", killAnimHandler);
-    // Cleanup stale entries every 5s
-    const interval = setInterval(() => {
-      const now = Date.now();
-      for (const [rid, ts] of recentlyBombedRef.current) {
-        if (now - ts > 3000) recentlyBombedRef.current.delete(rid);
-      }
-    }, 5000);
-    return () => {
-      window.removeEventListener("bomb-drop", handler);
-      window.removeEventListener("province-bombed", pathHandler);
-      window.removeEventListener("path-damage-bomb", pathDamageBombHandler);
-      window.removeEventListener("bombard-damage", bombardDamageHandler);
-      window.removeEventListener("bombard-complete", bombardCompleteHandler);
-      window.removeEventListener("sam-intercept-visual", samInterceptHandler);
-      window.removeEventListener("kill-animation", killAnimHandler);
-      clearInterval(interval);
-    };
-  }, []);
+
+  // Bombardment & combat event listeners (extracted to hook)
+  useBombardmentEvents(
+    shapesDataRef, animManagerRef, stateMapRef,
+    unitPulsesRef, bombardAdjustRef, recentlyBombedRef, samInterceptsRef,
+  );
 
   // ── Province drawing helper ──────────────────────────────────
 
@@ -452,7 +221,8 @@ export default function GameCanvas({
       id: string,
       shape: ProvinceShape,
       state: ProvinceRenderState,
-      isHovered: boolean
+      isHovered: boolean,
+      diplomacyRelMap?: Map<string, "war" | "nap" | "ally">
     ) => {
       const region = regionsRef.current[id];
       // If rockets are still in flight (bombardAdjust active), keep showing the
@@ -501,26 +271,40 @@ export default function GameCanvas({
       let fillAlphaOverride: number | null = null;
 
       if (ownerId && ownerId !== myId) {
-        const diplo = diplomacyRef.current;
-        if (diplo) {
-          const isAtWar = diplo.wars.some(
-            (w) =>
-              (w.player_a === myId && w.player_b === ownerId) ||
-              (w.player_b === myId && w.player_a === ownerId)
-          );
-          const hasNap = diplo.pacts.some(
-            (p) =>
-              ((p.player_a === myId && p.player_b === ownerId) ||
-                (p.player_b === myId && p.player_a === ownerId)) &&
-              p.pact_type === "nap"
-          );
-          if (isAtWar) {
-            relationStroke = 0x8b2020; // dark red — war
-            hatchAlpha = 0.18;        // more visible danger hatch
-          } else if (hasNap) {
-            relationStroke = 0x1a5c2d; // dark green — allied NAP
-            showHatch = false;          // no hostile hatch for allies
-            fillAlphaOverride = 0.45;  // slightly more transparent, friendly
+        // Use pre-computed relation map when available (O(1)); fall back to
+        // linear scan only for hover events that arrive outside the render loop.
+        const relMap = diplomacyRelMap ?? diplomacyRelMapRef.current;
+        const relation = relMap.get(ownerId);
+        if (relation === "war") {
+          relationStroke = 0x8b2020; // dark red — war
+          hatchAlpha = 0.18;        // more visible danger hatch
+        } else if (relation === "nap") {
+          relationStroke = 0x1a5c2d; // dark green — allied NAP
+          showHatch = false;          // no hostile hatch for allies
+          fillAlphaOverride = 0.45;  // slightly more transparent, friendly
+        } else if (!relMap.size) {
+          // Fallback: relMap not populated yet — scan raw diplomacy state
+          const diplo = diplomacyRef.current;
+          if (diplo) {
+            const isAtWar = diplo.wars.some(
+              (w) =>
+                (w.player_a === myId && w.player_b === ownerId) ||
+                (w.player_b === myId && w.player_a === ownerId)
+            );
+            const hasNap = diplo.pacts.some(
+              (p) =>
+                ((p.player_a === myId && p.player_b === ownerId) ||
+                  (p.player_b === myId && p.player_a === ownerId)) &&
+                p.pact_type === "nap"
+            );
+            if (isAtWar) {
+              relationStroke = 0x8b2020;
+              hatchAlpha = 0.18;
+            } else if (hasNap) {
+              relationStroke = 0x1a5c2d;
+              showHatch = false;
+              fillAlphaOverride = 0.45;
+            }
           }
         }
       }
@@ -555,17 +339,14 @@ export default function GameCanvas({
       gfx.clear();
 
       // Draw all sub-polygons (MultiPolygon regions have multiple, e.g. islands)
-      for (const subPoly of shape.polygons) {
-        const outerRing = subPoly[0];
+      for (let si = 0; si < shape.polygons.length; si++) {
+        const outerRing = shape.polygons[si][0];
         if (outerRing && outerRing.length >= 3) {
           drawPolygon(gfx, outerRing, baseFill, strokeColor, strokeWidth, alpha);
           // Selected province: double stroke — player color at 3px, then white at 1.5px on top
           if (isSelected) {
             const playerColor = player ? hexStringToNumber(player.color) : SELECTED_STROKE;
-            const flatPoints: number[] = [];
-            for (const pt of outerRing) {
-              flatPoints.push(pt[0], pt[1]);
-            }
+            const flatPoints = state.flatPolys[si];
             gfx.poly(flatPoints, true).stroke({ color: playerColor, width: 3, alpha: 1.0 });
             gfx.poly(flatPoints, true).stroke({ color: 0xffffff, width: 1.5, alpha: 1.0 });
           }
@@ -578,12 +359,13 @@ export default function GameCanvas({
         for (const subPoly of shape.polygons) {
           const outerRing = subPoly[0];
           if (!outerRing || outerRing.length < 3) continue;
-          const xs = outerRing.map((p) => p[0]);
-          const ys = outerRing.map((p) => p[1]);
-          const minX = Math.min(...xs);
-          const maxX = Math.max(...xs);
-          const minY = Math.min(...ys);
-          const maxY = Math.max(...ys);
+          // Iterative min/max — avoids .map() allocation + Math.min(...) spread
+          let minX = outerRing[0][0], maxX = minX, minY = outerRing[0][1], maxY = minY;
+          for (let pi = 1; pi < outerRing.length; pi++) {
+            const px = outerRing[pi][0], py = outerRing[pi][1];
+            if (px < minX) minX = px; else if (px > maxX) maxX = px;
+            if (py < minY) minY = py; else if (py > maxY) maxY = py;
+          }
           const spacing = 12;
           // Clip diagonal lines to the polygon bounding box.
           // Lines follow y = d - x (45° diagonal, d = x + y = constant).
@@ -612,13 +394,9 @@ export default function GameCanvas({
         relationStroke === 0x8b2020
       ) {
         const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 500);
-        for (const subPoly of shape.polygons) {
-          const outerRing = subPoly[0];
-          if (!outerRing || outerRing.length < 3) continue;
-          const flatPoints: number[] = [];
-          for (const pt of outerRing) {
-            flatPoints.push(pt[0], pt[1]);
-          }
+        for (let si = 0; si < state.flatPolys.length; si++) {
+          const flatPoints = state.flatPolys[si];
+          if (flatPoints.length < 6) continue;
           gfx
             .poly(flatPoints, true)
             .stroke({ color: 0x8b2020, width: STROKE_WIDTH_DEFAULT + 1, alpha: pulse });
@@ -636,9 +414,7 @@ export default function GameCanvas({
 
         // Reveal unit count only when actively being attacked (animation in flight),
         // NOT when merely selected as a target — player shouldn't know before attacking
-        const isAnimTarget = animationsRef.current.some(
-          (a) => a.targetId === id && a.type === "attack"
-        );
+        const isAnimTarget = animTargetSetRef.current.has(id);
 
         // Check whether this region is revealed by submarine effect
         const isSubRevealed = activeEffectsRef.current?.some(
@@ -647,9 +423,7 @@ export default function GameCanvas({
 
         // Show unit count on enemy provinces being bombed (in active bomber flight paths)
         // OR recently bombed (keep visible for a few seconds after flight ends).
-        const isBombed = airTransitQueueRef.current?.some(
-          (f) => f.mission_type === "bomb_run" && f.flight_path?.includes(id)
-        ) ?? false;
+        const isBombed = bombedRegionSetRef.current.has(id);
         const wasRecentlyBombed = recentlyBombedRef.current.has(id);
         const showUnitCount = isOwner || isAnimTarget || isSubRevealed || isBombed || wasRecentlyBombed;
 
@@ -780,6 +554,10 @@ export default function GameCanvas({
     provinceLayer.removeChildren();
     labelLayer.removeChildren();
     capitalLayer.removeChildren();
+    // Reset incremental capital layer tracking so the next regions effect
+    // rebuilds all sprites from scratch for the new shapesData.
+    capitalSpriteMapRef.current.clear();
+    capitalRegionSnapshotRef.current.clear();
 
     const GAME_FONT = "Rajdhani, sans-serif";
     const TEXT_RESOLUTION = 3; // render text at 3x for crisp zoom
@@ -834,6 +612,19 @@ export default function GameCanvas({
       buildingLabel.position.set(shape.centroid[0], shape.centroid[1] + 13);
       buildingLabel.eventMode = "none";
 
+      // Pre-compute flat point arrays for each sub-polygon (reused in selection + war pulse)
+      const flatPolys: number[][] = [];
+      for (const subPoly of shape.polygons) {
+        const outerRing = subPoly[0];
+        if (outerRing && outerRing.length >= 3) {
+          const flat: number[] = [];
+          for (const pt of outerRing) flat.push(pt[0], pt[1]);
+          flatPolys.push(flat);
+        } else {
+          flatPolys.push([]);
+        }
+      }
+
       const renderState: ProvinceRenderState = {
         graphics: gfx,
         label,
@@ -841,6 +632,7 @@ export default function GameCanvas({
         buildingLabel,
         fillColor: DEFAULT_FILL,
         ownerId: null,
+        flatPolys,
       };
 
       stateMapRef.current.set(shape.id, renderState);
@@ -1016,18 +808,47 @@ export default function GameCanvas({
       prevOwners.set(rid, region.owner_id);
     }
 
-    // Re-draw capitals and building sprites
+    // Re-draw capitals and building sprites — incremental per-region diff.
+    // Instead of rebuilding ALL sprites on any change, we compare a per-region
+    // fingerprint and only destroy/recreate sprites for regions that changed.
     const capitalLayer = capitalLayerRef.current;
     if (capitalLayer) {
-      capitalLayer.removeChildren().forEach((child) => child.destroy());
-      const shapeMap = new Map<string, ProvinceShape>();
-      for (const s of shapesData.regions) {
-        shapeMap.set(s.id, s);
-      }
-      for (const [rid, region] of Object.entries(regions)) {
-        const shape = shapeMap.get(rid);
-        if (!shape) continue;
+      const spriteMap = capitalSpriteMapRef.current;
+      const regionSnap = capitalRegionSnapshotRef.current;
+
+      // Helper: compute the fingerprint for a single region
+      const regionCapFingerprint = (rid: string, region: GameRegion): string => {
+        const parts: string[] = [];
+        if (region.is_capital) parts.push("C");
+        if (region.building_instances?.length) {
+          parts.push(`B${region.building_instances.length}`);
+        } else if (region.buildings) {
+          const bkeys = Object.entries(region.buildings)
+            .filter(([, c]) => c > 0)
+            .map(([s, c]) => `${s}${c}`)
+            .join(",");
+          if (bkeys) parts.push(bkeys);
+        }
+        return parts.length ? `${rid}:${parts.join(",")}` : "";
+      };
+
+      // Helper: destroy and remove all sprites for a region
+      const destroyRegionSprites = (rid: string) => {
+        const sprites = spriteMap.get(rid);
+        if (sprites) {
+          for (const s of sprites) {
+            capitalLayer.removeChild(s);
+            s.destroy({ children: true });
+          }
+          spriteMap.delete(rid);
+        }
+        regionSnap.delete(rid);
+      };
+
+      // Helper: build sprites for a single region and add to capitalLayer
+      const buildRegionSprites = (rid: string, region: GameRegion, shape: ProvinceShape) => {
         const [cx, cy] = shape.centroid;
+        const created: Array<Container | Sprite | Graphics> = [];
 
         // Capital star sprite
         if (region.is_capital) {
@@ -1040,13 +861,19 @@ export default function GameCanvas({
             sprite.position.set(cx - 28, cy - 30);
             sprite.eventMode = "none";
             capitalLayerRef.current.addChild(sprite);
+            // Track it so we can remove it on next change
+            const existing = capitalSpriteMapRef.current.get(rid) ?? [];
+            existing.push(sprite);
+            capitalSpriteMapRef.current.set(rid, existing);
           }).catch(() => {
-            // Fallback to diamond if sprite fails
             if (!capitalLayerRef.current) return;
             const cap = new Graphics();
             cap.eventMode = "none";
             drawCapitalMarker(cap, cx, cy - 18, 7);
             capitalLayerRef.current.addChild(cap);
+            const existing = capitalSpriteMapRef.current.get(rid) ?? [];
+            existing.push(cap);
+            capitalSpriteMapRef.current.set(rid, existing);
           });
         }
 
@@ -1069,20 +896,19 @@ export default function GameCanvas({
           }
         }
 
-        // Place building icons in a circle around the centroid
         if (buildingEntries.length > 0) {
           const bldgContainer = new Container();
           bldgContainer.eventMode = "none";
           bldgContainer.position.set(cx, cy);
+          created.push(bldgContainer);
 
           const ICON_SIZE = 16;
-          const RADIUS = 22; // distance from centroid
-          const startAngle = -Math.PI / 2; // top
+          const RADIUS = 22;
+          const startAngle = -Math.PI / 2;
           const totalItems = buildingEntries.length;
-
           let itemIndex = 0;
+
           for (const entry of buildingEntries) {
-            // Spread evenly around the circle
             const angle = startAngle + (itemIndex / totalItems) * Math.PI * 2;
             const ix = Math.cos(angle) * RADIUS;
             const iy = Math.sin(angle) * RADIUS;
@@ -1094,7 +920,6 @@ export default function GameCanvas({
             Assets.load(entry.url).then((texture: Texture) => {
               if (!capitalLayerRef.current) return;
 
-              // Small dark circle behind the icon
               const bg = new Graphics();
               bg.circle(capturedIx, capturedIy, ICON_SIZE / 2 + 3)
                 .fill({ color: 0x0a1628, alpha: 0.85 })
@@ -1126,8 +951,83 @@ export default function GameCanvas({
               }
             }).catch(() => {});
           }
+
           capitalLayer.addChild(bldgContainer);
         }
+
+        // Register synchronously-created items (async sprite load handles itself above)
+        if (created.length) {
+          const existing = spriteMap.get(rid) ?? [];
+          for (const c of created) existing.push(c);
+          spriteMap.set(rid, existing);
+        }
+      };
+
+      // Build shape lookup once
+      const shapeMap = new Map<string, ProvinceShape>();
+      for (const s of shapesData.regions) shapeMap.set(s.id, s);
+
+      // Remove stale entries for regions no longer in the game state.
+      // Collect keys first to avoid mutating the map during iteration.
+      const staleRids: string[] = [];
+      for (const rid of spriteMap.keys()) {
+        if (!regions[rid]) staleRids.push(rid);
+      }
+      for (const rid of staleRids) destroyRegionSprites(rid);
+
+      // Incremental per-region diff
+      for (const [rid, region] of Object.entries(regions)) {
+        const fingerprint = regionCapFingerprint(rid, region);
+        const prevFingerprint = regionSnap.get(rid) ?? "";
+
+        if (fingerprint === prevFingerprint) continue; // no change — skip
+
+        // Destroy old sprites for this region then rebuild
+        destroyRegionSprites(rid);
+
+        if (fingerprint) {
+          // Only build if region has capital or buildings
+          const shape = shapeMap.get(rid);
+          if (shape) {
+            // Pre-register the rid with an empty array so async loads can append
+            spriteMap.set(rid, []);
+            buildRegionSprites(rid, region, shape);
+          }
+        }
+
+        regionSnap.set(rid, fingerprint);
+      }
+    }
+
+    // Pre-build lookup Sets for O(1) checks inside drawProvince
+    const ats = animTargetSetRef.current;
+    ats.clear();
+    for (const a of animations) {
+      if (a.type === "attack") ats.add(a.targetId);
+    }
+    const brs = bombedRegionSetRef.current;
+    brs.clear();
+    if (airTransitQueue) {
+      for (const f of airTransitQueue) {
+        if (f.mission_type === "bomb_run" && f.flight_path) {
+          for (const rid of f.flight_path) brs.add(rid);
+        }
+      }
+    }
+
+    // Pre-compute diplomacy relation map — O(wars + pacts) once per frame instead
+    // of O(wars × provinces + pacts × provinces) inside drawProvince.
+    const relMap = diplomacyRelMapRef.current;
+    relMap.clear();
+    if (diplomacy && myUserId) {
+      for (const w of diplomacy.wars) {
+        if (w.player_a === myUserId) relMap.set(w.player_b, "war");
+        else if (w.player_b === myUserId) relMap.set(w.player_a, "war");
+      }
+      for (const p of diplomacy.pacts) {
+        if (p.pact_type !== "nap") continue;
+        const other = p.player_a === myUserId ? p.player_b : p.player_b === myUserId ? p.player_a : null;
+        if (other && !relMap.has(other)) relMap.set(other, "nap");
       }
     }
 
@@ -1143,7 +1043,7 @@ export default function GameCanvas({
       // Full redraw — structural change (selection, highlights, etc.)
       for (const shape of shapesData.regions) {
         const state = stateMapRef.current.get(shape.id);
-        if (state) drawProvince(shape.id, shape, state, false);
+        if (state) drawProvince(shape.id, shape, state, false, relMap);
       }
     } else {
       // Incremental — only redraw regions whose data changed this tick.
@@ -1160,7 +1060,7 @@ export default function GameCanvas({
           continue; // unchanged — skip redraw
         }
         const state = stateMapRef.current.get(rid);
-        if (state) drawProvince(rid, shape, state, false);
+        if (state) drawProvince(rid, shape, state, false, relMap);
       }
     }
     // Shallow snapshot of unit_count + owner for next diff (avoid ref aliasing)
@@ -1178,6 +1078,7 @@ export default function GameCanvas({
     highlightedNeighbors,
     dimmedRegions,
     myUserId,
+    diplomacy,
     drawProvince,
     airTransitQueue,
   ]);
@@ -1344,343 +1245,11 @@ export default function GameCanvas({
     }
   }, [airTransitQueue, players, shapesData, unitManpowerMap]);
 
-  // ── Unit change floating labels ────────────────────────────────
+  // Unit change floating labels (extracted to hook)
+  useUnitPulseLabels(appReady, appRef, shapesData, unitChangeLayerRef, unitPulsesRef, centroidCacheRef);
 
-  useEffect(() => {
-    const app = appRef.current;
-    const unitChangeLayer = unitChangeLayerRef.current;
-    const shapesSnapshot = shapesData;
-    if (!app || !unitChangeLayer || !shapesSnapshot) return;
-
-    // Build centroid lookup once
-    const centroidMap = new Map<string, [number, number]>();
-    for (const s of shapesSnapshot.regions) {
-      centroidMap.set(s.id, s.centroid);
-    }
-
-    // Track Text objects for active pulses so we can destroy them
-    const activeTexts = new Map<string, Text>();
-
-    const makePulseStyle = (color: number) => new TextStyle({
-      fontFamily: "Rajdhani, sans-serif",
-      fontSize: 16,
-      fontWeight: "bold",
-      fill: color,
-      align: "center",
-      dropShadow: {
-        color: 0x000000,
-        blur: 4,
-        distance: 1,
-        alpha: 0.9,
-        angle: Math.PI / 4,
-      },
-    });
-
-    const tickerFn = () => {
-      const now = Date.now();
-      const pulses = unitPulsesRef.current;
-
-      for (const [rid, pulse] of pulses.entries()) {
-        const elapsed = now - pulse.startTime;
-
-        if (elapsed >= UNIT_PULSE_DURATION_MS) {
-          // Pulse expired — clean up
-          const existing = activeTexts.get(rid);
-          if (existing) {
-            unitChangeLayer.removeChild(existing);
-            existing.destroy();
-            activeTexts.delete(rid);
-          }
-          pulses.delete(rid);
-          continue;
-        }
-
-        const progress = elapsed / UNIT_PULSE_DURATION_MS;
-        // Ease-out opacity: full for first 60%, then fade
-        const opacity = progress < 0.6 ? 1.0 : 1.0 - (progress - 0.6) / 0.4;
-        // Drift upward: max 20px upward over duration
-        const yOffset = -20 * progress;
-
-        let txt = activeTexts.get(rid);
-        if (!txt) {
-          // Create new Text for this pulse
-          const centroid = centroidMap.get(rid);
-          if (!centroid) continue;
-
-          const isPositive = pulse.delta > 0;
-          const color = isPositive ? 0x4ade80 : 0xf87171;
-          const label = isPositive ? `+${pulse.delta}` : String(pulse.delta);
-
-          txt = new Text({ text: label, style: makePulseStyle(color), resolution: 3 });
-          txt.anchor.set(0.5, 0.5);
-          txt.position.set(centroid[0], centroid[1] - 20); // start above centroid
-          txt.eventMode = "none";
-          unitChangeLayer.addChild(txt);
-          activeTexts.set(rid, txt);
-        }
-
-        // Update position and opacity
-        const centroid = centroidMap.get(rid);
-        if (centroid) {
-          txt.position.set(centroid[0], centroid[1] - 20 + yOffset);
-        }
-        txt.alpha = opacity;
-      }
-    };
-
-    app.ticker.add(tickerFn);
-
-    return () => {
-      app.ticker.remove(tickerFn);
-      // Destroy any remaining label texts
-      for (const txt of activeTexts.values()) {
-        if (!txt.destroyed) {
-          unitChangeLayer.removeChild(txt);
-          txt.destroy();
-        }
-      }
-      activeTexts.clear();
-    };
-  // Re-register ticker when app or shapesData changes; pulse data lives in the ref
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appReady, shapesData]);
-
-  // ── Draw ability effect overlays ───────────────────────────────
-
-  useEffect(() => {
-    const effectLayer = effectLayerRef.current;
-    if (!effectLayer || !shapesData) return;
-
-    // Clear all previous effect graphics
-    effectLayer.removeChildren().forEach((child) => child.destroy());
-
-    if (!activeEffects || activeEffects.length === 0) return;
-
-    // Build a lookup from region id → shape for O(1) access
-    const shapeMap = new Map<string, ProvinceShape>();
-    for (const s of shapesData.regions) {
-      shapeMap.set(s.id, s);
-    }
-
-    /**
-     * Draw a dashed polygon border onto `gfx` by breaking each edge into
-     * alternating on/off segments. dashLen and gapLen are in world-pixel units.
-     */
-    function drawDashedBorder(
-      gfx: Graphics,
-      ring: number[][],
-      color: number,
-      width: number,
-      dashLen = 8,
-      gapLen = 5
-    ): void {
-      if (ring.length < 2) return;
-      // Close the ring explicitly so the last edge is drawn
-      const pts = ring[ring.length - 1][0] !== ring[0][0] || ring[ring.length - 1][1] !== ring[0][1]
-        ? [...ring, ring[0]]
-        : ring;
-
-      for (let i = 0; i < pts.length - 1; i++) {
-        const [x0, y0] = pts[i];
-        const [x1, y1] = pts[i + 1];
-        const dx = x1 - x0;
-        const dy = y1 - y0;
-        const edgeLen = Math.sqrt(dx * dx + dy * dy);
-        if (edgeLen === 0) continue;
-        const ux = dx / edgeLen;
-        const uy = dy / edgeLen;
-
-        let t = 0;
-        let drawing = true;
-        while (t < edgeLen) {
-          const segLen = drawing ? dashLen : gapLen;
-          const tEnd = Math.min(t + segLen, edgeLen);
-          if (drawing) {
-            gfx
-              .moveTo(x0 + ux * t, y0 + uy * t)
-              .lineTo(x0 + ux * tEnd, y0 + uy * tEnd)
-              .stroke({ color, width, alpha: 1.0, cap: "round" });
-          }
-          t = tEnd;
-          drawing = !drawing;
-        }
-      }
-    }
-
-    for (const effect of activeEffects) {
-      const cfg = EFFECT_CONFIG[effect.effect_type];
-      if (!cfg) continue;
-
-      // Collect all region ids this effect covers
-      const regionIds = new Set<string>([
-        effect.target_region_id,
-        ...effect.affected_region_ids,
-      ]);
-
-      const fillColor = hexStringToNumber(cfg.color);
-      const borderColor = hexStringToNumber(cfg.borderColor);
-
-      for (const rid of regionIds) {
-        const shape = shapeMap.get(rid);
-        if (!shape) continue;
-
-        // Draw effect overlay on all sub-polygons
-        const gfx = new Graphics();
-        let hasDrawn = false;
-        for (const subPoly of shape.polygons) {
-          const outerRing = subPoly[0];
-          if (!outerRing || outerRing.length < 3) continue;
-          hasDrawn = true;
-          const flatPoints: number[] = [];
-          for (const pt of outerRing) {
-            flatPoints.push(pt[0], pt[1]);
-          }
-          gfx.poly(flatPoints, true).fill({ color: fillColor, alpha: 0.25 });
-          drawDashedBorder(gfx, outerRing, borderColor, 2.5);
-        }
-        if (!hasDrawn) continue;
-        effectLayer.addChild(gfx);
-
-        // Symbol badge at centroid
-        const [cx, cy] = shape.centroid;
-
-        const circle = new Graphics();
-        circle
-          .circle(cx, cy, 9)
-          .fill({ color: borderColor, alpha: 0.9 })
-          .stroke({ color: 0xffffff, width: 1, alpha: 0.7 });
-        effectLayer.addChild(circle);
-
-        const badge = new Text({
-          text: cfg.symbol,
-          style: new TextStyle({
-            fontSize: 10,
-            fill: 0xffffff,
-            align: "center",
-          }),
-        });
-        badge.anchor.set(0.5, 0.5);
-        badge.position.set(cx, cy);
-        badge.eventMode = "none";
-        effectLayer.addChild(badge);
-      }
-    }
-  }, [activeEffects, shapesData]);
-
-  // ── Nuke blackout overlays ─────────────────────────────────────
-
-  useEffect(() => {
-    const nukeLayer = nukeLayerRef.current;
-    const app = appRef.current;
-    if (!nukeLayer || !shapesData || !app) return;
-
-    // Clear previous overlays
-    nukeLayer.removeChildren().forEach((child) => child.destroy());
-
-    if (!nukeBlackout || nukeBlackout.length === 0) return;
-
-    const shapeMap = new Map<string, ProvinceShape>();
-    for (const s of shapesData.regions) {
-      shapeMap.set(s.id, s);
-    }
-
-    const FADE_DURATION_MS = 5000;
-
-    // Build graphics for each blacked-out region
-    const overlays: Array<{ gfx: Graphics; startTime: number }> = [];
-
-    for (const entry of nukeBlackout) {
-      const shape = shapeMap.get(entry.rid);
-      if (!shape) continue;
-      const gfx = new Graphics();
-      let hasDrawn = false;
-      for (const subPoly of shape.polygons) {
-        const outerRing = subPoly[0];
-        if (!outerRing || outerRing.length < 3) continue;
-        hasDrawn = true;
-        const flatPoints: number[] = [];
-        for (const pt of outerRing) {
-          flatPoints.push(pt[0], pt[1]);
-        }
-        gfx.poly(flatPoints, true).fill({ color: 0x000000, alpha: 0.5 });
-      }
-      if (!hasDrawn) continue;
-      nukeLayer.addChild(gfx);
-      overlays.push({ gfx, startTime: entry.startTime });
-    }
-
-    if (overlays.length === 0) return;
-
-    // Animate alpha fade over FADE_DURATION_MS using the Pixi ticker
-    const tickerFn = () => {
-      const now = Date.now();
-      let allDone = true;
-      for (const { gfx, startTime } of overlays) {
-        const elapsed = now - startTime;
-        if (elapsed >= FADE_DURATION_MS) {
-          gfx.alpha = 0;
-        } else {
-          gfx.alpha = 0.5 * (1 - elapsed / FADE_DURATION_MS);
-          allDone = false;
-        }
-      }
-      if (allDone) {
-        app.ticker.remove(tickerFn);
-        nukeLayer.removeChildren().forEach((child) => child.destroy());
-      }
-    };
-    app.ticker.add(tickerFn);
-
-    return () => {
-      app.ticker.remove(tickerFn);
-    };
-  }, [nukeBlackout, shapesData]);
-
-  // ── Weather overlay ────────────────────────────────────────────
-
-  useEffect(() => {
-    const overlay = weatherOverlayRef.current;
-    if (!overlay || !shapesData) return;
-
-    overlay.clear();
-
-    if (!weather) return;
-
-    const { min_x, min_y, max_x, max_y } = shapesData.bounds;
-
-    let color = 0x000000;
-    let alpha = 0;
-
-    const phase = weather.phase;
-    const condition = weather.condition;
-
-    if (phase === "night") {
-      color = 0x0a0a2e;
-      alpha = 0.25 + (1 - weather.visibility) * 0.15;
-    } else if (phase === "dawn") {
-      color = 0xff8c42;
-      alpha = 0.06;
-    } else if (phase === "dusk") {
-      color = 0xff6b35;
-      alpha = 0.08;
-    }
-
-    if (condition === "fog") {
-      color = 0xc0c0c0;
-      alpha = Math.max(alpha, 0.12);
-    } else if (condition === "storm") {
-      color = 0x2d3748;
-      alpha = Math.max(alpha, 0.15);
-    } else if (condition === "rain") {
-      color = 0x4a5568;
-      alpha = Math.max(alpha, 0.06);
-    }
-
-    if (alpha > 0) {
-      overlay.rect(min_x, min_y, max_x - min_x, max_y - min_y);
-      overlay.fill({ color, alpha });
-    }
-  }, [weather, shapesData]);
+  // Effect overlays + nuke blackout (extracted to hook)
+  useEffectOverlays(appReady, shapesData, activeEffects, nukeBlackout, effectLayerRef, nukeLayerRef, appRef);
 
   // ── Pixi Application lifecycle ────────────────────────────────
 
@@ -1701,7 +1270,8 @@ export default function GameCanvas({
         antialias: true,
         autoDensity: true,
         resolution: typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
-        preference: "webgl",
+        preference: "webgpu",
+        // Falls back to WebGL automatically if WebGPU unavailable
       });
 
       if (destroyed) {
@@ -1757,13 +1327,6 @@ export default function GameCanvas({
       capitalRadar.eventMode = "none";
       capitalRadarRef.current = capitalRadar;
 
-      const weatherOverlay = new Graphics();
-      weatherOverlay.eventMode = "none";
-      weatherOverlayRef.current = weatherOverlay;
-
-      const weatherParticles = new Graphics();
-      weatherParticles.eventMode = "none";
-      weatherParticlesRef.current = weatherParticles;
 
       // Tactical grid overlay — drawn behind provinces, updated when shapesData loads
       const gridLayer = new Graphics();
@@ -1775,8 +1338,6 @@ export default function GameCanvas({
       viewport.addChild(provinceLayer);
       viewport.addChild(capitalLayer);
       viewport.addChild(capitalRadar);
-      viewport.addChild(weatherOverlay);
-      viewport.addChild(weatherParticles);
       viewport.addChild(effectLayer);
       viewport.addChild(nukeLayer);
       viewport.addChild(animManager.container);
@@ -1810,18 +1371,23 @@ export default function GameCanvas({
         // then reused here for O(1) lookups rather than a per-frame linear scan.
         const airLayer = airTransitLayerRef.current;
         if (airLayer && onFlightClickRef.current) {
-          airLayer.removeChildren();
+          // Hide all pooled graphics from last frame
+          const hitPool = airHitPoolRef.current;
+          for (let pi = 0; pi < airHitPoolIdxRef.current; pi++) {
+            hitPool[pi].visible = false;
+          }
+          airHitPoolIdxRef.current = 0;
+          const intPool = interceptorPoolRef.current;
+          for (let pi = 0; pi < interceptorPoolIdxRef.current; pi++) {
+            intPool[pi].visible = false;
+          }
+          interceptorPoolIdxRef.current = 0;
+
           const atq = airTransitQueueRef.current;
-          const sd = shapesDataRef.current;
-          if (atq && sd) {
-            // Build a quick centroid lookup from the stable shapesData ref.
-            // This runs at ticker frequency but the loop is small (hundreds of regions max)
-            // and the shapes array is stable between ticks — acceptable for 60fps.
-            const centroidLookup = new Map<string, [number, number]>();
-            for (const s of sd.regions) centroidLookup.set(s.id, s.centroid);
+          if (atq) {
+            const centroidLookup = centroidCacheRef.current;
 
             for (const flight of atq) {
-              // Only enemy flights are shown as clickable targets
               if (flight.player_id === myUserId) continue;
               const src = centroidLookup.get(flight.source_region_id);
               const tgt = centroidLookup.get(flight.target_region_id);
@@ -1830,21 +1396,33 @@ export default function GameCanvas({
               const x = src[0] + (tgt[0] - src[0]) * progress;
               const y = src[1] + (tgt[1] - src[1]) * progress;
 
-              const hitArea = new Graphics();
+              // Get or create pooled Graphics
+              let hitArea: Graphics;
+              const poolIdx = airHitPoolIdxRef.current;
+              if (poolIdx < hitPool.length) {
+                hitArea = hitPool[poolIdx];
+                hitArea.clear();
+                hitArea.visible = true;
+              } else {
+                hitArea = new Graphics();
+                hitArea.eventMode = "static";
+                hitArea.cursor = "crosshair";
+                airLayer.addChild(hitArea);
+                hitPool.push(hitArea);
+              }
+              airHitPoolIdxRef.current++;
+
               hitArea.circle(x, y, 20).fill({ color: 0xff0000, alpha: 0.001 });
-              hitArea.eventMode = "static";
-              hitArea.cursor = "crosshair";
-              const capturedFlightId = flight.id;
+              (hitArea as Graphics & { _flightId?: string })._flightId = flight.id;
+              hitArea.removeAllListeners();
               hitArea.on("pointerdown", () => {
-                onFlightClickRef.current?.(capturedFlightId);
+                onFlightClickRef.current?.((hitArea as Graphics & { _flightId?: string })._flightId!);
               });
-              airLayer.addChild(hitArea);
             }
 
-            // Render interceptor groups chasing bombers — drawn each frame to track moving targets.
+            // Render interceptor groups chasing bombers
             for (const flight of atq) {
               if (!flight.interceptors || flight.interceptors.length === 0) continue;
-              // Bomber's current position (interpolated from progress)
               const src = centroidLookup.get(flight.source_region_id);
               const tgt = centroidLookup.get(flight.target_region_id);
               if (!src || !tgt) continue;
@@ -1854,25 +1432,31 @@ export default function GameCanvas({
               for (const interceptor of flight.interceptors) {
                 const intSrc = centroidLookup.get(interceptor.source_region_id);
                 if (!intSrc) continue;
-                // Interceptor position: lerp from source toward bomber's current position
                 const intX = intSrc[0] + (bomberX - intSrc[0]) * interceptor.progress;
                 const intY = intSrc[1] + (bomberY - intSrc[1]) * interceptor.progress;
                 const intPlayer = playersRef.current[interceptor.player_id];
                 const intColor = intPlayer ? hexStringToNumber(intPlayer.color) : 0xef4444;
 
-                // Draw interceptor icon (small fighter circle)
-                const g = new Graphics();
-                g.eventMode = "none";
-                // Trail line from source to current position
+                let g: Graphics;
+                const iPoolIdx = interceptorPoolIdxRef.current;
+                if (iPoolIdx < intPool.length) {
+                  g = intPool[iPoolIdx];
+                  g.clear();
+                  g.visible = true;
+                } else {
+                  g = new Graphics();
+                  g.eventMode = "none";
+                  airLayer.addChild(g);
+                  intPool.push(g);
+                }
+                interceptorPoolIdxRef.current++;
+
                 g.moveTo(intSrc[0], intSrc[1]).lineTo(intX, intY)
                   .stroke({ color: intColor, width: 1.5, alpha: 0.4 });
-                // Fighter icon circle
                 g.circle(intX, intY, 8)
                   .fill({ color: intColor, alpha: 0.7 })
                   .stroke({ color: 0xffffff, width: 1.5, alpha: 0.8 });
-                // Fighter count label
                 g.circle(intX, intY, 3).fill({ color: 0xffffff, alpha: 0.9 });
-                airLayer.addChild(g);
               }
             }
           }
@@ -1904,31 +1488,46 @@ export default function GameCanvas({
         // SAM intercept animations — SAM rocket flies to meet point + explosion
         const samAnims = samInterceptsRef.current;
         if (airLayer) {
+        // Reset SAM pool visibility
+        const samPool = samGfxPoolRef.current;
+        for (let pi = 0; pi < samGfxPoolIdxRef.current; pi++) {
+          samPool[pi].visible = false;
+        }
+        samGfxPoolIdxRef.current = 0;
+
         for (let si = samAnims.length - 1; si >= 0; si--) {
           const sa = samAnims[si];
           const elapsed = now - sa.startTime;
           const progress = Math.min(elapsed / sa.meetMs, 1);
 
           if (progress < 1) {
-            // Draw SAM rocket flying toward interception point
             const samX = sa.samFrom[0] + (sa.meetPoint[0] - sa.samFrom[0]) * progress;
             const samY = sa.samFrom[1] + (sa.meetPoint[1] - sa.samFrom[1]) * progress;
-            const samGfx = new Graphics();
-            // Bright cyan rocket head
+
+            let samGfx: Graphics;
+            const samPoolIdx = samGfxPoolIdxRef.current;
+            if (samPoolIdx < samPool.length) {
+              samGfx = samPool[samPoolIdx];
+              samGfx.clear();
+              samGfx.visible = true;
+            } else {
+              samGfx = new Graphics();
+              samGfx.eventMode = "none";
+              airLayer.addChild(samGfx);
+              samPool.push(samGfx);
+            }
+            samGfxPoolIdxRef.current++;
+
             samGfx.circle(samX, samY, 3).fill({ color: 0x22d3ee, alpha: 0.95 });
             samGfx.circle(samX, samY, 7).fill({ color: 0x22d3ee, alpha: 0.2 });
-            // Cyan trail
             const tailP = Math.max(0, progress - 0.2);
             const tailX = sa.samFrom[0] + (sa.meetPoint[0] - sa.samFrom[0]) * tailP;
             const tailY = sa.samFrom[1] + (sa.meetPoint[1] - sa.samFrom[1]) * tailP;
             samGfx.moveTo(tailX, tailY).lineTo(samX, samY)
               .stroke({ color: 0x22d3ee, width: 2.5, alpha: 0.6 });
-            // Glow trail
             samGfx.moveTo(tailX, tailY).lineTo(samX, samY)
               .stroke({ color: 0x22d3ee, width: 5, alpha: 0.15 });
-            airLayer.addChild(samGfx);
           } else if (!sa.exploded) {
-            // Explosion at interception point
             sa.exploded = true;
             const mgr = animManagerRef.current;
             if (mgr) {
@@ -1937,74 +1536,49 @@ export default function GameCanvas({
             }
           }
 
-          // Cleanup after explosion fade
           if (elapsed > sa.meetMs + 1500) {
             samAnims.splice(si, 1);
           }
         }
         } // end airLayer guard
 
-        // Weather particles — rain / storm diagonal streaks
-        const wp = weatherParticlesRef.current;
-        if (wp) {
-          wp.clear();
-          const currentWeather = weatherRef.current;
-          if (
-            currentWeather &&
-            (currentWeather.condition === "rain" || currentWeather.condition === "storm")
-          ) {
-            const vp = viewportRef.current;
-            if (vp) {
-              const particleCount = currentWeather.condition === "storm" ? 40 : 20;
-              const vx = vp.left ?? 0;
-              const vy = vp.top ?? 0;
-              const vw = vp.screenWidth / vp.scale.x;
-              const vh = vp.screenHeight / vp.scale.y;
-
-              for (let i = 0; i < particleCount; i++) {
-                // Each particle has a unique phase based on index
-                const seed = i * 7919; // prime for spread
-                const phase = ((now * 0.001 + seed) % 2.0) / 2.0; // 0..1 cycling every 2s
-                const x = vx + (((seed * 13) % 1000) / 1000) * vw;
-                const y = vy + phase * vh;
-                const length = currentWeather.condition === "storm" ? 12 : 8;
-                // Diagonal rain line (wind from left)
-                wp.moveTo(x, y).lineTo(x + 3, y + length);
-              }
-              wp.stroke({ color: 0xa0b0c0, width: 1, alpha: 0.2 });
-
-              // Storm: lightning flash every ~8 seconds
-              if (currentWeather.condition === "storm") {
-                const flashPhase = (now % 8000) / 8000;
-                if (flashPhase < 0.015) {
-                  // ~120ms flash
-                  wp.rect(vx, vy, vw, vh).fill({ color: 0xffffff, alpha: 0.08 });
-                }
-              }
-            }
-          }
-        }
-
-        // Render planned move arrows
+        // Render planned move arrows (pooled)
         const pmLayer = plannedMovesLayerRef.current;
         if (pmLayer) {
-          pmLayer.removeChildren();
+          const pmGfxPool = pmGfxPoolRef.current;
+          const pmTxtPool = pmTextPoolRef.current;
+          for (let pi = 0; pi < pmPoolIdxRef.current; pi++) {
+            if (pi < pmGfxPool.length) pmGfxPool[pi].visible = false;
+            if (pi < pmTxtPool.length) pmTxtPool[pi].visible = false;
+          }
+          pmPoolIdxRef.current = 0;
+
           const pMoves = plannedMovesRef.current;
-          const sd = shapesDataRef.current;
-          if (pMoves && pMoves.length > 0 && sd) {
-            const cMap = new Map<string, [number, number]>();
-            for (const shape of sd.regions) cMap.set(shape.id, shape.centroid);
+          if (pMoves && pMoves.length > 0) {
+            const cMap = centroidCacheRef.current;
 
             for (const pm of pMoves) {
               const src = cMap.get(pm.sourceId);
               const tgt = cMap.get(pm.targetId);
               if (!src || !tgt) continue;
 
-              const g = new Graphics();
+              const idx = pmPoolIdxRef.current;
+
+              let g: Graphics;
+              if (idx < pmGfxPool.length) {
+                g = pmGfxPool[idx];
+                g.clear();
+                g.visible = true;
+              } else {
+                g = new Graphics();
+                g.eventMode = "none";
+                pmLayer.addChild(g);
+                pmGfxPool.push(g);
+              }
+
               const isAttack = pm.actionType === "attack" || pm.actionType === "bombard";
               const color = isAttack ? 0xff4444 : 0x22d3ee;
 
-              // Dashed line
               const dx = tgt[0] - src[0];
               const dy = tgt[1] - src[1];
               const dist = Math.sqrt(dx * dx + dy * dy);
@@ -2020,11 +1594,9 @@ export default function GameCanvas({
                 g.moveTo(src[0] + ux * startD, src[1] + uy * startD)
                   .lineTo(src[0] + ux * Math.min(endD, dist), src[1] + uy * Math.min(endD, dist));
               }
-              // Animate: pulse alpha
               const pulse = 0.5 + Math.sin(now * 0.004) * 0.3;
               g.stroke({ color, width: 2.5, alpha: pulse });
 
-              // Arrowhead
               const aSize = 8;
               const angle = Math.atan2(dy, dx);
               const ax = tgt[0] - ux * 5;
@@ -2035,25 +1607,25 @@ export default function GameCanvas({
                 .closePath()
                 .fill({ color, alpha: pulse });
 
-              pmLayer.addChild(g);
+              let label: Text;
+              if (idx < pmTxtPool.length) {
+                label = pmTxtPool[idx];
+                label.visible = true;
+              } else {
+                label = new Text({ text: "", style: PM_STYLE_MOVE, resolution: 3 });
+                label.anchor.set(0.5, 0.5);
+                label.eventMode = "none";
+                pmLayer.addChild(label);
+                pmTxtPool.push(label);
+              }
 
-              // Unit count label at midpoint
+              label.text = String(pm.unitCount);
+              label.style = isAttack ? PM_STYLE_ATTACK : PM_STYLE_MOVE;
               const mx = (src[0] + tgt[0]) / 2;
               const my = (src[1] + tgt[1]) / 2;
-              const label = new Text({
-                text: String(pm.unitCount),
-                style: new TextStyle({
-                  fontFamily: "Rajdhani, sans-serif",
-                  fontSize: 10,
-                  fontWeight: "bold",
-                  fill: color,
-                  dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
-                }),
-                resolution: 3,
-              });
-              label.anchor.set(0.5, 0.5);
               label.position.set(mx, my - 6);
-              pmLayer.addChild(label);
+
+              pmPoolIdxRef.current++;
             }
           }
         }
@@ -2109,8 +1681,6 @@ export default function GameCanvas({
         effectLayerRef.current = null;
         nukeLayerRef.current = null;
         unitChangeLayerRef.current = null;
-        weatherOverlayRef.current = null;
-        weatherParticlesRef.current = null;
         gridLayerRef.current = null;
         capitalRadarRef.current = null;
         plannedMovesLayerRef.current = null;

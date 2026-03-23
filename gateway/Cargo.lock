@@ -1204,6 +1204,7 @@ dependencies = [
  "maplord-state",
  "rand 0.8.5",
  "redis",
+ "rmp-serde",
  "serde",
  "serde_json",
  "sha2",

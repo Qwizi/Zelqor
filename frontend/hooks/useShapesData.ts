@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ShapesData } from "@/components/map/GameCanvas";
+import type { ShapesData } from "@/lib/canvasTypes";
 
 const API_BASE =
   typeof window !== "undefined"

@@ -142,6 +142,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.matchmaking.tasks.cleanup_stale_lobbies',
         'schedule': 30,  # every 30 seconds
     },
+    'flush-last-active': {
+        'task': 'apps.accounts.tasks.flush_last_active',
+        'schedule': 300,  # every 5 minutes
+    },
 }
 
 # Redis direct connection (game state store)

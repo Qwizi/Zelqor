@@ -27,7 +27,8 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     # Disable RDB/AOF persistence — eliminates SD card I/O on every write
-    command: redis-server --save "" --appendonly no
+    # Set maxmemory with noeviction (game state must not be evicted)
+    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy noeviction --tcp-keepalive 60
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

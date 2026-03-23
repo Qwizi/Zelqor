@@ -107,12 +107,18 @@ class GameSettings(models.Model):
         if not self.pk and GameSettings.objects.exists():
             raise ValidationError('Only one GameSettings instance is allowed.')
         super().save(*args, **kwargs)
+        from django.core.cache import cache
+        cache.delete('game_settings_singleton')
 
     @classmethod
     def get(cls):
-        obj = cls.objects.first()
+        from django.core.cache import cache
+        obj = cache.get('game_settings_singleton')
         if obj is None:
-            obj = cls.objects.create()
+            obj = cls.objects.first()
+            if obj is None:
+                obj = cls.objects.create()
+            cache.set('game_settings_singleton', obj, timeout=60)
         return obj
 
 

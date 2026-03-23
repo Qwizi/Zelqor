@@ -5,16 +5,38 @@ use axum::extract::{Path, State, WebSocketUpgrade};
 use axum::response::Response;
 use dashmap::DashMap;
 use maplord_ai::{BotBrain, BotStrategy, TutorialBotBrain};
-use maplord_engine::{Action, ActiveBoost, Event, GameEngine, GameSettings, Player, Region};
+use maplord_engine::{
+    Action, ActiveBoost, ActiveEffect, AirTransitItem, BuildingQueueItem, DiplomacyState, Event,
+    GameEngine, GameSettings, Player, Region, TransitQueueItem, UnitQueueItem, WeatherState,
+};
 use maplord_state::{FullGameState, GameStateManager};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
-use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 use maplord_anticheat::{AnticheatEngine, AnticheatVerdict};
 use tracing::{error, info, warn};
+
+/// Typed tick broadcast message — serialized directly to JSON in a single pass,
+/// avoiding the `json!()` intermediate `Value` allocation.
+#[derive(Serialize)]
+struct TickBroadcast<'a> {
+    #[serde(rename = "type")]
+    msg_type: &'static str,
+    tick: i64,
+    events: &'a [Event],
+    regions: &'a HashMap<String, serde_json::Value>,
+    players: &'a HashMap<String, Player>,
+    buildings_queue: &'a [BuildingQueueItem],
+    unit_queue: &'a [UnitQueueItem],
+    transit_queue: &'a [TransitQueueItem],
+    air_transit_queue: &'a [AirTransitItem],
+    active_effects: &'a [ActiveEffect],
+    weather: &'a WeatherState,
+    diplomacy: &'a DiplomacyState,
+}
 
 /// Channel buffer size per WebSocket connection — provides backpressure for slow clients.
 const WS_CHANNEL_BUFFER: usize = 256;
@@ -1303,7 +1325,14 @@ async fn game_loop(
                     player.eliminated_tick = Some(tick);
                 }
                 let _ = state_mgr.set_players_bulk(&tick_data.players).await;
-                let _ = state.django.set_player_alive(match_id, player_id, false).await;
+                {
+                    let django = state.django.clone();
+                    let mid = match_id.to_string();
+                    let pid = player_id.clone();
+                    tokio::spawn(async move {
+                        let _ = django.set_player_alive(&mid, &pid, false).await;
+                    });
+                }
 
                 // Notify all players
                 let cheat_now_secs = SystemTime::now()
@@ -1364,12 +1393,17 @@ async fn game_loop(
             state_mgr.set_players_bulk(&tick_data.players).await?;
             for event in &timeout_events {
                 if let Event::PlayerEliminated { player_id, .. } = event {
-                    let _ = state.django.set_player_alive(match_id, player_id, false).await;
+                    let django = state.django.clone();
+                    let mid = match_id.to_string();
+                    let pid = player_id.clone();
+                    tokio::spawn(async move {
+                        let _ = django.set_player_alive(&mid, &pid, false).await;
+                    });
                 }
             }
         }
 
-        let regions_before = tick_data.regions.clone();
+        let regions_fingerprints = region_fingerprints(&tick_data.regions);
 
         let now_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1407,8 +1441,8 @@ async fn game_loop(
             }
         }
 
-        // Compute changed regions (delta)
-        let changed_regions = compute_changed_regions(&regions_before, &tick_data.regions);
+        // Compute changed regions (delta) from pre-tick fingerprints
+        let changed_regions = compute_changed_regions_from_fingerprints(&regions_fingerprints, &tick_data.regions);
         let dirty_ids: HashSet<String> = changed_regions.keys().cloned().collect();
 
         // Write back
@@ -1426,10 +1460,15 @@ async fn game_loop(
             )
             .await?;
 
-        // Set alive state in DB for eliminated players
+        // Set alive state in DB for eliminated players (fire-and-forget — don't block the tick)
         for event in &events {
             if let Event::PlayerEliminated { player_id, .. } = event {
-                let _ = state.django.set_player_alive(match_id, player_id, false).await;
+                let django = state.django.clone();
+                let mid = match_id.to_string();
+                let pid = player_id.clone();
+                tokio::spawn(async move {
+                    let _ = django.set_player_alive(&mid, &pid, false).await;
+                });
             }
         }
 
@@ -1444,22 +1483,25 @@ async fn game_loop(
             }
         }
 
-        // Broadcast tick
-        let tick_msg = json!({
-            "type": "game_tick",
-            "tick": tick,
-            "events": events,
-            "regions": changed_regions,
-            "players": tick_data.players,
-            "buildings_queue": tick_data.buildings_queue,
-            "unit_queue": tick_data.unit_queue,
-            "transit_queue": tick_data.transit_queue,
-            "air_transit_queue": tick_data.air_transit_queue,
-            "active_effects": tick_data.active_effects,
-            "weather": weather,
-            "diplomacy": tick_data.diplomacy,
-        });
-        broadcast_to_match(match_id, &tick_msg, &state.game_connections);
+        // Broadcast tick — single-pass serialization via typed struct (no intermediate Value)
+        let tick_broadcast = TickBroadcast {
+            msg_type: "game_tick",
+            tick,
+            events: &events,
+            regions: &changed_regions,
+            players: &tick_data.players,
+            buildings_queue: &tick_data.buildings_queue,
+            unit_queue: &tick_data.unit_queue,
+            transit_queue: &tick_data.transit_queue,
+            air_transit_queue: &tick_data.air_transit_queue,
+            active_effects: &tick_data.active_effects,
+            weather: &weather,
+            diplomacy: &tick_data.diplomacy,
+        };
+        match serde_json::to_string(&tick_broadcast) {
+            Ok(text) => broadcast_str_to_match(match_id, text, &state.game_connections),
+            Err(e) => error!("Failed to serialize tick broadcast for match {match_id}: {e}"),
+        }
 
         let primary_game_over = events.iter().any(|e| matches!(e, Event::GameOver { .. }));
 
@@ -1489,7 +1531,7 @@ async fn game_loop(
                     state_mgr.set_players_bulk(&extra_tick.players).await?;
                 }
 
-                let extra_regions_before = extra_tick.regions.clone();
+                let extra_regions_fingerprints = region_fingerprints(&extra_tick.regions);
 
                 let extra_now_secs = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -1526,7 +1568,7 @@ async fn game_loop(
                     }
                 }
 
-                let extra_changed = compute_changed_regions(&extra_regions_before, &extra_tick.regions);
+                let extra_changed = compute_changed_regions_from_fingerprints(&extra_regions_fingerprints, &extra_tick.regions);
                 let extra_dirty: HashSet<String> = extra_changed.keys().cloned().collect();
 
                 state_mgr.set_tick_result(
@@ -1543,26 +1585,34 @@ async fn game_loop(
 
                 for event in &extra_events {
                     if let Event::PlayerEliminated { player_id, .. } = event {
-                        let _ = state.django.set_player_alive(match_id, player_id, false).await;
+                        let django = state.django.clone();
+                        let mid = match_id.to_string();
+                        let pid = player_id.clone();
+                        tokio::spawn(async move {
+                            let _ = django.set_player_alive(&mid, &pid, false).await;
+                        });
                     }
                 }
 
-                // Broadcast this extra tick
-                let extra_msg = json!({
-                    "type": "game_tick",
-                    "tick": extra_tick_num,
-                    "events": extra_events,
-                    "regions": extra_changed,
-                    "players": extra_tick.players,
-                    "buildings_queue": extra_tick.buildings_queue,
-                    "unit_queue": extra_tick.unit_queue,
-                    "transit_queue": extra_tick.transit_queue,
-                    "air_transit_queue": extra_tick.air_transit_queue,
-                    "active_effects": extra_tick.active_effects,
-                    "weather": extra_weather,
-                    "diplomacy": extra_tick.diplomacy,
-                });
-                broadcast_to_match(match_id, &extra_msg, &state.game_connections);
+                // Broadcast this extra tick — single-pass serialization via typed struct
+                let extra_broadcast = TickBroadcast {
+                    msg_type: "game_tick",
+                    tick: extra_tick_num,
+                    events: &extra_events,
+                    regions: &extra_changed,
+                    players: &extra_tick.players,
+                    buildings_queue: &extra_tick.buildings_queue,
+                    unit_queue: &extra_tick.unit_queue,
+                    transit_queue: &extra_tick.transit_queue,
+                    air_transit_queue: &extra_tick.air_transit_queue,
+                    active_effects: &extra_tick.active_effects,
+                    weather: &extra_weather,
+                    diplomacy: &extra_tick.diplomacy,
+                };
+                match serde_json::to_string(&extra_broadcast) {
+                    Ok(text) => broadcast_str_to_match(match_id, text, &state.game_connections),
+                    Err(e) => error!("Failed to serialize extra tick broadcast for match {match_id}: {e}"),
+                }
 
                 // Check game over in extra ticks
                 let extra_game_over = extra_events.iter().any(|e| matches!(e, Event::GameOver { .. }));
@@ -1690,6 +1740,9 @@ async fn game_loop(
     }
 }
 
+/// Used in tests to verify correctness of the PartialEq-based approach.
+/// Production code uses `compute_changed_regions_from_fingerprints` instead.
+#[cfg_attr(not(test), allow(dead_code))]
 fn compute_changed_regions(
     before: &HashMap<String, Region>,
     after: &HashMap<String, Region>,
@@ -2775,14 +2828,59 @@ pub fn broadcast_to_match(
     connections: &GameConnections,
 ) {
     if let Some(match_conns) = connections.get(match_id) {
-        let text = msg.to_string();
+        // Convert once to Utf8Bytes (Arc-backed) — subsequent clones are O(1) pointer copies
+        let text_msg = Message::Text(msg.to_string().into());
         for entry in match_conns.iter() {
             for sender in entry.value().iter() {
-                // try_send: drop message for slow clients rather than blocking
-                let _ = sender.try_send(Message::Text(text.clone().into()));
+                let _ = sender.try_send(text_msg.clone());
             }
         }
     }
+}
+
+/// Broadcast a pre-serialized JSON string to all connections in a match.
+/// Use this from hot paths where the message is already serialized via
+/// `serde_json::to_string`, skipping the intermediate `serde_json::Value`.
+fn broadcast_str_to_match(match_id: &str, text: String, connections: &GameConnections) {
+    if let Some(match_conns) = connections.get(match_id) {
+        // Convert once to Utf8Bytes (Arc-backed) — subsequent clones are O(1) pointer copies
+        let msg = Message::Text(text.into());
+        for entry in match_conns.iter() {
+            for sender in entry.value().iter() {
+                let _ = sender.try_send(msg.clone());
+            }
+        }
+    }
+}
+
+/// Compute per-region msgpack fingerprints before a tick.
+/// Cheaper than cloning the entire region map: avoids heap allocation per region,
+/// replacing it with a sequential byte serialization.
+fn region_fingerprints(regions: &HashMap<String, Region>) -> HashMap<String, Vec<u8>> {
+    regions
+        .iter()
+        .map(|(id, r)| {
+            let bytes = rmp_serde::to_vec(r).unwrap_or_default();
+            (id.clone(), bytes)
+        })
+        .collect()
+}
+
+/// Find regions whose msgpack fingerprint differs from before the tick,
+/// then serialize them to JSON (without sea_distances) for the delta broadcast.
+fn compute_changed_regions_from_fingerprints(
+    fingerprints_before: &HashMap<String, Vec<u8>>,
+    after: &HashMap<String, Region>,
+) -> HashMap<String, serde_json::Value> {
+    let mut changed = HashMap::new();
+    for (rid, region) in after {
+        let before_bytes = fingerprints_before.get(rid).map(|b| b.as_slice()).unwrap_or(&[]);
+        let after_bytes = rmp_serde::to_vec(region).unwrap_or_default();
+        if before_bytes != after_bytes {
+            changed.insert(rid.clone(), region_to_json_no_sea(region));
+        }
+    }
+    changed
 }
 
 #[cfg(test)]

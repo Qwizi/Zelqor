@@ -1,4 +1,7 @@
 {$DOMAIN} {
+	# Enable compression for all responses
+	encode zstd gzip
+
 	# API
 	handle /api/* {
 		reverse_proxy backend:8000 {
@@ -42,7 +45,7 @@
 	handle /media/* {
 		root * /srv
 		file_server
-		header Cache-Control "public, max-age=86400"
+		header Cache-Control "public, max-age=86400, stale-while-revalidate=3600"
 	}
 
 	# Frontend (Next.js) — catch-all
