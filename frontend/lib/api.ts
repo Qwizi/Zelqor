@@ -569,6 +569,22 @@ export interface MatchResult {
   player_results: PlayerResult[];
 }
 
+// --- Matchmaking ---
+
+export interface MatchmakingStatus {
+  state: "idle" | "in_queue" | "in_lobby" | "in_match";
+  match_id?: string;
+  lobby_id?: string;
+  game_mode_slug?: string;
+  joined_at?: string;
+  players?: Array<{ user_id: string; username: string; is_ready: boolean; is_bot: boolean }>;
+  max_players?: number;
+}
+
+export async function getMatchmakingStatus(token: string): Promise<MatchmakingStatus> {
+  return fetchAPI<MatchmakingStatus>("/matchmaking/status/", { token });
+}
+
 export async function getMyMatches(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<Match>> {
   return fetchPaginated<Match>("/matches/", { token, limit, offset });
 }

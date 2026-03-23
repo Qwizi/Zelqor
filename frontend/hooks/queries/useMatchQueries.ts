@@ -6,8 +6,10 @@ import {
   getMatchResult,
   getMatchSnapshots,
   getSnapshot,
+  getMatchmakingStatus,
   type Match,
   type MatchResult,
+  type MatchmakingStatus,
   type SnapshotTick,
   type SnapshotDetail,
   type PaginatedResponse,
@@ -74,5 +76,15 @@ export function useSnapshot(matchId: string, tick: number) {
     queryFn: () => getSnapshot(requireToken(), matchId, tick),
     enabled: !!matchId && tick >= 0,
     staleTime: Infinity,
+  });
+}
+
+export function useMatchmakingStatus(options?: { enabled?: boolean }) {
+  return useQuery<MatchmakingStatus>({
+    queryKey: queryKeys.matchmaking.status(),
+    queryFn: () => getMatchmakingStatus(requireToken()),
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+    enabled: options?.enabled,
   });
 }

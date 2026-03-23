@@ -19,6 +19,10 @@ export const queryKeys = {
     regionsGraph: (matchId?: string) =>
       [...queryKeys.geo.all, "graph", matchId] as const,
   },
+  matchmaking: {
+    all: ["matchmaking"] as const,
+    status: () => [...queryKeys.matchmaking.all, "status"] as const,
+  },
   matches: {
     all: ["matches"] as const,
     my: (limit?: number, offset?: number) =>

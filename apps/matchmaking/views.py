@@ -4,8 +4,16 @@ from apps.accounts.auth import ActiveUserJWTAuth
 from apps.game_config.decorators import require_module_controller
 
 from django.shortcuts import get_object_or_404
-from apps.matchmaking.models import Match
-from apps.matchmaking.schemas import MatchOutSchema
+from apps.matchmaking.models import Match, MatchPlayer, MatchQueue, Lobby, LobbyPlayer
+from apps.matchmaking.schemas import (
+    MatchOutSchema,
+    MatchmakingStatusSchema,
+    MatchmakingStatusInMatchSchema,
+    MatchmakingStatusInLobbySchema,
+    MatchmakingStatusInQueueSchema,
+    MatchmakingStatusIdleSchema,
+    LobbyPlayerStatusSchema,
+)
 from apps.pagination import paginate_qs
 
 
@@ -244,3 +252,84 @@ class TutorialController:
         tutorials.update(status=Match.Status.CANCELLED)
         tutorials.delete()
         return {'ok': True}
+
+
+@api_controller('/matchmaking', tags=['Matchmaking'])
+@require_module_controller('matchmaking')
+class MatchmakingStatusController:
+
+    @route.get('/status/', auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def get_matchmaking_status(self, request):
+        """
+        Return the current matchmaking state for the authenticated player.
+
+        Priority order:
+        1. Active match (in_progress or selecting) → state: in_match
+        2. Active lobby (waiting, full, or ready) → state: in_lobby
+        3. Matchmaking queue entry → state: in_queue
+        4. Otherwise → state: idle
+        """
+        user = request.auth
+
+        # 1. Check for an active match
+        active_match = (
+            Match.objects.filter(
+                players__user=user,
+                status__in=[Match.Status.IN_PROGRESS, Match.Status.SELECTING],
+            )
+            .order_by('-created_at')
+            .first()
+        )
+        if active_match:
+            return {'state': 'in_match', 'match_id': str(active_match.id)}
+
+        # 2. Check for an active lobby
+        lobby_player = (
+            LobbyPlayer.objects.select_related('lobby', 'lobby__game_mode')
+            .filter(
+                user=user,
+                lobby__status__in=[
+                    Lobby.Status.WAITING,
+                    Lobby.Status.FULL,
+                    Lobby.Status.READY,
+                ],
+            )
+            .order_by('-lobby__created_at')
+            .first()
+        )
+        if lobby_player:
+            lobby = lobby_player.lobby
+            lobby_players = (
+                LobbyPlayer.objects.select_related('user')
+                .filter(lobby=lobby)
+                .order_by('joined_at')
+            )
+            return {
+                'state': 'in_lobby',
+                'lobby_id': str(lobby.id),
+                'game_mode_slug': lobby.game_mode.slug if lobby.game_mode_id else None,
+                'players': [
+                    {
+                        'user_id': str(lp.user_id),
+                        'username': lp.user.username,
+                        'is_ready': lp.is_ready,
+                        'is_bot': lp.is_bot,
+                    }
+                    for lp in lobby_players
+                ],
+                'max_players': lobby.max_players,
+            }
+
+        # 3. Check the matchmaking queue
+        try:
+            queue_entry = MatchQueue.objects.select_related('game_mode').get(user=user)
+            return {
+                'state': 'in_queue',
+                'game_mode_slug': queue_entry.game_mode.slug if queue_entry.game_mode_id else None,
+                'joined_at': queue_entry.joined_at.isoformat(),
+            }
+        except MatchQueue.DoesNotExist:
+            pass
+
+        # 4. Idle
+        return {'state': 'idle'}

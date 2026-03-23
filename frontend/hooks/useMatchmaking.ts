@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback, ty
 import { createElement } from "react";
 import { createSocket, type WSMessage } from "@/lib/ws";
 import { getAccessToken } from "@/lib/auth";
-import { getWsTicket } from "@/lib/api";
+import { getWsTicket, getMatchmakingStatus } from "@/lib/api";
 import { solveChallenge } from "@/lib/pow";
 
 // ─── Session storage keys ────────────────────────────────────────────────────
@@ -402,58 +402,88 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Auto-reconnect from session on mount
+  // Auto-reconnect on mount: API is source of truth; localStorage is a fast same-browser cache.
   useEffect(() => {
-    const session = loadQueueSession();
-    if (session) {
-      setFillBots(session.fillBots);
-      setInstantBot(session.instantBot);
-      setGameModeSlug(session.gameModeSlug);
-      if (session.lobbyId) {
-        setLobbyId(session.lobbyId);
+    let cancelled = false;
+
+    const init = async () => {
+      const token = getAccessToken();
+
+      // Fast path: try localStorage first so we can start connecting immediately
+      const localSession = loadQueueSession();
+
+      if (token) {
+        try {
+          const status = await getMatchmakingStatus(token);
+
+          if (cancelled) return;
+
+          if (status.state === "in_match" && status.match_id) {
+            setActiveMatchId(status.match_id);
+            setMatchId(status.match_id);
+            saveQueueSession(null);
+            return;
+          }
+
+          if (status.state === "in_lobby" || status.state === "in_queue") {
+            const slug = status.game_mode_slug ?? null;
+            const joinedAt = status.joined_at
+              ? new Date(status.joined_at).getTime()
+              : (localSession?.joinedAt ?? Date.now());
+            const fb = localSession?.fillBots ?? true;
+            const ib = localSession?.instantBot ?? false;
+
+            setGameModeSlug(slug);
+            setFillBots(fb);
+            setInstantBot(ib);
+
+            if (status.state === "in_lobby") {
+              const lid = status.lobby_id ?? localSession?.lobbyId ?? null;
+              if (lid) setLobbyId(lid);
+              if (status.players) {
+                setLobbyPlayers(status.players.map(p => ({ ...p, is_banned: false })));
+                setPlayersInQueue(status.players.length);
+              }
+              if (status.max_players) setLobbyMaxPlayers(status.max_players);
+            }
+
+            if (!wsRef.current) {
+              connectToQueue(slug, fb, ib, joinedAt);
+            }
+            return;
+          }
+
+          // state === "idle" — nothing to restore
+          saveQueueSession(null);
+          return;
+        } catch {
+          // API unavailable — fall through to localStorage
+        }
       }
-      connectToQueue(session.gameModeSlug, session.fillBots, session.instantBot, session.joinedAt);
-    }
+
+      // Fallback: same-browser localStorage session (no token or API error)
+      if (localSession && !cancelled) {
+        setFillBots(localSession.fillBots);
+        setInstantBot(localSession.instantBot);
+        setGameModeSlug(localSession.gameModeSlug);
+        if (localSession.lobbyId) setLobbyId(localSession.lobbyId);
+        connectToQueue(
+          localSession.gameModeSlug,
+          localSession.fillBots,
+          localSession.instantBot,
+          localSession.joinedAt,
+        );
+      }
+    };
+
+    init();
+
     return () => {
+      cancelled = true;
       wsRef.current?.close();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Cross-tab sync: when another tab writes to localStorage, reconnect or clear state
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key !== QUEUE_KEY) return;
-      if (e.newValue) {
-        // Another tab started/updated queue — reconnect if not already connected
-        const session = loadQueueSession();
-        if (session && !wsRef.current) {
-          setFillBots(session.fillBots);
-          setInstantBot(session.instantBot);
-          setGameModeSlug(session.gameModeSlug);
-          if (session.lobbyId) setLobbyId(session.lobbyId);
-          connectToQueue(session.gameModeSlug, session.fillBots, session.instantBot, session.joinedAt);
-        }
-      } else {
-        // Another tab left queue — clean up
-        if (wsRef.current) {
-          wsRef.current.close();
-          wsRef.current = null;
-        }
-        setInQueue(false);
-        setLobbyId(null);
-        setLobbyPlayers([]);
-        setLobbyFull(false);
-        setAllReady(false);
-        setLobbyFullAt(null);
-        setLobbyChatMessages([]);
-        setVoiceToken(null);
-        setVoiceUrl(null);
-      }
-    };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, [connectToQueue]);
 
   const value: MatchmakingContextValue = {
     inQueue, playersInQueue, matchId, activeMatchId, queueSeconds, gameModeSlug,
