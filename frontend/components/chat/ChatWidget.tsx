@@ -65,6 +65,7 @@ function DMChatView({ friendId, friendUsername, currentUserId, token }: DMChatVi
           is_online: true,
           activity_status: "online",
           activity_details: {},
+          clan_tag: null,
         },
         receiver: {
           id: currentUserId,
@@ -73,6 +74,7 @@ function DMChatView({ friendId, friendUsername, currentUserId, token }: DMChatVi
           is_online: true,
           activity_status: "online",
           activity_details: {},
+          clan_tag: null,
         },
         content: msg.content,
         is_read: false,

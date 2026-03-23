@@ -161,7 +161,7 @@ export default memo(function RegionPanel({
           <h3 className="truncate font-display text-base font-bold text-foreground sm:text-lg">{region.name}</h3>
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             {owner ? (
-              <span className="truncate">{owner.username}{owner.is_bot ? " (BOT)" : ""}</span>
+              <span className="truncate">{owner.clan_tag && `[${owner.clan_tag}] `}{owner.username}{owner.is_bot ? " (BOT)" : ""}</span>
             ) : (
               <span>Neutralny</span>
             )}

@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
+import { ClanTag } from "@/components/ClanTag";
 import {
   ArrowLeft,
   ChevronRight,
@@ -241,7 +242,10 @@ export default function ProfilePage() {
         )}
         <div className="flex-1 min-w-0">
           <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground">Profil</p>
-          <h1 className="font-display text-2xl md:text-3xl text-foreground truncate">{displayName}</h1>
+          <h1 className="font-display text-2xl md:text-3xl text-foreground truncate">
+            {(isOwnProfile ? currentUser.clan_tag : entry?.clan_tag) && <ClanTag tag={isOwnProfile ? currentUser.clan_tag : entry?.clan_tag} className="text-lg md:text-xl mr-1.5" />}
+            {displayName}
+          </h1>
         </div>
         {isOwnProfile && (
           <Link

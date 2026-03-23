@@ -10,6 +10,7 @@ import { CheckCircle2, Loader2, Swords } from "lucide-react";
 interface PlayerInfo {
   user_id: string;
   username: string;
+  clan_tag?: string | null;
   color: string;
   is_bot?: boolean;
 }
@@ -101,6 +102,7 @@ function PlayerCard({
       {/* Name + badges */}
       <div className={`flex flex-col gap-1 ${alignClass}`}>
         <span className="font-display text-lg font-bold uppercase tracking-wide text-zinc-50 sm:text-xl">
+          {player.clan_tag && <span className="text-zinc-400">[{player.clan_tag}]{"\u00A0"}</span>}
           {player.username}
           {isMe && (
             <span className="ml-2 text-sm font-normal normal-case tracking-normal text-cyan-400">

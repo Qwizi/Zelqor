@@ -192,7 +192,7 @@ class GameInternalController(ControllerBase):
 
         from apps.matchmaking.models import Match
         try:
-            match = Match.objects.prefetch_related('players__user').get(id=match_id)
+            match = Match.objects.prefetch_related('players__user__clan_membership__clan').get(id=match_id)
             return {
                 'max_players': match.max_players,
                 'is_tutorial': match.is_tutorial,
@@ -201,6 +201,7 @@ class GameInternalController(ControllerBase):
                     {
                         'user_id': str(p.user.id),
                         'username': p.user.username,
+                        'clan_tag': getattr(getattr(getattr(p.user, 'clan_membership', None), 'clan', None), 'tag', None),
                         'color': p.color,
                         'is_bot': p.user.is_bot,
                         # Deck snapshot fields — consumed at match creation and stored on

@@ -17,6 +17,7 @@ import {
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ClanTag } from "@/components/ClanTag";
 import {
   ArrowLeft,
   Loader2,
@@ -113,7 +114,7 @@ function ConversationItem({
             "text-base font-semibold truncate",
             active ? "text-primary" : "text-foreground"
           )}>
-            {conv.partner.username}
+            {conv.partner.clan_tag && <ClanTag tag={conv.partner.clan_tag} className="text-sm mr-1" />}{conv.partner.username}
           </span>
           <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
             {timeAgo(conv.last_message.created_at)}
@@ -153,7 +154,7 @@ function MessageBubble({
       <div className={cn("max-w-[75%] flex flex-col gap-0.5", isMine ? "items-end" : "items-start")}>
         {!isMine && (
           <span className="text-xs font-medium text-muted-foreground px-1">
-            {message.sender.username}
+            {message.sender.clan_tag && <ClanTag tag={message.sender.clan_tag} className="text-[10px] mr-0.5" />}{message.sender.username}
           </span>
         )}
         <div className={cn(

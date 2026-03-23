@@ -133,6 +133,7 @@ export interface User {
   average_placement: number;
   has_password: boolean;
   avatar_url: string | null;
+  clan_tag: string | null;
 }
 
 export class BannedError extends Error {
@@ -345,6 +346,7 @@ export interface LeaderboardEntry {
   average_placement: number;
   is_banned: boolean;
   avatar_url: string | null;
+  clan_tag: string | null;
 }
 
 export async function getLeaderboard(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<LeaderboardEntry>> {
@@ -1433,6 +1435,7 @@ export interface FriendUser {
   is_online: boolean;
   activity_status: string;
   activity_details: { status?: string; game_mode?: string; match_id?: string; players_count?: number; started_at?: string };
+  clan_tag: string | null;
 }
 
 export interface FriendshipOut {
@@ -1576,4 +1579,297 @@ export async function markNotificationRead(token: string, id: string): Promise<v
 
 export async function markAllNotificationsRead(token: string): Promise<void> {
   await fetchAPI('/notifications/read-all/', { method: 'POST', token });
+}
+
+// ── Clans ──
+
+export interface ClanUser {
+  id: string;
+  username: string;
+  elo_rating: number;
+}
+
+export interface ClanOut {
+  id: string;
+  name: string;
+  tag: string;
+  description: string;
+  badge: string | null;
+  color: string;
+  leader: ClanUser;
+  level: number;
+  experience: number;
+  elo_rating: number;
+  member_count: number;
+  max_members: number;
+  is_recruiting: boolean;
+  is_public: boolean;
+  created_at: string;
+}
+
+export interface ClanMembershipOut {
+  id: string;
+  user: ClanUser;
+  role: string;
+  joined_at: string;
+  contributions_gold: number;
+}
+
+export interface ClanDetailOut extends ClanOut {
+  treasury_gold: number;
+  tax_percent: number;
+  my_membership: ClanMembershipOut | null;
+}
+
+export interface ClanInvitationOut {
+  id: string;
+  clan: ClanOut;
+  invited_user: ClanUser;
+  invited_by: ClanUser;
+  status: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface ClanJoinRequestOut {
+  id: string;
+  clan: ClanOut;
+  user: ClanUser;
+  message: string;
+  status: string;
+  created_at: string;
+}
+
+export interface ClanWarOut {
+  id: string;
+  challenger: ClanOut;
+  defender: ClanOut;
+  status: string;
+  winner_id: string | null;
+  challenger_elo_change: number;
+  defender_elo_change: number;
+  players_per_side: number;
+  wager_gold: number;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface ClanWarParticipantOut {
+  id: string;
+  user: ClanUser;
+  clan_id: string;
+}
+
+export interface ClanActivityLogOut {
+  id: string;
+  actor: ClanUser | null;
+  action: string;
+  detail: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ClanChatMessageOut {
+  id: string;
+  user: ClanUser;
+  content: string;
+  created_at: string;
+}
+
+export interface ClanLeaderboardEntry {
+  id: string;
+  name: string;
+  tag: string;
+  badge: string | null;
+  color: string;
+  level: number;
+  elo_rating: number;
+  member_count: number;
+}
+
+export interface ClanStats {
+  clan_id: string;
+  level: number;
+  experience: number;
+  elo_rating: number;
+  member_count: number;
+  wars_total: number;
+  wars_won: number;
+  wars_lost: number;
+  war_win_rate: number;
+}
+
+export interface MyClanResponse {
+  clan: ClanOut | null;
+  membership: ClanMembershipOut | null;
+}
+
+// Clan CRUD
+
+export async function createClan(token: string, data: { name: string; tag: string; description?: string; color?: string; is_public?: boolean }): Promise<ClanOut> {
+  return fetchAPI<ClanOut>('/clans/', { method: 'POST', token, body: JSON.stringify(data) });
+}
+
+export async function getClans(token: string, search?: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanOut>> {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (limit !== undefined) params.set('limit', String(limit));
+  if (offset !== undefined) params.set('offset', String(offset));
+  const qs = params.toString();
+  return fetchAPI<PaginatedResponse<ClanOut>>(`/clans/${qs ? '?' + qs : ''}`, { token });
+}
+
+export async function getMyClan(token: string): Promise<MyClanResponse> {
+  return fetchAPI<MyClanResponse>('/clans/my/', { token });
+}
+
+export async function getClan(token: string, clanId: string): Promise<ClanDetailOut> {
+  return fetchAPI<ClanDetailOut>(`/clans/${clanId}/`, { token });
+}
+
+export async function updateClan(token: string, clanId: string, data: Record<string, unknown>): Promise<ClanOut> {
+  return fetchAPI<ClanOut>(`/clans/${clanId}/`, { method: 'PATCH', token, body: JSON.stringify(data) });
+}
+
+export async function dissolveClan(token: string, clanId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/`, { method: 'DELETE', token });
+}
+
+// Members
+
+export async function getClanMembers(token: string, clanId: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanMembershipOut>> {
+  return fetchPaginated<ClanMembershipOut>(`/clans/${clanId}/members/`, { token, limit, offset });
+}
+
+export async function leaveClan(token: string, clanId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/leave/`, { method: 'POST', token });
+}
+
+export async function kickMember(token: string, clanId: string, userId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/kick/${userId}/`, { method: 'POST', token });
+}
+
+export async function promoteMember(token: string, clanId: string, userId: string): Promise<{ ok: boolean; new_role: string }> {
+  return fetchAPI<{ ok: boolean; new_role: string }>(`/clans/${clanId}/promote/${userId}/`, { method: 'POST', token });
+}
+
+export async function demoteMember(token: string, clanId: string, userId: string): Promise<{ ok: boolean; new_role: string }> {
+  return fetchAPI<{ ok: boolean; new_role: string }>(`/clans/${clanId}/demote/${userId}/`, { method: 'POST', token });
+}
+
+export async function transferLeadership(token: string, clanId: string, userId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/transfer-leadership/${userId}/`, { method: 'POST', token });
+}
+
+// Invitations
+
+export async function invitePlayer(token: string, clanId: string, userId: string): Promise<ClanInvitationOut> {
+  return fetchAPI<ClanInvitationOut>(`/clans/${clanId}/invite/${userId}/`, { method: 'POST', token });
+}
+
+export async function getMyInvitations(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanInvitationOut>> {
+  return fetchPaginated<ClanInvitationOut>('/clans/my-invitations/', { token, limit, offset });
+}
+
+export async function acceptInvitation(token: string, invitationId: string): Promise<{ ok: boolean; clan_id: string }> {
+  return fetchAPI<{ ok: boolean; clan_id: string }>(`/clans/invitations/${invitationId}/accept/`, { method: 'POST', token });
+}
+
+export async function declineInvitation(token: string, invitationId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/invitations/${invitationId}/decline/`, { method: 'POST', token });
+}
+
+// Join Requests
+
+export async function joinClan(token: string, clanId: string, message?: string): Promise<{ ok: boolean; joined: boolean; message?: string }> {
+  return fetchAPI<{ ok: boolean; joined: boolean; message?: string }>(`/clans/${clanId}/join/`, {
+    method: 'POST', token, body: JSON.stringify({ message: message || '' }),
+  });
+}
+
+export async function getClanJoinRequests(token: string, clanId: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanJoinRequestOut>> {
+  return fetchPaginated<ClanJoinRequestOut>(`/clans/${clanId}/join-requests/`, { token, limit, offset });
+}
+
+export async function acceptJoinRequest(token: string, requestId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/join-requests/${requestId}/accept/`, { method: 'POST', token });
+}
+
+export async function declineJoinRequest(token: string, requestId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/join-requests/${requestId}/decline/`, { method: 'POST', token });
+}
+
+// Treasury
+
+export async function getClanTreasury(token: string, clanId: string): Promise<{ treasury_gold: number; tax_percent: number }> {
+  return fetchAPI<{ treasury_gold: number; tax_percent: number }>(`/clans/${clanId}/treasury/`, { token });
+}
+
+export async function donateGold(token: string, clanId: string, amount: number): Promise<{ ok: boolean; treasury_gold: number }> {
+  return fetchAPI<{ ok: boolean; treasury_gold: number }>(`/clans/${clanId}/treasury/donate/`, {
+    method: 'POST', token, body: JSON.stringify({ amount }),
+  });
+}
+
+export async function withdrawGold(token: string, clanId: string, amount: number, reason?: string): Promise<{ ok: boolean; treasury_gold: number }> {
+  return fetchAPI<{ ok: boolean; treasury_gold: number }>(`/clans/${clanId}/treasury/withdraw/`, {
+    method: 'POST', token, body: JSON.stringify({ amount, reason: reason || '' }),
+  });
+}
+
+// Wars
+
+export async function declareWar(token: string, clanId: string, targetId: string, data: { players_per_side?: number; wager_gold?: number }): Promise<ClanWarOut> {
+  return fetchAPI<ClanWarOut>(`/clans/${clanId}/wars/declare/${targetId}/`, { method: 'POST', token, body: JSON.stringify(data) });
+}
+
+export async function acceptWar(token: string, warId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/accept/`, { method: 'POST', token });
+}
+
+export async function declineWar(token: string, warId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/decline/`, { method: 'POST', token });
+}
+
+export async function joinWar(token: string, warId: string): Promise<ClanWarParticipantOut> {
+  return fetchAPI<ClanWarParticipantOut>(`/clans/wars/${warId}/join/`, { method: 'POST', token });
+}
+
+export async function getClanWars(token: string, clanId: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanWarOut>> {
+  return fetchPaginated<ClanWarOut>(`/clans/${clanId}/wars/`, { token, limit, offset });
+}
+
+export async function getWarParticipants(token: string, warId: string): Promise<ClanWarParticipantOut[]> {
+  return fetchAPI<ClanWarParticipantOut[]>(`/clans/wars/${warId}/participants/`, { token });
+}
+
+// Leaderboard & Stats
+
+export async function getClanLeaderboard(token: string, sort?: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanLeaderboardEntry>> {
+  const params = new URLSearchParams();
+  if (sort) params.set('sort', sort);
+  if (limit !== undefined) params.set('limit', String(limit));
+  if (offset !== undefined) params.set('offset', String(offset));
+  const qs = params.toString();
+  return fetchAPI<PaginatedResponse<ClanLeaderboardEntry>>(`/clans/leaderboard/${qs ? '?' + qs : ''}`, { token });
+}
+
+export async function getClanStats(token: string, clanId: string): Promise<ClanStats> {
+  return fetchAPI<ClanStats>(`/clans/${clanId}/stats/`, { token });
+}
+
+// Activity Log
+
+export async function getClanActivityLog(token: string, clanId: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanActivityLogOut>> {
+  return fetchPaginated<ClanActivityLogOut>(`/clans/${clanId}/activity-log/`, { token, limit, offset });
+}
+
+// Chat
+
+export async function getClanChat(token: string, clanId: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanChatMessageOut>> {
+  return fetchPaginated<ClanChatMessageOut>(`/clans/${clanId}/chat/`, { token, limit, offset });
+}
+
+export async function sendClanChatMessage(token: string, clanId: string, content: string): Promise<ClanChatMessageOut> {
+  return fetchAPI<ClanChatMessageOut>(`/clans/${clanId}/chat/`, { method: 'POST', token, body: JSON.stringify({ content }) });
 }

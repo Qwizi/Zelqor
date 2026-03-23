@@ -133,4 +133,32 @@ export const queryKeys = {
     snapshot: (shareToken: string) =>
       [...queryKeys.share.all, shareToken, "snapshot"] as const,
   },
+  clans: {
+    all: ["clans"] as const,
+    list: (search?: string, limit?: number, offset?: number) =>
+      [...queryKeys.clans.all, "list", { search, limit, offset }] as const,
+    my: () => [...queryKeys.clans.all, "my"] as const,
+    detail: (clanId: string) =>
+      [...queryKeys.clans.all, clanId] as const,
+    members: (clanId: string, limit?: number, offset?: number) =>
+      [...queryKeys.clans.all, clanId, "members", { limit, offset }] as const,
+    invitations: (limit?: number, offset?: number) =>
+      [...queryKeys.clans.all, "invitations", { limit, offset }] as const,
+    joinRequests: (clanId: string, limit?: number, offset?: number) =>
+      [...queryKeys.clans.all, clanId, "join-requests", { limit, offset }] as const,
+    treasury: (clanId: string) =>
+      [...queryKeys.clans.all, clanId, "treasury"] as const,
+    wars: (clanId: string, limit?: number, offset?: number) =>
+      [...queryKeys.clans.all, clanId, "wars", { limit, offset }] as const,
+    warParticipants: (warId: string) =>
+      [...queryKeys.clans.all, "wars", warId, "participants"] as const,
+    leaderboard: (sort?: string, limit?: number, offset?: number) =>
+      [...queryKeys.clans.all, "leaderboard", { sort, limit, offset }] as const,
+    stats: (clanId: string) =>
+      [...queryKeys.clans.all, clanId, "stats"] as const,
+    activityLog: (clanId: string, limit?: number, offset?: number) =>
+      [...queryKeys.clans.all, clanId, "activity-log", { limit, offset }] as const,
+    chat: (clanId: string, limit?: number, offset?: number) =>
+      [...queryKeys.clans.all, clanId, "chat", { limit, offset }] as const,
+  },
 } as const;

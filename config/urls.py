@@ -25,6 +25,7 @@ from apps.accounts.steam_auth import SteamAuthController
 from apps.accounts.friends_api import FriendsController
 from apps.accounts.messages_api import MessagesController
 from apps.notifications.views import NotificationController
+from apps.clans.api import ClanGlobalController, ClanController
 
 api = NinjaExtraAPI(title='MapLord API', version='1.0.0')
 api.register_controllers(
@@ -54,6 +55,8 @@ api.register_controllers(
     FriendsController,
     MessagesController,
     NotificationController,
+    ClanGlobalController,
+    ClanController,
 )
 
 def health_check(request):

@@ -25,6 +25,8 @@ pub struct UserInfo {
 pub struct MatchPlayerInfo {
     pub user_id: String,
     pub username: String,
+    #[serde(default)]
+    pub clan_tag: Option<String>,
     pub color: String,
     #[serde(default)]
     pub is_bot: bool,

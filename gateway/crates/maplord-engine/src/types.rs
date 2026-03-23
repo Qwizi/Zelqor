@@ -484,6 +484,8 @@ pub struct Player {
     #[serde(default)]
     pub username: String,
     #[serde(default)]
+    pub clan_tag: Option<String>,
+    #[serde(default)]
     pub color: String,
     #[serde(default = "default_true")]
     pub is_alive: bool,

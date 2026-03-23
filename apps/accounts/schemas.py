@@ -44,6 +44,7 @@ class UserOutSchema(Schema):
     wins: int = 0
     win_rate: float = 0.0
     average_placement: float = 0.0
+    clan_tag: str | None = None
 
     class Config:
         from_attributes = True
@@ -60,6 +61,16 @@ class UserOutSchema(Schema):
     @staticmethod
     def resolve_has_password(obj):
         return obj.has_usable_password()
+
+    @staticmethod
+    def resolve_clan_tag(obj):
+        m = getattr(obj, '_prefetched_clan_tag', None)
+        if m is not None:
+            return m
+        try:
+            return obj.clan_membership.clan.tag
+        except Exception:
+            return None
 
 
 class SocialAccountOutSchema(Schema):
@@ -84,6 +95,7 @@ class LeaderboardEntrySchema(Schema):
     average_placement: float = 0.0
     is_banned: bool = False
     avatar_url: str | None = None
+    clan_tag: str | None = None
 
     class Config:
         from_attributes = True
@@ -103,6 +115,13 @@ class LeaderboardEntrySchema(Schema):
             return social.avatar_url
         return None
 
+    @staticmethod
+    def resolve_clan_tag(obj):
+        try:
+            return obj.clan_membership.clan.tag
+        except Exception:
+            return None
+
 
 class FriendUserSchema(Schema):
     id: uuid.UUID
@@ -111,9 +130,17 @@ class FriendUserSchema(Schema):
     is_online: bool = False
     activity_status: str = 'offline'
     activity_details: dict = {}
+    clan_tag: str | None = None
 
     class Config:
         from_attributes = True
+
+    @staticmethod
+    def resolve_clan_tag(obj):
+        try:
+            return obj.clan_membership.clan.tag
+        except Exception:
+            return None
 
 
 class FriendshipOutSchema(Schema):

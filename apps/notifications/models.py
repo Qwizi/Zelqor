@@ -11,10 +11,21 @@ class Notification(models.Model):
         MATCH_LOST = 'match_lost'
         PLAYER_ELIMINATED = 'player_eliminated'
         GAME_INVITE = 'game_invite'
+        # Clan notifications
+        CLAN_INVITATION_RECEIVED = 'clan_invitation_received'
+        CLAN_JOIN_REQUEST = 'clan_join_request'
+        CLAN_JOIN_REQUEST_ACCEPTED = 'clan_join_request_accepted'
+        CLAN_MEMBER_JOINED = 'clan_member_joined'
+        CLAN_MEMBER_LEFT = 'clan_member_left'
+        CLAN_WAR_DECLARED = 'clan_war_declared'
+        CLAN_WAR_RESULT = 'clan_war_result'
+        CLAN_PROMOTED = 'clan_promoted'
+        CLAN_DEMOTED = 'clan_demoted'
+        CLAN_KICKED = 'clan_kicked'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
-    type = models.CharField(max_length=30, choices=Type.choices)
+    type = models.CharField(max_length=40, choices=Type.choices)
     title = models.CharField(max_length=200)
     body = models.TextField(blank=True, default='')
     data = models.JSONField(default=dict, blank=True)

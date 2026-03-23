@@ -702,6 +702,7 @@ export default function GamePage({
         return {
           user_id: player.user_id,
           username: player.username,
+          clan_tag: player.clan_tag,
           color: player.color,
           regionCount: stats?.regionCount ?? 0,
           unitCount: stats?.unitCount ?? 0,

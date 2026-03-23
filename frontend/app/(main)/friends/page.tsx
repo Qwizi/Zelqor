@@ -53,6 +53,7 @@ function activityLabel(status: string, details?: { game_mode?: string; players_c
     default: return "Offline";
   }
 }
+import { ClanTag } from "@/components/ClanTag";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -325,7 +326,7 @@ export default function FriendsPage() {
                             )} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-base font-semibold text-foreground truncate">{friend.username}</p>
+                            <p className="text-base font-semibold text-foreground truncate">{friend.clan_tag && <ClanTag tag={friend.clan_tag} className="text-sm mr-1" />}{friend.username}</p>
                             <p className="text-xs text-muted-foreground">ELO: <span className="text-accent tabular-nums text-sm">{friend.elo_rating}</span></p>
                           </div>
                           <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
@@ -372,7 +373,7 @@ export default function FriendsPage() {
                                   )} />
                                 </div>
                                 <span className="text-base font-semibold text-foreground group-hover:text-primary transition-colors truncate">
-                                  {friend.username}
+                                  {friend.clan_tag && <ClanTag tag={friend.clan_tag} className="text-sm mr-1" />}{friend.username}
                                 </span>
                               </Link>
                             </TableCell>
@@ -439,7 +440,7 @@ export default function FriendsPage() {
                           )} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-base font-semibold text-foreground truncate">{f.from_user.username}</p>
+                          <p className="text-base font-semibold text-foreground truncate">{f.from_user.clan_tag && <ClanTag tag={f.from_user.clan_tag} className="text-sm mr-1" />}{f.from_user.username}</p>
                           <p className="text-xs text-muted-foreground">ELO: <span className="text-accent tabular-nums text-sm">{f.from_user.elo_rating}</span></p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
@@ -483,7 +484,7 @@ export default function FriendsPage() {
                             )} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-base font-semibold text-foreground truncate">{f.from_user.username}</p>
+                            <p className="text-base font-semibold text-foreground truncate">{f.from_user.clan_tag && <ClanTag tag={f.from_user.clan_tag} className="text-sm mr-1" />}{f.from_user.username}</p>
                             <p className="text-sm text-muted-foreground">ELO: <span className="text-accent tabular-nums">{f.from_user.elo_rating}</span></p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
@@ -540,7 +541,7 @@ export default function FriendsPage() {
                           )} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-base font-semibold text-foreground truncate">{f.to_user.username}</p>
+                          <p className="text-base font-semibold text-foreground truncate">{f.to_user.clan_tag && <ClanTag tag={f.to_user.clan_tag} className="text-sm mr-1" />}{f.to_user.username}</p>
                           <p className="text-xs text-muted-foreground">ELO: <span className="text-accent tabular-nums text-sm">{f.to_user.elo_rating}</span></p>
                         </div>
                         <button
@@ -573,7 +574,7 @@ export default function FriendsPage() {
                             )} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-base font-semibold text-foreground truncate">{f.to_user.username}</p>
+                            <p className="text-base font-semibold text-foreground truncate">{f.to_user.clan_tag && <ClanTag tag={f.to_user.clan_tag} className="text-sm mr-1" />}{f.to_user.username}</p>
                             <p className="text-sm text-muted-foreground">ELO: <span className="text-accent tabular-nums">{f.to_user.elo_rating}</span></p>
                           </div>
                           <Button

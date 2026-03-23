@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ClanTag } from "@/components/ClanTag";
 import { useAuth } from "@/hooks/useAuth";
 import { MatchmakingProvider, useMatchmaking } from "@/hooks/useMatchmaking";
 import { useSystemModules } from "@/hooks/useSystemModules";
@@ -79,6 +80,7 @@ const NAV_MODULE_MAP: Record<string, string> = {
 const ALL_PLAY_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Graj", icon: <LayoutDashboard size={20} />, matchExact: true },
   { href: "/leaderboard", label: "Ranking", icon: <Medal size={20} />, matchExact: true },
+  { href: "/clans", label: "Klany", icon: <Swords size={20} /> },
   { href: "/friends", label: "Znajomi", icon: <Users size={20} /> },
   { href: "/messages", label: "Wiadomości", icon: <MessageSquare size={20} /> },
 ];
@@ -126,7 +128,7 @@ function ProfilePopover({
   collapsed,
   onLogout,
 }: {
-  user: { username: string; elo_rating: number; email: string };
+  user: { username: string; elo_rating: number; email: string; clan_tag?: string | null };
   wallet: WalletOut | null;
   collapsed: boolean;
   onLogout: () => void;
@@ -150,7 +152,7 @@ function ProfilePopover({
         </div>
         {!collapsed && (
           <>
-            <span className="flex-1 truncate text-left text-sm font-medium text-foreground">{user.username}</span>
+            <span className="flex-1 truncate text-left text-sm font-medium text-foreground">{user.clan_tag && <ClanTag tag={user.clan_tag} className="text-xs mr-1" />}{user.username}</span>
             <ChevronRight size={14} className={cn("shrink-0 text-muted-foreground/50 transition-transform duration-200", open && "rotate-90")} />
           </>
         )}
@@ -798,7 +800,7 @@ function SidebarFriendsPanel({
               </Link>
               {/* Username — click → profile */}
               <Link href={`/profile/${friend.id}`} className="flex-1 truncate text-[12px] font-medium text-foreground hover:text-primary transition-colors">
-                {friend.username}
+                {friend.clan_tag && <ClanTag tag={friend.clan_tag} className="text-[10px] mr-0.5" />}{friend.username}
               </Link>
               {/* Chat */}
               <button

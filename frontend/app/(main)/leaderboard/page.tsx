@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Trophy, Medal, ChevronLeft, ChevronRight, Target, Swords, Crown, Users } from "lucide-react";
 import { LeaderboardSkeleton } from "@/components/skeletons/LeaderboardSkeleton";
+import { ClanTag } from "@/components/ClanTag";
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
@@ -126,7 +127,7 @@ function LeaderboardContent() {
                     )}
                   </div>
                   <div className="text-center min-w-0 w-full">
-                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.username}</p>
+                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-[10px] md:text-xs mr-0.5" />}{entry.username}</p>
                     <p className="font-display text-sm md:text-lg text-[#C0C0C0] tabular-nums">{entry.elo_rating}</p>
                     <p className="text-[10px] text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
                   </div>
@@ -152,7 +153,7 @@ function LeaderboardContent() {
                     )}
                   </div>
                   <div className="text-center min-w-0 w-full">
-                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.username}</p>
+                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-[10px] md:text-xs mr-0.5" />}{entry.username}</p>
                     <p className="font-display text-base md:text-xl text-[#FFD700] tabular-nums">{entry.elo_rating}</p>
                     <p className="text-[10px] text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
                   </div>
@@ -178,7 +179,7 @@ function LeaderboardContent() {
                     )}
                   </div>
                   <div className="text-center min-w-0 w-full">
-                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.username}</p>
+                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-[10px] md:text-xs mr-0.5" />}{entry.username}</p>
                     <p className="font-display text-xs md:text-base text-[#CD7F32] tabular-nums">{entry.elo_rating}</p>
                     <p className="text-[10px] text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
                   </div>
@@ -219,6 +220,7 @@ function LeaderboardContent() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
+                    {entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-xs shrink-0" />}
                     <span className={`text-sm font-semibold text-foreground truncate ${entry.is_banned ? "line-through opacity-60" : ""}`}>{entry.username}</span>
                     {isMe && <span className="text-[10px] font-bold text-primary">Ty</span>}
                     {isFriend && <Users className="h-3 w-3 text-muted-foreground shrink-0" />}
@@ -284,6 +286,7 @@ function LeaderboardContent() {
                             <span className="text-sm font-bold text-muted-foreground">{entry.username[0].toUpperCase()}</span>
                           )}
                         </div>
+                        {entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-sm shrink-0" />}
                         <Link href={`/profile/${entry.id}`} className={`text-base font-semibold text-foreground hover:text-primary transition-colors ${entry.is_banned ? "line-through opacity-60" : ""}`}>{entry.username}</Link>
                         {isMe && <Badge className="border-0 bg-primary/15 text-xs text-primary hover:bg-primary/15">Ty</Badge>}
                         {isFriend && <Badge className="border-0 bg-muted text-xs text-muted-foreground hover:bg-muted gap-1"><Users className="h-3 w-3" />Znajomy</Badge>}

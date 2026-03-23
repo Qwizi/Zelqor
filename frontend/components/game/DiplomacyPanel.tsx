@@ -64,7 +64,7 @@ function PeaceDialog({ targetPlayer, war, currentPlayerId, onPropose, onClose }:
           Zaproponuj pokoj
         </h3>
         <p className="mb-4 text-xs text-muted-foreground">
-          Do: <span style={{ color: targetPlayer.color }} className="font-medium">{targetPlayer.username}</span>
+          Do: <span style={{ color: targetPlayer.color }} className="font-medium">{targetPlayer.clan_tag && `[${targetPlayer.clan_tag}] `}{targetPlayer.username}</span>
         </p>
 
         <div className="mb-4 space-y-2">

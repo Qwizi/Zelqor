@@ -2087,6 +2087,7 @@ async fn initialize_game(
         let player = Player {
             user_id: p.user_id.clone(),
             username: p.username.clone(),
+            clan_tag: p.clan_tag.clone(),
             color: p.color.clone(),
             is_alive: true,
             connected: p.is_bot, // Bots are always "connected"

@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'apps.developers',
     'apps.assets',
     'apps.notifications',
+    'apps.clans',
 ]
 
 MIDDLEWARE = [
@@ -145,6 +146,14 @@ CELERY_BEAT_SCHEDULE = {
     'flush-last-active': {
         'task': 'apps.accounts.tasks.flush_last_active',
         'schedule': 300,  # every 5 minutes
+    },
+    'expire-clan-invitations': {
+        'task': 'apps.clans.tasks.expire_clan_invitations',
+        'schedule': 3600,  # every hour
+    },
+    'expire-pending-clan-wars': {
+        'task': 'apps.clans.tasks.expire_pending_wars',
+        'schedule': 3600,  # every hour
     },
 }
 

@@ -12,3 +12,4 @@ export * from "./useDeveloperQueries";
 export * from "./useNotificationQueries";
 export * from "./useMessageQueries";
 export * from "./useShareQueries";
+export * from "./useClanQueries";

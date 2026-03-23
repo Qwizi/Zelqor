@@ -31,6 +31,7 @@ interface GameHUDProps {
   rankedPlayers: Array<{
     user_id: string;
     username: string;
+    clan_tag?: string | null;
     color: string;
     regionCount: number;
     unitCount: number;
@@ -279,6 +280,7 @@ export default memo(function GameHUD({
                   <div className="mb-1.5 flex items-center justify-between">
                     <p className="text-[11px] text-foreground">
                       <span className="font-medium" style={{ color: fromPlayer.color }}>
+                        {fromPlayer.clan_tag && <span className="text-muted-foreground">[{fromPlayer.clan_tag}] </span>}
                         {fromPlayer.username}
                       </span>{" "}
                       proponuje {label}
@@ -357,6 +359,7 @@ export default memo(function GameHUD({
                         />
                       )}
                       <span className="truncate">
+                        {player.clan_tag && <span className="text-muted-foreground">[{player.clan_tag}]{"\u00A0"}</span>}
                         {player.username}
                         {isMe ? " (Ty)" : ""}
                       </span>

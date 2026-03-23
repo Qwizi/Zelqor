@@ -56,6 +56,7 @@ export interface GameRegion {
 export interface GamePlayer {
   user_id: string;
   username: string;
+  clan_tag?: string | null;
   color: string;
   is_alive: boolean;
   connected?: boolean;
