@@ -495,6 +495,7 @@ export class PixiAnimationManager {
   private readonly _particleContainer: Container;
   private _particleIdCounter = 0;
   private _lastUpdateTime = 0;
+  private _gcFrameCounter = 0;
 
   constructor() {
     this.container = new Container();
@@ -740,7 +741,11 @@ export class PixiAnimationManager {
       : 1 / 60;
     this._lastUpdateTime = now;
     this._particles.update(dt);
-    this._gc(now);
+    // Throttle GC to every 30 frames (~500ms at 60fps) to reduce per-frame overhead
+    if (++this._gcFrameCounter >= 30) {
+      this._gcFrameCounter = 0;
+      this._gc(now);
+    }
   }
 
   /** Remove all display objects and free memory. */
@@ -1043,36 +1048,33 @@ export class PixiAnimationManager {
     g.clear();
     if (headIdx - tailIdx < 1) return;
 
-    const trailSlice = a.path.slice(tailIdx, headIdx + 1);
-    if (trailSlice.length < 2) return;
-
     // Layer 1: Wide dim smoke envelope
-    this._strokePath(g, trailSlice, {
+    this._strokePath(g, a.path, {
       color: 0x555555,
       alpha: fadeOut * 0.15,
       width: 10,
-    });
+    }, tailIdx, headIdx);
 
     // Layer 2: Orange heat glow
-    this._strokePath(g, trailSlice, {
+    this._strokePath(g, a.path, {
       color: 0xff6600,
       alpha: fadeOut * 0.2,
       width: 6,
-    });
+    }, tailIdx, headIdx);
 
     // Layer 3: Bright fire core
-    this._strokePath(g, trailSlice, {
+    this._strokePath(g, a.path, {
       color: 0xffaa33,
       alpha: fadeOut * 0.45,
       width: 3,
-    });
+    }, tailIdx, headIdx);
 
     // Layer 4: White-hot inner core
-    this._strokePath(g, trailSlice, {
+    this._strokePath(g, a.path, {
       color: 0xffffcc,
       alpha: fadeOut * 0.6,
       width: 1.2,
-    });
+    }, tailIdx, headIdx);
 
     // Smoke puffs — expanding, darkening clouds along the trail
     const dotsGfx = a.dotsGfx;
@@ -1115,9 +1117,6 @@ export class PixiAnimationManager {
     if (a.config.trail.line_style === "none") return;
     if (headIdx - tailIdx < 1) return;
 
-    const trailSlice = a.path.slice(tailIdx, headIdx + 1);
-    if (trailSlice.length < 2) return;
-
     const opacity = a.config.trail.opacity * fadeOut;
     const width = a.config.trail.width * (0.7 + 0.3 * fadeOut);
 
@@ -1126,15 +1125,16 @@ export class PixiAnimationManager {
       const glowColor = a.config.trail.glow_color
         ? hexToNum(a.config.trail.glow_color)
         : colorNum;
-      this._strokePath(g, trailSlice, {
+      this._strokePath(g, a.path, {
         color: glowColor,
         alpha: opacity * 0.5,
         width: a.config.trail.glow_width,
-      });
+      }, tailIdx, headIdx);
     }
 
     // Main trail line
     if (a.config.trail.line_style === "dashed") {
+      const trailSlice = a.path.slice(tailIdx, headIdx + 1);
       this._drawDashedPolyline(
         g,
         trailSlice,
@@ -1144,7 +1144,7 @@ export class PixiAnimationManager {
         a.config.trail.dash_pattern
       );
     } else {
-      this._strokePath(g, trailSlice, { color: colorNum, alpha: opacity, width });
+      this._strokePath(g, a.path, { color: colorNum, alpha: opacity, width }, tailIdx, headIdx);
     }
 
     // Ship wake: V-shaped lines diverging behind the head position.
@@ -1174,15 +1174,18 @@ export class PixiAnimationManager {
 
   /**
    * Draw a polyline (array of [x,y] points) as a single stroked path.
+   * Accepts optional startIdx/endIdx to avoid creating a slice copy.
    */
   private _strokePath(
     g: Graphics,
     pts: [number, number][],
-    style: { color: number; alpha: number; width: number }
+    style: { color: number; alpha: number; width: number },
+    startIdx = 0,
+    endIdx = pts.length - 1
   ): void {
-    if (pts.length < 2) return;
-    g.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) {
+    if (endIdx - startIdx < 1) return;
+    g.moveTo(pts[startIdx][0], pts[startIdx][1]);
+    for (let i = startIdx + 1; i <= endIdx; i++) {
       g.lineTo(pts[i][0], pts[i][1]);
     }
     g.stroke({ color: style.color, alpha: style.alpha, width: style.width });

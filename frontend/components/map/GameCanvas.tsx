@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Application, Graphics, Text, Container, TextStyle, Assets, Sprite, Texture } from "pixi.js";
 import { Viewport } from "pixi-viewport";
-import type { GameRegion, ActiveEffect, WeatherState, AirTransitItem } from "@/hooks/useGameSocket";
+import type { GameRegion, ActiveEffect, AirTransitItem } from "@/hooks/useGameSocket";
 import type { TroopAnimation, PlannedMove, DiplomacyState } from "@/lib/gameTypes";
 import { PixiAnimationManager, computeCurvePath } from "@/lib/pixiAnimations";
 import type { CosmeticValue } from "@/lib/animationConfig";
@@ -66,7 +66,6 @@ export interface GameCanvasProps {
   nukeBlackout?: Array<{ rid: string; startTime: number }>;
   onMapReady?: () => void;
   initialZoom?: number;
-  weather?: WeatherState;
   airTransitQueue?: AirTransitItem[];
   onFlightClick?: (flightId: string) => void;
   /** slug → manpower_cost for air unit display. */
@@ -85,6 +84,8 @@ interface ProvinceRenderState {
   /** Hex color number of the current fill — used to detect owner change */
   fillColor: number;
   ownerId: string | null;
+  /** Pre-computed flat point arrays per sub-polygon — avoids per-redraw allocation */
+  flatPolys: number[][];
 }
 
 // ── Effect config ─────────────────────────────────────────────
@@ -113,6 +114,23 @@ const UNCLAIMED_FILL_ALPHA = 0.0; // unclaimed provinces: no fill, terrain shows
 const STROKE_WIDTH_DEFAULT = 2;
 const STROKE_WIDTH_SELECTED = 3;
 const STROKE_WIDTH_TARGET = 2;
+
+// ── Cached TextStyles for planned move labels ─────────────────
+
+const PM_STYLE_ATTACK = new TextStyle({
+  fontFamily: "Rajdhani, sans-serif",
+  fontSize: 10,
+  fontWeight: "bold",
+  fill: 0xff4444,
+  dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
+});
+const PM_STYLE_MOVE = new TextStyle({
+  fontFamily: "Rajdhani, sans-serif",
+  fontSize: 10,
+  fontWeight: "bold",
+  fill: 0x22d3ee,
+  dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
+});
 
 // ── Unit pulse config ─────────────────────────────────────────
 
@@ -205,7 +223,6 @@ export default function GameCanvas({
   nukeBlackout,
   onMapReady,
   initialZoom = 1,
-  weather,
   airTransitQueue,
   onFlightClick,
   unitManpowerMap,
@@ -222,20 +239,36 @@ export default function GameCanvas({
   const effectLayerRef = useRef<Container | null>(null);
   const nukeLayerRef = useRef<Container | null>(null);
   const unitChangeLayerRef = useRef<Container | null>(null);
-  const weatherOverlayRef = useRef<Graphics | null>(null);
   const gridLayerRef = useRef<Graphics | null>(null);
   const animManagerRef = useRef<PixiAnimationManager | null>(null);
   const airTransitLayerRef = useRef<Container | null>(null);
   const capitalRadarRef = useRef<Graphics | null>(null);
-  const weatherParticlesRef = useRef<Graphics | null>(null);
   const plannedMovesLayerRef = useRef<Container | null>(null);
   const plannedMovesRef = useRef(plannedMoves);
   plannedMovesRef.current = plannedMoves;
+
+  /** Cached centroid lookup — rebuilt when shapesData changes, not per frame */
+  const centroidCacheRef = useRef<Map<string, [number, number]>>(new Map());
+
+  /** Object pools for ticker — avoid per-frame Graphics allocation */
+  const airHitPoolRef = useRef<Graphics[]>([]);
+  const airHitPoolIdxRef = useRef(0);
+  const interceptorPoolRef = useRef<Graphics[]>([]);
+  const interceptorPoolIdxRef = useRef(0);
+  const samGfxPoolRef = useRef<Graphics[]>([]);
+  const samGfxPoolIdxRef = useRef(0);
+  const pmGfxPoolRef = useRef<Graphics[]>([]);
+  const pmTextPoolRef = useRef<Text[]>([]);
+  const pmPoolIdxRef = useRef(0);
 
   /** Per-province render state — Graphics, Text, cached owner/fill */
   const stateMapRef = useRef<Map<string, ProvinceRenderState>>(new Map());
   /** Track which animation IDs have been registered with the manager */
   const registeredAnimsRef = useRef<Set<string>>(new Set());
+
+  /** Pre-built Sets for O(1) lookup inside drawProvince (avoids .some() per province) */
+  const animTargetSetRef = useRef<Set<string>>(new Set());
+  const bombedRegionSetRef = useRef<Set<string>>(new Set());
 
   // Unit change pulse tracking
   const prevUnitCountsRef = useRef<Map<string, number>>(new Map());
@@ -244,6 +277,9 @@ export default function GameCanvas({
 
   /** Snapshot of the previous regions state — used to diff tick updates. */
   const prevRegionsRef = useRef<Record<string, GameRegion>>({});
+
+  /** Capital layer dirty check — serialized snapshot of capital+building state */
+  const prevCapitalSnapshotRef = useRef("");
 
   /** Temporary visual adjustments from bombardment — subtracted from displayed unit_count
    *  until the next tick confirms the actual state. Keyed by region ID. */
@@ -314,8 +350,6 @@ export default function GameCanvas({
   const shapesDataRef = useRef(shapesData);
   shapesDataRef.current = shapesData;
 
-  const weatherRef = useRef(weather);
-  weatherRef.current = weather;
 
   // Dirty-region rendering: track previous region snapshot + structural generation.
   const prevRegionSnapshotRef = useRef<Record<string, GameRegion>>({});
@@ -325,6 +359,15 @@ export default function GameCanvas({
   useEffect(() => {
     structuralGenRef.current++;
   }, [selectedRegion, targetRegions, highlightedNeighbors, dimmedRegions, airTransitQueue, unitManpowerMap]);
+
+  // Rebuild centroid cache when shapesData changes (used by ticker without per-frame allocation)
+  useEffect(() => {
+    const cache = new Map<string, [number, number]>();
+    if (shapesData) {
+      for (const s of shapesData.regions) cache.set(s.id, s.centroid);
+    }
+    centroidCacheRef.current = cache;
+  }, [shapesData]);
 
   // Track recently bombed provinces — keep showing unit count for 5s after bombing.
   const recentlyBombedRef = useRef<Map<string, number>>(new Map());
@@ -555,17 +598,14 @@ export default function GameCanvas({
       gfx.clear();
 
       // Draw all sub-polygons (MultiPolygon regions have multiple, e.g. islands)
-      for (const subPoly of shape.polygons) {
-        const outerRing = subPoly[0];
+      for (let si = 0; si < shape.polygons.length; si++) {
+        const outerRing = shape.polygons[si][0];
         if (outerRing && outerRing.length >= 3) {
           drawPolygon(gfx, outerRing, baseFill, strokeColor, strokeWidth, alpha);
           // Selected province: double stroke — player color at 3px, then white at 1.5px on top
           if (isSelected) {
             const playerColor = player ? hexStringToNumber(player.color) : SELECTED_STROKE;
-            const flatPoints: number[] = [];
-            for (const pt of outerRing) {
-              flatPoints.push(pt[0], pt[1]);
-            }
+            const flatPoints = state.flatPolys[si];
             gfx.poly(flatPoints, true).stroke({ color: playerColor, width: 3, alpha: 1.0 });
             gfx.poly(flatPoints, true).stroke({ color: 0xffffff, width: 1.5, alpha: 1.0 });
           }
@@ -578,12 +618,13 @@ export default function GameCanvas({
         for (const subPoly of shape.polygons) {
           const outerRing = subPoly[0];
           if (!outerRing || outerRing.length < 3) continue;
-          const xs = outerRing.map((p) => p[0]);
-          const ys = outerRing.map((p) => p[1]);
-          const minX = Math.min(...xs);
-          const maxX = Math.max(...xs);
-          const minY = Math.min(...ys);
-          const maxY = Math.max(...ys);
+          // Iterative min/max — avoids .map() allocation + Math.min(...) spread
+          let minX = outerRing[0][0], maxX = minX, minY = outerRing[0][1], maxY = minY;
+          for (let pi = 1; pi < outerRing.length; pi++) {
+            const px = outerRing[pi][0], py = outerRing[pi][1];
+            if (px < minX) minX = px; else if (px > maxX) maxX = px;
+            if (py < minY) minY = py; else if (py > maxY) maxY = py;
+          }
           const spacing = 12;
           // Clip diagonal lines to the polygon bounding box.
           // Lines follow y = d - x (45° diagonal, d = x + y = constant).
@@ -612,13 +653,9 @@ export default function GameCanvas({
         relationStroke === 0x8b2020
       ) {
         const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 500);
-        for (const subPoly of shape.polygons) {
-          const outerRing = subPoly[0];
-          if (!outerRing || outerRing.length < 3) continue;
-          const flatPoints: number[] = [];
-          for (const pt of outerRing) {
-            flatPoints.push(pt[0], pt[1]);
-          }
+        for (let si = 0; si < state.flatPolys.length; si++) {
+          const flatPoints = state.flatPolys[si];
+          if (flatPoints.length < 6) continue;
           gfx
             .poly(flatPoints, true)
             .stroke({ color: 0x8b2020, width: STROKE_WIDTH_DEFAULT + 1, alpha: pulse });
@@ -636,9 +673,7 @@ export default function GameCanvas({
 
         // Reveal unit count only when actively being attacked (animation in flight),
         // NOT when merely selected as a target — player shouldn't know before attacking
-        const isAnimTarget = animationsRef.current.some(
-          (a) => a.targetId === id && a.type === "attack"
-        );
+        const isAnimTarget = animTargetSetRef.current.has(id);
 
         // Check whether this region is revealed by submarine effect
         const isSubRevealed = activeEffectsRef.current?.some(
@@ -647,9 +682,7 @@ export default function GameCanvas({
 
         // Show unit count on enemy provinces being bombed (in active bomber flight paths)
         // OR recently bombed (keep visible for a few seconds after flight ends).
-        const isBombed = airTransitQueueRef.current?.some(
-          (f) => f.mission_type === "bomb_run" && f.flight_path?.includes(id)
-        ) ?? false;
+        const isBombed = bombedRegionSetRef.current.has(id);
         const wasRecentlyBombed = recentlyBombedRef.current.has(id);
         const showUnitCount = isOwner || isAnimTarget || isSubRevealed || isBombed || wasRecentlyBombed;
 
@@ -834,6 +867,19 @@ export default function GameCanvas({
       buildingLabel.position.set(shape.centroid[0], shape.centroid[1] + 13);
       buildingLabel.eventMode = "none";
 
+      // Pre-compute flat point arrays for each sub-polygon (reused in selection + war pulse)
+      const flatPolys: number[][] = [];
+      for (const subPoly of shape.polygons) {
+        const outerRing = subPoly[0];
+        if (outerRing && outerRing.length >= 3) {
+          const flat: number[] = [];
+          for (const pt of outerRing) flat.push(pt[0], pt[1]);
+          flatPolys.push(flat);
+        } else {
+          flatPolys.push([]);
+        }
+      }
+
       const renderState: ProvinceRenderState = {
         graphics: gfx,
         label,
@@ -841,6 +887,7 @@ export default function GameCanvas({
         buildingLabel,
         fillColor: DEFAULT_FILL,
         ownerId: null,
+        flatPolys,
       };
 
       stateMapRef.current.set(shape.id, renderState);
@@ -1016,9 +1063,25 @@ export default function GameCanvas({
       prevOwners.set(rid, region.owner_id);
     }
 
-    // Re-draw capitals and building sprites
+    // Re-draw capitals and building sprites — skip if nothing changed
     const capitalLayer = capitalLayerRef.current;
     if (capitalLayer) {
+      // Build a lightweight fingerprint of capital+building state
+      const capParts: string[] = [];
+      for (const [rid, region] of Object.entries(regions)) {
+        if (region.is_capital) capParts.push(`${rid}:C`);
+        if (region.building_instances?.length) {
+          capParts.push(`${rid}:B${region.building_instances.length}`);
+        } else if (region.buildings) {
+          const bkeys = Object.entries(region.buildings).filter(([, c]) => c > 0).map(([s, c]) => `${s}${c}`).join(",");
+          if (bkeys) capParts.push(`${rid}:${bkeys}`);
+        }
+      }
+      const capSnapshot = capParts.join("|");
+      const capitalDirty = capSnapshot !== prevCapitalSnapshotRef.current;
+      prevCapitalSnapshotRef.current = capSnapshot;
+
+      if (capitalDirty) {
       capitalLayer.removeChildren().forEach((child) => child.destroy());
       const shapeMap = new Map<string, ProvinceShape>();
       for (const s of shapesData.regions) {
@@ -1127,6 +1190,23 @@ export default function GameCanvas({
             }).catch(() => {});
           }
           capitalLayer.addChild(bldgContainer);
+        }
+      }
+    } // end capitalDirty
+    }
+
+    // Pre-build lookup Sets for O(1) checks inside drawProvince
+    const ats = animTargetSetRef.current;
+    ats.clear();
+    for (const a of animations) {
+      if (a.type === "attack") ats.add(a.targetId);
+    }
+    const brs = bombedRegionSetRef.current;
+    brs.clear();
+    if (airTransitQueue) {
+      for (const f of airTransitQueue) {
+        if (f.mission_type === "bomb_run" && f.flight_path) {
+          for (const rid of f.flight_path) brs.add(rid);
         }
       }
     }
@@ -1352,28 +1432,27 @@ export default function GameCanvas({
     const shapesSnapshot = shapesData;
     if (!app || !unitChangeLayer || !shapesSnapshot) return;
 
-    // Build centroid lookup once
-    const centroidMap = new Map<string, [number, number]>();
-    for (const s of shapesSnapshot.regions) {
-      centroidMap.set(s.id, s.centroid);
-    }
+    const centroidMap = centroidCacheRef.current;
 
     // Track Text objects for active pulses so we can destroy them
     const activeTexts = new Map<string, Text>();
 
-    const makePulseStyle = (color: number) => new TextStyle({
+    // Pre-created TextStyles to avoid per-pulse allocation
+    const pulseStyleGreen = new TextStyle({
       fontFamily: "Rajdhani, sans-serif",
       fontSize: 16,
       fontWeight: "bold",
-      fill: color,
+      fill: 0x4ade80,
       align: "center",
-      dropShadow: {
-        color: 0x000000,
-        blur: 4,
-        distance: 1,
-        alpha: 0.9,
-        angle: Math.PI / 4,
-      },
+      dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
+    });
+    const pulseStyleRed = new TextStyle({
+      fontFamily: "Rajdhani, sans-serif",
+      fontSize: 16,
+      fontWeight: "bold",
+      fill: 0xf87171,
+      align: "center",
+      dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
     });
 
     const tickerFn = () => {
@@ -1408,10 +1487,9 @@ export default function GameCanvas({
           if (!centroid) continue;
 
           const isPositive = pulse.delta > 0;
-          const color = isPositive ? 0x4ade80 : 0xf87171;
           const label = isPositive ? `+${pulse.delta}` : String(pulse.delta);
 
-          txt = new Text({ text: label, style: makePulseStyle(color), resolution: 3 });
+          txt = new Text({ text: label, style: isPositive ? pulseStyleGreen : pulseStyleRed, resolution: 3 });
           txt.anchor.set(0.5, 0.5);
           txt.position.set(centroid[0], centroid[1] - 20); // start above centroid
           txt.eventMode = "none";
@@ -1636,52 +1714,6 @@ export default function GameCanvas({
     };
   }, [nukeBlackout, shapesData]);
 
-  // ── Weather overlay ────────────────────────────────────────────
-
-  useEffect(() => {
-    const overlay = weatherOverlayRef.current;
-    if (!overlay || !shapesData) return;
-
-    overlay.clear();
-
-    if (!weather) return;
-
-    const { min_x, min_y, max_x, max_y } = shapesData.bounds;
-
-    let color = 0x000000;
-    let alpha = 0;
-
-    const phase = weather.phase;
-    const condition = weather.condition;
-
-    if (phase === "night") {
-      color = 0x0a0a2e;
-      alpha = 0.25 + (1 - weather.visibility) * 0.15;
-    } else if (phase === "dawn") {
-      color = 0xff8c42;
-      alpha = 0.06;
-    } else if (phase === "dusk") {
-      color = 0xff6b35;
-      alpha = 0.08;
-    }
-
-    if (condition === "fog") {
-      color = 0xc0c0c0;
-      alpha = Math.max(alpha, 0.12);
-    } else if (condition === "storm") {
-      color = 0x2d3748;
-      alpha = Math.max(alpha, 0.15);
-    } else if (condition === "rain") {
-      color = 0x4a5568;
-      alpha = Math.max(alpha, 0.06);
-    }
-
-    if (alpha > 0) {
-      overlay.rect(min_x, min_y, max_x - min_x, max_y - min_y);
-      overlay.fill({ color, alpha });
-    }
-  }, [weather, shapesData]);
-
   // ── Pixi Application lifecycle ────────────────────────────────
 
   useEffect(() => {
@@ -1757,13 +1789,6 @@ export default function GameCanvas({
       capitalRadar.eventMode = "none";
       capitalRadarRef.current = capitalRadar;
 
-      const weatherOverlay = new Graphics();
-      weatherOverlay.eventMode = "none";
-      weatherOverlayRef.current = weatherOverlay;
-
-      const weatherParticles = new Graphics();
-      weatherParticles.eventMode = "none";
-      weatherParticlesRef.current = weatherParticles;
 
       // Tactical grid overlay — drawn behind provinces, updated when shapesData loads
       const gridLayer = new Graphics();
@@ -1775,8 +1800,6 @@ export default function GameCanvas({
       viewport.addChild(provinceLayer);
       viewport.addChild(capitalLayer);
       viewport.addChild(capitalRadar);
-      viewport.addChild(weatherOverlay);
-      viewport.addChild(weatherParticles);
       viewport.addChild(effectLayer);
       viewport.addChild(nukeLayer);
       viewport.addChild(animManager.container);
@@ -1810,18 +1833,23 @@ export default function GameCanvas({
         // then reused here for O(1) lookups rather than a per-frame linear scan.
         const airLayer = airTransitLayerRef.current;
         if (airLayer && onFlightClickRef.current) {
-          airLayer.removeChildren();
+          // Hide all pooled graphics from last frame
+          const hitPool = airHitPoolRef.current;
+          for (let pi = 0; pi < airHitPoolIdxRef.current; pi++) {
+            hitPool[pi].visible = false;
+          }
+          airHitPoolIdxRef.current = 0;
+          const intPool = interceptorPoolRef.current;
+          for (let pi = 0; pi < interceptorPoolIdxRef.current; pi++) {
+            intPool[pi].visible = false;
+          }
+          interceptorPoolIdxRef.current = 0;
+
           const atq = airTransitQueueRef.current;
-          const sd = shapesDataRef.current;
-          if (atq && sd) {
-            // Build a quick centroid lookup from the stable shapesData ref.
-            // This runs at ticker frequency but the loop is small (hundreds of regions max)
-            // and the shapes array is stable between ticks — acceptable for 60fps.
-            const centroidLookup = new Map<string, [number, number]>();
-            for (const s of sd.regions) centroidLookup.set(s.id, s.centroid);
+          if (atq) {
+            const centroidLookup = centroidCacheRef.current;
 
             for (const flight of atq) {
-              // Only enemy flights are shown as clickable targets
               if (flight.player_id === myUserId) continue;
               const src = centroidLookup.get(flight.source_region_id);
               const tgt = centroidLookup.get(flight.target_region_id);
@@ -1830,21 +1858,33 @@ export default function GameCanvas({
               const x = src[0] + (tgt[0] - src[0]) * progress;
               const y = src[1] + (tgt[1] - src[1]) * progress;
 
-              const hitArea = new Graphics();
+              // Get or create pooled Graphics
+              let hitArea: Graphics;
+              const poolIdx = airHitPoolIdxRef.current;
+              if (poolIdx < hitPool.length) {
+                hitArea = hitPool[poolIdx];
+                hitArea.clear();
+                hitArea.visible = true;
+              } else {
+                hitArea = new Graphics();
+                hitArea.eventMode = "static";
+                hitArea.cursor = "crosshair";
+                airLayer.addChild(hitArea);
+                hitPool.push(hitArea);
+              }
+              airHitPoolIdxRef.current++;
+
               hitArea.circle(x, y, 20).fill({ color: 0xff0000, alpha: 0.001 });
-              hitArea.eventMode = "static";
-              hitArea.cursor = "crosshair";
-              const capturedFlightId = flight.id;
+              (hitArea as Graphics & { _flightId?: string })._flightId = flight.id;
+              hitArea.removeAllListeners();
               hitArea.on("pointerdown", () => {
-                onFlightClickRef.current?.(capturedFlightId);
+                onFlightClickRef.current?.((hitArea as Graphics & { _flightId?: string })._flightId!);
               });
-              airLayer.addChild(hitArea);
             }
 
-            // Render interceptor groups chasing bombers — drawn each frame to track moving targets.
+            // Render interceptor groups chasing bombers
             for (const flight of atq) {
               if (!flight.interceptors || flight.interceptors.length === 0) continue;
-              // Bomber's current position (interpolated from progress)
               const src = centroidLookup.get(flight.source_region_id);
               const tgt = centroidLookup.get(flight.target_region_id);
               if (!src || !tgt) continue;
@@ -1854,25 +1894,31 @@ export default function GameCanvas({
               for (const interceptor of flight.interceptors) {
                 const intSrc = centroidLookup.get(interceptor.source_region_id);
                 if (!intSrc) continue;
-                // Interceptor position: lerp from source toward bomber's current position
                 const intX = intSrc[0] + (bomberX - intSrc[0]) * interceptor.progress;
                 const intY = intSrc[1] + (bomberY - intSrc[1]) * interceptor.progress;
                 const intPlayer = playersRef.current[interceptor.player_id];
                 const intColor = intPlayer ? hexStringToNumber(intPlayer.color) : 0xef4444;
 
-                // Draw interceptor icon (small fighter circle)
-                const g = new Graphics();
-                g.eventMode = "none";
-                // Trail line from source to current position
+                let g: Graphics;
+                const iPoolIdx = interceptorPoolIdxRef.current;
+                if (iPoolIdx < intPool.length) {
+                  g = intPool[iPoolIdx];
+                  g.clear();
+                  g.visible = true;
+                } else {
+                  g = new Graphics();
+                  g.eventMode = "none";
+                  airLayer.addChild(g);
+                  intPool.push(g);
+                }
+                interceptorPoolIdxRef.current++;
+
                 g.moveTo(intSrc[0], intSrc[1]).lineTo(intX, intY)
                   .stroke({ color: intColor, width: 1.5, alpha: 0.4 });
-                // Fighter icon circle
                 g.circle(intX, intY, 8)
                   .fill({ color: intColor, alpha: 0.7 })
                   .stroke({ color: 0xffffff, width: 1.5, alpha: 0.8 });
-                // Fighter count label
                 g.circle(intX, intY, 3).fill({ color: 0xffffff, alpha: 0.9 });
-                airLayer.addChild(g);
               }
             }
           }
@@ -1904,31 +1950,46 @@ export default function GameCanvas({
         // SAM intercept animations — SAM rocket flies to meet point + explosion
         const samAnims = samInterceptsRef.current;
         if (airLayer) {
+        // Reset SAM pool visibility
+        const samPool = samGfxPoolRef.current;
+        for (let pi = 0; pi < samGfxPoolIdxRef.current; pi++) {
+          samPool[pi].visible = false;
+        }
+        samGfxPoolIdxRef.current = 0;
+
         for (let si = samAnims.length - 1; si >= 0; si--) {
           const sa = samAnims[si];
           const elapsed = now - sa.startTime;
           const progress = Math.min(elapsed / sa.meetMs, 1);
 
           if (progress < 1) {
-            // Draw SAM rocket flying toward interception point
             const samX = sa.samFrom[0] + (sa.meetPoint[0] - sa.samFrom[0]) * progress;
             const samY = sa.samFrom[1] + (sa.meetPoint[1] - sa.samFrom[1]) * progress;
-            const samGfx = new Graphics();
-            // Bright cyan rocket head
+
+            let samGfx: Graphics;
+            const samPoolIdx = samGfxPoolIdxRef.current;
+            if (samPoolIdx < samPool.length) {
+              samGfx = samPool[samPoolIdx];
+              samGfx.clear();
+              samGfx.visible = true;
+            } else {
+              samGfx = new Graphics();
+              samGfx.eventMode = "none";
+              airLayer.addChild(samGfx);
+              samPool.push(samGfx);
+            }
+            samGfxPoolIdxRef.current++;
+
             samGfx.circle(samX, samY, 3).fill({ color: 0x22d3ee, alpha: 0.95 });
             samGfx.circle(samX, samY, 7).fill({ color: 0x22d3ee, alpha: 0.2 });
-            // Cyan trail
             const tailP = Math.max(0, progress - 0.2);
             const tailX = sa.samFrom[0] + (sa.meetPoint[0] - sa.samFrom[0]) * tailP;
             const tailY = sa.samFrom[1] + (sa.meetPoint[1] - sa.samFrom[1]) * tailP;
             samGfx.moveTo(tailX, tailY).lineTo(samX, samY)
               .stroke({ color: 0x22d3ee, width: 2.5, alpha: 0.6 });
-            // Glow trail
             samGfx.moveTo(tailX, tailY).lineTo(samX, samY)
               .stroke({ color: 0x22d3ee, width: 5, alpha: 0.15 });
-            airLayer.addChild(samGfx);
           } else if (!sa.exploded) {
-            // Explosion at interception point
             sa.exploded = true;
             const mgr = animManagerRef.current;
             if (mgr) {
@@ -1937,74 +1998,49 @@ export default function GameCanvas({
             }
           }
 
-          // Cleanup after explosion fade
           if (elapsed > sa.meetMs + 1500) {
             samAnims.splice(si, 1);
           }
         }
         } // end airLayer guard
 
-        // Weather particles — rain / storm diagonal streaks
-        const wp = weatherParticlesRef.current;
-        if (wp) {
-          wp.clear();
-          const currentWeather = weatherRef.current;
-          if (
-            currentWeather &&
-            (currentWeather.condition === "rain" || currentWeather.condition === "storm")
-          ) {
-            const vp = viewportRef.current;
-            if (vp) {
-              const particleCount = currentWeather.condition === "storm" ? 40 : 20;
-              const vx = vp.left ?? 0;
-              const vy = vp.top ?? 0;
-              const vw = vp.screenWidth / vp.scale.x;
-              const vh = vp.screenHeight / vp.scale.y;
-
-              for (let i = 0; i < particleCount; i++) {
-                // Each particle has a unique phase based on index
-                const seed = i * 7919; // prime for spread
-                const phase = ((now * 0.001 + seed) % 2.0) / 2.0; // 0..1 cycling every 2s
-                const x = vx + (((seed * 13) % 1000) / 1000) * vw;
-                const y = vy + phase * vh;
-                const length = currentWeather.condition === "storm" ? 12 : 8;
-                // Diagonal rain line (wind from left)
-                wp.moveTo(x, y).lineTo(x + 3, y + length);
-              }
-              wp.stroke({ color: 0xa0b0c0, width: 1, alpha: 0.2 });
-
-              // Storm: lightning flash every ~8 seconds
-              if (currentWeather.condition === "storm") {
-                const flashPhase = (now % 8000) / 8000;
-                if (flashPhase < 0.015) {
-                  // ~120ms flash
-                  wp.rect(vx, vy, vw, vh).fill({ color: 0xffffff, alpha: 0.08 });
-                }
-              }
-            }
-          }
-        }
-
-        // Render planned move arrows
+        // Render planned move arrows (pooled)
         const pmLayer = plannedMovesLayerRef.current;
         if (pmLayer) {
-          pmLayer.removeChildren();
+          const pmGfxPool = pmGfxPoolRef.current;
+          const pmTxtPool = pmTextPoolRef.current;
+          for (let pi = 0; pi < pmPoolIdxRef.current; pi++) {
+            if (pi < pmGfxPool.length) pmGfxPool[pi].visible = false;
+            if (pi < pmTxtPool.length) pmTxtPool[pi].visible = false;
+          }
+          pmPoolIdxRef.current = 0;
+
           const pMoves = plannedMovesRef.current;
-          const sd = shapesDataRef.current;
-          if (pMoves && pMoves.length > 0 && sd) {
-            const cMap = new Map<string, [number, number]>();
-            for (const shape of sd.regions) cMap.set(shape.id, shape.centroid);
+          if (pMoves && pMoves.length > 0) {
+            const cMap = centroidCacheRef.current;
 
             for (const pm of pMoves) {
               const src = cMap.get(pm.sourceId);
               const tgt = cMap.get(pm.targetId);
               if (!src || !tgt) continue;
 
-              const g = new Graphics();
+              const idx = pmPoolIdxRef.current;
+
+              let g: Graphics;
+              if (idx < pmGfxPool.length) {
+                g = pmGfxPool[idx];
+                g.clear();
+                g.visible = true;
+              } else {
+                g = new Graphics();
+                g.eventMode = "none";
+                pmLayer.addChild(g);
+                pmGfxPool.push(g);
+              }
+
               const isAttack = pm.actionType === "attack" || pm.actionType === "bombard";
               const color = isAttack ? 0xff4444 : 0x22d3ee;
 
-              // Dashed line
               const dx = tgt[0] - src[0];
               const dy = tgt[1] - src[1];
               const dist = Math.sqrt(dx * dx + dy * dy);
@@ -2020,11 +2056,9 @@ export default function GameCanvas({
                 g.moveTo(src[0] + ux * startD, src[1] + uy * startD)
                   .lineTo(src[0] + ux * Math.min(endD, dist), src[1] + uy * Math.min(endD, dist));
               }
-              // Animate: pulse alpha
               const pulse = 0.5 + Math.sin(now * 0.004) * 0.3;
               g.stroke({ color, width: 2.5, alpha: pulse });
 
-              // Arrowhead
               const aSize = 8;
               const angle = Math.atan2(dy, dx);
               const ax = tgt[0] - ux * 5;
@@ -2035,25 +2069,25 @@ export default function GameCanvas({
                 .closePath()
                 .fill({ color, alpha: pulse });
 
-              pmLayer.addChild(g);
+              let label: Text;
+              if (idx < pmTxtPool.length) {
+                label = pmTxtPool[idx];
+                label.visible = true;
+              } else {
+                label = new Text({ text: "", style: PM_STYLE_MOVE, resolution: 3 });
+                label.anchor.set(0.5, 0.5);
+                label.eventMode = "none";
+                pmLayer.addChild(label);
+                pmTxtPool.push(label);
+              }
 
-              // Unit count label at midpoint
+              label.text = String(pm.unitCount);
+              label.style = isAttack ? PM_STYLE_ATTACK : PM_STYLE_MOVE;
               const mx = (src[0] + tgt[0]) / 2;
               const my = (src[1] + tgt[1]) / 2;
-              const label = new Text({
-                text: String(pm.unitCount),
-                style: new TextStyle({
-                  fontFamily: "Rajdhani, sans-serif",
-                  fontSize: 10,
-                  fontWeight: "bold",
-                  fill: color,
-                  dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
-                }),
-                resolution: 3,
-              });
-              label.anchor.set(0.5, 0.5);
               label.position.set(mx, my - 6);
-              pmLayer.addChild(label);
+
+              pmPoolIdxRef.current++;
             }
           }
         }
@@ -2109,8 +2143,6 @@ export default function GameCanvas({
         effectLayerRef.current = null;
         nukeLayerRef.current = null;
         unitChangeLayerRef.current = null;
-        weatherOverlayRef.current = null;
-        weatherParticlesRef.current = null;
         gridLayerRef.current = null;
         capitalRadarRef.current = null;
         plannedMovesLayerRef.current = null;

@@ -2346,7 +2346,6 @@ export default function GamePage({
           activeEffects={gameState?.active_effects}
           nukeBlackout={nukeBlackout}
           onMapReady={handleMapReady}
-          weather={undefined} /* disabled: weather/day-night off for now */
           airTransitQueue={gameState?.air_transit_queue}
           unitManpowerMap={unitManpowerMap}
           plannedMoves={plannedMoves}

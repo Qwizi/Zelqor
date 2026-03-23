@@ -128,7 +128,6 @@ export default function SpectatePage({
           myUserId="__spectator__"
           animations={[]}
           buildingIcons={buildingIcons}
-          weather={gameState.weather}
           airTransitQueue={gameState.air_transit_queue}
           plannedMoves={[]}
         />
