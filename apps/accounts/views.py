@@ -161,46 +161,29 @@ class AuthController:
     @route.get('/online-stats', auth=None)
     def online_stats(self, request):
         """Get global player activity stats: online, in_queue, in_game."""
-        from django.core.cache import cache as django_cache
+        from apps.matchmaking.models import Match, MatchQueue
 
-        from apps.accounts.models import _get_game_redis
+        # in_queue: count from MatchQueue table (source of truth)
+        in_queue = MatchQueue.objects.count()
 
-        # Count online users directly from Redis cache keys
-        # (LastActiveMiddleware writes user:last_active:{pk} with 10min TTL)
-        redis_client = django_cache.get_client()
-        online_count = 0
-        cursor = 0
-        while True:
-            cursor, keys = redis_client.scan(cursor, match='*user:last_active:*', count=200)
-            online_count += len(keys)
-            if cursor == 0:
-                break
+        # in_game: count distinct players in active matches
+        in_game = (
+            Match.objects.filter(
+                status__in=[Match.Status.IN_PROGRESS, Match.Status.SELECTING],
+            )
+            .values('players__user')
+            .distinct()
+            .count()
+        )
 
-        # Count in_queue / in_game from game Redis
-        r = _get_game_redis()
-        in_queue = 0
-        in_game = 0
-        cursor = 0
-        while True:
-            cursor, keys = r.scan(cursor, match='player:status:*', count=100)
-            for key in keys:
-                val = r.get(key)
-                if val:
-                    try:
-                        import json
-                        data = json.loads(val)
-                        status = data.get('status', '')
-                    except (json.JSONDecodeError, AttributeError):
-                        status = val if isinstance(val, str) else val.decode() if isinstance(val, bytes) else ''
-                    if status == 'in_queue':
-                        in_queue += 1
-                    elif status == 'in_game':
-                        in_game += 1
-            if cursor == 0:
-                break
+        # online = at least everyone in queue + in game
+        # Plus count users who hit any API endpoint recently (via last_active in DB)
+        from datetime import timedelta
+        from django.utils import timezone
+        threshold = timezone.now() - timedelta(minutes=5)
+        recently_active = User.objects.filter(last_active__gte=threshold).count()
 
-        # Players in queue/game are also online
-        total_online = max(online_count, in_queue + in_game)
+        total_online = max(recently_active, in_queue + in_game)
 
         return {
             'online': total_online,

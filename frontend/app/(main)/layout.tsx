@@ -1172,6 +1172,7 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
 
   // ── Online stats ──────────────────────────────────────────
   const { data: onlineStats } = useOnlineStats({ refetchInterval: 15_000 });
+  const stats = onlineStats ?? { online: 0, in_queue: 0, in_game: 0 };
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -1207,29 +1208,27 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
           </Link>
 
           {/* Online stats */}
-          {onlineStats && (
-            <div className="hidden md:flex items-center gap-3 text-[11px] tabular-nums text-muted-foreground">
+          <div className="hidden md:flex items-center gap-3 text-[11px] tabular-nums text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              <span className="font-medium">{stats.online}</span>
+              <span className="text-muted-foreground/60">online</span>
+            </span>
+            {stats.in_game > 0 && (
               <span className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                <span className="font-medium">{onlineStats.online}</span>
-                <span className="text-muted-foreground/60">online</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                <span className="font-medium">{stats.in_game}</span>
+                <span className="text-muted-foreground/60">w grze</span>
               </span>
-              {onlineStats.in_game > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                  <span className="font-medium">{onlineStats.in_game}</span>
-                  <span className="text-muted-foreground/60">w grze</span>
-                </span>
-              )}
-              {onlineStats.in_queue > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
-                  <span className="font-medium">{onlineStats.in_queue}</span>
-                  <span className="text-muted-foreground/60">szuka</span>
-                </span>
-              )}
-            </div>
-          )}
+            )}
+            {stats.in_queue > 0 && (
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+                <span className="font-medium">{stats.in_queue}</span>
+                <span className="text-muted-foreground/60">szuka</span>
+              </span>
+            )}
+          </div>
 
           <div className="flex-1" />
 

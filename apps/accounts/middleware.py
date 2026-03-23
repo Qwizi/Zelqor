@@ -4,7 +4,7 @@ from django.utils import timezone
 
 class LastActiveMiddleware:
     THROTTLE_SECONDS = 60
-    CACHE_TTL = 600  # 10 minutes — longer than the flush interval so no key expires before flush
+    CACHE_TTL = 120  # Cache key lives 2 min — acts as throttle guard
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -14,9 +14,10 @@ class LastActiveMiddleware:
         user = getattr(request, 'auth', None) or getattr(request, 'user', None)
         if user and getattr(user, 'is_authenticated', False) and hasattr(user, 'pk'):
             cache_key = f'user:last_active:{user.pk}'
-            now = timezone.now()
-            # Only update if key is absent (expired/first hit) or throttle period passed
-            existing = cache.get(cache_key)
-            if existing is None or (now - timezone.datetime.fromisoformat(existing)).total_seconds() > self.THROTTLE_SECONDS:
-                cache.set(cache_key, now.isoformat(), timeout=self.CACHE_TTL)
+            # Only update once per THROTTLE_SECONDS (cache key acts as guard)
+            if cache.get(cache_key) is None:
+                from apps.accounts.models import User
+                now = timezone.now()
+                User.objects.filter(pk=user.pk).update(last_active=now)
+                cache.set(cache_key, '1', timeout=self.THROTTLE_SECONDS)
         return response
