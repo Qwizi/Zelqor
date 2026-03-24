@@ -8,11 +8,32 @@ __pycache__
 # Frontend (not needed for backend image)
 frontend/
 
-# Rust gateway build artifacts (not needed for backend image)
-gateway/target/
+# Rust gateway (not needed for backend image)
+gateway/
+
+# Other apps/services (not needed for backend image)
+promo/
+desktop/
+twa/
+caddy/
+redis/
+
+# Dev tools
+.claude/
+.agents/
+skills-lock.json
+Makefile
+
+# Documentation
+*.md
+
+# Docker/infra config
+compose*.yml
+Dockerfile*
 
 # Dev artifacts
 .git
+.gitignore
 .env
 .env.*
 *.log

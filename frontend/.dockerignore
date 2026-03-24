@@ -4,6 +4,7 @@ node_modules
 
 # Build output (generated during build)
 .next
+out/
 
 # Dev artifacts
 .git
@@ -13,3 +14,13 @@ tsconfig.tsbuildinfo
 # Env files
 .env
 .env.*
+
+# Documentation
+*.md
+
+# Dev tools
+.claude/
+.agents/
+
+# Desktop/mobile wrappers
+src-tauri/
