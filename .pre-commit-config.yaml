@@ -5,3 +5,11 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: biome-check
+        name: Biome check (frontend)
+        entry: bash -c 'cd frontend && pnpm biome check --no-errors-on-unmatched "$@"' --
+        language: system
+        files: ^frontend/.*\.(ts|tsx|js|jsx|json|css)$
