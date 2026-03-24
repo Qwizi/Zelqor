@@ -14,6 +14,7 @@ import {
   Loader2,
   Package,
   Settings,
+  Star,
   Swords,
   Trophy,
   User,
@@ -352,6 +353,44 @@ export default function ProfilePage() {
               )}
             </div>
           )}
+
+          {/* Level / XP */}
+          {isOwnProfile && (() => {
+            const lvl = currentUser.level ?? 1;
+            const xp = currentUser.experience ?? 0;
+            const xpForLevel = (l: number) => l * l * 50;
+            const xpCurrent = xpForLevel(lvl);
+            const xpNext = xpForLevel(lvl + 1);
+            const xpInLevel = xp - xpCurrent;
+            const xpNeeded = xpNext - xpCurrent;
+            const pct = Math.min(100, xpNeeded > 0 ? Math.round((xpInLevel / xpNeeded) * 100) : 100);
+            const RANK_TITLES: [number, number, string][] = [
+              [1, 2, "Rekrut"], [3, 5, "Żołnierz"], [6, 10, "Kapral"], [11, 15, "Sierżant"],
+              [16, 20, "Porucznik"], [21, 30, "Kapitan"], [31, 40, "Major"], [41, 50, "Generał"],
+            ];
+            const title = RANK_TITLES.find(([min, max]) => lvl >= min && lvl <= max)?.[2] ?? "Legenda";
+            return (
+              <div className="mt-3 pt-3 border-t border-border/60">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-500/20">
+                    <Star className="h-3.5 w-3.5 text-violet-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-foreground">Poziom {lvl}</span>
+                        <span className="text-[10px] text-violet-400/80 font-medium uppercase tracking-wide">{title}</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">{xpInLevel.toLocaleString()} / {xpNeeded.toLocaleString()} XP</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-700" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

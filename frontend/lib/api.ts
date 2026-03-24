@@ -134,6 +134,8 @@ export interface User {
   has_password: boolean;
   avatar_url: string | null;
   clan_tag: string | null;
+  level: number;
+  experience: number;
 }
 
 export class BannedError extends Error {

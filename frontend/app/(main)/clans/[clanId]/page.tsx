@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   ArrowDown,
   ArrowUp,
+  Calendar,
   Check,
   ChevronRight,
   Coins,
@@ -14,8 +15,10 @@ import {
   LogOut,
   MessageSquare,
   ScrollText,
+  Search,
   Send,
   Shield,
+  Star,
   Swords,
   Settings,
   Trash2,
@@ -63,8 +66,14 @@ import {
   useMyClan,
   useInvitePlayer,
   useFriends,
+  useDeclareWar,
+  useAcceptWar,
+  useDeclineWar,
+  useJoinWar,
+  useWarParticipants,
+  useClans,
 } from "@/hooks/queries";
-import type { ClanMembershipOut } from "@/lib/api";
+import type { ClanMembershipOut, ClanWarOut } from "@/lib/api";
 
 const ROLE_LABELS: Record<string, string> = {
   leader: "Lider",
@@ -98,6 +107,181 @@ type Tab = "members" | "wars" | "chat" | "activity" | "requests";
 
 const ROLE_RANK: Record<string, number> = { leader: 4, officer: 3, member: 2, recruit: 1 };
 
+const WAR_STATUS_LABELS: Record<string, string> = {
+  pending: "Oczekuje",
+  accepted: "Zaakceptowana",
+  in_progress: "W trakcie",
+  finished: "Zakończona",
+  declined: "Odrzucona",
+  cancelled: "Anulowana",
+};
+
+function WarStatusBadge({ status, won }: { status: string; won?: boolean }) {
+  if (status === "finished") {
+    return (
+      <Badge variant="outline" className={`rounded-full border-0 px-2.5 py-0.5 text-xs ${won ? "bg-green-500/15 text-green-400" : "bg-destructive/15 text-destructive"}`}>
+        {won ? "Wygrana" : "Przegrana"}
+      </Badge>
+    );
+  }
+  const colorMap: Record<string, string> = {
+    pending: "bg-yellow-500/15 text-yellow-400",
+    accepted: "bg-blue-500/15 text-blue-400",
+    in_progress: "bg-primary/15 text-primary",
+    declined: "bg-muted text-muted-foreground",
+    cancelled: "bg-muted text-muted-foreground",
+  };
+  return (
+    <Badge variant="outline" className={`rounded-full border-0 px-2.5 py-0.5 text-xs ${colorMap[status] ?? "bg-muted text-muted-foreground"}`}>
+      {WAR_STATUS_LABELS[status] ?? status}
+    </Badge>
+  );
+}
+
+function WarParticipants({ warId }: { warId: string }) {
+  const { data: participants } = useWarParticipants(warId);
+  if (!participants?.length) return <p className="text-xs text-muted-foreground">Brak uczestników</p>;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {participants.map((p) => (
+        <span key={p.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-xs text-foreground">
+          {p.user.username}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+type WarCardMutations = {
+  acceptWarMut: ReturnType<typeof useAcceptWar>;
+  declineWarMut: ReturnType<typeof useDeclineWar>;
+  joinWarMut: ReturnType<typeof useJoinWar>;
+};
+
+function WarCard({
+  war, clanId, isMember, isExpanded, onToggle, acceptWarMut, declineWarMut, joinWarMut,
+}: { war: ClanWarOut; clanId: string; isMember: boolean; isExpanded: boolean; onToggle: () => void } & WarCardMutations) {
+  const isChallenger = war.challenger.id === clanId;
+  const opponent = isChallenger ? war.defender : war.challenger;
+  const eloChange = isChallenger ? war.challenger_elo_change : war.defender_elo_change;
+  const won = war.winner_id === clanId;
+  const isDefender = war.defender.id === clanId;
+  const isPendingForUs = war.status === "pending" && isDefender;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card/50 overflow-hidden">
+      {/* Main row */}
+      <button onClick={onToggle} className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/30 transition-colors">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white" style={{ backgroundColor: opponent.color }}>
+          {opponent.tag}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate">vs [{opponent.tag}] {opponent.name}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[10px] text-muted-foreground">{war.players_per_side}v{war.players_per_side}</span>
+            {war.wager_gold > 0 && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-[10px] text-accent tabular-nums">{war.wager_gold.toLocaleString()}g</span>
+              </>
+            )}
+            {war.started_at && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {new Date(war.started_at).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <WarStatusBadge status={war.status} won={won} />
+          {war.status === "finished" && eloChange !== 0 && (
+            <span className={`text-xs font-semibold tabular-nums ${eloChange > 0 ? "text-green-400" : "text-destructive"}`}>
+              {eloChange > 0 ? "+" : ""}{eloChange}
+            </span>
+          )}
+          <ChevronRight className={`h-4 w-4 text-muted-foreground/40 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+        </div>
+      </button>
+
+      {/* Expanded panel */}
+      {isExpanded && (
+        <div className="border-t border-border px-4 py-3 space-y-3">
+          {/* Participants for accepted/in_progress/finished */}
+          {(war.status === "accepted" || war.status === "in_progress" || war.status === "finished") && (
+            <div>
+              <p className="mb-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Uczestnicy</p>
+              <WarParticipants warId={war.id} />
+            </div>
+          )}
+
+          {/* Winner for finished */}
+          {war.status === "finished" && war.winner_id && (
+            <div className="flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-2">
+              <Trophy className="h-3.5 w-3.5 text-accent shrink-0" />
+              <span className="text-xs text-foreground">
+                Wygrał: <span className="font-semibold">{war.winner_id === war.challenger.id ? war.challenger.name : war.defender.name}</span>
+              </span>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          {isMember && (
+            <div className="flex flex-wrap gap-2">
+              {isPendingForUs && (
+                <>
+                  <Button
+                    size="sm"
+                    className="gap-1.5 text-green-400 hover:text-green-400 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20"
+                    variant="ghost"
+                    disabled={acceptWarMut.isPending}
+                    onClick={() => acceptWarMut.mutate(war.id, {
+                      onSuccess: () => toast.success("Zaakceptowano wojnę"),
+                      onError: () => toast.error("Błąd"),
+                    })}
+                  >
+                    {acceptWarMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                    Akceptuj
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1.5 text-destructive hover:text-destructive bg-destructive/10 hover:bg-destructive/20 border border-destructive/20"
+                    disabled={declineWarMut.isPending}
+                    onClick={() => declineWarMut.mutate(war.id, {
+                      onSuccess: () => toast.success("Odrzucono wojnę"),
+                      onError: () => toast.error("Błąd"),
+                    })}
+                  >
+                    {declineWarMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                    Odrzuć
+                  </Button>
+                </>
+              )}
+              {war.status === "accepted" && (
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={joinWarMut.isPending}
+                  onClick={() => joinWarMut.mutate(war.id, {
+                    onSuccess: () => toast.success("Dołączono do wojny!"),
+                    onError: () => toast.error("Nie udało się dołączyć"),
+                  })}
+                >
+                  {joinWarMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Swords size={13} />}
+                  Dołącz
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ClanDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -109,6 +293,13 @@ export default function ClanDetailPage() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [chatMsg, setChatMsg] = useState("");
   const [showInvitePanel, setShowInvitePanel] = useState(false);
+  const [showDeclareWar, setShowDeclareWar] = useState(false);
+  const [warTargetSearch, setWarTargetSearch] = useState("");
+  const [warTargetId, setWarTargetId] = useState("");
+  const [warTargetName, setWarTargetName] = useState("");
+  const [warWager, setWarWager] = useState("100");
+  const [warPlayers, setWarPlayers] = useState("3");
+  const [expandedWarId, setExpandedWarId] = useState<string | null>(null);
 
   const { data: clan, isLoading } = useClan(clanId);
   const { data: membersData } = useClanMembers(clanId, 100);
@@ -119,6 +310,7 @@ export default function ClanDetailPage() {
   const { data: joinReqData } = useClanJoinRequests(clanId, 50);
   const { data: myClanData } = useMyClan();
   const { data: friendsData } = useFriends(100);
+  const { data: clanSearchData } = useClans(warTargetSearch.length >= 2 ? warTargetSearch : undefined, 10);
 
   const leaveMut = useLeaveClan();
   const kickMut = useKickMember();
@@ -133,6 +325,10 @@ export default function ClanDetailPage() {
   const acceptJrMut = useAcceptJoinRequest();
   const declineJrMut = useDeclineJoinRequest();
   const inviteMut = useInvitePlayer();
+  const declareWarMut = useDeclareWar();
+  const acceptWarMut = useAcceptWar();
+  const declineWarMut = useDeclineWar();
+  const joinWarMut = useJoinWar();
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -328,6 +524,37 @@ export default function ClanDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Clan Level Progress */}
+      {(() => {
+        const lvl = clan.level ?? 1;
+        const xp = clan.experience ?? 0;
+        const xpForLevel = (l: number) => l * l * 150;
+        const xpCurrent = xpForLevel(lvl);
+        const xpNext = xpForLevel(lvl + 1);
+        const xpInLevel = xp - xpCurrent;
+        const xpNeeded = xpNext - xpCurrent;
+        const pct = Math.min(100, xpNeeded > 0 ? Math.round((xpInLevel / xpNeeded) * 100) : 100);
+        return (
+          <div className="px-4 md:px-0">
+            <div className="flex items-center gap-3 rounded-2xl border border-border bg-card/50 px-4 py-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-violet-500/20 bg-violet-500/10">
+                <Star className="h-3.5 w-3.5 text-violet-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-foreground">Poziom {lvl}</span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">{xpInLevel.toLocaleString()} / {xpNeeded.toLocaleString()} XP</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-700" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+              <span className="text-[10px] text-muted-foreground shrink-0">{pct}%</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Description */}
       {clan.description && (
@@ -652,83 +879,156 @@ export default function ClanDetailPage() {
 
       {/* ── Wars ── */}
       {tab === "wars" && (
-        <div className="px-4 md:px-0">
+        <div className="px-4 md:px-0 space-y-3">
+
+          {/* Declare War button + form */}
+          {isOfficer && (
+            <>
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  variant={showDeclareWar ? "outline" : "default"}
+                  className="gap-1.5"
+                  onClick={() => setShowDeclareWar((v) => !v)}
+                >
+                  <Swords size={14} />
+                  {showDeclareWar ? "Anuluj" : "Wypowiedz wojnę"}
+                </Button>
+              </div>
+
+              {showDeclareWar && (
+                <section className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 md:p-5">
+                  <div className="mb-4 flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10">
+                      <Swords className="h-4 w-4 text-destructive" />
+                    </div>
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Wypowiedz wojnę</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {/* Target clan search */}
+                    <div className="relative">
+                      <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                        <Search className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <Input
+                        placeholder="Szukaj klanu przeciwnika..."
+                        value={warTargetId ? warTargetName : warTargetSearch}
+                        onChange={(e) => {
+                          setWarTargetId("");
+                          setWarTargetName("");
+                          setWarTargetSearch(e.target.value);
+                        }}
+                        className="pl-9 h-10"
+                      />
+                      {!warTargetId && warTargetSearch.length >= 2 && (
+                        <div className="absolute z-10 mt-1 w-full rounded-xl border border-border bg-card shadow-lg overflow-hidden">
+                          {(clanSearchData?.items ?? []).filter((c) => c.id !== clanId).length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-muted-foreground text-center">Brak wyników</div>
+                          ) : (
+                            (clanSearchData?.items ?? []).filter((c) => c.id !== clanId).map((c) => (
+                              <button
+                                key={c.id}
+                                onClick={() => { setWarTargetId(c.id); setWarTargetName(`[${c.tag}] ${c.name}`); setWarTargetSearch(""); }}
+                                className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted transition-colors"
+                              >
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md font-display text-[10px] font-bold text-white" style={{ backgroundColor: c.color }}>{c.tag}</div>
+                                <div>
+                                  <p className="text-sm font-semibold text-foreground">{c.name}</p>
+                                  <p className="text-[10px] text-muted-foreground">{c.member_count} czł. · {c.elo_rating} ELO</p>
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {warTargetId && (
+                      <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                        <Swords className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span className="text-sm text-foreground font-medium">{warTargetName}</span>
+                        <button onClick={() => { setWarTargetId(""); setWarTargetName(""); }} className="ml-auto text-muted-foreground hover:text-foreground">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Stawka (złoto, min. 100)</label>
+                        <Input
+                          type="number"
+                          min={100}
+                          value={warWager}
+                          onChange={(e) => setWarWager(e.target.value)}
+                          className="h-10"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Graczy na stronę (1–5)</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={5}
+                          value={warPlayers}
+                          onChange={(e) => setWarPlayers(e.target.value)}
+                          className="h-10"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      className="w-full gap-2"
+                      disabled={!warTargetId || declareWarMut.isPending}
+                      onClick={() => {
+                        const wager = parseInt(warWager);
+                        const players = parseInt(warPlayers);
+                        if (!warTargetId || isNaN(wager) || wager < 100 || isNaN(players) || players < 1 || players > 5) return;
+                        declareWarMut.mutate(
+                          { clanId, targetId: warTargetId, data: { wager_gold: wager, players_per_side: players } },
+                          {
+                            onSuccess: () => {
+                              toast.success("Wypowiedziano wojnę!");
+                              setShowDeclareWar(false);
+                              setWarTargetId(""); setWarTargetName(""); setWarTargetSearch(""); setWarWager("100"); setWarPlayers("3");
+                            },
+                            onError: () => toast.error("Nie udało się wypowiedzieć wojny"),
+                          }
+                        );
+                      }}
+                    >
+                      {declareWarMut.isPending && <Loader2 size={14} className="animate-spin" />}
+                      Wypowiedz wojnę
+                    </Button>
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+
+          {/* War list */}
           {wars.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-14 text-center">
               <Swords size={32} className="text-muted-foreground/40" />
               <p className="text-sm text-muted-foreground">Brak wojen.</p>
             </div>
           ) : (
-            <>
-              <div className="animate-list-in md:hidden space-y-0.5">
-                {wars.map((war) => {
-                  const isChallenger = war.challenger.id === clanId;
-                  const opponent = isChallenger ? war.defender : war.challenger;
-                  const eloChange = isChallenger ? war.challenger_elo_change : war.defender_elo_change;
-                  const won = war.winner_id === clanId;
-                  return (
-                    <div key={war.id} className="flex items-center gap-3 rounded-xl py-3 px-1 hover-lift">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-[9px] font-bold text-white" style={{ backgroundColor: opponent.color }}>{opponent.tag}</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">vs [{opponent.tag}] {opponent.name}</p>
-                        <span className="text-xs text-muted-foreground">{war.players_per_side}v{war.players_per_side}</span>
-                      </div>
-                      {war.status === "finished" ? (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <Badge variant="outline" className={`rounded-full border-0 px-2 py-px text-[10px] ${won ? "bg-green-500/15 text-green-400" : "bg-destructive/15 text-destructive"}`}>{won ? "W" : "L"}</Badge>
-                          {eloChange !== 0 && <span className={`text-xs font-semibold tabular-nums ${eloChange > 0 ? "text-green-400" : "text-destructive"}`}>{eloChange > 0 ? "+" : ""}{eloChange}</span>}
-                        </div>
-                      ) : (
-                        <Badge variant="outline" className="shrink-0 rounded-full border-0 px-2 py-px text-[10px] bg-muted text-muted-foreground">{war.status === "pending" ? "Oczekuje" : war.status === "accepted" ? "Zaakceptowana" : war.status === "in_progress" ? "W trakcie" : war.status}</Badge>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <Card className="hidden md:block rounded-2xl overflow-hidden">
-                <Table className="text-base">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="h-14 pl-6 text-sm font-semibold">Przeciwnik</TableHead>
-                      <TableHead className="h-14 text-sm font-semibold text-center">Format</TableHead>
-                      <TableHead className="h-14 text-sm font-semibold text-center">Status</TableHead>
-                      <TableHead className="h-14 pr-6 text-sm font-semibold text-right">ELO</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="animate-list-in">
-                    {wars.map((war) => {
-                      const isChallenger = war.challenger.id === clanId;
-                      const opponent = isChallenger ? war.defender : war.challenger;
-                      const eloChange = isChallenger ? war.challenger_elo_change : war.defender_elo_change;
-                      const won = war.winner_id === clanId;
-                      return (
-                        <TableRow key={war.id} className="hover:bg-muted/50 hover-lift">
-                          <TableCell className="pl-6 py-3.5">
-                            <Link href={`/clans/${opponent.id}`} className="flex items-center gap-3 group">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white" style={{ backgroundColor: opponent.color }}>{opponent.tag}</div>
-                              <span className="text-base font-semibold text-foreground group-hover:text-primary transition-colors">[{opponent.tag}] {opponent.name}</span>
-                            </Link>
-                          </TableCell>
-                          <TableCell className="py-3.5 text-center text-base text-foreground">{war.players_per_side}v{war.players_per_side}</TableCell>
-                          <TableCell className="py-3.5 text-center">
-                            {war.status === "finished" ? (
-                              <Badge variant="outline" className={`rounded-full border-0 px-3 py-1 text-sm ${won ? "bg-green-500/15 text-green-400 hover:bg-green-500/15" : "bg-destructive/15 text-destructive hover:bg-destructive/15"}`}>{won ? "Wygrana" : "Przegrana"}</Badge>
-                            ) : (
-                              <Badge variant="outline" className="rounded-full border-0 px-3 py-1 text-sm bg-muted text-muted-foreground hover:bg-muted">{war.status === "pending" ? "Oczekuje" : war.status === "accepted" ? "Zaakceptowana" : war.status === "in_progress" ? "W trakcie" : war.status}</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-3.5 pr-6 text-right">
-                            {war.status === "finished" && eloChange !== 0 && (
-                              <span className={`font-display text-xl tabular-nums ${eloChange > 0 ? "text-green-400" : "text-destructive"}`}>{eloChange > 0 ? "+" : ""}{eloChange}</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Card>
-            </>
+            <div className="animate-list-in space-y-2">
+              {wars.map((war) => (
+                <WarCard
+                  key={war.id}
+                  war={war}
+                  clanId={clanId}
+                  isMember={isMember}
+                  isExpanded={expandedWarId === war.id}
+                  onToggle={() => setExpandedWarId((id) => id === war.id ? null : war.id)}
+                  acceptWarMut={acceptWarMut}
+                  declineWarMut={declineWarMut}
+                  joinWarMut={joinWarMut}
+                />
+              ))}
+            </div>
           )}
         </div>
       )}
