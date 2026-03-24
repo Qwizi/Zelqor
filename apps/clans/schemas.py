@@ -167,6 +167,7 @@ class ClanWarOutSchema(Schema):
     defender_elo_change: int
     players_per_side: int
     wager_gold: int
+    match_id: uuid.UUID | None = None
     scheduled_at: datetime | None = None
     created_at: datetime
     started_at: datetime | None = None

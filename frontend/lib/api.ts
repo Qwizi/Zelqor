@@ -1657,6 +1657,7 @@ export interface ClanWarOut {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  match_id: string | null;
 }
 
 export interface ClanWarParticipantOut {

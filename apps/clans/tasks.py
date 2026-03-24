@@ -80,7 +80,6 @@ def start_clan_war(war_id: str):
     6. Publish a lobby:events message so the gateway can wire up connections.
     """
     from apps.clans.models import Clan, ClanWar, ClanWarParticipant
-    from apps.matchmaking.models import Lobby, LobbyPlayer
     from apps.matchmaking.events import publish_lobby_event
     from apps.game_config.models import GameMode
 
@@ -179,8 +178,8 @@ def start_clan_war(war_id: str):
     )
 
     logger.info(
-        'start_clan_war: war %s started, lobby %s created with %d participants',
-        war_id, lobby.pk, len(participants),
+        'start_clan_war: war %s started, match %s created with %d participants',
+        war_id, match_id, len(participants),
     )
 
 

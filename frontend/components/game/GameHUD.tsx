@@ -129,6 +129,15 @@ function hasOutgoingProposal(
   );
 }
 
+// Teammate badge shown inline in ranking
+function TeammateBadge() {
+  return (
+    <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-medium text-blue-400" title="Sojusznik">
+      SOJUSZNIK
+    </span>
+  );
+}
+
 // Relation badge shown inline in ranking
 function RelationBadge({ relation }: { relation: PlayerRelation }) {
   if (relation === "war") {
@@ -335,6 +344,8 @@ export default memo(function GameHUD({
             const isMe = player.user_id === myUserId;
             const isExpanded = expandedPlayer === player.user_id;
             const hasPending = hasOutgoingProposal(diplomacy, myUserId, player.user_id);
+            const myTeam = players[myUserId]?.team;
+            const isTeammate = !isMe && !!myTeam && players[player.user_id]?.team === myTeam;
 
             return (
               <div key={player.user_id}>
@@ -367,7 +378,8 @@ export default memo(function GameHUD({
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 text-right">
-                    {!isMe && <RelationBadge relation={relation} />}
+                    {!isMe && isTeammate && <TeammateBadge />}
+                    {!isMe && !isTeammate && <RelationBadge relation={relation} />}
                     <span className="font-display text-xs sm:text-sm tabular-nums text-muted-foreground">
                       {player.regionCount}r · {player.unitCount}u
                     </span>
@@ -375,7 +387,7 @@ export default memo(function GameHUD({
                 </div>
 
                 {/* Expanded diplomacy actions */}
-                {isExpanded && player.isAlive && !isMe && (
+                {isExpanded && player.isAlive && !isMe && !isTeammate && (
                   <div className="mx-2 mb-1 mt-0.5 flex flex-wrap gap-1 rounded-lg border border-border/50 bg-muted/10 p-1.5">
                     {hasPending ? (
                       <span className="px-1 text-[10px] text-muted-foreground">Oczekuje na odpowiedz...</span>

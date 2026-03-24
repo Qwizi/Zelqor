@@ -407,6 +407,85 @@ def finalize_match_results_sync(
     except Exception as e:
         logger.error(f"Failed to dispatch webhook events: {e}")
 
+    # --- Clan war resolution ---
+    try:
+        from apps.clans.models import ClanWar, ClanWarParticipant
+        clan_war = ClanWar.objects.filter(
+            match_id=match_id,
+            status=ClanWar.Status.IN_PROGRESS,
+        ).select_related('challenger', 'defender').first()
+
+        if clan_war:
+            _resolve_clan_war(clan_war, match_id, winner_id)
+    except Exception as e:
+        logger.error("Failed to resolve clan war for match %s: %s", match_id, e)
+
+
+def _resolve_clan_war(clan_war, match_id: str, winner_id: str | None) -> None:
+    """Determine the winning clan for a clan war and kick off ELO calculation."""
+    from django.utils import timezone
+    from apps.clans.models import ClanWar, ClanWarParticipant
+    from apps.clans.tasks import calculate_clan_war_elo
+    from apps.matchmaking.models import MatchPlayer
+
+    winning_clan_id = None
+
+    if winner_id:
+        # Primary: look up the participant record for the winning user
+        participant = (
+            ClanWarParticipant.objects.filter(
+                war=clan_war,
+                user_id=winner_id,
+            )
+            .values_list('clan_id', flat=True)
+            .first()
+        )
+        if participant:
+            winning_clan_id = participant
+        else:
+            # Fallback: use team_label on MatchPlayer to map back to a clan
+            mp = (
+                MatchPlayer.objects.filter(
+                    match_id=match_id,
+                    user_id=winner_id,
+                )
+                .values_list('team_label', flat=True)
+                .first()
+            )
+            if mp == 'challenger':
+                winning_clan_id = clan_war.challenger_id
+            elif mp == 'defender':
+                winning_clan_id = clan_war.defender_id
+
+    if winning_clan_id:
+        clan_war.status = ClanWar.Status.FINISHED
+        clan_war.finished_at = timezone.now()
+        clan_war.winner_id = winning_clan_id
+        clan_war.save(update_fields=['status', 'finished_at', 'winner'])
+        calculate_clan_war_elo.delay(str(clan_war.pk))
+        logger.info(
+            "Clan war %s resolved: winner clan %s (match %s)",
+            clan_war.pk, winning_clan_id, match_id,
+        )
+    else:
+        # Draw or no winner — refund wagers to both clans
+        from apps.clans.models import Clan
+        clan_war.status = ClanWar.Status.FINISHED
+        clan_war.finished_at = timezone.now()
+        clan_war.save(update_fields=['status', 'finished_at'])
+
+        if clan_war.wager_gold > 0:
+            from django.db.models import F
+            with transaction.atomic():
+                for clan_pk in (clan_war.challenger_id, clan_war.defender_id):
+                    Clan.objects.filter(pk=clan_pk).update(
+                        treasury_gold=F('treasury_gold') + clan_war.wager_gold,
+                    )
+            logger.info(
+                "Clan war %s ended as draw — refunded %d gold to each clan",
+                clan_war.pk, clan_war.wager_gold,
+            )
+
 
 @shared_task
 def save_game_snapshot(match_id: str, tick: int, state_data: dict):

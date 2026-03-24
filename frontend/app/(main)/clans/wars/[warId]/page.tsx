@@ -8,6 +8,7 @@ import {
   Calendar,
   Check,
   Coins,
+  ExternalLink,
   Loader2,
   Swords,
   Trophy,
@@ -379,6 +380,28 @@ export default function WarDetailPage() {
             )}
           </div>
         </section>
+      )}
+
+      {/* ── Match link ── */}
+      {war.match_id && war.status === "in_progress" && (
+        <div className="px-4 md:px-0">
+          <Link href={`/game/${war.match_id}`}>
+            <Button className="gap-2 h-10 md:h-12 md:text-base md:px-8 w-full sm:w-auto">
+              <ExternalLink size={16} />
+              Przejdź do meczu
+            </Button>
+          </Link>
+        </div>
+      )}
+      {war.match_id && war.status === "finished" && (
+        <div className="px-4 md:px-0">
+          <Link href={`/replay/${war.match_id}`}>
+            <Button variant="outline" className="gap-2 h-10 md:h-12 md:text-base md:px-8 w-full sm:w-auto">
+              <ExternalLink size={16} />
+              Zobacz powtórkę
+            </Button>
+          </Link>
+        </div>
       )}
 
       {/* ── Participants ── */}

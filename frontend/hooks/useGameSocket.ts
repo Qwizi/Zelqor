@@ -73,6 +73,7 @@ export interface GamePlayer {
   ability_levels?: Record<string, number>;
   unlocked_buildings?: string[];
   unlocked_units?: string[];
+  team?: string | null;
   is_bot?: boolean;
   total_regions_conquered?: number;
   total_units_produced?: number;
