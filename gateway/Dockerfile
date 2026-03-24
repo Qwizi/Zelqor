@@ -9,13 +9,17 @@ COPY crates/maplord-engine/Cargo.toml crates/maplord-engine/Cargo.toml
 COPY crates/maplord-state/Cargo.toml crates/maplord-state/Cargo.toml
 COPY crates/maplord-matchmaking/Cargo.toml crates/maplord-matchmaking/Cargo.toml
 COPY crates/maplord-django/Cargo.toml crates/maplord-django/Cargo.toml
+COPY crates/maplord-ai/Cargo.toml crates/maplord-ai/Cargo.toml
+COPY crates/maplord-anticheat/Cargo.toml crates/maplord-anticheat/Cargo.toml
 
 # Create dummy source files for dependency caching
 RUN mkdir -p crates/maplord-gateway/src && echo "fn main() {}" > crates/maplord-gateway/src/main.rs && \
     mkdir -p crates/maplord-engine/src && echo "" > crates/maplord-engine/src/lib.rs && \
     mkdir -p crates/maplord-state/src && echo "" > crates/maplord-state/src/lib.rs && \
     mkdir -p crates/maplord-matchmaking/src && echo "" > crates/maplord-matchmaking/src/lib.rs && \
-    mkdir -p crates/maplord-django/src && echo "" > crates/maplord-django/src/lib.rs
+    mkdir -p crates/maplord-django/src && echo "" > crates/maplord-django/src/lib.rs && \
+    mkdir -p crates/maplord-ai/src && echo "" > crates/maplord-ai/src/lib.rs && \
+    mkdir -p crates/maplord-anticheat/src && echo "" > crates/maplord-anticheat/src/lib.rs
 
 RUN cargo build --release || true
 
