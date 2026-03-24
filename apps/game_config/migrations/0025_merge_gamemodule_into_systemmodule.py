@@ -129,7 +129,16 @@ class Migration(migrations.Migration):
         ),
         # 3. Data migration: copy GameModule -> SystemModule, remap override FKs
         migrations.RunPython(migrate_gamemodule_to_systemmodule, noop),
-        # 4. Remove old module FK (to GameModule)
+        # 4. Drop unique_together before removing the old FK (required for SQLite)
+        migrations.AlterUniqueTogether(
+            name="gamesettingsmoduleoverride",
+            unique_together=set(),
+        ),
+        migrations.AlterUniqueTogether(
+            name="gamemodemoduleoverride",
+            unique_together=set(),
+        ),
+        # 4b. Remove old module FK (to GameModule)
         migrations.RemoveField(
             model_name="gamesettingsmoduleoverride",
             name="module",
