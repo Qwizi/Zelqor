@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     # Third party
     'ninja_extra',
     'ninja_jwt',
+    'django_prometheus',
     # Local apps
     'apps.accounts',
     'apps.geo',
@@ -42,6 +43,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'django_prometheus.middleware.PrometheusBeforeMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -52,6 +54,7 @@ MIDDLEWARE = [
     'apps.accounts.middleware.LastActiveMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django_prometheus.middleware.PrometheusAfterMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'

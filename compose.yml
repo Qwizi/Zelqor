@@ -172,6 +172,25 @@ services:
       - gateway
       - livekit
 
+  alloy:
+    image: grafana/alloy:latest
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      GRAFANA_CLOUD_PROMETHEUS_URL: ${GRAFANA_CLOUD_PROMETHEUS_URL:-}
+      GRAFANA_CLOUD_LOKI_URL: ${GRAFANA_CLOUD_LOKI_URL:-}
+      GRAFANA_CLOUD_USER: ${GRAFANA_CLOUD_USER:-}
+      GRAFANA_CLOUD_LOKI_USER: ${GRAFANA_CLOUD_LOKI_USER:-}
+      GRAFANA_CLOUD_API_KEY: ${GRAFANA_CLOUD_API_KEY:-}
+    command: ["run", "/etc/alloy/config.alloy"]
+    depends_on:
+      - backend
+      - gateway
+    profiles:
+      - monitoring
+
 volumes:
   postgres_data_dev:
   redis_data_dev:

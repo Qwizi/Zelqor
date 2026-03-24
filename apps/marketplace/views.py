@@ -182,6 +182,19 @@ class MarketplaceController:
                 fee=fee,
             )
 
+            # Prometheus metrics
+            try:
+                from apps.game.metrics import (
+                    marketplace_transactions_total,
+                    marketplace_volume_gold,
+                    gold_spent_total,
+                )
+                marketplace_transactions_total.inc()
+                marketplace_volume_gold.inc(total_price)
+                gold_spent_total.labels(sink='marketplace_fee').inc(fee)
+            except Exception:
+                pass
+
         return {'message': f'Bought {qty}x {listing.item.name} for {total_price} gold (fee: {fee})'}
 
     @route.post('/cancel/{listing_id}/', auth=ActiveUserJWTAuth())

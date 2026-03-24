@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import path
+from django.urls import include, path
 from ninja_extra import NinjaExtraAPI
 from ninja_jwt.controller import NinjaJWTDefaultController
 
@@ -70,6 +70,7 @@ def health_check(request):
 
 urlpatterns = [
     path('health/', health_check),
+    path('', include('django_prometheus.urls')),
     path('admin/', admin.site.urls),
     path('api/v1/', api.urls),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

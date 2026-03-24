@@ -21,6 +21,7 @@ dependencies = [
     "django-unfold>=0.84.0",
     "pywebpush>=2.3.0",
     "gevent>=24.2.1",
+    "django-prometheus>=2.3.1",
 ]
 
 [dependency-groups]

@@ -1,0 +1,80 @@
+// Grafana Alloy configuration for MapLord
+// Scrapes Prometheus metrics from backend + gateway, collects Docker logs,
+// and forwards everything to Grafana Cloud.
+
+// ── Prometheus scraping ─────────────────────────────────────────────
+
+prometheus.scrape "backend" {
+  targets = [{
+    __address__ = "backend:8000",
+    job         = "maplord-backend",
+  }]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "30s"
+  metrics_path    = "/metrics"
+}
+
+prometheus.scrape "gateway" {
+  targets = [{
+    __address__ = "gateway:8080",
+    job         = "maplord-gateway",
+  }]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "15s"
+  metrics_path    = "/metrics"
+}
+
+// ── Remote write to Grafana Cloud Prometheus ────────────────────────
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = env("GRAFANA_CLOUD_PROMETHEUS_URL")
+
+    basic_auth {
+      username = env("GRAFANA_CLOUD_USER")
+      password = env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+}
+
+// ── Docker log collection ───────────────────────────────────────────
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.containers.targets
+
+  // Keep only MapLord services (filter by compose project)
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "(backend|gateway|celery|celery-beat|frontend|caddy)"
+    action        = "keep"
+  }
+
+  // Use service name as "service" label
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "containers" {
+  host    = "unix:///var/run/docker.sock"
+  targets = discovery.relabel.docker_logs.output
+  forward_to = [loki.write.grafana_cloud.receiver]
+}
+
+// ── Loki push to Grafana Cloud ──────────────────────────────────────
+
+loki.write "grafana_cloud" {
+  endpoint {
+    url = env("GRAFANA_CLOUD_LOKI_URL")
+
+    basic_auth {
+      username = env("GRAFANA_CLOUD_LOKI_USER")
+      password = env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+}

@@ -5,6 +5,7 @@ use axum::extract::{Path, State, WebSocketUpgrade};
 use axum::response::Response;
 use dashmap::DashMap;
 use maplord_ai::{BotBrain, BotStrategy, TutorialBotBrain};
+use metrics::{counter, gauge, histogram};
 use maplord_engine::{
     Action, ActiveBoost, ActiveEffect, AirTransitItem, BuildingQueueItem, DiplomacyState, Event,
     GameEngine, GameSettings, Player, Region, TransitQueueItem, UnitQueueItem, WeatherState,
@@ -389,6 +390,9 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
         .or_default()
         .push(tx.clone());
 
+    counter!("gateway_ws_connections_total").increment(1);
+    gauge!("gateway_ws_connections_active").increment(1.0);
+
     // Check game status and handle accordingly
     let meta = state_mgr.get_meta().await.unwrap_or_default();
     let status = meta.get("status").cloned().unwrap_or_default();
@@ -512,6 +516,7 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
     }
 
     // Disconnect cleanup
+    gauge!("gateway_ws_connections_active").decrement(1.0);
     mark_player_disconnected(&state_mgr, &user_id, &match_id, &state).await;
 
     crate::social::clear_player_status(&mut state.redis.clone(), &user_id).await;
@@ -559,6 +564,8 @@ async fn handle_game_message(
     if action != "ping" {
         eprintln!("[WS] Received action='{}' from user={}", action, user_id);
     }
+
+    counter!("gateway_messages_received_total", "type" => action.to_string()).increment(1);
 
     // Rate limit game actions (not chat/leave_match/set_tick_multiplier)
     if matches!(
@@ -1431,6 +1438,69 @@ async fn game_loop(
             events = combined;
         }
 
+        // Record game balance metrics from tick events
+        for event in &events {
+            match event {
+                Event::AttackSuccess { units, unit_type, surviving_units, .. } => {
+                    counter!("game_attacks_total", "result" => "success").increment(1);
+                    let lost = (*units - *surviving_units).max(0);
+                    counter!("game_units_lost_total", "unit_type" => unit_type.clone(), "cause" => "combat").increment(lost as u64);
+                    histogram!("game_attack_ratio", "result" => "success").record(*units as f64 / (*surviving_units).max(1) as f64);
+                    counter!("game_combat_by_weather", "weather" => weather.condition.clone(), "result" => "attacker_win").increment(1);
+                }
+                Event::AttackFailed { units, unit_type, defender_surviving, .. } => {
+                    counter!("game_attacks_total", "result" => "failed").increment(1);
+                    counter!("game_units_lost_total", "unit_type" => unit_type.clone(), "cause" => "combat").increment((*units).max(0) as u64);
+                    histogram!("game_attack_ratio", "result" => "failed").record(*units as f64 / (*defender_surviving).max(1) as f64);
+                    counter!("game_combat_by_weather", "weather" => weather.condition.clone(), "result" => "defender_win").increment(1);
+                }
+                Event::UnitProductionComplete { unit_type, quantity, .. } => {
+                    counter!("game_units_produced_total", "unit_type" => unit_type.clone()).increment((*quantity).max(0) as u64);
+                }
+                Event::BuildingComplete { building_type, .. } => {
+                    counter!("game_buildings_built_total", "building_type" => building_type.clone()).increment(1);
+                }
+                Event::BuildingUpgraded { building_type, new_level, .. } => {
+                    counter!("game_buildings_upgraded_total", "building_type" => building_type.clone(), "level" => new_level.to_string()).increment(1);
+                }
+                Event::AbilityUsed { ability_type, .. } => {
+                    counter!("game_abilities_used_total", "ability_type" => ability_type.clone()).increment(1);
+                }
+                Event::PlayerEliminated { reason, .. } => {
+                    counter!("game_eliminations_total", "reason" => reason.clone()).increment(1);
+                }
+                Event::AirMissionLaunched { mission_type, .. } => {
+                    counter!("game_air_missions_total", "type" => mission_type.clone()).increment(1);
+                }
+                Event::BomberStrike { province_neutralized, .. } => {
+                    let result = if *province_neutralized { "neutralized" } else { "hit" };
+                    counter!("game_bomber_strikes_total", "result" => result).increment(1);
+                }
+                Event::WarDeclared { .. } => {
+                    counter!("game_diplomacy_total", "action" => "war_declared").increment(1);
+                }
+                Event::PactProposed { pact_type, .. } => {
+                    counter!("game_diplomacy_total", "action" => format!("{pact_type}_proposed")).increment(1);
+                }
+                Event::PactAccepted { pact_type, .. } => {
+                    counter!("game_diplomacy_total", "action" => format!("{pact_type}_accepted")).increment(1);
+                }
+                Event::PactRejected { .. } => {
+                    counter!("game_diplomacy_total", "action" => "pact_rejected").increment(1);
+                }
+                Event::PactBroken { .. } => {
+                    counter!("game_diplomacy_total", "action" => "pact_broken").increment(1);
+                }
+                Event::PeaceProposed { .. } => {
+                    counter!("game_diplomacy_total", "action" => "peace_proposed").increment(1);
+                }
+                Event::PeaceAccepted { .. } => {
+                    counter!("game_diplomacy_total", "action" => "peace_accepted").increment(1);
+                }
+                _ => {}
+            }
+        }
+
         // Mark eliminated_tick on players
         for event in &events {
             if let Event::PlayerEliminated { player_id, reason } = event {
@@ -1733,6 +1803,7 @@ async fn game_loop(
 
         // Compensate for processing time
         let elapsed = tick_start.elapsed();
+        histogram!("gateway_tick_duration_seconds").record(elapsed.as_secs_f64());
         next_tick_at += tick_interval;
         if elapsed > tick_interval {
             next_tick_at = tokio::time::Instant::now();

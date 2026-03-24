@@ -768,6 +768,14 @@ def _create_match_from_users(users, game_mode):
         if user.is_bot:
             bot_ids.append(str(user.id))
 
+    # Prometheus metric
+    try:
+        from apps.game.metrics import matches_started_total
+        mode_label = game_mode.slug if game_mode else "default"
+        matches_started_total.labels(game_mode=mode_label).inc()
+    except Exception:
+        pass
+
     return {
         'match_id': str(match.id),
         'user_ids': user_ids,

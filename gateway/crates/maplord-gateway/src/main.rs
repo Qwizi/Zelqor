@@ -11,6 +11,7 @@ use axum::{
     routing::get,
     Router,
 };
+use metrics_exporter_prometheus::PrometheusBuilder;
 use maplord_django::DjangoClient;
 use maplord_matchmaking::MatchmakingManager;
 use std::sync::Arc;
@@ -116,6 +117,11 @@ async fn main() {
     let config = AppConfig::from_env();
     info!("Starting MapLord Gateway on port {}", config.gateway_port);
 
+    // Install Prometheus metrics recorder
+    let prometheus_handle = PrometheusBuilder::new()
+        .install_recorder()
+        .expect("failed to install Prometheus recorder");
+
     // Connect to Redis
     let redis_client = redis::Client::open(config.redis_url())
         .expect("Failed to create Redis client");
@@ -169,6 +175,11 @@ async fn main() {
     let app = Router::new()
         // Health check
         .route("/health", get(|| async { "OK" }))
+        // Prometheus metrics
+        .route("/metrics", get({
+            let handle = prometheus_handle.clone();
+            move || async move { handle.render() }
+        }))
         // Matchmaking WebSocket routes
         .route(
             "/ws/matchmaking/",

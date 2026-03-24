@@ -9,6 +9,7 @@ maplord-engine = { path = "../maplord-engine" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+metrics = { workspace = true }
 
 redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
 rmp-serde = "1"

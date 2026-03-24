@@ -1,4 +1,5 @@
 use maplord_engine::{Action, Player, Region};
+use metrics::counter;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
@@ -581,6 +582,11 @@ impl AnticheatEngine {
         let mut worst = AnticheatVerdict::Allow;
         for violation in &violations {
             self.log_violation(violation).await;
+            counter!(
+                "game_anticheat_violations_total",
+                "kind" => violation.kind.to_string(),
+                "severity" => violation.severity.to_string()
+            ).increment(1);
 
             let profile = self.profile(&violation.player_id);
             profile.violation_score = profile.violation_score.saturating_add(violation.severity as u32);

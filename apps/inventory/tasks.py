@@ -169,6 +169,26 @@ def generate_match_drops(match_id: str):
                     instance=instance,
                 )
 
+                try:
+                    from apps.game.metrics import item_drops_total
+                    item_drops_total.labels(rarity=drop_item.rarity).inc()
+                except Exception:
+                    pass
+
+    # Prometheus metrics
+    try:
+        from apps.game.metrics import gold_awarded_total, item_drops_total
+        for pr in player_results:
+            if pr.user.is_bot:
+                continue
+            source = "match_win" if pr.placement == 1 else "match_loss"
+            gold = WINNER_GOLD if pr.placement == 1 else LOSER_GOLD
+            gold_awarded_total.labels(source=source).inc(gold)
+        # Item drop rarity counts are recorded per drop inside the loop above
+        # but we can aggregate from DB if needed; for now just track gold flow
+    except Exception:
+        pass
+
     logger.info(
         "Generated drops for %d human players in match %s",
         sum(1 for pr in player_results if not pr.user.is_bot),

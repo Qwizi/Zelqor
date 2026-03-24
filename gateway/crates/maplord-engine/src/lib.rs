@@ -2,6 +2,7 @@ mod types;
 
 pub use types::*;
 
+use metrics::counter;
 use rand::Rng;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -1122,6 +1123,7 @@ impl GameEngine {
         // Deduct energy, set cooldown, and consume one scroll use if deck system is active.
         let player = players.get_mut(player_id.as_str()).unwrap();
         player.energy -= scaled_energy_cost;
+        counter!("game_energy_spent_total", "action" => "ability").increment(scaled_energy_cost.max(0) as u64);
         player.ability_cooldowns.insert(
             ability_slug.clone(),
             current_tick + scaled_cooldown,
@@ -2450,6 +2452,7 @@ impl GameEngine {
             let upgrade_time = get_level_stat_i64(&config.level_stats, next_level, "build_time_ticks")
                 .unwrap_or(config.build_time_ticks * next_level);
             player.energy -= upgrade_cost;
+            counter!("game_energy_spent_total", "action" => "build_upgrade").increment(upgrade_cost.max(0) as u64);
 
             buildings_queue.push(BuildingQueueItem {
                 region_id: region_id.clone(),
@@ -2478,6 +2481,7 @@ impl GameEngine {
             let build_time = get_level_stat_i64(&config.level_stats, 1, "build_time_ticks")
                 .unwrap_or(config.build_time_ticks);
             player.energy -= energy_cost;
+            counter!("game_energy_spent_total", "action" => "build").increment(energy_cost.max(0) as u64);
 
             buildings_queue.push(BuildingQueueItem {
                 region_id: region_id.clone(),
@@ -2610,6 +2614,7 @@ impl GameEngine {
         }
 
         player.energy -= production_cost;
+        counter!("game_energy_spent_total", "action" => "produce_unit").increment(production_cost.max(0) as u64);
         let production_time = get_level_stat_i64(&unit_config.level_stats, 1, "production_time_ticks")
             .unwrap_or(unit_config.production_time_ticks as i64)
             .max(1);

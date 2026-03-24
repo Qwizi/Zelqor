@@ -7,6 +7,7 @@ from celery import shared_task
 from django.conf import settings
 from django.db import transaction
 from apps.game_config.modules import get_module_config
+from apps.game import metrics as game_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -351,6 +352,25 @@ def finalize_match_results_sync(
                 })
     except Exception as e:
         logger.error(f"Failed to dispatch webhook events: {e}")
+
+    # ── Prometheus metrics ───────────────────────────────────────────
+    try:
+        game_mode = (match.settings_snapshot or {}).get("game_mode", "default")
+        game_metrics.matches_finished_total.labels(game_mode=game_mode).inc()
+        game_metrics.match_duration_seconds.observe(duration)
+
+        for row in player_rows:
+            if row["is_bot"]:
+                continue
+            elo_delta = row.get("final_elo_change", 0)
+            result_label = "win" if row["pid"] == winner_id else "loss"
+            game_metrics.elo_change.labels(result=result_label).observe(elo_delta)
+
+            reason = row.get("eliminated_reason", "")
+            if reason:
+                game_metrics.player_eliminations_total.labels(reason=reason).inc()
+    except Exception as e:
+        logger.debug("Failed to emit prometheus metrics: %s", e)
 
 
 @shared_task
