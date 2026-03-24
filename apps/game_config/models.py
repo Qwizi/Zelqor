@@ -78,13 +78,13 @@ class GameSettings(models.Model):
     )
 
     # Action Points
-    max_action_points = models.IntegerField(default=10, help_text='Max AP pool per player')
-    ap_regen_interval = models.IntegerField(default=3, help_text='Ticks between each +1 AP regeneration')
-    ap_cost_attack = models.IntegerField(default=3, help_text='AP cost for attack/bombard/intercept')
-    ap_cost_move = models.IntegerField(default=2, help_text='AP cost for move')
-    ap_cost_build = models.IntegerField(default=2, help_text='AP cost for build/upgrade')
-    ap_cost_produce = models.IntegerField(default=1, help_text='AP cost for unit production')
-    ap_cost_ability = models.IntegerField(default=4, help_text='AP cost for ability use')
+    max_action_points = models.IntegerField(default=15, help_text='Max AP pool per player')
+    ap_regen_interval = models.IntegerField(default=2, help_text='Ticks between each +1 AP regeneration')
+    ap_cost_attack = models.IntegerField(default=4, help_text='Max AP cost for attack/bombard/intercept (scaled by % units sent)')
+    ap_cost_move = models.IntegerField(default=1, help_text='AP cost for move')
+    ap_cost_build = models.IntegerField(default=1, help_text='AP cost for build/upgrade')
+    ap_cost_produce = models.IntegerField(default=0, help_text='AP cost for unit production')
+    ap_cost_ability = models.IntegerField(default=3, help_text='AP cost for ability use')
 
     # Region Cooldowns
     region_attack_cooldown = models.IntegerField(default=0, help_text='Ticks before a region can attack again (0 = no cooldown)')
@@ -309,13 +309,13 @@ class GameMode(models.Model):
     )
 
     # Action Points
-    max_action_points = models.IntegerField(default=10, help_text='Max AP pool per player')
-    ap_regen_interval = models.IntegerField(default=3, help_text='Ticks between each +1 AP regeneration')
-    ap_cost_attack = models.IntegerField(default=3, help_text='AP cost for attack/bombard/intercept')
-    ap_cost_move = models.IntegerField(default=2, help_text='AP cost for move')
-    ap_cost_build = models.IntegerField(default=2, help_text='AP cost for build/upgrade')
-    ap_cost_produce = models.IntegerField(default=1, help_text='AP cost for unit production')
-    ap_cost_ability = models.IntegerField(default=4, help_text='AP cost for ability use')
+    max_action_points = models.IntegerField(default=15, help_text='Max AP pool per player')
+    ap_regen_interval = models.IntegerField(default=2, help_text='Ticks between each +1 AP regeneration')
+    ap_cost_attack = models.IntegerField(default=4, help_text='Max AP cost for attack/bombard/intercept (scaled by % units sent)')
+    ap_cost_move = models.IntegerField(default=1, help_text='AP cost for move')
+    ap_cost_build = models.IntegerField(default=1, help_text='AP cost for build/upgrade')
+    ap_cost_produce = models.IntegerField(default=0, help_text='AP cost for unit production')
+    ap_cost_ability = models.IntegerField(default=3, help_text='AP cost for ability use')
 
     # Region Cooldowns
     region_attack_cooldown = models.IntegerField(default=0, help_text='Ticks before a region can attack again (0 = no cooldown)')

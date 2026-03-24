@@ -17,7 +17,7 @@ import { loadAssetOverrides } from "@/lib/assetOverrides";
 import { getSeaTravelRange, getTravelDistance } from "@/lib/gameTravel.js";
 import dynamic from "next/dynamic";
 import type { TroopAnimation, PlannedMove } from "@/lib/gameTypes";
-import { MAX_PLANNED_MOVES, PLAN_EXPIRY_S, AP_COSTS } from "@/lib/gameTypes";
+import { MAX_PLANNED_MOVES, PLAN_EXPIRY_S, AP_COSTS, getAttackApCost } from "@/lib/gameTypes";
 import { getEliminationVfx, getVictoryVfx } from "@/lib/animationConfig";
 import { useShapesData } from "@/hooks/useShapesData";
 const ANIMATION_DURATION_MS = 2200;
@@ -759,7 +759,10 @@ export default function GamePage({
       // If action_points is undefined (server hasn't sent it yet), allow the action
       // and let the server validate. This prevents blocking on stale/missing data.
       const isAttackAction = target.owner_id !== myUserId;
-      const apCost = isAttackAction ? AP_COSTS.attack : AP_COSTS.move;
+      const sourceRegion = gameState.regions[sourceId];
+      const available = sourceRegion ? getAvailableUnits(sourceRegion.units, unitType, unitConfigBySlug) : unitCount;
+      const unitPct = available > 0 ? (unitCount / available) * 100 : 100;
+      const apCost = isAttackAction ? getAttackApCost(unitPct) : AP_COSTS.move;
       const playerData = gameState.players[myUserId];
       const currentAP = playerData?.action_points;
       if (currentAP != null && currentAP < apCost) {
@@ -768,7 +771,6 @@ export default function GamePage({
       }
 
       // Cooldown check — only block if we have cooldown data and a valid tick
-      const sourceRegion = gameState.regions[sourceId];
       const tick = parseInt(gameState.meta?.current_tick || "0", 10);
       if (sourceRegion && tick > 0) {
         const attackCd = sourceRegion.action_cooldowns?.attack ?? 0;

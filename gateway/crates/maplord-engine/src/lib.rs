@@ -452,7 +452,7 @@ impl GameEngine {
 
         for action in actions {
             // Check AP cost for this action type. Free actions (diplomacy, boost) cost 0.
-            let ap_cost = self.get_ap_cost(&action.action_type);
+            let ap_cost = self.get_ap_cost(action, regions);
             if ap_cost > 0 {
                 if let Some(pid) = action.player_id.as_deref() {
                     let has_ap = players.get(pid).map(|p| p.action_points >= ap_cost).unwrap_or(false);
@@ -597,9 +597,25 @@ impl GameEngine {
 
     // --- Action Points ---
 
-    fn get_ap_cost(&self, action_type: &str) -> i64 {
-        match action_type {
-            "attack" | "bombard" | "intercept" => self.settings.ap_cost_attack,
+    fn get_ap_cost(&self, action: &Action, regions: &HashMap<String, Region>) -> i64 {
+        match action.action_type.as_str() {
+            "attack" | "bombard" | "intercept" => {
+                // Dynamic AP cost based on % of units sent
+                let max_cost = self.settings.ap_cost_attack;
+                if max_cost <= 1 {
+                    return max_cost;
+                }
+                let pct = self.get_attack_unit_percent(action, regions);
+                if pct <= 0.25 {
+                    1
+                } else if pct <= 0.50 {
+                    (max_cost / 2).max(2)
+                } else if pct <= 0.75 {
+                    (max_cost * 3 / 4).max(3)
+                } else {
+                    max_cost
+                }
+            }
             "move" => self.settings.ap_cost_move,
             "build" | "upgrade_building" => self.settings.ap_cost_build,
             "produce_unit" => self.settings.ap_cost_produce,
@@ -607,6 +623,27 @@ impl GameEngine {
             // Diplomacy, boosts are free
             _ => 0,
         }
+    }
+
+    fn get_attack_unit_percent(&self, action: &Action, regions: &HashMap<String, Region>) -> f64 {
+        let units_sent = action.units.unwrap_or(0);
+        if units_sent <= 0 {
+            return 1.0;
+        }
+        let source_id = match &action.source_region_id {
+            Some(id) => id,
+            None => return 1.0,
+        };
+        let source = match regions.get(source_id) {
+            Some(r) => r,
+            None => return 1.0,
+        };
+        let unit_type = action.unit_type.clone().unwrap_or_else(|| self.default_unit_type_slug());
+        let available = get_available_units(source, &unit_type, self);
+        if available <= 0 {
+            return 1.0;
+        }
+        (units_sent as f64 / available as f64).min(1.0)
     }
 
     fn regenerate_action_points(
@@ -4976,7 +5013,7 @@ mod tests {
             energy: 200,
             energy_accum: 0.0,
             capital_region_id: None,
-            action_points: 10,
+            action_points: 15,
             ap_regen_accum: 0.0,
             ..Default::default()
         }
