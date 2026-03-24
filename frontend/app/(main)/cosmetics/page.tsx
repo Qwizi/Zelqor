@@ -491,9 +491,9 @@ function CosmeticsContent() {
         ? { item_slug: itemSlug, instance_id: instanceId }
         : { item_slug: itemSlug };
       const result = await equipMutation.mutateAsync(payload);
-      toast.success(`Założono: ${result.item_name}`);
+      toast.success(`Założono: ${result.item_name}`, { id: "cosmetics-equip-success" });
     } catch {
-      toast.error("Nie udało się założyć kosmetyku");
+      toast.error("Nie udało się założyć kosmetyku", { id: "cosmetics-equip-error" });
     }
   };
 
@@ -501,9 +501,9 @@ function CosmeticsContent() {
     if (actionLoading) return;
     try {
       await unequipMutation.mutateAsync(slot);
-      toast.success("Zdjęto kosmetyk");
+      toast.success("Zdjęto kosmetyk", { id: "cosmetics-unequip-success" });
     } catch {
-      toast.error("Nie udało się zdjąć kosmetyku");
+      toast.error("Nie udało się zdjąć kosmetyku", { id: "cosmetics-unequip-error" });
     }
   };
 

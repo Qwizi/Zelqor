@@ -533,7 +533,7 @@ function InventoryContent() {
       return keySuffix === crateSuffix;
     });
     if (!matchingKey) {
-      toast.error("Nie masz odpowiedniego klucza!");
+      toast.error("Nie masz odpowiedniego klucza!", { id: "inventory-no-key" });
       return;
     }
     const crateEntry = inventory.find((i) => i.item.slug === crateSlug);
@@ -543,7 +543,7 @@ function InventoryContent() {
       setCrateDrops(result.drops);
       setCrateModalOpen(true);
     } catch {
-      toast.error("Nie udało się otworzyć skrzynki");
+      toast.error("Nie udało się otworzyć skrzynki", { id: "inventory-crate-error" });
     }
   };
 

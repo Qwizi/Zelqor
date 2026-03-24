@@ -532,6 +532,7 @@ function QueueBannerInline() {
     if (lobbyFull && !lobbyToastRef.current && !myReady) {
       try { const a = new Audio("/assets/audio/gui/int_message_alert.ogg"); a.volume = 0.7; a.play().catch(() => {}); } catch {}
       lobbyToastRef.current = toast.success("Mecz znaleziony!", {
+        id: "matchmaking-lobby-found",
         description: "Kliknij Gotowy aby potwierdzić",
         duration: Infinity,
         action: {
@@ -1009,9 +1010,9 @@ function NotificationBell({
                                 if (onGameInvite && result.game_mode) {
                                   onGameInvite(result.game_mode);
                                 }
-                                toast.success("Dołączono do lobby!");
+                                toast.success("Dołączono do lobby!", { id: "layout-lobby-join" });
                               } catch {
-                                toast.error("Nie udało się dołączyć");
+                                toast.error("Nie udało się dołączyć", { id: "layout-lobby-join-error" });
                               }
                             }}
                             className="flex items-center gap-1.5 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs font-semibold text-green-400 hover:bg-green-500/25 transition-colors"
@@ -1028,7 +1029,7 @@ function NotificationBell({
                                 markRead(n.id);
                                 toast("Zaproszenie odrzucone");
                               } catch {
-                                toast.error("Błąd");
+                                toast.error("Błąd", { id: "layout-invite-reject-error" });
                               }
                             }}
                             className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/20 transition-colors"
@@ -1124,9 +1125,9 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
                 const { acceptGameInvite } = await import("@/lib/api");
                 const result = await acceptGameInvite(token!, notif.id);
                 if (result.game_mode) joinQueue(result.game_mode);
-                toast.success("Dołączono do lobby!");
+                toast.success("Dołączono do lobby!", { id: "layout-notif-lobby-join" });
               } catch {
-                toast.error("Nie udało się dołączyć");
+                toast.error("Nie udało się dołączyć", { id: "layout-notif-lobby-join-error" });
               }
             },
           },

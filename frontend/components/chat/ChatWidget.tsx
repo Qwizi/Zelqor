@@ -103,7 +103,7 @@ function DMChatView({ friendId, friendUsername, currentUserId, token }: DMChatVi
         return [...prev, sent];
       });
     } catch {
-      toast.error("Nie udało się wysłać wiadomości");
+      toast.error("Nie udało się wysłać wiadomości", { id: "chat-send-error" });
     } finally {
       setSending(false);
     }

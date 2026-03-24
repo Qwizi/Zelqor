@@ -50,7 +50,8 @@ function LinkContent() {
     linkSocialAccount(token, provider, code, redirectUri, state)
       .then(() => {
         toast.success(
-          `Konto ${provider === "google" ? "Google" : "Discord"} zostało podłączone.`
+          `Konto ${provider === "google" ? "Google" : "Discord"} zostało podłączone.`,
+          { id: "auth-link-success" }
         );
         router.replace("/settings");
       })

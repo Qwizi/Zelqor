@@ -155,10 +155,10 @@ function SecretDialog({
     try {
       await navigator.clipboard.writeText(createdApp.client_secret);
       setCopied(true);
-      toast.success("Sekret skopiowany do schowka");
+      toast.success("Sekret skopiowany do schowka", { id: "developers-secret-copied" });
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Nie udalo sie skopiowac");
+      toast.error("Nie udalo sie skopiowac", { id: "developers-secret-copy-error" });
     }
   };
 
@@ -268,7 +268,7 @@ function CreateAppDialog({
       onOpenChange(false);
       onCreated(app);
     } catch {
-      toast.error("Nie udalo sie utworzyc aplikacji.");
+      toast.error("Nie udalo sie utworzyc aplikacji.", { id: "developers-app-create-error" });
     }
   };
 
@@ -378,7 +378,7 @@ function DevelopersContent() {
   const handleCreated = (app: DeveloperAppCreated) => {
     setCreatedApp(app);
     setSecretOpen(true);
-    toast.success(`Aplikacja "${app.name}" utworzona.`);
+    toast.success(`Aplikacja "${app.name}" utworzona.`, { id: "developers-app-created" });
   };
 
   const handleSecretClose = () => {

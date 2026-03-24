@@ -561,7 +561,7 @@ export default function DeckEditorPage() {
   // Redirect on error loading deck
   useEffect(() => {
     if (deckError) {
-      toast.error("Nie udało się załadować talii");
+      toast.error("Nie udało się załadować talii", { id: "deck-load-error" });
       router.replace("/decks");
     }
   }, [deckError, router]);
@@ -644,10 +644,10 @@ export default function DeckEditorPage() {
         await setDefaultDeckMutation.mutateAsync(deckId);
       }
 
-      toast.success("Talia zaktualizowana");
+      toast.success("Talia zaktualizowana", { id: "deck-save" });
       router.push("/decks");
     } catch {
-      toast.error("Nie udało się zapisać talii");
+      toast.error("Nie udało się zapisać talii", { id: "deck-save-error" });
     }
   };
 

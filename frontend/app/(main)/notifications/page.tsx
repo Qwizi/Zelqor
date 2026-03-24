@@ -145,12 +145,12 @@ export default function NotificationsPage() {
 
   async function handleMarkRead(id: string) {
     await markReadMutation.mutateAsync(id);
-    toast.success("Oznaczono jako przeczytane");
+    toast.success("Oznaczono jako przeczytane", { id: "notifications-mark-read" });
   }
 
   async function handleMarkAllRead() {
     await markAllReadMutation.mutateAsync();
-    toast.success("Wszystkie oznaczone jako przeczytane");
+    toast.success("Wszystkie oznaczone jako przeczytane", { id: "notifications-mark-all-read" });
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

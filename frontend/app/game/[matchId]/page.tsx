@@ -874,7 +874,7 @@ export default function GamePage({
         // Too close to an existing capital
         if (dimmedRegions.includes(regionId)) {
           const minDist = parseInt(gameState?.meta?.min_capital_distance || "3", 10);
-          toast.error(`Stolica musi być co najmniej ${minDist} regiony od stolicy innego gracza`);
+          toast.error(`Stolica musi być co najmniej ${minDist} regiony od stolicy innego gracza`, { id: "game-capital-too-close" });
           return;
         }
         selectCapital(regionId);
@@ -898,7 +898,8 @@ export default function GamePage({
             toast.error(
               abilityDef.target_type === "enemy"
                 ? "Zdolnosc wymaga wrogiego celu"
-                : "Zdolnosc wymaga wlasnego regionu"
+                : "Zdolnosc wymaga wlasnego regionu",
+              { id: "game-ability-invalid-target" }
             );
             return;
           }
@@ -1350,7 +1351,7 @@ export default function GamePage({
               if (!window.confirm("Na pewno chcesz opuscic mecz calkowicie?")) return;
               const confirmed = await leaveMatch();
               if (!confirmed) {
-                toast.error("Nie udalo sie potwierdzic opuszczenia meczu");
+                toast.error("Nie udalo sie potwierdzic opuszczenia meczu", { id: "game-leave-error" });
                 return;
               }
               playJingle("defeat");
@@ -1377,7 +1378,7 @@ export default function GamePage({
               if (!window.confirm("Na pewno chcesz opuscic mecz calkowicie?")) return;
               const confirmed = await leaveMatch();
               if (!confirmed) {
-                toast.error("Nie udalo sie potwierdzic opuszczenia meczu");
+                toast.error("Nie udalo sie potwierdzic opuszczenia meczu", { id: "game-leave-error" });
                 return;
               }
               playJingle("defeat");
@@ -1576,7 +1577,7 @@ export default function GamePage({
             const ownRegionsWithFighters = Object.entries(gameState.regions)
               .filter(([, r]) => r.owner_id === myUserId && (r.units?.fighter ?? 0) > 0);
             if (ownRegionsWithFighters.length === 0) {
-              toast.warning("Brak myśliwców do przechwycenia!");
+              toast.warning("Brak myśliwców do przechwycenia!", { id: "game-intercept-no-fighters" });
               return;
             }
             // Use selected region if it has fighters, otherwise first available
@@ -1585,7 +1586,7 @@ export default function GamePage({
               : ownRegionsWithFighters[0][0];
             const fighterCount = gameState.regions[sourceId]?.units?.fighter ?? 0;
             interceptFlight(sourceId, flightId, fighterCount);
-            toast.info(`Wysłano ${fighterCount} myśliwców na przechwycenie!`);
+            toast.info(`Wysłano ${fighterCount} myśliwców na przechwycenie!`, { id: "game-intercept-sent" });
           }}
         />
 
@@ -1610,14 +1611,14 @@ export default function GamePage({
                     const sourceId = selectedRegion && myFighterRegions.some(([id]) => id === selectedRegion)
                       ? selectedRegion
                       : myFighterRegions[0]?.[0];
-                    if (!sourceId) { toast.error("Brak prowincji z myśliwcami!"); return; }
+                    if (!sourceId) { toast.error("Brak prowincji z myśliwcami!", { id: "game-intercept-no-source" }); return; }
                     const available = gameState?.regions[sourceId]?.units?.fighter ?? 0;
-                    if (available <= 0) { toast.error("Brak myśliwców w prowincji!"); return; }
+                    if (available <= 0) { toast.error("Brak myśliwców w prowincji!", { id: "game-intercept-no-available" }); return; }
                     // Calculate how many fighters needed: enough to beat escorts + bombers.
                     const needed = flight.escort_fighters + flight.units + 1; // +1 for advantage
                     const toSend = Math.min(available, Math.max(needed, 1));
                     interceptFlight(sourceId, flight.id, toSend);
-                    toast.info(`Wysłano ${toSend} myśliwców na przechwycenie! (potrzeba ~${needed})`);
+                    toast.info(`Wysłano ${toSend} myśliwców na przechwycenie! (potrzeba ~${needed})`, { id: "game-intercept-sent-button" });
                   }}
                   className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-950/80 px-3 py-2 text-sm font-semibold text-red-300 shadow-lg backdrop-blur-sm transition-colors hover:bg-red-900/80 hover:text-red-200"
                 >

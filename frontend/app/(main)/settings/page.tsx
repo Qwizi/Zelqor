@@ -123,11 +123,11 @@ function SetPasswordForm({ onSuccess }: { onSuccess: () => void }) {
   async function onSubmit(values: SetPasswordValues) {
     try {
       await setPassword(requireToken(), values.new_password);
-      toast.success("Hasło zostało ustawione.");
+      toast.success("Hasło zostało ustawione.", { id: "settings-password-set" });
       reset();
       onSuccess();
     } catch {
-      toast.error("Nie udało się ustawić hasła. Spróbuj ponownie.");
+      toast.error("Nie udało się ustawić hasła. Spróbuj ponownie.", { id: "settings-password-set-error" });
     }
   }
 
@@ -176,10 +176,10 @@ function ChangePasswordForm() {
   async function onSubmit(values: ChangePasswordValues) {
     try {
       await changePassword(requireToken(), values.current_password, values.new_password);
-      toast.success("Hasło zostało zmienione.");
+      toast.success("Hasło zostało zmienione.", { id: "settings-password-change" });
       reset();
     } catch {
-      toast.error("Nie udało się zmienić hasła. Sprawdź aktualne hasło i spróbuj ponownie.");
+      toast.error("Nie udało się zmienić hasła. Sprawdź aktualne hasło i spróbuj ponownie.", { id: "settings-password-change-error" });
     }
   }
 
@@ -251,11 +251,11 @@ export default function SettingsPage() {
   async function onUsernameSubmit(values: UsernameValues) {
     try {
       await changeUsername(requireToken(), values.username);
-      toast.success("Nazwa użytkownika została zmieniona.");
+      toast.success("Nazwa użytkownika została zmieniona.", { id: "settings-username-save" });
       await refreshUser();
       setUsernameEditing(false);
     } catch {
-      toast.error("Nie udało się zmienić nazwy użytkownika. Spróbuj ponownie.");
+      toast.error("Nie udało się zmienić nazwy użytkownika. Spróbuj ponownie.", { id: "settings-username-error" });
     }
   }
 
@@ -276,9 +276,9 @@ export default function SettingsPage() {
     try {
       await unlinkSocialAccount(requireToken(), account.id);
       await queryClient.invalidateQueries({ queryKey: [...queryKeys.auth.all, "social-accounts"] });
-      toast.success(`Konto ${account.provider === "google" ? "Google" : "Discord"} zostało odłączone.`);
+      toast.success(`Konto ${account.provider === "google" ? "Google" : "Discord"} zostało odłączone.`, { id: "settings-social-unlink" });
     } catch {
-      toast.error("Nie udało się odłączyć konta.");
+      toast.error("Nie udało się odłączyć konta.", { id: "settings-social-unlink-error" });
     } finally {
       setUnlinkingId(null);
     }
@@ -291,7 +291,7 @@ export default function SettingsPage() {
       const { url } = await getSocialAuthURL(provider, redirectUri);
       window.location.href = url;
     } catch {
-      toast.error(`Nie udało się połączyć z ${provider === "google" ? "Google" : "Discord"}.`);
+      toast.error(`Nie udało się połączyć z ${provider === "google" ? "Google" : "Discord"}.`, { id: "settings-social-link-error" });
       setLinkingProvider(null);
     }
   }

@@ -47,34 +47,34 @@ export function useGameEventSounds(
         const winnerId = e.winner_id as string;
         const winner = gameStateRef.current?.players[winnerId];
         if (winnerId === myUserId) {
-          toast.success("Wygrales");
+          toast.success("Wygrales", { id: "game-victory" });
           playJingle("victory");
           const _victoryVfx = getVictoryVfx(gameStateRef.current?.players[myUserId]?.cosmetics);
           void _victoryVfx;
         } else {
-          toast.error(`Przegrales. Wygrywa: ${winner?.username || "?"}`);
+          toast.error(`Przegrales. Wygrywa: ${winner?.username || "?"}`, { id: "game-defeat" });
           playJingle("defeat");
         }
       }
       if (e.type === "player_eliminated" && e.player_id === myUserId) {
         if (e.reason === "disconnect_timeout") {
-          toast.error("Zostales usuniety z meczu przez brak powrotu na czas");
+          toast.error("Zostales usuniety z meczu przez brak powrotu na czas", { id: "game-eliminated-timeout" });
         } else if (e.reason === "left_match") {
-          toast.error("Opuściłeś mecz");
+          toast.error("Opuściłeś mecz", { id: "game-eliminated-left" });
         } else {
-          toast.error("Twoja stolica zostala zdobyta");
+          toast.error("Twoja stolica zostala zdobyta", { id: "game-eliminated-capital" });
         }
         playJingle("elimination");
       }
       if (e.type === "player_eliminated" && e.player_id !== myUserId) {
         const eliminatedPlayer = gameStateRef.current?.players[String(e.player_id)];
-        toast.info(`${eliminatedPlayer?.username || "Gracz"} został wyeliminowany`);
+        toast.info(`${eliminatedPlayer?.username || "Gracz"} został wyeliminowany`, { id: `game-player-eliminated-${e.player_id}` });
         void getEliminationVfx;
       }
       if (e.type === "player_disconnected" && e.player_id !== myUserId) {
         const disconnectedPlayer = gameStateRef.current?.players[String(e.player_id)];
         const graceSeconds = Number(e.grace_seconds || 0);
-        toast.warning(`${disconnectedPlayer?.username || "Gracz"} rozlaczyl sie. Limit powrotu: ${graceSeconds}s`);
+        toast.warning(`${disconnectedPlayer?.username || "Gracz"} rozlaczyl sie. Limit powrotu: ${graceSeconds}s`, { id: `game-player-disconnected-${e.player_id}` });
       }
       if (e.type === "build_started" && e.player_id === myUserId) {
         playSound("build");
@@ -95,7 +95,7 @@ export function useGameEventSounds(
           const attackerName = gameStateRef.current?.players[attackerId ?? ""]?.username ?? "Wróg";
           const regionName = gameStateRef.current?.regions[targetRegionId]?.name ?? targetRegionId;
           playSound("alert");
-          toast.warning(`⚔️ ${attackerName} atakuje ${regionName}!`, { duration: 5000 });
+          toast.warning(`⚔️ ${attackerName} atakuje ${regionName}!`, { id: `game-attack-incoming-${targetRegionId}`, duration: 5000 });
         }
       }
       if (e.type === "attack_success" && e.player_id !== myUserId) {
@@ -118,10 +118,10 @@ export function useGameEventSounds(
           }
         }
         if (isMyAbility) {
-          toast.success(`Uzyto: ${abilityName}`);
+          toast.success(`Uzyto: ${abilityName}`, { id: `game-ability-used-${abilityName}` });
         } else {
           const attackerName = gameStateRef.current?.players[String(e.player_id)]?.username ?? "Wrog";
-          toast.warning(`${attackerName} uzyl zdolnosci: ${abilityName}`);
+          toast.warning(`${attackerName} uzyl zdolnosci: ${abilityName}`, { id: `game-ability-enemy-${abilityName}-${e.player_id}` });
         }
         if (isNuke) {
           const casterId = e.player_id as string;
@@ -150,12 +150,12 @@ export function useGameEventSounds(
       if (e.type === "shield_blocked") {
         const targetRegionName = gameStateRef.current?.regions[String(e.target_region_id)]?.name ?? "region";
         if (e.attacker_id === myUserId) {
-          toast.error(`Atak na ${targetRegionName} zostal zablokowany przez tarcze!`);
+          toast.error(`Atak na ${targetRegionName} zostal zablokowany przez tarcze!`, { id: `game-shield-blocked-${e.target_region_id}` });
           playSound("shield");
         } else {
           const targetOwner = gameStateRef.current?.regions[String(e.target_region_id)]?.owner_id;
           if (targetOwner === myUserId) {
-            toast.success(`Tarcza ochronila ${targetRegionName}!`);
+            toast.success(`Tarcza ochronila ${targetRegionName}!`, { id: `game-shield-protected-${e.target_region_id}` });
             playSound("shield");
           }
         }
@@ -171,7 +171,7 @@ export function useGameEventSounds(
           const myRegions = Object.entries(gameStateRef.current?.regions ?? {} as Record<string, any>)
             .filter(([, r]: [string, any]) => r.owner_id === myUserId).map(([id]: [string, any]) => id);
           const affectedMine = (e.affected_region_ids as string[]).some(id => myRegions.includes(id));
-          if (affectedMine) toast.error("Flara oślepiająca! Prowincje zaciemnione!");
+          if (affectedMine) toast.error("Flara oślepiająca! Prowincje zaciemnione!", { id: "game-flash-effect" });
         }
       }
       if (e.type === "ability_effect_expired") {
@@ -179,32 +179,32 @@ export function useGameEventSounds(
         const targetRegionName = gameStateRef.current?.regions[String(e.target_region_id)]?.name ?? "region";
         if (effectType === "ab_shield") {
           const regionOwner = gameStateRef.current?.regions[String(e.target_region_id)]?.owner_id;
-          if (regionOwner === myUserId) toast.info(`Tarcza na ${targetRegionName} wygasla`);
+          if (regionOwner === myUserId) toast.info(`Tarcza na ${targetRegionName} wygasla`, { id: `game-shield-expired-${e.target_region_id}` });
         }
       }
       if (e.type === "action_rejected" && e.player_id === myUserId) {
-        toast.error(String(e.message ?? "Akcja zostala odrzucona"));
+        toast.error(String(e.message ?? "Akcja zostala odrzucona"), { id: "game-action-rejected" });
         playSound("fail");
       }
-      if (e.type === "server_error") toast.error(e.message as string);
+      if (e.type === "server_error") toast.error(e.message as string, { id: "game-server-error" });
 
       // Diplomacy events
       if (e.type === "war_declared") {
         const aggressorId = e.aggressor_id as string;
         const aggressorName = gameStateRef.current?.players[aggressorId]?.username ?? "Gracz";
         if (aggressorId !== myUserId) {
-          toast.error(`⚔️ Wojna z ${aggressorName}!`, { duration: 6000 });
+          toast.error(`⚔️ Wojna z ${aggressorName}!`, { id: `game-war-declared-${e.aggressor_id}`, duration: 6000 });
         } else {
           const targetId = (e.player_a === myUserId ? e.player_b : e.player_a) as string;
           const targetName = gameStateRef.current?.players[targetId]?.username ?? "Gracz";
-          toast.warning(`⚔️ Wypowiedziałeś wojnę graczowi ${targetName}!`, { duration: 6000 });
+          toast.warning(`⚔️ Wypowiedziałeś wojnę graczowi ${targetName}!`, { id: `game-war-declared-by-me-${targetId}`, duration: 6000 });
         }
       }
       if (e.type === "pact_proposed") {
         const fromId = e.from_player_id as string;
         if (fromId !== myUserId) {
           const fromName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
-          toast.info(`🤝 ${fromName} proponuje pakt o nieagresji`, { duration: 6000 });
+          toast.info(`🤝 ${fromName} proponuje pakt o nieagresji`, { id: `game-pact-proposed-${fromId}`, duration: 6000 });
         }
       }
       if (e.type === "pact_accepted") {
@@ -212,20 +212,20 @@ export function useGameEventSounds(
         const toId = e.to_player_id as string;
         const otherId = fromId === myUserId ? toId : fromId;
         const otherName = gameStateRef.current?.players[otherId]?.username ?? "Gracz";
-        if (fromId === myUserId || toId === myUserId) toast.success(`✅ Pakt zaakceptowany z ${otherName}`, { duration: 5000 });
+        if (fromId === myUserId || toId === myUserId) toast.success(`✅ Pakt zaakceptowany z ${otherName}`, { id: `game-pact-accepted-${otherId}`, duration: 5000 });
       }
       if (e.type === "pact_broken") {
         const breakerId = e.breaker_id as string;
         if (breakerId !== myUserId) {
           const breakerName = gameStateRef.current?.players[breakerId]?.username ?? "Gracz";
-          toast.error(`❌ ${breakerName} zerwał pakt!`, { duration: 6000 });
+          toast.error(`❌ ${breakerName} zerwał pakt!`, { id: `game-pact-broken-${breakerId}`, duration: 6000 });
         }
       }
       if (e.type === "peace_proposed") {
         const fromId = e.from_player_id as string;
         if (fromId !== myUserId) {
           const fromName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
-          toast.info(`🕊️ ${fromName} proponuje pokój`, { duration: 6000 });
+          toast.info(`🕊️ ${fromName} proponuje pokój`, { id: `game-peace-proposed-${fromId}`, duration: 6000 });
         }
       }
       if (e.type === "peace_accepted") {
@@ -233,18 +233,18 @@ export function useGameEventSounds(
         const toId = e.to_player_id as string;
         const otherId = fromId === myUserId ? toId : fromId;
         const otherName = gameStateRef.current?.players[otherId]?.username ?? "Gracz";
-        if (fromId === myUserId || toId === myUserId) toast.success(`✅ Pokój zawarty z ${otherName}`, { duration: 5000 });
+        if (fromId === myUserId || toId === myUserId) toast.success(`✅ Pokój zawarty z ${otherName}`, { id: `game-peace-accepted-${otherId}`, duration: 5000 });
       }
       if (e.type === "peace_rejected") {
         const fromId = e.from_player_id as string;
         const toId = e.to_player_id as string;
         if (fromId === myUserId) {
           const otherName = gameStateRef.current?.players[toId]?.username ?? "Gracz";
-          toast.error(`❌ ${otherName} odrzucił propozycję pokoju`, { duration: 5000 });
+          toast.error(`❌ ${otherName} odrzucił propozycję pokoju`, { id: `game-peace-rejected-${toId}`, duration: 5000 });
         }
         if (toId === myUserId) {
           const otherName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
-          toast.info(`Odrzucono propozycję pokoju od ${otherName}`, { duration: 3000 });
+          toast.info(`Odrzucono propozycję pokoju od ${otherName}`, { id: `game-peace-rejected-by-me-${fromId}`, duration: 3000 });
         }
       }
       if (e.type === "pact_rejected") {
@@ -252,7 +252,7 @@ export function useGameEventSounds(
         const toId = e.to_player_id as string;
         if (fromId === myUserId) {
           const otherName = gameStateRef.current?.players[toId]?.username ?? "Gracz";
-          toast.error(`❌ ${otherName} odrzucił propozycję paktu`, { duration: 5000 });
+          toast.error(`❌ ${otherName} odrzucił propozycję paktu`, { id: `game-pact-rejected-${toId}`, duration: 5000 });
         }
       }
       if (e.type === "pact_expired") {
@@ -261,7 +261,7 @@ export function useGameEventSounds(
         if (pa === myUserId || pb === myUserId) {
           const otherId = pa === myUserId ? pb : pa;
           const otherName = gameStateRef.current?.players[otherId]?.username ?? "Gracz";
-          toast.warning(`Pakt o nieagresji z ${otherName} wygasł`, { duration: 5000 });
+          toast.warning(`Pakt o nieagresji z ${otherName} wygasł`, { id: `game-pact-expired-${otherId}`, duration: 5000 });
         }
       }
       if (e.type === "proposal_expired") {
@@ -271,17 +271,17 @@ export function useGameEventSounds(
         const label = proposalType === "peace" ? "pokoju" : "paktu";
         if (fromId === myUserId) {
           const otherName = gameStateRef.current?.players[toId]?.username ?? "Gracz";
-          toast.warning(`Propozycja ${label} do ${otherName} wygasła`, { duration: 4000 });
+          toast.warning(`Propozycja ${label} do ${otherName} wygasła`, { id: `game-proposal-expired-sent-${toId}`, duration: 4000 });
         }
         if (toId === myUserId) {
           const otherName = gameStateRef.current?.players[fromId]?.username ?? "Gracz";
-          toast.info(`Propozycja ${label} od ${otherName} wygasła`, { duration: 4000 });
+          toast.info(`Propozycja ${label} od ${otherName} wygasła`, { id: `game-proposal-expired-recv-${fromId}`, duration: 4000 });
         }
       }
       if (e.type === "capital_protected") {
         const ticksRemaining = e.ticks_remaining as number;
         if (e.player_id === myUserId) {
-          toast.info(`🛡️ Stolica chroniona! Pozostało ${ticksRemaining} tur`, { duration: 4000 });
+          toast.info(`🛡️ Stolica chroniona! Pozostało ${ticksRemaining} tur`, { id: "game-capital-protected", duration: 4000 });
         }
       }
     }

@@ -197,7 +197,7 @@ export default function ProfilePage() {
     try {
       await sendFriendMutation.mutateAsync(entry.username);
       setFriendSent(true);
-      toast.success("Zaproszenie wysłane");
+      toast.success("Zaproszenie wysłane", { id: "profile-friend-sent" });
     } catch (err) {
       if (err instanceof APIError && err.status === 400) {
         const body = err.body as Record<string, unknown> | undefined;
@@ -205,9 +205,9 @@ export default function ProfilePage() {
           typeof body?.detail === "string"
             ? body.detail
             : "Już jesteście znajomymi";
-        toast.error(detail);
+        toast.error(detail, { id: "profile-friend-error" });
       } else {
-        toast.error("Nie udało się wysłać zaproszenia");
+        toast.error("Nie udało się wysłać zaproszenia", { id: "profile-friend-send-error" });
       }
     }
   }

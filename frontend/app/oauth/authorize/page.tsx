@@ -158,7 +158,7 @@ function OAuthAuthorizeInner() {
       if (result.state) params["state"] = result.state;
       window.location.href = buildRedirectUrl(redirectUri, params);
     } catch {
-      toast.error("Nie udalo sie autoryzowac aplikacji. Sprobuj ponownie.");
+      toast.error("Nie udalo sie autoryzowac aplikacji. Sprobuj ponownie.", { id: "oauth-authorize-error" });
       setSubmitting(false);
     }
   };

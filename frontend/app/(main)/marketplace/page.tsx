@@ -304,9 +304,9 @@ function MyListingsTab({ listings }: MyListingsTabProps) {
   const handleCancel = async (listingId: string) => {
     try {
       await cancelMutation.mutateAsync(listingId);
-      toast.success("Oferta anulowana");
+      toast.success("Oferta anulowana", { id: "marketplace-cancel" });
     } catch {
-      toast.error("Nie udało się anulować");
+      toast.error("Nie udało się anulować", { id: "marketplace-cancel-error" });
     }
   };
 

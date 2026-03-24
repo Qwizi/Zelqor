@@ -93,7 +93,7 @@ export default function MatchDetailPage() {
       const link = await createShareLink(requireToken(), "match_result", match.id);
       setShareUrl(`${window.location.origin}/share/${link.token}`);
     } catch {
-      toast.error("Nie udało się utworzyć linku.");
+      toast.error("Nie udało się utworzyć linku.", { id: "match-share-link-error" });
     } finally {
       setShareLoading(false);
     }
@@ -103,7 +103,7 @@ export default function MatchDetailPage() {
     if (!shareUrl) return;
     await navigator.clipboard.writeText(shareUrl);
     setShareCopied(true);
-    toast.success("Skopiowano!");
+    toast.success("Skopiowano!", { id: "match-share-copy" });
     setTimeout(() => setShareCopied(false), 2000);
   };
 

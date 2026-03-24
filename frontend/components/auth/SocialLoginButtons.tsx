@@ -34,7 +34,7 @@ export default function SocialLoginButtons() {
       const { url } = await getSocialAuthURL(provider, redirectUri);
       window.location.href = url;
     } catch {
-      toast.error("Nie udało się połączyć z serwisem. Spróbuj ponownie.");
+      toast.error("Nie udało się połączyć z serwisem. Spróbuj ponownie.", { id: "auth-social-login-error" });
       setLoadingProvider(null);
     }
   };
