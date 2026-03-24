@@ -98,6 +98,8 @@ class LeaderboardEntrySchema(Schema):
     is_banned: bool = False
     avatar_url: str | None = None
     clan_tag: str | None = None
+    level: int = 1
+    experience: int = 0
 
     class Config:
         from_attributes = True

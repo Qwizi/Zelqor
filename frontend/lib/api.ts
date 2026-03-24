@@ -349,6 +349,8 @@ export interface LeaderboardEntry {
   is_banned: boolean;
   avatar_url: string | null;
   clan_tag: string | null;
+  level: number;
+  experience: number;
 }
 
 export async function getLeaderboard(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<LeaderboardEntry>> {

@@ -106,7 +106,7 @@ export default function DashboardPage() {
   const { data: friendsData } = useFriends(100, undefined, { refetchInterval: 15_000 });
   const { data: receivedData } = useReceivedRequests(1, undefined, { refetchInterval: 15_000 });
 
-  const gameModes = useMemo<GameModeListItem[]>(() => configData?.game_modes ?? [], [configData]);
+  const gameModes = useMemo<GameModeListItem[]>(() => (configData?.game_modes ?? []).filter((m) => m.slug !== "clan-war"), [configData]);
   const recentMatches = useMemo<Match[]>(() => matchesData?.items ?? [], [matchesData]);
   const decks = useMemo<DeckOut[]>(() => decksData?.items ?? [], [decksData]);
   const friends = useMemo<FriendshipOut[]>(() => {

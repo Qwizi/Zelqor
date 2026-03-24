@@ -370,6 +370,9 @@ export default function ClanDetailPage() {
   const joinRequests = joinReqData?.items ?? [];
   const myRank = myM ? ROLE_RANK[myM.role] ?? 0 : 0;
   const isInAnyClan = !!myClanData?.clan;
+  const myOwnClanId = myClanData?.clan?.id;
+  const isOfficerInOwnClan = myClanData?.membership?.role === "officer" || myClanData?.membership?.role === "leader";
+  const canDeclareWar = !isMember && isOfficerInOwnClan && myOwnClanId && myOwnClanId !== clanId;
 
   // Friends not already in any clan (clan_tag === null means no clan)
   const allFriends = friendsData?.items ?? [];
@@ -465,6 +468,17 @@ export default function ClanDetailPage() {
               </Button>
             )
           )}
+          {canDeclareWar && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="gap-1.5"
+              onClick={() => { setTab("wars"); }}
+            >
+              <Swords size={16} />
+              <span className="hidden md:inline">Wypowiedz wojnę</span>
+            </Button>
+          )}
           {isOfficer && (
             <>
               <Button
@@ -529,10 +543,11 @@ export default function ClanDetailPage() {
       {(() => {
         const lvl = clan.level ?? 1;
         const xp = clan.experience ?? 0;
-        const xpForLevel = (l: number) => l * l * 150;
-        const xpCurrent = xpForLevel(lvl);
-        const xpNext = xpForLevel(lvl + 1);
-        const xpInLevel = xp - xpCurrent;
+        // Thresholds from ClanLevel seed migration
+        const thresholds: Record<number, number> = {1:0,2:100,3:250,4:500,5:1000,6:2000,7:4000,8:8000,9:16000,10:32000,11:48000,12:72000,13:108000,14:162000,15:243000,16:364500,17:546750,18:820125,19:1230187,20:1845280};
+        const xpCurrent = thresholds[lvl] ?? 0;
+        const xpNext = thresholds[lvl + 1] ?? xpCurrent + 10000;
+        const xpInLevel = Math.max(0, xp - xpCurrent);
         const xpNeeded = xpNext - xpCurrent;
         const pct = Math.min(100, xpNeeded > 0 ? Math.round((xpInLevel / xpNeeded) * 100) : 100);
         return (
@@ -544,7 +559,7 @@ export default function ClanDetailPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-semibold text-foreground">Poziom {lvl}</span>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">{xpInLevel.toLocaleString()} / {xpNeeded.toLocaleString()} XP</span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">{xpInLevel.toLocaleString()} / {xpNeeded.toLocaleString()} XP do lvl {lvl + 1}</span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
                   <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-700" style={{ width: `${pct}%` }} />

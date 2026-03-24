@@ -355,13 +355,15 @@ export default function ProfilePage() {
           )}
 
           {/* Level / XP */}
-          {isOwnProfile && (() => {
-            const lvl = currentUser.level ?? 1;
-            const xp = currentUser.experience ?? 0;
-            const xpForLevel = (l: number) => l * l * 50;
-            const xpCurrent = xpForLevel(lvl);
-            const xpNext = xpForLevel(lvl + 1);
-            const xpInLevel = xp - xpCurrent;
+          {(() => {
+            const profileUser = isOwnProfile ? currentUser : entry;
+            const lvl = profileUser?.level ?? 1;
+            const xp = profileUser?.experience ?? 0;
+            // Thresholds from AccountLevel seed: level → cumulative XP required
+            const thresholds: Record<number, number> = {1:0,2:50,3:100,4:173,5:300,6:500,7:707,8:1000,9:1414,10:2000,11:3000,12:3674,13:4500,14:5514,15:8000,16:10000,17:12599,18:15874,19:20000,20:25000,21:30000,22:35112,23:41160,24:48247,25:56569,26:66324,27:77771,28:91189,29:106934,30:100000,31:120000,32:141421,33:166477,34:195959,35:230651,36:271442,37:319481,38:376060,39:442643,40:400000,41:500000,42:581170,43:675461,44:785105,45:912612,46:1060660,47:1232847,48:1432930,49:1665745,50:2000000};
+            const xpCurrent = thresholds[lvl] ?? 0;
+            const xpNext = thresholds[lvl + 1] ?? xpCurrent + 100;
+            const xpInLevel = Math.max(0, xp - xpCurrent);
             const xpNeeded = xpNext - xpCurrent;
             const pct = Math.min(100, xpNeeded > 0 ? Math.round((xpInLevel / xpNeeded) * 100) : 100);
             const RANK_TITLES: [number, number, string][] = [
@@ -381,7 +383,7 @@ export default function ProfilePage() {
                         <span className="text-xs font-semibold text-foreground">Poziom {lvl}</span>
                         <span className="text-[10px] text-violet-400/80 font-medium uppercase tracking-wide">{title}</span>
                       </div>
-                      <span className="text-[10px] text-muted-foreground tabular-nums">{xpInLevel.toLocaleString()} / {xpNeeded.toLocaleString()} XP</span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">{xpInLevel.toLocaleString()} / {xpNeeded.toLocaleString()} XP do lvl {lvl + 1}</span>
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
                       <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-700" style={{ width: `${pct}%` }} />
