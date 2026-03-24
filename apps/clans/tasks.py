@@ -113,30 +113,63 @@ def start_clan_war(war_id: str):
     host = war.challenger.leader
     max_players = war.players_per_side * 2
 
-    with transaction.atomic():
-        lobby = Lobby.objects.create(
-            game_mode=game_mode,
-            host_user=host,
-            status=Lobby.Status.WAITING,
-            max_players=max_players,
-        )
+    # Build team labels
+    team_labels = {}
+    for p in participants:
+        team_labels[str(p.user_id)] = 'challenger' if p.clan_id == war.challenger_id else 'defender'
 
-        for p in participants:
-            LobbyPlayer.objects.get_or_create(
-                lobby=lobby,
-                user=p.user,
-                defaults={'is_ready': True, 'is_bot': False},
-            )
+    # Create match directly (skip lobby queue — all players are known)
+    from apps.matchmaking.internal_api import _create_match_from_users
+    users = [p.user for p in participants]
+    match_result = _create_match_from_users(users, game_mode, team_labels=team_labels)
+    match_id = match_result['match_id']
+
+    with transaction.atomic():
+        from apps.matchmaking.models import Match
+        match = Match.objects.get(id=match_id)
 
         now = timezone.now()
         war.status = ClanWar.Status.IN_PROGRESS
+        war.match = match
         war.started_at = now
-        war.save(update_fields=['status', 'started_at'])
+        war.save(update_fields=['status', 'match', 'started_at'])
 
     participant_ids = [str(p.user_id) for p in participants]
+
+    # Notify all participants via push notification
+    from apps.accounts.push import send_push_to_users
+    send_push_to_users(
+        participant_ids,
+        title='Wojna klanowa się rozpoczyna!',
+        body=f'{war.challenger.tag} vs {war.defender.tag} — dołącz do meczu!',
+        url=f'/game/{match_id}',
+        tag=f'clan_war_{war_id}',
+    )
+
+    # Notify participants via social WebSocket so frontend redirects to game
+    import json
+    import redis as redis_lib
+    from django.conf import settings as django_settings
+    social_r = redis_lib.Redis(
+        host=django_settings.REDIS_HOST,
+        port=int(django_settings.REDIS_PORT),
+        db=int(getattr(django_settings, 'REDIS_GAME_DB', 1)),
+    )
+    for uid in participant_ids:
+        social_r.publish('social:events', json.dumps({
+            'type': 'clan_war_started',
+            'user_id': uid,
+            'payload': {
+                'war_id': war_id,
+                'match_id': match_id,
+                'challenger_tag': war.challenger.tag,
+                'defender_tag': war.defender.tag,
+            },
+        }))
+
     publish_lobby_event(
         'clan_war_started',
-        str(lobby.pk),
+        match_id,
         war_id=war_id,
         game_mode='clan-war',
         max_players=max_players,

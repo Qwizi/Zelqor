@@ -574,10 +574,12 @@ class MatchmakingInternalController(ControllerBase):
         }
 
 
-def _create_match_from_users(users, game_mode):
+def _create_match_from_users(users, game_mode, *, team_labels: dict | None = None):
     """Shared helper: create a Match and MatchPlayer entries for the given list of
     User objects and an optional GameMode.  Mirrors the logic in _do_try_match but
     accepts a pre-resolved user list instead of pulling from MatchQueue.
+
+    team_labels: optional dict of {str(user_id): team_label} for team-based modes.
 
     Returns the same dict shape as _do_try_match:
         {'match_id': str, 'user_ids': [...], 'bot_ids': [...]}
@@ -763,6 +765,7 @@ def _create_match_from_users(users, game_mode):
             color=colors[i % len(colors)],
             deck_snapshot=deck_snapshot,
             cosmetic_snapshot=cosmetic_snapshot,
+            team_label=(team_labels or {}).get(str(user.id)),
         )
         user_ids.append(str(user.id))
         if user.is_bot:
@@ -817,6 +820,7 @@ def _lobby_player_dict(p) -> dict:
         'username': p.user.username,
         'is_bot': p.is_bot,
         'is_ready': p.is_ready,
+        'team_label': p.team_label,
     }
 
 
@@ -1053,8 +1057,10 @@ class LobbyInternalController(ControllerBase):
 
         lobby_players = list(lobby.players.select_related('user').all())
         users = [lp.user for lp in lobby_players]
+        # Build user_id -> team_label mapping for team-based modes (None values ignored later)
+        team_labels = {str(lp.user_id): lp.team_label for lp in lobby_players if lp.team_label}
 
-        result = _create_match_from_users(users, lobby.game_mode)
+        result = _create_match_from_users(users, lobby.game_mode, team_labels=team_labels or None)
 
         # Link match back to the lobby
         from apps.matchmaking.models import Match

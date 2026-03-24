@@ -274,6 +274,18 @@ class ClanGlobalController:
             raise HttpError(400, 'Twoja strona jest już pełna.')
 
         p = ClanWarParticipant.objects.create(war=war, clan=m.clan, user=request.auth)
+
+        # Check if both sides are now full → auto-start the war
+        challenger_count = ClanWarParticipant.objects.filter(war=war, clan_id=war.challenger_id).count()
+        defender_count = ClanWarParticipant.objects.filter(war=war, clan_id=war.defender_id).count()
+        if challenger_count >= war.players_per_side and defender_count >= war.players_per_side:
+            from apps.clans.tasks import start_clan_war
+            if war.scheduled_at and war.scheduled_at > timezone.now():
+                # Scheduled war — will start at planned time
+                pass
+            else:
+                start_clan_war.delay(str(war.pk))
+
         return ClanWarParticipant.objects.select_related('user').get(pk=p.pk)
 
     @route.get('/wars/{war_id}/', response=ClanWarOutSchema)

@@ -3,8 +3,15 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import type { NotificationOut } from "@/lib/api";
 
 interface SocialMessage {
-  type: "notification" | "direct_message";
+  type: "notification" | "direct_message" | "clan_war_started";
   payload: Record<string, unknown>;
+}
+
+export interface ClanWarStartedPayload {
+  war_id: string;
+  match_id: string;
+  challenger_tag: string;
+  defender_tag: string;
 }
 
 export interface DirectMessagePayload {
@@ -16,11 +23,13 @@ export interface DirectMessagePayload {
 
 type NotificationHandler = (notification: NotificationOut) => void;
 type DirectMessageHandler = (message: DirectMessagePayload) => void;
+type ClanWarStartedHandler = (data: ClanWarStartedPayload) => void;
 
 export function useSocialSocket(token: string | null) {
   const wsRef = useRef<WebSocket | null>(null);
   const notifHandlersRef = useRef<Set<NotificationHandler>>(new Set());
   const dmHandlersRef = useRef<Set<DirectMessageHandler>>(new Set());
+  const warStartedHandlersRef = useRef<Set<ClanWarStartedHandler>>(new Set());
   const [connected, setConnected] = useState(false);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Keep a ref to the latest token so the reconnect closure always uses it
@@ -49,6 +58,9 @@ export function useSocialSocket(token: string | null) {
         } else if (data.type === "direct_message") {
           const msg = data.payload as unknown as DirectMessagePayload;
           dmHandlersRef.current.forEach((handler) => handler(msg));
+        } else if (data.type === "clan_war_started") {
+          const warData = data.payload as unknown as ClanWarStartedPayload;
+          warStartedHandlersRef.current.forEach((handler) => handler(warData));
         }
       } catch {
         // Ignore malformed messages
@@ -95,5 +107,12 @@ export function useSocialSocket(token: string | null) {
     };
   }, []);
 
-  return { connected, onNotification, onDirectMessage };
+  const onClanWarStarted = useCallback((handler: ClanWarStartedHandler) => {
+    warStartedHandlersRef.current.add(handler);
+    return () => {
+      warStartedHandlersRef.current.delete(handler);
+    };
+  }, []);
+
+  return { connected, onNotification, onDirectMessage, onClanWarStarted };
 }

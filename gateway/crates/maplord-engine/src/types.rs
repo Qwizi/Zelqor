@@ -557,6 +557,9 @@ pub struct Player {
     /// Visual cosmetics metadata — passed through to clients, never processed by the engine.
     #[serde(default)]
     pub cosmetics: HashMap<String, serde_json::Value>,
+    /// Team identifier for team-based modes (e.g. "challenger", "defender"). None = free-for-all.
+    #[serde(default)]
+    pub team: Option<String>,
 }
 
 /// Region state stored in Redis.

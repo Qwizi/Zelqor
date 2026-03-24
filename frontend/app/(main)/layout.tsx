@@ -1079,6 +1079,7 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
   const { user, logout, token } = useAuth();
   const queryClient = useQueryClient();
   const { inQueue: showQueueSubheader, joinQueue } = useMatchmaking();
+  const router = useRouter();
   const pathname = usePathname();
   const { data: wallet } = useMyWallet();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -1149,6 +1150,23 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
       queryClient.invalidateQueries({ queryKey: queryKeys.messages.unreadCount() });
     });
   }, [social.onDirectMessage, addDMTabSilent, queryClient]);
+
+  // Clan war started — show toast with redirect to game
+  useEffect(() => {
+    return social.onClanWarStarted((data) => {
+      toast(`Wojna klanowa: ${data.challenger_tag} vs ${data.defender_tag}`, {
+        description: "Mecz się rozpoczyna! Kliknij aby dołączyć.",
+        duration: 30000,
+        action: {
+          label: "Do gry!",
+          onClick: () => router.push(`/game/${data.match_id}`),
+        },
+        classNames: {
+          actionButton: "!bg-red-500 !text-white !font-bold",
+        },
+      });
+    });
+  }, [social.onClanWarStarted, router]);
 
   // ── Menu background music ──────────────────────────────────
   const { startMenuMusic, stopMenuMusic, toggleMute, muted } = useAudio();

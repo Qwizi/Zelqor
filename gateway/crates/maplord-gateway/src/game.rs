@@ -2119,6 +2119,7 @@ async fn initialize_game(
             cosmetics: p.cosmetics.clone(),
             action_points: settings.max_action_points,
             ap_regen_accum: 0.0,
+            team: p.team.clone(),
         };
         players.insert(p.user_id.clone(), player);
     }
