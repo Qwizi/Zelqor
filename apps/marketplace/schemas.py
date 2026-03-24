@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+
 from ninja import Schema
 
 from apps.inventory.schemas import ItemOutSchema
@@ -17,7 +17,7 @@ class MarketListingOutSchema(Schema):
     status: str
     is_bot_listing: bool
     created_at: datetime
-    expires_at: Optional[datetime] = None
+    expires_at: datetime | None = None
 
     class Config:
         from_attributes = True

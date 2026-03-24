@@ -9,35 +9,35 @@ class ChatMessage(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='chat_messages',
+        related_name="chat_messages",
     )
     content = models.TextField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
-        ordering = ['created_at']
+        ordering = ["created_at"]
 
     def __str__(self):
-        return f'{self.user_id} @ {self.created_at}: {self.content[:40]}'
+        return f"{self.user_id} @ {self.created_at}: {self.content[:40]}"
 
 
 class MatchChatMessage(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     match = models.ForeignKey(
-        'matchmaking.Match',
+        "matchmaking.Match",
         on_delete=models.CASCADE,
-        related_name='chat_messages',
+        related_name="chat_messages",
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='match_chat_messages',
+        related_name="match_chat_messages",
     )
     content = models.TextField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
-        ordering = ['created_at']
+        ordering = ["created_at"]
 
     def __str__(self):
-        return f'match={self.match_id} user={self.user_id} @ {self.created_at}: {self.content[:40]}'
+        return f"match={self.match_id} user={self.user_id} @ {self.created_at}: {self.content[:40]}"

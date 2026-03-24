@@ -219,10 +219,7 @@ const NUKE_IMPACT_ATTACK: ImpactConfig = {
 // Shared breathe / fade values — identical for all unit kinds.
 const SHARED_BREATHE_SPEED = Math.PI * 6; // 6π rad/s ≈ 3 full oscillations/s
 
-const SHARED_ICON_BASE: Pick<
-  IconConfig,
-  "breathe_amplitude" | "breathe_speed" | "fade_start" | "fade_blend_min"
-> = {
+const SHARED_ICON_BASE: Pick<IconConfig, "breathe_amplitude" | "breathe_speed" | "fade_start" | "fade_blend_min"> = {
   breathe_amplitude: 0.06,
   breathe_speed: SHARED_BREATHE_SPEED,
   fade_start: 0.75,
@@ -402,13 +399,13 @@ export const ANIMATION_DEFAULTS: Record<string, AnimationConfig> = {
 
   bomber: {
     trail: {
-      color: "#f97316",       // orange — tactical bombing route
+      color: "#f97316", // orange — tactical bombing route
       opacity: 0.45,
       width: 2.5,
       blur: 0,
-      length: 0.85,           // long trail — shows full planned route
-      line_style: "dashed",   // dashed line like tactical map overlays
-      dash_pattern: [8, 5],   // military map dash pattern
+      length: 0.85, // long trail — shows full planned route
+      line_style: "dashed", // dashed line like tactical map overlays
+      dash_pattern: [8, 5], // military map dash pattern
       glow: true,
       glow_color: "#8B4513",
       glow_width: 6,
@@ -432,7 +429,7 @@ export const ANIMATION_DEFAULTS: Record<string, AnimationConfig> = {
     },
     pulse: {
       enabled: true,
-      color: "#ef4444",       // red pulse at target
+      color: "#ef4444", // red pulse at target
       rings: 2,
       radius_base: 10,
       radius_expand: 36,
@@ -531,9 +528,7 @@ export const ANIMATION_DEFAULTS: Record<string, AnimationConfig> = {
  * `ANIMATION_DEFAULTS`. Consumers can use this to prefer a unit-type-specific
  * config over the generic animKind fallback.
  */
-export const ANIMATION_DEFAULTS_KEYS: Set<string> = new Set(
-  Object.keys(ANIMATION_DEFAULTS)
-);
+export const ANIMATION_DEFAULTS_KEYS: Set<string> = new Set(Object.keys(ANIMATION_DEFAULTS));
 
 // ── Cosmetic slot helpers ─────────────────────────────────────────────────────
 //
@@ -549,9 +544,7 @@ export const ANIMATION_DEFAULTS_KEYS: Set<string> = new Set(
  *   const vfx = getEliminationVfx(eliminatingPlayer?.cosmetics);
  *   if (vfx) { /* trigger elimination VFX overlay * / }
  */
-export function getEliminationVfx(
-  playerCosmetics?: Record<string, unknown>
-): CosmeticValue | undefined {
+export function getEliminationVfx(playerCosmetics?: Record<string, unknown>): CosmeticValue | undefined {
   return playerCosmetics?.vfx_elimination as CosmeticValue | undefined;
 }
 
@@ -564,9 +557,7 @@ export function getEliminationVfx(
  *   const vfx = getVictoryVfx(myPlayer?.cosmetics);
  *   if (vfx) { /* trigger victory VFX overlay * / }
  */
-export function getVictoryVfx(
-  playerCosmetics?: Record<string, unknown>
-): CosmeticValue | undefined {
+export function getVictoryVfx(playerCosmetics?: Record<string, unknown>): CosmeticValue | undefined {
   return playerCosmetics?.vfx_victory as CosmeticValue | undefined;
 }
 
@@ -632,9 +623,7 @@ function deepMerge<T>(base: T, override: Partial<T>): T {
  * A cosmetic entry is either a bare URL string (no animation params) or an
  * object that may carry a `params` bag with partial AnimationConfig overrides.
  */
-export type CosmeticValue =
-  | string
-  | { url?: string | null; params?: Partial<AnimationConfig> };
+export type CosmeticValue = string | { url?: string | null; params?: Partial<AnimationConfig> };
 
 /**
  * Resolve the final AnimationConfig for a given unit kind + player cosmetics.
@@ -655,11 +644,9 @@ export function resolveAnimConfig(
   actionType: "attack" | "move" | "capture" | "defend",
   isNuke: boolean,
   playerCosmetics?: Record<string, CosmeticValue>,
-  vfxSlotOverride?: string
+  vfxSlotOverride?: string,
 ): AnimationConfig {
-  const base = structuredClone(
-    ANIMATION_DEFAULTS[animKind] ?? ANIMATION_DEFAULTS.infantry
-  );
+  const base = structuredClone(ANIMATION_DEFAULTS[animKind] ?? ANIMATION_DEFAULTS.infantry);
 
   if (!playerCosmetics) return base;
 
@@ -667,14 +654,13 @@ export function resolveAnimConfig(
   if (vfxSlotOverride) {
     vfxEntry = playerCosmetics[vfxSlotOverride];
   } else if (isNuke) {
-    vfxEntry = playerCosmetics["vfx_nuke"] ?? playerCosmetics["vfx_attack"];
+    vfxEntry = playerCosmetics.vfx_nuke ?? playerCosmetics.vfx_attack;
   } else if (actionType === "capture") {
-    vfxEntry = playerCosmetics["vfx_capture"];
+    vfxEntry = playerCosmetics.vfx_capture;
   } else if (actionType === "defend") {
-    vfxEntry = playerCosmetics["vfx_defend"];
+    vfxEntry = playerCosmetics.vfx_defend;
   } else {
-    vfxEntry =
-      playerCosmetics[actionType === "attack" ? "vfx_attack" : "vfx_move"];
+    vfxEntry = playerCosmetics[actionType === "attack" ? "vfx_attack" : "vfx_move"];
   }
 
   if (!vfxEntry || typeof vfxEntry === "string") return base;

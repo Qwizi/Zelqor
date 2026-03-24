@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('matchmaking', '0006_lobby_lobbyplayer'),
+        ("matchmaking", "0006_lobby_lobbyplayer"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='lobby',
-            name='full_at',
-            field=models.DateTimeField(blank=True, help_text='When lobby became full (for ready timeout)', null=True),
+            model_name="lobby",
+            name="full_at",
+            field=models.DateTimeField(blank=True, help_text="When lobby became full (for ready timeout)", null=True),
         ),
     ]

@@ -1,13 +1,13 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  getEquippedCosmetics,
-  equipCosmetic,
-  unequipCosmetic,
-  type EquippedCosmeticOut,
   type EquipCosmeticPayload,
+  type EquippedCosmeticOut,
+  equipCosmetic,
+  getEquippedCosmetics,
+  unequipCosmetic,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useEquippedCosmetics() {
   return useQuery<EquippedCosmeticOut[]>({
@@ -20,8 +20,7 @@ export function useEquippedCosmetics() {
 export function useEquipCosmetic() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: EquipCosmeticPayload) =>
-      equipCosmetic(requireToken(), payload),
+    mutationFn: (payload: EquipCosmeticPayload) => equipCosmetic(requireToken(), payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cosmetics.all });
     },

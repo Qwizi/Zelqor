@@ -41,13 +41,13 @@ def deliver_webhook(self, webhook_id: str, event: str, payload: dict):
     ).hexdigest()
 
     headers = {
-        'Content-Type': 'application/json',
-        'X-MapLord-Signature': f'sha256={signature}',
-        'X-MapLord-Event': event,
+        "Content-Type": "application/json",
+        "X-MapLord-Signature": f"sha256={signature}",
+        "X-MapLord-Event": event,
     }
 
     response_status = None
-    response_body = ''
+    response_body = ""
     success = False
 
     try:
@@ -78,16 +78,16 @@ def deliver_webhook(self, webhook_id: str, event: str, payload: dict):
     if success:
         if webhook.failure_count > 0:
             webhook.failure_count = 0
-            webhook.save(update_fields=['failure_count'])
+            webhook.save(update_fields=["failure_count"])
     else:
         webhook.failure_count += 1
         if webhook.failure_count >= webhook.max_failures:
             webhook.is_active = False
             logger.warning(f"Webhook {webhook_id} deactivated after {webhook.max_failures} failures")
-        webhook.save(update_fields=['failure_count', 'is_active'])
+        webhook.save(update_fields=["failure_count", "is_active"])
 
         # Retry with exponential backoff
-        countdown = 60 * (2 ** self.request.retries)
+        countdown = 60 * (2**self.request.retries)
         try:
             self.retry(countdown=countdown)
         except self.MaxRetriesExceededError:

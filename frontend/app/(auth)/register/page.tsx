@@ -1,19 +1,19 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import { z } from "zod";
-import { useAuth } from "@/hooks/useAuth";
-import { useModuleConfig } from "@/hooks/useSystemModules";
+import AuthScreen from "@/components/auth/AuthScreen";
+import SocialLoginButtons from "@/components/auth/SocialLoginButtons";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import AuthScreen from "@/components/auth/AuthScreen";
-import SocialLoginButtons from "@/components/auth/SocialLoginButtons";
-import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
 import { APIError } from "@/lib/api";
 
 const registerSchema = z
@@ -23,10 +23,7 @@ const registerSchema = z
       .min(3, "Nazwa uzytkownika musi miec co najmniej 3 znaki")
       .max(30, "Nazwa uzytkownika moze miec maksymalnie 30 znakow")
       .regex(/^[a-zA-Z0-9_-]+$/, "Dozwolone znaki: litery, cyfry, _ i -"),
-    email: z
-      .string()
-      .min(1, "Email jest wymagany")
-      .email("Nieprawidlowy adres email"),
+    email: z.string().min(1, "Email jest wymagany").email("Nieprawidlowy adres email"),
     password: z.string().min(8, "Haslo musi miec co najmniej 8 znakow"),
     confirmPassword: z.string().min(1, "Powtorz haslo"),
   })
@@ -92,14 +89,9 @@ function RegisterContent() {
           let hasFieldError = false;
 
           const emailMsg = Array.isArray(body.email) ? body.email[0] : String(body.email ?? "");
-          const usernameMsg = Array.isArray(body.username)
-            ? body.username[0]
-            : String(body.username ?? "");
+          const usernameMsg = Array.isArray(body.username) ? body.username[0] : String(body.username ?? "");
 
-          if (
-            body.email &&
-            emailMsg.toLowerCase().includes("zajety")
-          ) {
+          if (body.email && emailMsg.toLowerCase().includes("zajety")) {
             setError("email", { message: "Ten adres email jest juz zajety" });
             hasFieldError = true;
           } else if (body.email) {
@@ -107,10 +99,7 @@ function RegisterContent() {
             hasFieldError = true;
           }
 
-          if (
-            body.username &&
-            usernameMsg.toLowerCase().includes("zajeta")
-          ) {
+          if (body.username && usernameMsg.toLowerCase().includes("zajeta")) {
             setError("username", {
               message: "Ta nazwa uzytkownika jest juz zajeta",
             });
@@ -121,9 +110,7 @@ function RegisterContent() {
           }
 
           if (body.password) {
-            const passwordMsg = Array.isArray(body.password)
-              ? body.password[0]
-              : String(body.password);
+            const passwordMsg = Array.isArray(body.password) ? body.password[0] : String(body.password);
             setError("password", { message: passwordMsg });
             hasFieldError = true;
           }
@@ -168,9 +155,7 @@ function RegisterContent() {
               className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.username ? "border-destructive" : ""}`}
               {...rhfRegister("username")}
             />
-            {errors.username && (
-              <p className="text-xs md:text-base text-destructive">{errors.username.message}</p>
-            )}
+            {errors.username && <p className="text-xs md:text-base text-destructive">{errors.username.message}</p>}
           </div>
           <div className="space-y-2 md:space-y-3">
             <Label htmlFor="email" className="text-sm md:text-sm">
@@ -184,9 +169,7 @@ function RegisterContent() {
               className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.email ? "border-destructive" : ""}`}
               {...rhfRegister("email")}
             />
-            {errors.email && (
-              <p className="text-xs md:text-base text-destructive">{errors.email.message}</p>
-            )}
+            {errors.email && <p className="text-xs md:text-base text-destructive">{errors.email.message}</p>}
           </div>
           <div className="space-y-2 md:space-y-3">
             <Label htmlFor="password" className="text-sm md:text-sm">
@@ -208,9 +191,7 @@ function RegisterContent() {
                 />
               </div>
             )}
-            {errors.password && (
-              <p className="text-xs md:text-base text-destructive">{errors.password.message}</p>
-            )}
+            {errors.password && <p className="text-xs md:text-base text-destructive">{errors.password.message}</p>}
           </div>
           <div className="space-y-2 md:space-y-3">
             <Label htmlFor="confirmPassword" className="text-sm md:text-sm">

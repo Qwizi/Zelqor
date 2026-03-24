@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, type KeyboardEvent } from "react";
 import { SendHorizontal } from "lucide-react";
+import { type KeyboardEvent, useCallback, useState } from "react";
 
 interface ChatInputProps {
   onSend: (content: string) => void;
@@ -26,7 +26,7 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
         handleSend();
       }
     },
-    [handleSend]
+    [handleSend],
   );
 
   return (

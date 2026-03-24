@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('accounts', '0002_user_is_bot'),
+        ("accounts", "0002_user_is_bot"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='user',
-            name='tutorial_completed',
+            model_name="user",
+            name="tutorial_completed",
             field=models.BooleanField(default=False),
         ),
     ]

@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('inventory', '0004_item_cosmetic_asset_equippedcosmetic'),
+        ("inventory", "0004_item_cosmetic_asset_equippedcosmetic"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='item',
-            name='cosmetic_params',
-            field=models.JSONField(blank=True, help_text='For cosmetics: visual parameters JSON (trail, impact, icon, pulse config)', null=True),
+            model_name="item",
+            name="cosmetic_params",
+            field=models.JSONField(
+                blank=True,
+                help_text="For cosmetics: visual parameters JSON (trail, impact, icon, pulse config)",
+                null=True,
+            ),
         ),
     ]

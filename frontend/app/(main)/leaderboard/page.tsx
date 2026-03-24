@@ -1,28 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, Crown, Medal, Swords, Target, Trophy, Users } from "lucide-react";
 import Link from "next/link";
-import { Trophy, Medal, ChevronLeft, ChevronRight, Target, Swords, Crown, Users } from "lucide-react";
-import { LeaderboardSkeleton } from "@/components/skeletons/LeaderboardSkeleton";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { ClanTag } from "@/components/ClanTag";
-import { useAuth } from "@/hooks/useAuth";
-import { useModuleConfig } from "@/hooks/useSystemModules";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
-import { type LeaderboardEntry } from "@/lib/api";
-import { useLeaderboard, useFriends } from "@/hooks/queries";
-import { Button } from "@/components/ui/button";
+import { LeaderboardSkeleton } from "@/components/skeletons/LeaderboardSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { BannedBadge } from "@/components/ui/banned-badge";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useFriends, useLeaderboard } from "@/hooks/queries";
+import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
+import type { LeaderboardEntry } from "@/lib/api";
 
 const PAGE_SIZE = 20;
 
@@ -40,18 +32,11 @@ function LeaderboardContent() {
   const { data: leaderboardData, isLoading: leaderboardLoading } = useLeaderboard();
   const { data: friendsData, isLoading: friendsLoading } = useFriends(200);
 
-  const entries = useMemo<LeaderboardEntry[]>(
-    () => leaderboardData?.items ?? [],
-    [leaderboardData]
-  );
+  const entries = useMemo<LeaderboardEntry[]>(() => leaderboardData?.items ?? [], [leaderboardData]);
 
   const friendIds = useMemo<Set<string>>(() => {
     if (!friendsData || !user) return new Set();
-    return new Set<string>(
-      friendsData.items.map((f) =>
-        f.from_user.id === user.id ? f.to_user.id : f.from_user.id
-      )
-    );
+    return new Set<string>(friendsData.items.map((f) => (f.from_user.id === user.id ? f.to_user.id : f.from_user.id)));
   }, [friendsData, user]);
 
   const pageLoading = leaderboardLoading || friendsLoading;
@@ -75,7 +60,9 @@ function LeaderboardContent() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 px-4 md:px-0">
         <div>
-          <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">Ranking</p>
+          <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">
+            Ranking
+          </p>
           <h1 className="font-display text-2xl md:text-5xl text-foreground">Ranking</h1>
           <p className="hidden md:block mt-1 text-sm text-muted-foreground">
             ELO, wygrane, win rate i średni placement.
@@ -110,82 +97,116 @@ function LeaderboardContent() {
           {/* Mobile: equal-height horizontal row; Desktop: stepped podium (items-end) */}
           <div className="flex items-stretch md:items-end justify-center gap-2 md:gap-4">
             {/* 2nd place */}
-            {entries[1] && (() => {
-              const entry = entries[1];
-              return (
-                <button
-                  key={entry.id}
-                  onClick={() => router.push(`/profile/${entry.id}`)}
-                  className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-border bg-card px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-48 min-h-[148px] md:min-h-0 transition-all hover-lift"
-                >
-                  <span className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-widest mb-0.5">#2</span>
-                  <div className="flex h-11 w-11 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-full border-2 border-[#C0C0C0] bg-[#C0C0C0]/10 overflow-hidden">
-                    {entry.avatar_url ? (
-                      <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover rounded-full" />
-                    ) : (
-                      <span className="font-display text-base md:text-xl font-bold text-[#C0C0C0]">{entry.username[0].toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="text-center min-w-0 w-full">
-                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-[10px] md:text-xs mr-0.5" />}{entry.username}</p>
-                    <p className="font-display text-sm md:text-lg text-[#C0C0C0] tabular-nums">{entry.elo_rating}</p>
-                    <p className="text-[10px] text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
-                  </div>
-                </button>
-              );
-            })()}
+            {entries[1] &&
+              (() => {
+                const entry = entries[1];
+                return (
+                  <button
+                    key={entry.id}
+                    onClick={() => router.push(`/profile/${entry.id}`)}
+                    className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-border bg-card px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-48 min-h-[148px] md:min-h-0 transition-all hover-lift"
+                  >
+                    <span className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-widest mb-0.5">#2</span>
+                    <div className="flex h-11 w-11 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-full border-2 border-[#C0C0C0] bg-[#C0C0C0]/10 overflow-hidden">
+                      {entry.avatar_url ? (
+                        <img
+                          src={entry.avatar_url}
+                          alt={entry.username}
+                          className="h-full w-full object-cover rounded-full"
+                        />
+                      ) : (
+                        <span className="font-display text-base md:text-xl font-bold text-[#C0C0C0]">
+                          {entry.username[0].toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-center min-w-0 w-full">
+                      <p className="text-xs md:text-sm font-bold text-foreground truncate">
+                        {entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-[10px] md:text-xs mr-0.5" />}
+                        {entry.username}
+                      </p>
+                      <p className="font-display text-sm md:text-lg text-[#C0C0C0] tabular-nums">{entry.elo_rating}</p>
+                      <p className="text-[10px] text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
+                    </div>
+                  </button>
+                );
+              })()}
             {/* 1st place */}
-            {entries[0] && (() => {
-              const entry = entries[0];
-              return (
-                <button
-                  key={entry.id}
-                  onClick={() => router.push(`/profile/${entry.id}`)}
-                  className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-[#FFD700]/40 bg-[#FFD700]/5 px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-56 min-h-[196px] md:min-h-0 transition-all hover-lift"
-                  style={{ height: undefined }}
-                >
-                  <Crown className="h-5 w-5 text-[#FFD700] shrink-0" />
-                  <div className="flex h-14 w-14 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-full border-2 border-[#FFD700] bg-[#FFD700]/10 overflow-hidden">
-                    {entry.avatar_url ? (
-                      <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover rounded-full" />
-                    ) : (
-                      <span className="font-display text-xl md:text-2xl font-bold text-[#FFD700]">{entry.username[0].toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="text-center min-w-0 w-full">
-                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-[10px] md:text-xs mr-0.5" />}{entry.username}</p>
-                    <p className="font-display text-base md:text-xl text-[#FFD700] tabular-nums">{entry.elo_rating}</p>
-                    <p className="text-[10px] text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
-                  </div>
-                </button>
-              );
-            })()}
+            {entries[0] &&
+              (() => {
+                const entry = entries[0];
+                return (
+                  <button
+                    key={entry.id}
+                    onClick={() => router.push(`/profile/${entry.id}`)}
+                    className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-[#FFD700]/40 bg-[#FFD700]/5 px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-56 min-h-[196px] md:min-h-0 transition-all hover-lift"
+                    style={{ height: undefined }}
+                  >
+                    <Crown className="h-5 w-5 text-[#FFD700] shrink-0" />
+                    <div className="flex h-14 w-14 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-full border-2 border-[#FFD700] bg-[#FFD700]/10 overflow-hidden">
+                      {entry.avatar_url ? (
+                        <img
+                          src={entry.avatar_url}
+                          alt={entry.username}
+                          className="h-full w-full object-cover rounded-full"
+                        />
+                      ) : (
+                        <span className="font-display text-xl md:text-2xl font-bold text-[#FFD700]">
+                          {entry.username[0].toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-center min-w-0 w-full">
+                      <p className="text-xs md:text-sm font-bold text-foreground truncate">
+                        {entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-[10px] md:text-xs mr-0.5" />}
+                        {entry.username}
+                      </p>
+                      <p className="font-display text-base md:text-xl text-[#FFD700] tabular-nums">
+                        {entry.elo_rating}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
+                    </div>
+                  </button>
+                );
+              })()}
             {/* 3rd place */}
-            {entries[2] && (() => {
-              const entry = entries[2];
-              return (
-                <button
-                  key={entry.id}
-                  onClick={() => router.push(`/profile/${entry.id}`)}
-                  className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-border bg-card px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-48 min-h-[124px] md:min-h-0 transition-all hover-lift"
-                  style={{ height: undefined }}
-                >
-                  <span className="text-[10px] font-bold text-[#CD7F32] uppercase tracking-widest mb-0.5">#3</span>
-                  <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-full border-2 border-[#CD7F32] bg-[#CD7F32]/10 overflow-hidden">
-                    {entry.avatar_url ? (
-                      <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover rounded-full" />
-                    ) : (
-                      <span className="font-display text-sm md:text-lg font-bold text-[#CD7F32]">{entry.username[0].toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="text-center min-w-0 w-full">
-                    <p className="text-xs md:text-sm font-bold text-foreground truncate">{entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-[10px] md:text-xs mr-0.5" />}{entry.username}</p>
-                    <p className="font-display text-xs md:text-base text-[#CD7F32] tabular-nums">{entry.elo_rating}</p>
-                    <p className="text-[10px] text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
-                  </div>
-                </button>
-              );
-            })()}
+            {entries[2] &&
+              (() => {
+                const entry = entries[2];
+                return (
+                  <button
+                    key={entry.id}
+                    onClick={() => router.push(`/profile/${entry.id}`)}
+                    className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-border bg-card px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-48 min-h-[124px] md:min-h-0 transition-all hover-lift"
+                    style={{ height: undefined }}
+                  >
+                    <span className="text-[10px] font-bold text-[#CD7F32] uppercase tracking-widest mb-0.5">#3</span>
+                    <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-full border-2 border-[#CD7F32] bg-[#CD7F32]/10 overflow-hidden">
+                      {entry.avatar_url ? (
+                        <img
+                          src={entry.avatar_url}
+                          alt={entry.username}
+                          className="h-full w-full object-cover rounded-full"
+                        />
+                      ) : (
+                        <span className="font-display text-sm md:text-lg font-bold text-[#CD7F32]">
+                          {entry.username[0].toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-center min-w-0 w-full">
+                      <p className="text-xs md:text-sm font-bold text-foreground truncate">
+                        {entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-[10px] md:text-xs mr-0.5" />}
+                        {entry.username}
+                      </p>
+                      <p className="font-display text-xs md:text-base text-[#CD7F32] tabular-nums">
+                        {entry.elo_rating}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR</p>
+                    </div>
+                  </button>
+                );
+              })()}
           </div>
         </div>
       )}
@@ -206,9 +227,11 @@ function LeaderboardContent() {
                 onClick={() => router.push(`/profile/${entry.id}`)}
                 className={`flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 hover-lift ${isMe ? "bg-primary/5" : isFriend ? "bg-accent/5" : ""}`}
               >
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
-                  isTop3 ? "bg-accent/15 text-accent" : "bg-secondary text-muted-foreground"
-                }`}>
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
+                    isTop3 ? "bg-accent/15 text-accent" : "bg-secondary text-muted-foreground"
+                  }`}
+                >
                   {isTop3 ? <Medal className="h-4 w-4" /> : placement}
                 </div>
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden bg-secondary">
@@ -221,12 +244,18 @@ function LeaderboardContent() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     {entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-xs shrink-0" />}
-                    <span className={`text-sm font-semibold text-foreground truncate ${entry.is_banned ? "line-through opacity-60" : ""}`}>{entry.username}</span>
+                    <span
+                      className={`text-sm font-semibold text-foreground truncate ${entry.is_banned ? "line-through opacity-60" : ""}`}
+                    >
+                      {entry.username}
+                    </span>
                     {isMe && <span className="text-[10px] font-bold text-primary">Ty</span>}
                     {isFriend && <Users className="h-3 w-3 text-muted-foreground shrink-0" />}
                     {entry.is_banned && <BannedBadge />}
                   </div>
-                  <span className="text-xs text-muted-foreground">{Math.round(entry.win_rate * 100)}% WR · {entry.matches_played} meczy</span>
+                  <span className="text-xs text-muted-foreground">
+                    {Math.round(entry.win_rate * 100)}% WR · {entry.matches_played} meczy
+                  </span>
                 </div>
                 <span className="font-display text-lg tabular-nums text-accent shrink-0">{entry.elo_rating}</span>
                 <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
@@ -243,17 +272,29 @@ function LeaderboardContent() {
                 <TableHead className="h-12 pl-6 w-16 text-sm font-semibold">#</TableHead>
                 <TableHead className="h-12 text-sm font-semibold">Gracz</TableHead>
                 <TableHead className="h-12 text-sm font-semibold text-center">
-                  <div className="flex items-center gap-1 justify-center"><Swords className="h-3.5 w-3.5" />Mecze</div>
+                  <div className="flex items-center gap-1 justify-center">
+                    <Swords className="h-3.5 w-3.5" />
+                    Mecze
+                  </div>
                 </TableHead>
                 <TableHead className="h-12 text-sm font-semibold text-center">
-                  <div className="flex items-center gap-1 justify-center"><Crown className="h-3.5 w-3.5" />Wygrane</div>
+                  <div className="flex items-center gap-1 justify-center">
+                    <Crown className="h-3.5 w-3.5" />
+                    Wygrane
+                  </div>
                 </TableHead>
                 <TableHead className="h-12 text-sm font-semibold text-center">
-                  <div className="flex items-center gap-1 justify-center"><Target className="h-3.5 w-3.5" />Win Rate</div>
+                  <div className="flex items-center gap-1 justify-center">
+                    <Target className="h-3.5 w-3.5" />
+                    Win Rate
+                  </div>
                 </TableHead>
                 <TableHead className="h-12 text-sm font-semibold text-center">Avg</TableHead>
                 <TableHead className="h-12 pr-6 text-sm font-semibold text-right">
-                  <div className="flex items-center gap-1 justify-end"><Trophy className="h-3.5 w-3.5 text-accent" />ELO</div>
+                  <div className="flex items-center gap-1 justify-end">
+                    <Trophy className="h-3.5 w-3.5 text-accent" />
+                    ELO
+                  </div>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -271,9 +312,11 @@ function LeaderboardContent() {
                     className={`cursor-pointer hover-lift ${isMe ? "bg-primary/5 hover:bg-primary/10" : isFriend ? "bg-accent/5 hover:bg-accent/10" : "hover:bg-muted/50"}`}
                   >
                     <TableCell className="pl-6 py-3.5">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-lg font-display text-sm font-bold ${
-                        isTop3 ? "bg-accent/15 text-accent" : "bg-secondary text-muted-foreground"
-                      }`}>
+                      <div
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg font-display text-sm font-bold ${
+                          isTop3 ? "bg-accent/15 text-accent" : "bg-secondary text-muted-foreground"
+                        }`}
+                      >
                         {isTop3 ? <Medal className="h-4 w-4" /> : placement}
                       </div>
                     </TableCell>
@@ -283,25 +326,51 @@ function LeaderboardContent() {
                           {entry.avatar_url ? (
                             <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover" />
                           ) : (
-                            <span className="text-sm font-bold text-muted-foreground">{entry.username[0].toUpperCase()}</span>
+                            <span className="text-sm font-bold text-muted-foreground">
+                              {entry.username[0].toUpperCase()}
+                            </span>
                           )}
                         </div>
                         {entry.clan_tag && <ClanTag tag={entry.clan_tag} className="text-sm shrink-0" />}
-                        <Link href={`/profile/${entry.id}`} className={`text-base font-semibold text-foreground hover:text-primary transition-colors ${entry.is_banned ? "line-through opacity-60" : ""}`}>{entry.username}</Link>
-                        {isMe && <Badge className="border-0 bg-primary/15 text-xs text-primary hover:bg-primary/15">Ty</Badge>}
-                        {isFriend && <Badge className="border-0 bg-muted text-xs text-muted-foreground hover:bg-muted gap-1"><Users className="h-3 w-3" />Znajomy</Badge>}
+                        <Link
+                          href={`/profile/${entry.id}`}
+                          className={`text-base font-semibold text-foreground hover:text-primary transition-colors ${entry.is_banned ? "line-through opacity-60" : ""}`}
+                        >
+                          {entry.username}
+                        </Link>
+                        {isMe && (
+                          <Badge className="border-0 bg-primary/15 text-xs text-primary hover:bg-primary/15">Ty</Badge>
+                        )}
+                        {isFriend && (
+                          <Badge className="border-0 bg-muted text-xs text-muted-foreground hover:bg-muted gap-1">
+                            <Users className="h-3 w-3" />
+                            Znajomy
+                          </Badge>
+                        )}
                         {entry.is_banned && <BannedBadge />}
                       </div>
                     </TableCell>
-                    <TableCell className="py-3.5 text-center"><span className="text-base tabular-nums text-foreground">{entry.matches_played}</span></TableCell>
-                    <TableCell className="py-3.5 text-center"><span className="text-base tabular-nums text-foreground">{entry.wins}</span></TableCell>
                     <TableCell className="py-3.5 text-center">
-                      <span className={`text-base tabular-nums font-semibold ${entry.win_rate >= 0.6 ? "text-green-400" : entry.win_rate >= 0.4 ? "text-foreground" : "text-muted-foreground"}`}>
+                      <span className="text-base tabular-nums text-foreground">{entry.matches_played}</span>
+                    </TableCell>
+                    <TableCell className="py-3.5 text-center">
+                      <span className="text-base tabular-nums text-foreground">{entry.wins}</span>
+                    </TableCell>
+                    <TableCell className="py-3.5 text-center">
+                      <span
+                        className={`text-base tabular-nums font-semibold ${entry.win_rate >= 0.6 ? "text-green-400" : entry.win_rate >= 0.4 ? "text-foreground" : "text-muted-foreground"}`}
+                      >
                         {Math.round(entry.win_rate * 100)}%
                       </span>
                     </TableCell>
-                    <TableCell className="py-3.5 text-center"><span className="text-base tabular-nums text-muted-foreground">{entry.average_placement.toFixed(1)}</span></TableCell>
-                    <TableCell className="py-3.5 pr-6 text-right"><span className="font-display text-xl tabular-nums text-accent">{entry.elo_rating}</span></TableCell>
+                    <TableCell className="py-3.5 text-center">
+                      <span className="text-base tabular-nums text-muted-foreground">
+                        {entry.average_placement.toFixed(1)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="py-3.5 pr-6 text-right">
+                      <span className="font-display text-xl tabular-nums text-accent">{entry.elo_rating}</span>
+                    </TableCell>
                   </TableRow>
                 );
               })}

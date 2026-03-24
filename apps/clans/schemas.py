@@ -1,12 +1,12 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+
 from ninja import Schema
 from pydantic import Field
 
-
 # --- Embedded user schema (lightweight) ---
+
 
 class ClanUserSchema(Schema):
     id: uuid.UUID
@@ -19,11 +19,12 @@ class ClanUserSchema(Schema):
 
 # --- Input schemas ---
 
+
 class ClanCreateSchema(Schema):
     name: str = Field(min_length=3, max_length=32)
     tag: str = Field(min_length=2, max_length=5)
-    description: str = Field(default='', max_length=500)
-    color: str = Field(default='#FFFFFF', max_length=7)
+    description: str = Field(default="", max_length=500)
+    color: str = Field(default="#FFFFFF", max_length=7)
     is_public: bool = True
 
 
@@ -42,20 +43,20 @@ class DonateSchema(Schema):
 
 class WithdrawSchema(Schema):
     amount: int = Field(ge=1)
-    reason: str = Field(default='', max_length=200)
+    reason: str = Field(default="", max_length=200)
 
 
 class DeclareWarSchema(Schema):
     players_per_side: int = Field(default=3, ge=1, le=5)
     wager_gold: int = Field(default=0, ge=0)
-    scheduled_at: Optional[datetime] = Field(
+    scheduled_at: datetime | None = Field(
         default=None,
-        description='Optional UTC datetime when the war should start. If None, starts immediately on acceptance.',
+        description="Optional UTC datetime when the war should start. If None, starts immediately on acceptance.",
     )
 
 
 class JoinRequestSchema(Schema):
-    message: str = Field(default='', max_length=200)
+    message: str = Field(default="", max_length=200)
 
 
 class ClanChatCreateSchema(Schema):
@@ -63,6 +64,7 @@ class ClanChatCreateSchema(Schema):
 
 
 # --- Output schemas ---
+
 
 class ClanOutSchema(Schema):
     id: uuid.UUID

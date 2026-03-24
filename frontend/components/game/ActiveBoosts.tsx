@@ -1,7 +1,7 @@
 "use client";
 
+import { Coins, Shield, Swords, TrendingUp, Zap } from "lucide-react";
 import { memo, type ReactNode } from "react";
-import { Zap, Shield, Swords, TrendingUp, Coins } from "lucide-react";
 
 export interface ActiveBoost {
   slug: string;
@@ -49,11 +49,7 @@ function fallbackIcon() {
   return <Zap className="h-3 w-3" />;
 }
 
-export default memo(function ActiveBoosts({
-  boosts,
-  matchBoosts = [],
-  tickIntervalMs = 1000,
-}: ActiveBoostsProps) {
+export default memo(function ActiveBoosts({ boosts, matchBoosts = [], tickIntervalMs = 1000 }: ActiveBoostsProps) {
   if (boosts.length === 0 && matchBoosts.length === 0) return null;
 
   return (
@@ -61,9 +57,7 @@ export default memo(function ActiveBoosts({
       {boosts.map((b) => {
         const effectType = (b.params?.effect_type as string) ?? "";
         const value = (b.params?.value as number) ?? 0;
-        const colors =
-          BOOST_COLORS[effectType] ??
-          "text-muted-foreground border-border bg-muted/30";
+        const colors = BOOST_COLORS[effectType] ?? "text-muted-foreground border-border bg-muted/30";
         const label = BOOST_LABELS[effectType] ?? effectType;
         return (
           <div
@@ -77,13 +71,9 @@ export default memo(function ActiveBoosts({
         );
       })}
       {matchBoosts.map((b, i) => {
-        const colors =
-          BOOST_COLORS[b.effect_type] ??
-          "text-muted-foreground border-border bg-muted/30";
+        const colors = BOOST_COLORS[b.effect_type] ?? "text-muted-foreground border-border bg-muted/30";
         const label = BOOST_LABELS[b.effect_type] ?? b.effect_type;
-        const remainingSec = Math.ceil(
-          (b.ticks_remaining * tickIntervalMs) / 1000
-        );
+        const remainingSec = Math.ceil((b.ticks_remaining * tickIntervalMs) / 1000);
         return (
           <div
             key={`${b.slug}-${i}`}
@@ -92,9 +82,7 @@ export default memo(function ActiveBoosts({
           >
             {BOOST_ICONS[b.effect_type] ?? fallbackIcon()}
             <span>+{Math.round(b.value * 100)}%</span>
-            <span className="font-display text-[10px] tabular-nums opacity-70">
-              {remainingSec}s
-            </span>
+            <span className="font-display text-[10px] tabular-nums opacity-70">{remainingSec}s</span>
           </div>
         );
       })}

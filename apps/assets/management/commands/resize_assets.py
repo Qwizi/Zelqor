@@ -8,31 +8,34 @@ from apps.assets.models import AssetCategory, GameAsset
 
 
 class Command(BaseCommand):
-    help = 'Resize all existing image GameAssets to fit within max_size (default 300px)'
+    help = "Resize all existing image GameAssets to fit within max_size (default 300px)"
 
     def add_arguments(self, parser):
-        parser.add_argument('--max-size', type=int, default=300, help='Max width/height in pixels')
-        parser.add_argument('--quality', type=int, default=85, help='WebP quality')
-        parser.add_argument('--dry-run', action='store_true', help='Only report, do not modify')
+        parser.add_argument("--max-size", type=int, default=300, help="Max width/height in pixels")
+        parser.add_argument("--quality", type=int, default=85, help="WebP quality")
+        parser.add_argument("--dry-run", action="store_true", help="Only report, do not modify")
 
     def handle(self, *args, **options):
-        max_size = options['max_size']
-        quality = options['quality']
-        dry_run = options['dry_run']
+        max_size = options["max_size"]
+        quality = options["quality"]
+        dry_run = options["dry_run"]
 
         image_categories = {
-            AssetCategory.BUILDING, AssetCategory.UNIT, AssetCategory.ABILITY,
-            AssetCategory.ICON, AssetCategory.TEXTURE,
+            AssetCategory.BUILDING,
+            AssetCategory.UNIT,
+            AssetCategory.ABILITY,
+            AssetCategory.ICON,
+            AssetCategory.TEXTURE,
         }
         assets = GameAsset.objects.filter(
             category__in=image_categories,
             is_active=True,
-        ).exclude(file='')
+        ).exclude(file="")
 
         resized = 0
         for asset in assets:
             try:
-                asset.file.open('rb')
+                asset.file.open("rb")
                 img = PILImage.open(asset.file)
                 w, h = img.size
 
@@ -40,32 +43,29 @@ class Command(BaseCommand):
                     asset.file.close()
                     continue
 
-                self.stdout.write(f'{asset.key}: {w}x{h} -> ', ending='')
+                self.stdout.write(f"{asset.key}: {w}x{h} -> ", ending="")
 
                 if dry_run:
-                    self.stdout.write('(would resize)')
+                    self.stdout.write("(would resize)")
                     asset.file.close()
                     resized += 1
                     continue
 
                 img.thumbnail((max_size, max_size), PILImage.LANCZOS)
-                if img.mode in ('RGBA', 'LA', 'P'):
-                    img = img.convert('RGBA')
-                else:
-                    img = img.convert('RGB')
+                img = img.convert("RGBA") if img.mode in ("RGBA", "LA", "P") else img.convert("RGB")
 
                 buf = BytesIO()
-                img.save(buf, format='WEBP', quality=quality)
+                img.save(buf, format="WEBP", quality=quality)
                 buf.seek(0)
 
-                stem = asset.file.name.rsplit('/', 1)[-1].rsplit('.', 1)[0]
-                asset.file.save(f'{stem}.webp', ContentFile(buf.read()), save=False)
-                asset.save(update_fields=['file', 'updated_at'])
+                stem = asset.file.name.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+                asset.file.save(f"{stem}.webp", ContentFile(buf.read()), save=False)
+                asset.save(update_fields=["file", "updated_at"])
 
-                self.stdout.write(f'{img.size[0]}x{img.size[1]} OK')
+                self.stdout.write(f"{img.size[0]}x{img.size[1]} OK")
                 resized += 1
             except Exception as e:
-                self.stderr.write(f'{asset.key}: error - {e}')
+                self.stderr.write(f"{asset.key}: error - {e}")
 
-        action = 'Would resize' if dry_run else 'Resized'
-        self.stdout.write(self.style.SUCCESS(f'{action} {resized} asset(s)'))
+        action = "Would resize" if dry_run else "Resized"
+        self.stdout.write(self.style.SUCCESS(f"{action} {resized} asset(s)"))

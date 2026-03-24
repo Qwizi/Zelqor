@@ -1,17 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  getMe,
-  getOnlineStats,
   getLeaderboard,
   getLinkedSocialAccounts,
-  type User,
-  type OnlineStats,
+  getMe,
+  getOnlineStats,
   type LeaderboardEntry,
+  type OnlineStats,
   type PaginatedResponse,
   type SocialAccountOut,
+  type User,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useMe() {
   return useQuery<User>({

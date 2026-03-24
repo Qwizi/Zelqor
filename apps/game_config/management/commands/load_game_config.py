@@ -7,12 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 from apps.game_config.models import AbilityType, BuildingType, GameMode, GameSettings, MapConfig, UnitType
 from apps.matchmaking.models import Match
 
-
-DEFAULT_FIXTURE_PATH = (
-    Path(__file__).resolve().parent.parent.parent.parent.parent
-    / "fixtures"
-    / "game_config.json"
-)
+DEFAULT_FIXTURE_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / "fixtures" / "game_config.json"
 
 
 class Command(BaseCommand):
@@ -152,8 +147,7 @@ class Command(BaseCommand):
         building_map: dict[str, BuildingType],
     ):
         building_pk_to_slug = {
-            str(entry.get("pk")): (entry.get("fields") or {}).get("slug")
-            for entry in building_entries
+            str(entry.get("pk")): (entry.get("fields") or {}).get("slug") for entry in building_entries
         }
         count = 0
 
@@ -162,9 +156,7 @@ class Command(BaseCommand):
             produced_by_pk = fields.pop("produced_by", None)
             produced_by_slug = building_pk_to_slug.get(str(produced_by_pk)) if produced_by_pk else None
             fields["produced_by"] = (
-                BuildingType.objects.filter(slug=produced_by_slug).first()
-                if produced_by_slug
-                else None
+                BuildingType.objects.filter(slug=produced_by_slug).first() if produced_by_slug else None
             )
             UnitType.objects.create(**fields)
             count += 1
@@ -352,11 +344,11 @@ class Command(BaseCommand):
         for bt in BuildingType.objects.filter(is_active=True):
             level_stats = bt.level_stats or {}
             for level_data in level_stats.values():
-                level_data['cost'] = 1
-                level_data['energy_cost'] = 1
-                level_data['build_time_ticks'] = 1
+                level_data["cost"] = 1
+                level_data["energy_cost"] = 1
+                level_data["build_time_ticks"] = 1
             bt.level_stats = level_stats
-            bt.save(update_fields=['level_stats'])
+            bt.save(update_fields=["level_stats"])
             bt_updated += 1
         self.stdout.write(f"    BuildingType: {bt_updated} updated (level_stats cost=1, energy=1, build=1 tick)")
 
@@ -366,11 +358,11 @@ class Command(BaseCommand):
         for ut in UnitType.objects.filter(is_active=True):
             level_stats = ut.level_stats or {}
             for level_data in level_stats.values():
-                level_data['production_cost'] = 1
-                level_data['production_time_ticks'] = 1
+                level_data["production_cost"] = 1
+                level_data["production_time_ticks"] = 1
                 # Don't override manpower_cost — it defines unit strength/force.
             ut.level_stats = level_stats
-            ut.save(update_fields=['level_stats'])
+            ut.save(update_fields=["level_stats"])
             ut_updated += 1
         self.stdout.write(f"    UnitType: {ut_updated} updated (level_stats cost=1, time=1, manpower preserved)")
 
@@ -379,12 +371,12 @@ class Command(BaseCommand):
         for at in AbilityType.objects.filter(is_active=True):
             level_stats = at.level_stats or {}
             for level_data in level_stats.values():
-                level_data['energy_cost'] = 1
-                level_data['cooldown_ticks'] = 2
+                level_data["energy_cost"] = 1
+                level_data["cooldown_ticks"] = 2
             at.level_stats = level_stats
             at.energy_cost = 1
             at.cooldown_ticks = 2
-            at.save(update_fields=['level_stats', 'energy_cost', 'cooldown_ticks'])
+            at.save(update_fields=["level_stats", "energy_cost", "cooldown_ticks"])
             at_updated += 1
         self.stdout.write(f"    AbilityType: {at_updated} updated (cost=1, cooldown=2)")
 
@@ -418,7 +410,7 @@ class Command(BaseCommand):
                 continue
             # Check if the field is at its model default — if so, update it
             field_obj = existing._meta.get_field(key)
-            model_default = field_obj.default if hasattr(field_obj, 'default') else None
+            model_default = field_obj.default if hasattr(field_obj, "default") else None
             current_value = getattr(existing, key)
             if current_value == model_default and value != model_default:
                 setattr(existing, key, value)
@@ -448,8 +440,7 @@ class Command(BaseCommand):
     def _merge_units(self, entries: list[dict], building_entries: list[dict], building_map: dict[str, "BuildingType"]):
         """Upsert UnitType by slug: create missing, preserve existing."""
         building_pk_to_slug = {
-            str(entry.get("pk")): (entry.get("fields") or {}).get("slug")
-            for entry in building_entries
+            str(entry.get("pk")): (entry.get("fields") or {}).get("slug") for entry in building_entries
         }
         created = preserved = 0
         for entry in entries:
@@ -460,9 +451,7 @@ class Command(BaseCommand):
             produced_by_pk = fields.pop("produced_by", None)
             produced_by_slug = building_pk_to_slug.get(str(produced_by_pk)) if produced_by_pk else None
             fields["produced_by"] = (
-                BuildingType.objects.filter(slug=produced_by_slug).first()
-                if produced_by_slug
-                else None
+                BuildingType.objects.filter(slug=produced_by_slug).first() if produced_by_slug else None
             )
             _, was_created = UnitType.objects.get_or_create(slug=slug, defaults=fields)
             if was_created:
@@ -680,7 +669,7 @@ class Command(BaseCommand):
                 field_obj = instance._meta.get_field(key)
             except Exception:
                 continue
-            model_default = getattr(field_obj, 'default', None)
+            model_default = getattr(field_obj, "default", None)
             if model_default is None:
                 continue
             # callable defaults (e.g. dict) — call to compare

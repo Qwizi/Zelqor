@@ -1,18 +1,19 @@
 import uuid
+
 from django.db import migrations
 
 
 def create_clan_war_game_mode(apps, schema_editor):
-    GameMode = apps.get_model('game_config', 'GameMode')
+    GameMode = apps.get_model("game_config", "GameMode")
 
-    if GameMode.objects.filter(slug='clan-war').exists():
+    if GameMode.objects.filter(slug="clan-war").exists():
         return
 
     GameMode.objects.create(
         id=uuid.uuid4(),
-        name='Wojna Klanowa',
-        slug='clan-war',
-        description='Mecz klanowy. Wszyscy gracze z klanu walczą razem.',
+        name="Wojna Klanowa",
+        slug="clan-war",
+        description="Mecz klanowy. Wszyscy gracze z klanu walczą razem.",
         max_players=6,
         min_players=4,
         is_active=True,
@@ -83,14 +84,13 @@ def create_clan_war_game_mode(apps, schema_editor):
 
 
 def remove_clan_war_game_mode(apps, schema_editor):
-    GameMode = apps.get_model('game_config', 'GameMode')
-    GameMode.objects.filter(slug='clan-war').delete()
+    GameMode = apps.get_model("game_config", "GameMode")
+    GameMode.objects.filter(slug="clan-war").delete()
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0034_rebalance_ap_system'),
+        ("game_config", "0034_rebalance_ap_system"),
     ]
 
     operations = [

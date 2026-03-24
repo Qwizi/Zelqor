@@ -29,7 +29,7 @@ export function getAttackApCost(unitPercent: number, maxCost = AP_COSTS.attack):
   if (maxCost <= 1) return maxCost;
   if (unitPercent <= 25) return 1;
   if (unitPercent <= 50) return Math.max(2, Math.floor(maxCost / 2));
-  if (unitPercent <= 75) return Math.max(3, Math.floor(maxCost * 3 / 4));
+  if (unitPercent <= 75) return Math.max(3, Math.floor((maxCost * 3) / 4));
   return maxCost;
 }
 

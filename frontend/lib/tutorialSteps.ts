@@ -19,11 +19,7 @@ export interface TutorialStep {
 }
 
 /** Get unowned neighbor region IDs of regions owned by userId */
-function getNeutralNeighbors(
-  state: GameState,
-  userId: string,
-  neighborMap: Record<string, string[]>
-): string[] {
+function getNeutralNeighbors(state: GameState, userId: string, neighborMap: Record<string, string[]>): string[] {
   const result: string[] = [];
   for (const [rid, region] of Object.entries(state.regions)) {
     if (region.owner_id !== userId) continue;
@@ -100,10 +96,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "Krok 3: Pierwszy atak",
     description:
       "Kliknij na swoj region (kolorowy), potem na sasiedni szary region (podswietlony czerwona ramka). Ustaw ilosc jednostek i potwierdz atak!",
-    getHighlightRegions: (state, userId, neighborMap) =>
-      getNeutralNeighbors(state, userId, neighborMap).slice(0, 3),
-    condition: (state, userId) =>
-      Object.values(state.regions).filter((r) => r.owner_id === userId).length >= 2,
+    getHighlightRegions: (state, userId, neighborMap) => getNeutralNeighbors(state, userId, neighborMap).slice(0, 3),
+    condition: (state, userId) => Object.values(state.regions).filter((r) => r.owner_id === userId).length >= 2,
     tickMultiplier: 2,
   },
 
@@ -111,12 +105,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: "expand",
     title: "Krok 4: Rozszerzaj terytorium",
-    description:
-      "Wiecej regionow = wiecej jednostek i waluty co ture. Zdobadz jeszcze kilka neutralnych regionow!",
-    getHighlightRegions: (state, userId, neighborMap) =>
-      getNeutralNeighbors(state, userId, neighborMap).slice(0, 5),
-    condition: (state, userId) =>
-      Object.values(state.regions).filter((r) => r.owner_id === userId).length >= 4,
+    description: "Wiecej regionow = wiecej jednostek i waluty co ture. Zdobadz jeszcze kilka neutralnych regionow!",
+    getHighlightRegions: (state, userId, neighborMap) => getNeutralNeighbors(state, userId, neighborMap).slice(0, 5),
+    condition: (state, userId) => Object.values(state.regions).filter((r) => r.owner_id === userId).length >= 4,
     tickMultiplier: 3,
   },
 
@@ -147,24 +138,17 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     condition: (state, userId) =>
       state.buildings_queue.some((b) => b.player_id === userId) ||
       Object.values(state.regions).some(
-        (r) =>
-          r.owner_id === userId &&
-          r.buildings &&
-          Object.values(r.buildings).some((v) => v > 0)
+        (r) => r.owner_id === userId && r.buildings && Object.values(r.buildings).some((v) => v > 0),
       ),
     tickMultiplier: 2,
   },
   {
     id: "build_wait",
     title: "Budowanie w toku...",
-    description:
-      "Budynek jest w budowie! Przyspieszam czas \u2014 poczekaj chwile az zostanie ukonczony.",
+    description: "Budynek jest w budowie! Przyspieszam czas \u2014 poczekaj chwile az zostanie ukonczony.",
     condition: (state, userId) =>
       Object.values(state.regions).some(
-        (r) =>
-          r.owner_id === userId &&
-          r.buildings &&
-          Object.values(r.buildings).some((v) => v > 0)
+        (r) => r.owner_id === userId && r.buildings && Object.values(r.buildings).some((v) => v > 0),
       ),
     tickMultiplier: 5,
   },
@@ -188,7 +172,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     allowedAbility: "ab_conscription_point",
     condition: (state, userId) => {
       const cd = state.players[userId]?.ability_cooldowns ?? {};
-      return (cd["ab_conscription_point"] ?? 0) > 0;
+      return (cd.ab_conscription_point ?? 0) > 0;
     },
     tickMultiplier: 2,
   },
@@ -201,7 +185,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     allowedAbility: "ab_shield",
     condition: (state, userId) => {
       const cd = state.players[userId]?.ability_cooldowns ?? {};
-      return (cd["ab_shield"] ?? 0) > 0;
+      return (cd.ab_shield ?? 0) > 0;
     },
     tickMultiplier: 2,
   },
@@ -215,21 +199,20 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     getHighlightRegions: (state, userId) => getEnemyRegions(state, userId).slice(0, 3),
     condition: (state, userId) => {
       const cd = state.players[userId]?.ability_cooldowns ?? {};
-      return (cd["ab_virus"] ?? 0) > 0;
+      return (cd.ab_virus ?? 0) > 0;
     },
     tickMultiplier: 2,
   },
   {
     id: "ability_submarine",
     title: "Zdolnosc: Okret podwodny",
-    description:
-      "Ujawnia jednostki wroga w wybranym regionie na kilka tur. Kliknij ikone, potem kliknij WROGI region.",
+    description: "Ujawnia jednostki wroga w wybranym regionie na kilka tur. Kliknij ikone, potem kliknij WROGI region.",
     uiTarget: "ability-bar",
     allowedAbility: "ab_pr_submarine",
     getHighlightRegions: (state, userId) => getEnemyRegions(state, userId).slice(0, 3),
     condition: (state, userId) => {
       const cd = state.players[userId]?.ability_cooldowns ?? {};
-      return (cd["ab_pr_submarine"] ?? 0) > 0;
+      return (cd.ab_pr_submarine ?? 0) > 0;
     },
     tickMultiplier: 2,
   },
@@ -243,7 +226,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     getHighlightRegions: (state, userId) => getEnemyRegions(state, userId).slice(0, 3),
     condition: (state, userId) => {
       const cd = state.players[userId]?.ability_cooldowns ?? {};
-      return (cd["ab_province_nuke"] ?? 0) > 0;
+      return (cd.ab_province_nuke ?? 0) > 0;
     },
     tickMultiplier: 3,
   },
@@ -252,8 +235,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: "enemy_attack",
     title: "Krok 7: Uwaga na wroga!",
-    description:
-      "Bot atakuje Twoje regiony. Utrzymuj garnizon na granicach i buduj wieze obronne!",
+    description: "Bot atakuje Twoje regiony. Utrzymuj garnizon na granicach i buduj wieze obronne!",
     manualAdvance: true,
     tickMultiplier: 2,
   },
@@ -262,8 +244,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: "capture_capital",
     title: "Krok 8: Zdobadz stolice wroga!",
-    description:
-      "Znajdz stolice bota (region z zoltym obrysem/gwiazdka) i wyslij duza armie! To konczy gre.",
+    description: "Znajdz stolice bota (region z zoltym obrysem/gwiazdka) i wyslij duza armie! To konczy gre.",
     getHighlightRegions: (state, userId) => {
       const cap = getEnemyCapital(state, userId);
       return cap ? [cap] : [];

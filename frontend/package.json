@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "biome check --diagnostic-level=error .",
+    "format": "biome format --write .",
+    "check": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:sea-range": "node --test scripts/sea-range.test.mjs",
@@ -43,6 +45,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
     "@playwright/test": "^1.58.2",
     "@serwist/turbopack": "^9.5.6",
     "@tailwindcss/postcss": "^4",
@@ -53,8 +56,6 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.1",
     "esbuild": "^0.27.4",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
     "jsdom": "^29.0.0",
     "serwist": "^9.5.7",
     "tailwindcss": "^4",

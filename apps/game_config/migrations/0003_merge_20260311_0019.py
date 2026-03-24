@@ -4,11 +4,9 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0002_gamesettings_neutral_region_units'),
-        ('game_config', '0002_mapconfig_min_capital_distance'),
+        ("game_config", "0002_gamesettings_neutral_region_units"),
+        ("game_config", "0002_mapconfig_min_capital_distance"),
     ]
 
-    operations = [
-    ]
+    operations = []

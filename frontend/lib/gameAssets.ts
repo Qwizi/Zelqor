@@ -84,7 +84,7 @@ const BUILDING_SLOT_MAP: Record<string, string> = {
 export function getPlayerBuildingAsset(
   slug: string | null | undefined,
   playerCosmetics?: Record<string, unknown>,
-  assetUrl?: string | null
+  assetUrl?: string | null,
 ): string | null {
   if (slug && playerCosmetics) {
     const slot = BUILDING_SLOT_MAP[slug];
@@ -95,7 +95,7 @@ export function getPlayerBuildingAsset(
           typeof v === "string"
             ? v
             : typeof v === "object" && v !== null && "url" in v
-              ? (v as { url?: string | null }).url ?? null
+              ? ((v as { url?: string | null }).url ?? null)
               : null;
         if (url) return url;
       }
@@ -134,7 +134,7 @@ const UNIT_SLOT_MAP: Record<string, string> = {
 export function getPlayerUnitAsset(
   kind: string | null | undefined,
   playerCosmetics?: Record<string, unknown>,
-  assetUrl?: string | null
+  assetUrl?: string | null,
 ): string {
   if (kind && playerCosmetics) {
     const slot = UNIT_SLOT_MAP[kind];
@@ -145,7 +145,7 @@ export function getPlayerUnitAsset(
           typeof v === "string"
             ? v
             : typeof v === "object" && v !== null && "url" in v
-              ? (v as { url?: string | null }).url ?? null
+              ? ((v as { url?: string | null }).url ?? null)
               : null;
         if (url) return url;
       }
@@ -156,7 +156,7 @@ export function getPlayerUnitAsset(
 
 export function getActionAsset(
   action: "attack" | "move" | "build" | "close" | "defense" | "players",
-  unitType?: string | null
+  unitType?: string | null,
 ): string {
   const keyMap: Record<string, string> = {
     close: "icon_close",

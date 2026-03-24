@@ -4,30 +4,49 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0015_add_unittype_level_fields'),
+        ("game_config", "0015_add_unittype_level_fields"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='abilitytype',
-            name='image',
-            field=models.ImageField(blank=True, help_text='Custom ability image (overrides frontend default)', null=True, upload_to='game_assets/abilities/'),
+            model_name="abilitytype",
+            name="image",
+            field=models.ImageField(
+                blank=True,
+                help_text="Custom ability image (overrides frontend default)",
+                null=True,
+                upload_to="game_assets/abilities/",
+            ),
         ),
         migrations.AddField(
-            model_name='abilitytype',
-            name='sound',
-            field=models.FileField(blank=True, help_text='Custom ability sound (overrides frontend default)', null=True, upload_to='game_assets/sounds/'),
+            model_name="abilitytype",
+            name="sound",
+            field=models.FileField(
+                blank=True,
+                help_text="Custom ability sound (overrides frontend default)",
+                null=True,
+                upload_to="game_assets/sounds/",
+            ),
         ),
         migrations.AddField(
-            model_name='buildingtype',
-            name='image',
-            field=models.ImageField(blank=True, help_text='Custom building image (overrides frontend default)', null=True, upload_to='game_assets/buildings/'),
+            model_name="buildingtype",
+            name="image",
+            field=models.ImageField(
+                blank=True,
+                help_text="Custom building image (overrides frontend default)",
+                null=True,
+                upload_to="game_assets/buildings/",
+            ),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='image',
-            field=models.ImageField(blank=True, help_text='Custom unit image (overrides frontend default)', null=True, upload_to='game_assets/units/'),
+            model_name="unittype",
+            name="image",
+            field=models.ImageField(
+                blank=True,
+                help_text="Custom unit image (overrides frontend default)",
+                null=True,
+                upload_to="game_assets/units/",
+            ),
         ),
     ]

@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { Loader2, MessageSquare, Minus, X } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { useSocialSocketContext } from "@/hooks/SocialSocketContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useChat } from "@/hooks/useChat";
 import { useSystemModules } from "@/hooks/useSystemModules";
-import { useSocialSocketContext } from "@/hooks/SocialSocketContext";
-import { MessageList } from "./MessageList";
+import { type DirectMessageOut, getMessages, sendMessage } from "@/lib/api";
 import { ChatInput } from "./ChatInput";
-import { MessageSquare, X, Minus, Loader2 } from "lucide-react";
-import { getMessages, sendMessage, type DirectMessageOut } from "@/lib/api";
-import { toast } from "sonner";
+import { MessageList } from "./MessageList";
 
 // ---------------------------------------------------------------------------
 // DMChatView — rendered when a DM tab is active
@@ -90,24 +90,27 @@ function DMChatView({ friendId, friendUsername, currentUserId, token }: DMChatVi
   // Auto-scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, []);
 
-  const handleSend = useCallback(async (content: string) => {
-    const trimmed = content.trim();
-    if (!trimmed || sending) return;
-    setSending(true);
-    try {
-      const sent = await sendMessage(token, friendId, trimmed);
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === sent.id)) return prev;
-        return [...prev, sent];
-      });
-    } catch {
-      toast.error("Nie udało się wysłać wiadomości", { id: "chat-send-error" });
-    } finally {
-      setSending(false);
-    }
-  }, [token, friendId, sending]);
+  const handleSend = useCallback(
+    async (content: string) => {
+      const trimmed = content.trim();
+      if (!trimmed || sending) return;
+      setSending(true);
+      try {
+        const sent = await sendMessage(token, friendId, trimmed);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === sent.id)) return prev;
+          return [...prev, sent];
+        });
+      } catch {
+        toast.error("Nie udało się wysłać wiadomości", { id: "chat-send-error" });
+      } finally {
+        setSending(false);
+      }
+    },
+    [token, friendId, sending],
+  );
 
   if (loading) {
     return (
@@ -133,11 +136,13 @@ function DMChatView({ friendId, friendUsername, currentUserId, token }: DMChatVi
             return (
               <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[80%] flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}>
-                  <div className={`rounded-xl px-3 py-1.5 text-xs md:text-sm leading-snug ${
-                    isMine
-                      ? "bg-primary/15 text-foreground rounded-br-sm"
-                      : "bg-secondary text-foreground rounded-bl-sm"
-                  }`}>
+                  <div
+                    className={`rounded-xl px-3 py-1.5 text-xs md:text-sm leading-snug ${
+                      isMine
+                        ? "bg-primary/15 text-foreground rounded-br-sm"
+                        : "bg-secondary text-foreground rounded-bl-sm"
+                    }`}
+                  >
                     {msg.content}
                   </div>
                   <span className="text-[10px] text-muted-foreground/50 tabular-nums px-0.5">
@@ -164,9 +169,19 @@ function DMChatView({ friendId, friendUsername, currentUserId, token }: DMChatVi
 export default function ChatWidget() {
   const { user, token } = useAuth();
   const {
-    messages, connected, sendMessage, unreadCount, resetUnread,
-    chatOpen, setChatOpen,
-    activeTab, dmTabs, dmUnread, closeDMTab, setActiveTab, openDMTab,
+    messages,
+    connected,
+    sendMessage,
+    unreadCount,
+    resetUnread,
+    chatOpen,
+    setChatOpen,
+    activeTab,
+    dmTabs,
+    dmUnread,
+    closeDMTab,
+    setActiveTab,
+    openDMTab,
   } = useChat();
   const { isEnabled } = useSystemModules();
   const pathname = usePathname();
@@ -187,7 +202,7 @@ export default function ChatWidget() {
       resetUnread();
     } else {
       // Use openDMTab to clear unread for this tab
-      const dmTab = dmTabs.find(t => t.friendId === tab);
+      const dmTab = dmTabs.find((t) => t.friendId === tab);
       if (dmTab) openDMTab(dmTab.friendId, dmTab.friendUsername);
     }
   };
@@ -205,9 +220,7 @@ export default function ChatWidget() {
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5 shrink-0">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-primary" />
-              <span className="text-xs md:text-sm font-semibold uppercase tracking-[0.15em] text-foreground">
-                Czat
-              </span>
+              <span className="text-xs md:text-sm font-semibold uppercase tracking-[0.15em] text-foreground">Czat</span>
               {connected ? (
                 <span className="h-1.5 w-1.5 rounded-full bg-green-400" title="Połączono" />
               ) : (
@@ -241,31 +254,32 @@ export default function ChatWidget() {
               {dmTabs.map((tab) => {
                 const unread = dmUnread[tab.friendId] || 0;
                 return (
-                <button
-                  key={tab.friendId}
-                  onClick={() => handleTabClick(tab.friendId)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap transition-colors border-b-2 ${
-                    activeTab === tab.friendId
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <span>{tab.friendUsername}</span>
-                  {unread > 0 && (
-                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
-                      {unread > 9 ? "9+" : unread}
-                    </span>
-                  )}
-                  <span
-                    role="button"
-                    aria-label={`Zamknij czat z ${tab.friendUsername}`}
-                    onClick={(e) => handleCloseDMTab(e, tab.friendId)}
-                    className="flex items-center justify-center rounded hover:bg-muted/60 p-0.5 -mr-0.5"
+                  <button
+                    key={tab.friendId}
+                    onClick={() => handleTabClick(tab.friendId)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap transition-colors border-b-2 ${
+                      activeTab === tab.friendId
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
                   >
-                    <X className="h-3 w-3" />
-                  </span>
-                </button>
-                ); })}
+                    <span>{tab.friendUsername}</span>
+                    {unread > 0 && (
+                      <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
+                        {unread > 9 ? "9+" : unread}
+                      </span>
+                    )}
+                    <span
+                      role="button"
+                      aria-label={`Zamknij czat z ${tab.friendUsername}`}
+                      onClick={(e) => handleCloseDMTab(e, tab.friendId)}
+                      className="flex items-center justify-center rounded hover:bg-muted/60 p-0.5 -mr-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -276,7 +290,8 @@ export default function ChatWidget() {
               <ChatInput onSend={sendMessage} disabled={!connected} />
             </>
           ) : (
-            token && (() => {
+            token &&
+            (() => {
               const tab = dmTabs.find((t) => t.friendId === activeTab);
               if (!tab) return null;
               return (
@@ -298,23 +313,25 @@ export default function ChatWidget() {
         const totalDmUnread = Object.values(dmUnread).reduce((s, n) => s + n, 0);
         const totalUnread = unreadCount + totalDmUnread;
         return (
-      <button
-        onClick={handleToggle}
-        className={`relative flex h-12 w-12 md:h-11 md:w-11 items-center justify-center rounded-full border shadow-lg backdrop-blur-xl transition-all active:scale-[0.93] ${
-          chatOpen
-            ? "border-primary/30 bg-primary/15 text-primary"
-            : totalDmUnread > 0
-              ? "border-primary/40 bg-primary/10 text-primary"
-              : "border-border bg-card/90 text-muted-foreground hover:text-foreground hover:bg-muted"
-        }`}
-      >
-        {chatOpen ? <X className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
-        {!chatOpen && totalUnread > 0 && (
-          <span className={`absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-0.5 text-[10px] font-bold text-white ${totalDmUnread > 0 ? "bg-primary animate-pulse" : "bg-destructive"}`}>
-            {totalUnread > 99 ? "99+" : totalUnread}
-          </span>
-        )}
-      </button>
+          <button
+            onClick={handleToggle}
+            className={`relative flex h-12 w-12 md:h-11 md:w-11 items-center justify-center rounded-full border shadow-lg backdrop-blur-xl transition-all active:scale-[0.93] ${
+              chatOpen
+                ? "border-primary/30 bg-primary/15 text-primary"
+                : totalDmUnread > 0
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-card/90 text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            {chatOpen ? <X className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
+            {!chatOpen && totalUnread > 0 && (
+              <span
+                className={`absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-0.5 text-[10px] font-bold text-white ${totalDmUnread > 0 ? "bg-primary animate-pulse" : "bg-destructive"}`}
+              >
+                {totalUnread > 99 ? "99+" : totalUnread}
+              </span>
+            )}
+          </button>
         );
       })()}
     </div>

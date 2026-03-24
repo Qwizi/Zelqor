@@ -4,55 +4,54 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0012_remove_abilitytype_currency_cost_and_more'),
+        ("game_config", "0012_remove_abilitytype_currency_cost_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='abilitytype',
-            name='energy_cost',
-            field=models.PositiveIntegerField(default=50, help_text='Energy cost to use'),
+            model_name="abilitytype",
+            name="energy_cost",
+            field=models.PositiveIntegerField(default=50, help_text="Energy cost to use"),
         ),
         migrations.AlterField(
-            model_name='buildingtype',
-            name='energy_cost',
-            field=models.PositiveIntegerField(default=50, help_text='Energy cost to build'),
+            model_name="buildingtype",
+            name="energy_cost",
+            field=models.PositiveIntegerField(default=50, help_text="Energy cost to build"),
         ),
         migrations.AlterField(
-            model_name='buildingtype',
-            name='energy_generation_bonus',
-            field=models.FloatField(default=0.0, help_text='Extra energy generated per tick by the region'),
+            model_name="buildingtype",
+            name="energy_generation_bonus",
+            field=models.FloatField(default=0.0, help_text="Extra energy generated per tick by the region"),
         ),
         migrations.AlterField(
-            model_name='gamemode',
-            name='base_energy_per_tick',
-            field=models.FloatField(default=2.0, help_text='Base energy generated per tick for each player'),
+            model_name="gamemode",
+            name="base_energy_per_tick",
+            field=models.FloatField(default=2.0, help_text="Base energy generated per tick for each player"),
         ),
         migrations.AlterField(
-            model_name='gamemode',
-            name='region_energy_per_tick',
-            field=models.FloatField(default=0.35, help_text='Energy generated per owned region each tick'),
+            model_name="gamemode",
+            name="region_energy_per_tick",
+            field=models.FloatField(default=0.35, help_text="Energy generated per owned region each tick"),
         ),
         migrations.AlterField(
-            model_name='gamemode',
-            name='starting_energy',
-            field=models.PositiveIntegerField(default=120, help_text='Starting energy for each player'),
+            model_name="gamemode",
+            name="starting_energy",
+            field=models.PositiveIntegerField(default=120, help_text="Starting energy for each player"),
         ),
         migrations.AlterField(
-            model_name='gamesettings',
-            name='base_energy_per_tick',
-            field=models.FloatField(default=2.0, help_text='Base energy generated per tick for each player'),
+            model_name="gamesettings",
+            name="base_energy_per_tick",
+            field=models.FloatField(default=2.0, help_text="Base energy generated per tick for each player"),
         ),
         migrations.AlterField(
-            model_name='gamesettings',
-            name='region_energy_per_tick',
-            field=models.FloatField(default=0.35, help_text='Energy generated per owned region each tick'),
+            model_name="gamesettings",
+            name="region_energy_per_tick",
+            field=models.FloatField(default=0.35, help_text="Energy generated per owned region each tick"),
         ),
         migrations.AlterField(
-            model_name='gamesettings',
-            name='starting_energy',
-            field=models.PositiveIntegerField(default=120, help_text='Starting energy for each player'),
+            model_name="gamesettings",
+            name="starting_energy",
+            field=models.PositiveIntegerField(default=120, help_text="Starting energy for each player"),
         ),
     ]

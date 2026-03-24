@@ -1,16 +1,16 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  getMyDecks,
-  getDeck,
   createDeck,
-  updateDeck,
-  deleteDeck,
-  setDefaultDeck,
   type DeckOut,
+  deleteDeck,
+  getDeck,
+  getMyDecks,
   type PaginatedResponse,
+  setDefaultDeck,
+  updateDeck,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useMyDecks(limit?: number, offset?: number) {
   return useQuery<PaginatedResponse<DeckOut>>({
@@ -32,8 +32,7 @@ export function useDeck(deckId: string) {
 export function useCreateDeck() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string }) =>
-      createDeck(requireToken(), data),
+    mutationFn: (data: { name: string }) => createDeck(requireToken(), data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.decks.all });
     },

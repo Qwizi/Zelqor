@@ -1,4 +1,4 @@
-import { test, expect, waitForDashboard } from "./fixtures";
+import { expect, test, waitForDashboard } from "./fixtures";
 
 // ---------------------------------------------------------------------------
 // Matchmaking & Lobby tests
@@ -25,9 +25,7 @@ test.describe("Matchmaking — queue flow", () => {
     await expect(cancelBtn).toBeVisible({ timeout: 8_000 });
 
     // Timer text: digits separated by colon, e.g. "0:01"
-    await expect(
-      page.getByText(/\d+:\d{2}/).first()
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(/\d+:\d{2}/).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("queue timer increments while waiting", async ({ authenticatedPage: page }) => {
@@ -48,7 +46,10 @@ test.describe("Matchmaking — queue flow", () => {
     expect(firstValue).not.toBe(secondValue);
 
     // Clean up: cancel queue
-    await page.getByRole("button", { name: /anuluj/i }).first().click();
+    await page
+      .getByRole("button", { name: /anuluj/i })
+      .first()
+      .click();
   });
 
   test("cancel queue returns to Szukaj gry state", async ({ authenticatedPage: page }) => {
@@ -57,31 +58,31 @@ test.describe("Matchmaking — queue flow", () => {
     await playBtn.click();
 
     // Wait for queue to start
-    await expect(
-      page.getByRole("button", { name: /anuluj/i }).first()
-    ).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByRole("button", { name: /anuluj/i }).first()).toBeVisible({ timeout: 8_000 });
 
     // Cancel
-    await page.getByRole("button", { name: /anuluj/i }).first().click();
+    await page
+      .getByRole("button", { name: /anuluj/i })
+      .first()
+      .click();
 
     // Should return to the Szukaj gry button
-    await expect(
-      page.getByRole("button", { name: /szukaj gry/i }).first()
-    ).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByRole("button", { name: /szukaj gry/i }).first()).toBeVisible({ timeout: 8_000 });
   });
 
   test("game mode pills are clickable and change selection", async ({ authenticatedPage: page }) => {
     // Wait for game modes to load — they are fetched from /api/v1/config/
-    const modePill = page.getByRole("button").filter({ hasText: /1v1|3P|4P|standard|blitz/i }).first();
+    const modePill = page
+      .getByRole("button")
+      .filter({ hasText: /1v1|3P|4P|standard|blitz/i })
+      .first();
     await expect(modePill).toBeVisible({ timeout: 8_000 });
 
     // Click it — it should become "selected" (border-primary / bg-primary)
     await modePill.click();
 
     // Assert the Szukaj gry button is now enabled (a mode is selected)
-    await expect(
-      page.getByRole("button", { name: /szukaj gry/i }).first()
-    ).toBeEnabled();
+    await expect(page.getByRole("button", { name: /szukaj gry/i }).first()).toBeEnabled();
   });
 });
 
@@ -90,7 +91,9 @@ test.describe("Matchmaking — opponents selector", () => {
     await waitForDashboard(page);
   });
 
-  test("bot options are displayed on desktop (Bez botów, Dołącz boty, Instant bot)", async ({ authenticatedPage: page }) => {
+  test("bot options are displayed on desktop (Bez botów, Dołącz boty, Instant bot)", async ({
+    authenticatedPage: page,
+  }) => {
     // These are inside the desktop Card only; make the viewport desktop-wide
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.reload();
@@ -133,7 +136,10 @@ test.describe("Lobby page", () => {
 
     // Wait for the "Przejdź do lobby" link to appear (only after WS assigns a lobby)
     const lobbyLink = page.getByRole("link", { name: /przejdź do lobby/i }).first();
-    const appeared = await lobbyLink.waitFor({ state: "visible", timeout: 15_000 }).then(() => true).catch(() => false);
+    const appeared = await lobbyLink
+      .waitFor({ state: "visible", timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
 
     if (appeared) {
       await lobbyLink.click();
@@ -143,15 +149,19 @@ test.describe("Lobby page", () => {
       await expect(page.getByText("Gracze").first()).toBeVisible();
 
       // Our own username should appear in a player slot
-      await expect(
-        page.getByText(new RegExp(process.env.TEST_USER_USERNAME || "e2euser", "i")).first()
-      ).toBeVisible();
+      await expect(page.getByText(new RegExp(process.env.TEST_USER_USERNAME || "e2euser", "i")).first()).toBeVisible();
 
       // Cancel queue from lobby
-      await page.getByRole("button", { name: /anuluj/i }).first().click();
+      await page
+        .getByRole("button", { name: /anuluj/i })
+        .first()
+        .click();
     } else {
       // Lobby link didn't appear within 15 s — clean up and skip gracefully
-      await page.getByRole("button", { name: /anuluj/i }).first().click();
+      await page
+        .getByRole("button", { name: /anuluj/i })
+        .first()
+        .click();
       test.skip(true, "Lobby link did not appear — WebSocket may not be available");
     }
   });
@@ -183,17 +193,31 @@ test.describe("Lobby page", () => {
 
     // With instant bots, lobby fills immediately — watch for the Gotowy! button
     const readyBtn = page.getByRole("button", { name: /gotowy!/i }).first();
-    const appeared = await readyBtn.waitFor({ state: "visible", timeout: 20_000 }).then(() => true).catch(() => false);
+    const appeared = await readyBtn
+      .waitFor({ state: "visible", timeout: 20_000 })
+      .then(() => true)
+      .catch(() => false);
 
     if (appeared) {
       await expect(readyBtn).toBeVisible();
       // Do not actually click ready — just cancel to avoid starting a game
-      await page.getByRole("button", { name: /anuluj/i }).first().click().catch(() => {});
+      await page
+        .getByRole("button", { name: /anuluj/i })
+        .first()
+        .click()
+        .catch(() => {});
     } else {
       // Bots may not be enabled in this environment — cancel gracefully
-      const cancelVisible = await page.getByRole("button", { name: /anuluj/i }).first().isVisible().catch(() => false);
+      const cancelVisible = await page
+        .getByRole("button", { name: /anuluj/i })
+        .first()
+        .isVisible()
+        .catch(() => false);
       if (cancelVisible) {
-        await page.getByRole("button", { name: /anuluj/i }).first().click();
+        await page
+          .getByRole("button", { name: /anuluj/i })
+          .first()
+          .click();
       }
       test.skip(true, "Gotowy! button did not appear — bots may be disabled");
     }

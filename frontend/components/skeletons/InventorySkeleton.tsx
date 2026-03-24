@@ -8,7 +8,6 @@ const CATEGORY_PILL_WIDTHS = ["w-20", "w-24", "w-28", "w-20", "w-24", "w-16", "w
 export function InventorySkeleton() {
   return (
     <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* Header */}
       <div className="px-4 md:px-0 space-y-2">
         {/* "EKWIPUNEK" eyebrow — desktop only */}
@@ -66,10 +65,7 @@ export function InventorySkeleton() {
       <div className="px-4 md:px-0">
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-1.5 md:gap-2">
           {Array.from({ length: 24 }).map((_, i) => (
-            <Skeleton
-              key={i}
-              className="aspect-square rounded-xl border border-border/30"
-            />
+            <Skeleton key={i} className="aspect-square rounded-xl border border-border/30" />
           ))}
         </div>
       </div>

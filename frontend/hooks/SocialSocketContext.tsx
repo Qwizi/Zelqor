@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext } from "react";
 import type { NotificationOut } from "@/lib/api";
-import type { DirectMessagePayload, ClanWarStartedPayload } from "./useSocialSocket";
+import type { ClanWarStartedPayload, DirectMessagePayload } from "./useSocialSocket";
 
 interface SocialSocketContextType {
   connected: boolean;

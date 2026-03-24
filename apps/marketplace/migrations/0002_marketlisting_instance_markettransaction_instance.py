@@ -5,21 +5,33 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('inventory', '0006_iteminstance_deckitem_instance_and_more'),
-        ('marketplace', '0001_initial'),
+        ("inventory", "0006_iteminstance_deckitem_instance_and_more"),
+        ("marketplace", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='marketlisting',
-            name='instance',
-            field=models.ForeignKey(blank=True, help_text='For non-stackable items: the specific instance listed', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='market_listings', to='inventory.iteminstance'),
+            model_name="marketlisting",
+            name="instance",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="For non-stackable items: the specific instance listed",
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="market_listings",
+                to="inventory.iteminstance",
+            ),
         ),
         migrations.AddField(
-            model_name='markettransaction',
-            name='instance',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='market_transactions', to='inventory.iteminstance'),
+            model_name="markettransaction",
+            name="instance",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="market_transactions",
+                to="inventory.iteminstance",
+            ),
         ),
     ]

@@ -1,35 +1,35 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  getDeveloperApps,
-  getDeveloperApp,
-  createDeveloperApp,
-  updateDeveloperApp,
-  deleteDeveloperApp,
-  getAPIKeys,
+  type APIKeyCreated,
+  type APIKeyOut,
+  type AvailableEvents,
+  type AvailableScopes,
   createAPIKey,
-  deleteAPIKey,
-  getWebhooks,
+  createDeveloperApp,
   createWebhook,
-  updateWebhook,
-  deleteWebhook,
-  testWebhook,
-  getWebhookDeliveries,
-  getAppUsage,
-  getAvailableScopes,
-  getAvailableEvents,
   type DeveloperApp,
   type DeveloperAppCreated,
-  type APIKeyOut,
-  type APIKeyCreated,
-  type WebhookOut,
-  type WebhookDelivery,
-  type UsageStats,
-  type AvailableScopes,
-  type AvailableEvents,
+  deleteAPIKey,
+  deleteDeveloperApp,
+  deleteWebhook,
+  getAPIKeys,
+  getAppUsage,
+  getAvailableEvents,
+  getAvailableScopes,
+  getDeveloperApp,
+  getDeveloperApps,
+  getWebhookDeliveries,
+  getWebhooks,
   type PaginatedResponse,
+  testWebhook,
+  type UsageStats,
+  updateDeveloperApp,
+  updateWebhook,
+  type WebhookDelivery,
+  type WebhookOut,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 // --- Apps ---
 
@@ -52,11 +52,7 @@ export function useDeveloperApp(appId: string) {
 
 export function useCreateDeveloperApp() {
   const queryClient = useQueryClient();
-  return useMutation<
-    DeveloperAppCreated,
-    Error,
-    { name: string; description?: string }
-  >({
+  return useMutation<DeveloperAppCreated, Error, { name: string; description?: string }>({
     mutationFn: (data) => createDeveloperApp(requireToken(), data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.developers.all });
@@ -67,13 +63,8 @@ export function useCreateDeveloperApp() {
 export function useUpdateDeveloperApp() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      appId,
-      data,
-    }: {
-      appId: string;
-      data: { name?: string; description?: string };
-    }) => updateDeveloperApp(requireToken(), appId, data),
+    mutationFn: ({ appId, data }: { appId: string; data: { name?: string; description?: string } }) =>
+      updateDeveloperApp(requireToken(), appId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.developers.all });
     },
@@ -83,8 +74,7 @@ export function useUpdateDeveloperApp() {
 export function useDeleteDeveloperApp() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (appId: string) =>
-      deleteDeveloperApp(requireToken(), appId),
+    mutationFn: (appId: string) => deleteDeveloperApp(requireToken(), appId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.developers.all });
     },
@@ -104,13 +94,8 @@ export function useAPIKeys(appId: string, limit?: number, offset?: number) {
 
 export function useCreateAPIKey() {
   const queryClient = useQueryClient();
-  return useMutation<
-    APIKeyCreated,
-    Error,
-    { appId: string; data: { scopes: string[]; rate_limit?: number } }
-  >({
-    mutationFn: ({ appId, data }) =>
-      createAPIKey(requireToken(), appId, data),
+  return useMutation<APIKeyCreated, Error, { appId: string; data: { scopes: string[]; rate_limit?: number } }>({
+    mutationFn: ({ appId, data }) => createAPIKey(requireToken(), appId, data),
     onSuccess: (_, { appId }) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.developers.keys(appId),
@@ -122,8 +107,7 @@ export function useCreateAPIKey() {
 export function useDeleteAPIKey() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ appId, keyId }: { appId: string; keyId: string }) =>
-      deleteAPIKey(requireToken(), appId, keyId),
+    mutationFn: ({ appId, keyId }: { appId: string; keyId: string }) => deleteAPIKey(requireToken(), appId, keyId),
     onSuccess: (_, { appId }) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.developers.keys(appId),
@@ -134,11 +118,7 @@ export function useDeleteAPIKey() {
 
 // --- Webhooks ---
 
-export function useWebhooks(
-  appId: string,
-  limit?: number,
-  offset?: number
-) {
+export function useWebhooks(appId: string, limit?: number, offset?: number) {
   return useQuery<PaginatedResponse<WebhookOut>>({
     queryKey: queryKeys.developers.webhooks(appId),
     queryFn: () => getWebhooks(requireToken(), appId, limit, offset),
@@ -150,13 +130,8 @@ export function useWebhooks(
 export function useCreateWebhook() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      appId,
-      data,
-    }: {
-      appId: string;
-      data: { url: string; events: string[] };
-    }) => createWebhook(requireToken(), appId, data),
+    mutationFn: ({ appId, data }: { appId: string; data: { url: string; events: string[] } }) =>
+      createWebhook(requireToken(), appId, data),
     onSuccess: (_, { appId }) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.developers.webhooks(appId),
@@ -188,13 +163,8 @@ export function useUpdateWebhook() {
 export function useDeleteWebhook() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      appId,
-      webhookId,
-    }: {
-      appId: string;
-      webhookId: string;
-    }) => deleteWebhook(requireToken(), appId, webhookId),
+    mutationFn: ({ appId, webhookId }: { appId: string; webhookId: string }) =>
+      deleteWebhook(requireToken(), appId, webhookId),
     onSuccess: (_, { appId }) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.developers.webhooks(appId),
@@ -205,26 +175,15 @@ export function useDeleteWebhook() {
 
 export function useTestWebhook() {
   return useMutation({
-    mutationFn: ({
-      appId,
-      webhookId,
-    }: {
-      appId: string;
-      webhookId: string;
-    }) => testWebhook(requireToken(), appId, webhookId),
+    mutationFn: ({ appId, webhookId }: { appId: string; webhookId: string }) =>
+      testWebhook(requireToken(), appId, webhookId),
   });
 }
 
-export function useWebhookDeliveries(
-  appId: string,
-  webhookId: string,
-  limit?: number,
-  offset?: number
-) {
+export function useWebhookDeliveries(appId: string, webhookId: string, limit?: number, offset?: number) {
   return useQuery<PaginatedResponse<WebhookDelivery>>({
     queryKey: queryKeys.developers.deliveries(appId, webhookId),
-    queryFn: () =>
-      getWebhookDeliveries(requireToken(), appId, webhookId, limit, offset),
+    queryFn: () => getWebhookDeliveries(requireToken(), appId, webhookId, limit, offset),
     enabled: !!appId && !!webhookId,
     staleTime: 30_000,
   });

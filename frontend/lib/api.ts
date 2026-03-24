@@ -1,9 +1,7 @@
 // SSR: use internal container URL; browser: use relative path (same origin via Caddy)
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  (typeof window !== "undefined"
-    ? "/api/v1"
-    : process.env.API_URL || "http://backend:8000/api/v1");
+  (typeof window !== "undefined" ? "/api/v1" : process.env.API_URL || "http://backend:8000/api/v1");
 
 interface FetchOptions extends RequestInit {
   token?: string | null;
@@ -40,10 +38,7 @@ async function tryRefreshToken(): Promise<string | null> {
   return _refreshPromise;
 }
 
-async function fetchAPI<T>(
-  path: string,
-  options: FetchOptions = {}
-): Promise<T> {
+async function fetchAPI<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const { token, headers: customHeaders, ...rest } = options;
 
   const headers: Record<string, string> = {
@@ -52,7 +47,7 @@ async function fetchAPI<T>(
   };
 
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const res = await fetch(`${API_BASE}${path}`, { headers, ...rest });
@@ -61,7 +56,7 @@ async function fetchAPI<T>(
   if (res.status === 401 && token && typeof window !== "undefined") {
     const newToken = await tryRefreshToken();
     if (newToken) {
-      headers["Authorization"] = `Bearer ${newToken}`;
+      headers.Authorization = `Bearer ${newToken}`;
       const retryRes = await fetch(`${API_BASE}${path}`, { headers, ...rest });
       if (!retryRes.ok) {
         const body = await retryRes.json().catch(() => ({}));
@@ -85,7 +80,7 @@ export class APIError extends Error {
   constructor(
     public status: number,
     message: string,
-    public body?: unknown
+    public body?: unknown,
   ) {
     super(message);
     this.name = "APIError";
@@ -99,7 +94,7 @@ export interface PaginatedResponse<T> {
 
 async function fetchPaginated<T>(
   path: string,
-  options: FetchOptions & { limit?: number; offset?: number } = {}
+  options: FetchOptions & { limit?: number; offset?: number } = {},
 ): Promise<PaginatedResponse<T>> {
   const { limit, offset, ...rest } = options;
   const params = new URLSearchParams();
@@ -145,10 +140,7 @@ export class BannedError extends Error {
   }
 }
 
-export async function login(
-  email: string,
-  password: string
-): Promise<TokenPair> {
+export async function login(email: string, password: string): Promise<TokenPair> {
   return fetchAPI<TokenPair>("/token/pair", {
     method: "POST",
     body: JSON.stringify({ email, password }),
@@ -172,11 +164,7 @@ export async function getOnlineStats(): Promise<OnlineStats> {
   return fetchAPI<OnlineStats>("/auth/online-stats");
 }
 
-export async function register(data: {
-  username: string;
-  email: string;
-  password: string;
-}): Promise<User> {
+export async function register(data: { username: string; email: string; password: string }): Promise<User> {
   return fetchAPI<User>("/auth/register", {
     method: "POST",
     body: JSON.stringify(data),
@@ -187,10 +175,7 @@ export async function getMe(token: string): Promise<User> {
   return fetchAPI<User>("/auth/me", { token });
 }
 
-export async function setPassword(
-  token: string,
-  newPassword: string
-): Promise<{ ok: boolean }> {
+export async function setPassword(token: string, newPassword: string): Promise<{ ok: boolean }> {
   return fetchAPI("/auth/set-password/", {
     method: "POST",
     token,
@@ -201,7 +186,7 @@ export async function setPassword(
 export async function changePassword(
   token: string,
   currentPassword: string,
-  newPassword: string
+  newPassword: string,
 ): Promise<{ ok: boolean }> {
   return fetchAPI("/auth/change-password/", {
     method: "POST",
@@ -213,10 +198,7 @@ export async function changePassword(
   });
 }
 
-export async function changeUsername(
-  token: string,
-  username: string
-): Promise<{ ok: boolean; username: string }> {
+export async function changeUsername(token: string, username: string): Promise<{ ok: boolean; username: string }> {
   return fetchAPI("/auth/change-username/", {
     method: "POST",
     token,
@@ -236,23 +218,18 @@ export interface SocialAuthTokens {
   is_new_user: boolean;
 }
 
-export async function getSocialAuthURL(
-  provider: 'google' | 'discord',
-  redirectUri: string
-): Promise<SocialAuthURL> {
-  return fetchAPI<SocialAuthURL>(
-    `/auth/social/${provider}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`
-  );
+export async function getSocialAuthURL(provider: "google" | "discord", redirectUri: string): Promise<SocialAuthURL> {
+  return fetchAPI<SocialAuthURL>(`/auth/social/${provider}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`);
 }
 
 export async function socialAuthCallback(
-  provider: 'google' | 'discord',
+  provider: "google" | "discord",
   code: string,
   redirectUri: string,
-  state?: string | null
+  state?: string | null,
 ): Promise<SocialAuthTokens> {
   return fetchAPI<SocialAuthTokens>(`/auth/social/${provider}/callback`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify({ code, redirect_uri: redirectUri, state }),
   });
 }
@@ -266,32 +243,27 @@ export interface SocialAccountOut {
   created_at: string;
 }
 
-export async function getLinkedSocialAccounts(
-  token: string
-): Promise<SocialAccountOut[]> {
-  return fetchAPI<SocialAccountOut[]>('/auth/social/accounts', { token });
+export async function getLinkedSocialAccounts(token: string): Promise<SocialAccountOut[]> {
+  return fetchAPI<SocialAccountOut[]>("/auth/social/accounts", { token });
 }
 
 export async function linkSocialAccount(
   token: string,
-  provider: 'google' | 'discord',
+  provider: "google" | "discord",
   code: string,
   redirectUri: string,
-  state?: string | null
+  state?: string | null,
 ): Promise<SocialAccountOut> {
   return fetchAPI<SocialAccountOut>(`/auth/social/${provider}/link`, {
-    method: 'POST',
+    method: "POST",
     token,
     body: JSON.stringify({ code, redirect_uri: redirectUri, state }),
   });
 }
 
-export async function unlinkSocialAccount(
-  token: string,
-  accountId: string
-): Promise<void> {
+export async function unlinkSocialAccount(token: string, accountId: string): Promise<void> {
   await fetchAPI(`/auth/social/${accountId}/unlink`, {
-    method: 'DELETE',
+    method: "DELETE",
     token,
   });
 }
@@ -305,7 +277,7 @@ export async function getVapidKey(): Promise<string> {
 
 export async function subscribePush(
   token: string,
-  subscription: { endpoint: string; p256dh: string; auth: string }
+  subscription: { endpoint: string; p256dh: string; auth: string },
 ): Promise<void> {
   await fetchAPI("/auth/push/subscribe/", {
     method: "POST",
@@ -314,10 +286,7 @@ export async function subscribePush(
   });
 }
 
-export async function unsubscribePush(
-  token: string,
-  endpoint: string
-): Promise<void> {
+export async function unsubscribePush(token: string, endpoint: string): Promise<void> {
   await fetchAPI("/auth/push/unsubscribe/", {
     method: "POST",
     token,
@@ -353,7 +322,11 @@ export interface LeaderboardEntry {
   experience: number;
 }
 
-export async function getLeaderboard(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<LeaderboardEntry>> {
+export async function getLeaderboard(
+  token: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<LeaderboardEntry>> {
   return fetchPaginated<LeaderboardEntry>("/auth/leaderboard", { token, limit, offset });
 }
 
@@ -511,7 +484,7 @@ export interface SystemModule {
   name: string;
   description: string;
   icon: string;
-  module_type: 'system' | 'game';
+  module_type: "system" | "game";
   enabled: boolean;
   config: Record<string, unknown>;
   config_schema: Array<{
@@ -552,7 +525,7 @@ export function getLevelStat(
   levelStats: Record<string, Record<string, number>> | undefined,
   level: number,
   key: string,
-  fallback: number
+  fallback: number,
 ): number {
   return levelStats?.[String(level)]?.[key] ?? fallback;
 }
@@ -611,12 +584,11 @@ export async function getRegionsGraph(matchId?: string): Promise<RegionGraphEntr
 export function getRegionTilesUrl(matchId?: string): string {
   const apiRoot = API_BASE.replace(/\/api\/v1$/, "");
   // MapLibre requires an absolute URL — prepend origin when using relative path
-  const origin =
-    apiRoot.startsWith("http")
-      ? apiRoot
-      : typeof window !== "undefined"
-        ? window.location.origin + apiRoot
-        : apiRoot;
+  const origin = apiRoot.startsWith("http")
+    ? apiRoot
+    : typeof window !== "undefined"
+      ? window.location.origin + apiRoot
+      : apiRoot;
   const base = `${origin}/api/v1/geo/tiles/{z}/{x}/{y}/`;
   return matchId ? `${base}?match_id=${matchId}` : base;
 }
@@ -685,21 +657,20 @@ export async function getMyMatches(token: string, limit?: number, offset?: numbe
   return fetchPaginated<Match>("/matches/", { token, limit, offset });
 }
 
-export async function getPlayerMatches(token: string, userId: string, limit?: number, offset?: number): Promise<PaginatedResponse<Match>> {
+export async function getPlayerMatches(
+  token: string,
+  userId: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<Match>> {
   return fetchPaginated<Match>(`/matches/player/${userId}/`, { token, limit, offset });
 }
 
-export async function getMatch(
-  token: string,
-  matchId: string
-): Promise<Match> {
+export async function getMatch(token: string, matchId: string): Promise<Match> {
   return fetchAPI<Match>(`/matches/${matchId}/`, { token });
 }
 
-export async function getMatchResult(
-  token: string,
-  matchId: string
-): Promise<MatchResult> {
+export async function getMatchResult(token: string, matchId: string): Promise<MatchResult> {
   return fetchAPI<MatchResult>(`/game/results/${matchId}/`, { token });
 }
 
@@ -716,18 +687,11 @@ export interface SnapshotDetail {
   created_at: string;
 }
 
-export async function getMatchSnapshots(
-  token: string,
-  matchId: string
-): Promise<SnapshotTick[]> {
+export async function getMatchSnapshots(token: string, matchId: string): Promise<SnapshotTick[]> {
   return fetchAPI<SnapshotTick[]>(`/game/snapshots/${matchId}/`, { token });
 }
 
-export async function getSnapshot(
-  token: string,
-  matchId: string,
-  tick: number
-): Promise<SnapshotDetail> {
+export async function getSnapshot(token: string, matchId: string, tick: number): Promise<SnapshotDetail> {
   return fetchAPI<SnapshotDetail>(`/game/snapshots/${matchId}/${tick}/`, { token });
 }
 
@@ -769,11 +733,7 @@ export interface SharedMatchData {
   snapshot_ticks: number[];
 }
 
-export async function createShareLink(
-  token: string,
-  resourceType: string,
-  resourceId: string
-): Promise<ShareLink> {
+export async function createShareLink(token: string, resourceType: string, resourceId: string): Promise<ShareLink> {
   return fetchAPI<ShareLink>("/share/create/", {
     method: "POST",
     token,
@@ -785,10 +745,7 @@ export async function getSharedResource(shareToken: string): Promise<SharedMatch
   return fetchAPI<SharedMatchData>(`/share/${shareToken}/`);
 }
 
-export async function getSharedSnapshot(
-  shareToken: string,
-  tick: number
-): Promise<SnapshotDetail> {
+export async function getSharedSnapshot(shareToken: string, tick: number): Promise<SnapshotDetail> {
   return fetchAPI<SnapshotDetail>(`/share/${shareToken}/snapshots/${tick}/`);
 }
 
@@ -869,7 +826,7 @@ export interface AvailableEvents {
 
 export async function createDeveloperApp(
   token: string,
-  data: { name: string; description?: string }
+  data: { name: string; description?: string },
 ): Promise<DeveloperAppCreated> {
   return fetchAPI<DeveloperAppCreated>("/developers/apps/", {
     method: "POST",
@@ -882,17 +839,14 @@ export async function getDeveloperApps(token: string): Promise<PaginatedResponse
   return fetchPaginated<DeveloperApp>("/developers/apps/", { token });
 }
 
-export async function getDeveloperApp(
-  token: string,
-  appId: string
-): Promise<DeveloperApp> {
+export async function getDeveloperApp(token: string, appId: string): Promise<DeveloperApp> {
   return fetchAPI<DeveloperApp>(`/developers/apps/${appId}/`, { token });
 }
 
 export async function updateDeveloperApp(
   token: string,
   appId: string,
-  data: { name?: string; description?: string }
+  data: { name?: string; description?: string },
 ): Promise<DeveloperApp> {
   return fetchAPI<DeveloperApp>(`/developers/apps/${appId}/`, {
     method: "PATCH",
@@ -901,10 +855,7 @@ export async function updateDeveloperApp(
   });
 }
 
-export async function deleteDeveloperApp(
-  token: string,
-  appId: string
-): Promise<void> {
+export async function deleteDeveloperApp(token: string, appId: string): Promise<void> {
   await fetchAPI(`/developers/apps/${appId}/`, { method: "DELETE", token });
 }
 
@@ -913,7 +864,7 @@ export async function deleteDeveloperApp(
 export async function createAPIKey(
   token: string,
   appId: string,
-  data: { scopes: string[]; rate_limit?: number }
+  data: { scopes: string[]; rate_limit?: number },
 ): Promise<APIKeyCreated> {
   return fetchAPI<APIKeyCreated>(`/developers/apps/${appId}/keys/`, {
     method: "POST",
@@ -926,16 +877,12 @@ export async function getAPIKeys(
   token: string,
   appId: string,
   limit?: number,
-  offset?: number
+  offset?: number,
 ): Promise<PaginatedResponse<APIKeyOut>> {
   return fetchPaginated<APIKeyOut>(`/developers/apps/${appId}/keys/`, { token, limit, offset });
 }
 
-export async function deleteAPIKey(
-  token: string,
-  appId: string,
-  keyId: string
-): Promise<void> {
+export async function deleteAPIKey(token: string, appId: string, keyId: string): Promise<void> {
   await fetchAPI(`/developers/apps/${appId}/keys/${keyId}/`, {
     method: "DELETE",
     token,
@@ -947,7 +894,7 @@ export async function deleteAPIKey(
 export async function createWebhook(
   token: string,
   appId: string,
-  data: { url: string; events: string[] }
+  data: { url: string; events: string[] },
 ): Promise<WebhookOut> {
   return fetchAPI<WebhookOut>(`/developers/apps/${appId}/webhooks/`, {
     method: "POST",
@@ -960,7 +907,7 @@ export async function getWebhooks(
   token: string,
   appId: string,
   limit?: number,
-  offset?: number
+  offset?: number,
 ): Promise<PaginatedResponse<WebhookOut>> {
   return fetchPaginated<WebhookOut>(`/developers/apps/${appId}/webhooks/`, {
     token,
@@ -973,38 +920,27 @@ export async function updateWebhook(
   token: string,
   appId: string,
   webhookId: string,
-  data: { url?: string; events?: string[]; is_active?: boolean }
+  data: { url?: string; events?: string[]; is_active?: boolean },
 ): Promise<WebhookOut> {
-  return fetchAPI<WebhookOut>(
-    `/developers/apps/${appId}/webhooks/${webhookId}/`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(data),
-      token,
-    }
-  );
+  return fetchAPI<WebhookOut>(`/developers/apps/${appId}/webhooks/${webhookId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+    token,
+  });
 }
 
-export async function deleteWebhook(
-  token: string,
-  appId: string,
-  webhookId: string
-): Promise<void> {
+export async function deleteWebhook(token: string, appId: string, webhookId: string): Promise<void> {
   await fetchAPI(`/developers/apps/${appId}/webhooks/${webhookId}/`, {
     method: "DELETE",
     token,
   });
 }
 
-export async function testWebhook(
-  token: string,
-  appId: string,
-  webhookId: string
-): Promise<WebhookTestResult> {
-  return fetchAPI<WebhookTestResult>(
-    `/developers/apps/${appId}/webhooks/${webhookId}/test/`,
-    { method: "POST", token }
-  );
+export async function testWebhook(token: string, appId: string, webhookId: string): Promise<WebhookTestResult> {
+  return fetchAPI<WebhookTestResult>(`/developers/apps/${appId}/webhooks/${webhookId}/test/`, {
+    method: "POST",
+    token,
+  });
 }
 
 export async function getWebhookDeliveries(
@@ -1012,32 +948,26 @@ export async function getWebhookDeliveries(
   appId: string,
   webhookId: string,
   limit?: number,
-  offset?: number
+  offset?: number,
 ): Promise<PaginatedResponse<WebhookDelivery>> {
-  return fetchPaginated<WebhookDelivery>(
-    `/developers/apps/${appId}/webhooks/${webhookId}/deliveries/`,
-    { token, limit, offset }
-  );
+  return fetchPaginated<WebhookDelivery>(`/developers/apps/${appId}/webhooks/${webhookId}/deliveries/`, {
+    token,
+    limit,
+    offset,
+  });
 }
 
 // Usage & Meta
 
-export async function getAppUsage(
-  token: string,
-  appId: string
-): Promise<UsageStats> {
+export async function getAppUsage(token: string, appId: string): Promise<UsageStats> {
   return fetchAPI<UsageStats>(`/developers/apps/${appId}/usage/`, { token });
 }
 
-export async function getAvailableScopes(
-  token: string
-): Promise<AvailableScopes> {
+export async function getAvailableScopes(token: string): Promise<AvailableScopes> {
   return fetchAPI<AvailableScopes>("/developers/scopes/", { token });
 }
 
-export async function getAvailableEvents(
-  token: string
-): Promise<AvailableEvents> {
+export async function getAvailableEvents(token: string): Promise<AvailableEvents> {
   return fetchAPI<AvailableEvents>("/developers/events/", { token });
 }
 
@@ -1115,7 +1045,11 @@ export async function getItemCategories(): Promise<ItemCategoryOut[]> {
   return fetchAPI<ItemCategoryOut[]>("/inventory/items/");
 }
 
-export async function getMyInventory(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<InventoryItemOut>> {
+export async function getMyInventory(
+  token: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<InventoryItemOut>> {
   return fetchPaginated<InventoryItemOut>("/inventory/my/", { token, limit, offset });
 }
 
@@ -1123,14 +1057,18 @@ export async function getMyWallet(token: string): Promise<WalletOut> {
   return fetchAPI<WalletOut>("/inventory/wallet/", { token });
 }
 
-export async function getMyDrops(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<ItemDropOut>> {
+export async function getMyDrops(
+  token: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<ItemDropOut>> {
   return fetchPaginated<ItemDropOut>("/inventory/drops/", { token, limit, offset });
 }
 
 export async function openCrate(
   token: string,
   crateSlug: string,
-  keySlug: string
+  keySlug: string,
 ): Promise<{ drops: { item_name: string; item_slug: string; rarity: string; quantity: number }[] }> {
   return fetchAPI("/inventory/open-crate/", {
     method: "POST",
@@ -1181,7 +1119,7 @@ export async function getMarketListings(
   itemSlug?: string,
   listingType?: string,
   limit?: number,
-  offset?: number
+  offset?: number,
 ): Promise<PaginatedResponse<MarketListingOut>> {
   const params = new URLSearchParams();
   if (itemSlug) params.set("item_slug", itemSlug);
@@ -1192,17 +1130,25 @@ export async function getMarketListings(
   return fetchAPI<PaginatedResponse<MarketListingOut>>(`/marketplace/listings/${qs}`);
 }
 
-export async function getMyListings(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<MarketListingOut>> {
+export async function getMyListings(
+  token: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<MarketListingOut>> {
   return fetchPaginated<MarketListingOut>("/marketplace/my-listings/", { token, limit, offset });
 }
 
-export async function getMyTradeHistory(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<MarketTransactionOut>> {
+export async function getMyTradeHistory(
+  token: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<MarketTransactionOut>> {
   return fetchPaginated<MarketTransactionOut>("/marketplace/history/", { token, limit, offset });
 }
 
 export async function createListing(
   token: string,
-  data: { item_slug: string; listing_type: string; quantity: number; price_per_unit: number }
+  data: { item_slug: string; listing_type: string; quantity: number; price_per_unit: number },
 ): Promise<MarketListingOut> {
   return fetchAPI<MarketListingOut>("/marketplace/create-listing/", {
     method: "POST",
@@ -1211,11 +1157,7 @@ export async function createListing(
   });
 }
 
-export async function buyFromListing(
-  token: string,
-  listingId: string,
-  quantity: number
-): Promise<{ message: string }> {
+export async function buyFromListing(token: string, listingId: string, quantity: number): Promise<{ message: string }> {
   return fetchAPI("/marketplace/buy/", {
     method: "POST",
     token,
@@ -1223,10 +1165,7 @@ export async function buyFromListing(
   });
 }
 
-export async function cancelListing(
-  token: string,
-  listingId: string
-): Promise<{ message: string }> {
+export async function cancelListing(token: string, listingId: string): Promise<{ message: string }> {
   return fetchAPI(`/marketplace/cancel/${listingId}/`, {
     method: "POST",
     token,
@@ -1262,10 +1201,7 @@ export interface EquipCosmeticPayload {
   instance_id?: string;
 }
 
-export async function equipCosmetic(
-  token: string,
-  payload: EquipCosmeticPayload
-): Promise<EquippedCosmeticDetail> {
+export async function equipCosmetic(token: string, payload: EquipCosmeticPayload): Promise<EquippedCosmeticDetail> {
   return fetchAPI<EquippedCosmeticDetail>("/inventory/cosmetics/equip/", {
     method: "POST",
     token,
@@ -1273,10 +1209,7 @@ export async function equipCosmetic(
   });
 }
 
-export async function unequipCosmetic(
-  token: string,
-  slot: string
-): Promise<{ detail: string }> {
+export async function unequipCosmetic(token: string, slot: string): Promise<{ detail: string }> {
   return fetchAPI<{ detail: string }>("/inventory/cosmetics/unequip/", {
     method: "POST",
     token,
@@ -1315,10 +1248,7 @@ export interface CraftResult {
   instance: ItemInstanceOut | null;
 }
 
-export async function craftItem(
-  token: string,
-  recipeSlug: string
-): Promise<CraftResult> {
+export async function craftItem(token: string, recipeSlug: string): Promise<CraftResult> {
   return fetchAPI<CraftResult>("/crafting/craft/", {
     method: "POST",
     token,
@@ -1346,10 +1276,7 @@ export async function getMyDecks(token: string, limit?: number, offset?: number)
   return fetchPaginated<DeckOut>("/inventory/decks/", { token, limit, offset });
 }
 
-export async function createDeck(
-  token: string,
-  data: { name: string }
-): Promise<DeckOut> {
+export async function createDeck(token: string, data: { name: string }): Promise<DeckOut> {
   return fetchAPI<DeckOut>("/inventory/decks/", {
     method: "POST",
     token,
@@ -1364,7 +1291,7 @@ export async function getDeck(token: string, deckId: string): Promise<DeckOut> {
 export async function updateDeck(
   token: string,
   deckId: string,
-  data: { name?: string; items?: { item_slug: string; quantity: number }[] }
+  data: { name?: string; items?: { item_slug: string; quantity: number }[] },
 ): Promise<DeckOut> {
   return fetchAPI<DeckOut>(`/inventory/decks/${deckId}/`, {
     method: "PUT",
@@ -1373,17 +1300,11 @@ export async function updateDeck(
   });
 }
 
-export async function deleteDeck(
-  token: string,
-  deckId: string
-): Promise<void> {
+export async function deleteDeck(token: string, deckId: string): Promise<void> {
   await fetchAPI(`/inventory/decks/${deckId}/`, { method: "DELETE", token });
 }
 
-export async function setDefaultDeck(
-  token: string,
-  deckId: string
-): Promise<{ ok: boolean }> {
+export async function setDefaultDeck(token: string, deckId: string): Promise<{ ok: boolean }> {
   return fetchAPI<{ ok: boolean }>(`/inventory/decks/${deckId}/set-default/`, {
     method: "POST",
     token,
@@ -1402,13 +1323,9 @@ export interface OAuthAuthorizeResult {
   state: string | null;
 }
 
-export async function getAppByClientId(
-  clientId: string
-): Promise<OAuthAppInfo | null> {
+export async function getAppByClientId(clientId: string): Promise<OAuthAppInfo | null> {
   try {
-    return await fetchAPI<OAuthAppInfo>(
-      `/oauth/app-info/?client_id=${encodeURIComponent(clientId)}`
-    );
+    return await fetchAPI<OAuthAppInfo>(`/oauth/app-info/?client_id=${encodeURIComponent(clientId)}`);
   } catch {
     return null;
   }
@@ -1421,7 +1338,7 @@ export async function oauthAuthorize(
     redirect_uri: string;
     scope: string;
     state?: string;
-  }
+  },
 ): Promise<OAuthAuthorizeResult> {
   return fetchAPI<OAuthAuthorizeResult>("/oauth/authorize/", {
     method: "POST",
@@ -1438,7 +1355,13 @@ export interface FriendUser {
   elo_rating: number;
   is_online: boolean;
   activity_status: string;
-  activity_details: { status?: string; game_mode?: string; match_id?: string; players_count?: number; started_at?: string };
+  activity_details: {
+    status?: string;
+    game_mode?: string;
+    match_id?: string;
+    players_count?: number;
+    started_at?: string;
+  };
   clan_tag: string | null;
 }
 
@@ -1453,7 +1376,7 @@ export interface FriendshipOut {
 export async function getFriends(
   token: string,
   limit?: number,
-  offset?: number
+  offset?: number,
 ): Promise<PaginatedResponse<FriendshipOut>> {
   return fetchPaginated<FriendshipOut>("/friends/", { token, limit, offset });
 }
@@ -1461,7 +1384,7 @@ export async function getFriends(
 export async function getReceivedRequests(
   token: string,
   limit?: number,
-  offset?: number
+  offset?: number,
 ): Promise<PaginatedResponse<FriendshipOut>> {
   return fetchPaginated<FriendshipOut>("/friends/requests/received/", { token, limit, offset });
 }
@@ -1469,15 +1392,12 @@ export async function getReceivedRequests(
 export async function getSentRequests(
   token: string,
   limit?: number,
-  offset?: number
+  offset?: number,
 ): Promise<PaginatedResponse<FriendshipOut>> {
   return fetchPaginated<FriendshipOut>("/friends/requests/sent/", { token, limit, offset });
 }
 
-export async function sendFriendRequest(
-  token: string,
-  username: string
-): Promise<FriendshipOut> {
+export async function sendFriendRequest(token: string, username: string): Promise<FriendshipOut> {
   return fetchAPI<FriendshipOut>("/friends/request/", {
     method: "POST",
     token,
@@ -1485,39 +1405,44 @@ export async function sendFriendRequest(
   });
 }
 
-export async function acceptFriendRequest(
-  token: string,
-  friendshipId: string
-): Promise<FriendshipOut> {
+export async function acceptFriendRequest(token: string, friendshipId: string): Promise<FriendshipOut> {
   return fetchAPI<FriendshipOut>(`/friends/${friendshipId}/accept/`, {
     method: "POST",
     token,
   });
 }
 
-export async function rejectFriendRequest(
-  token: string,
-  friendshipId: string
-): Promise<FriendshipOut> {
+export async function rejectFriendRequest(token: string, friendshipId: string): Promise<FriendshipOut> {
   return fetchAPI<FriendshipOut>(`/friends/${friendshipId}/reject/`, {
     method: "POST",
     token,
   });
 }
 
-export async function removeFriend(
-  token: string,
-  friendshipId: string
-): Promise<void> {
+export async function removeFriend(token: string, friendshipId: string): Promise<void> {
   await fetchAPI(`/friends/${friendshipId}/`, { method: "DELETE", token });
 }
 
-export async function inviteFriendToGame(token: string, friendshipId: string, gameMode: string): Promise<{ lobby_id: string }> {
-  return fetchAPI<{ lobby_id: string }>(`/friends/${friendshipId}/invite-game/`, { method: "POST", token, body: JSON.stringify({ game_mode: gameMode }) });
+export async function inviteFriendToGame(
+  token: string,
+  friendshipId: string,
+  gameMode: string,
+): Promise<{ lobby_id: string }> {
+  return fetchAPI<{ lobby_id: string }>(`/friends/${friendshipId}/invite-game/`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ game_mode: gameMode }),
+  });
 }
 
-export async function acceptGameInvite(token: string, notificationId: string): Promise<{ lobby_id: string; game_mode: string }> {
-  return fetchAPI<{ lobby_id: string; game_mode: string }>(`/friends/invite-accept/${notificationId}/`, { method: "POST", token });
+export async function acceptGameInvite(
+  token: string,
+  notificationId: string,
+): Promise<{ lobby_id: string; game_mode: string }> {
+  return fetchAPI<{ lobby_id: string; game_mode: string }>(`/friends/invite-accept/${notificationId}/`, {
+    method: "POST",
+    token,
+  });
 }
 
 export async function rejectGameInvite(token: string, notificationId: string): Promise<void> {
@@ -1545,12 +1470,21 @@ export async function getConversations(token: string): Promise<ConversationOut[]
   return fetchAPI<ConversationOut[]>("/messages/conversations/", { token });
 }
 
-export async function getMessages(token: string, userId: string, limit?: number, offset?: number): Promise<PaginatedResponse<DirectMessageOut>> {
+export async function getMessages(
+  token: string,
+  userId: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<DirectMessageOut>> {
   return fetchPaginated<DirectMessageOut>(`/messages/${userId}/`, { token, limit, offset });
 }
 
 export async function sendMessage(token: string, userId: string, content: string): Promise<DirectMessageOut> {
-  return fetchAPI<DirectMessageOut>(`/messages/${userId}/`, { method: "POST", token, body: JSON.stringify({ content }) });
+  return fetchAPI<DirectMessageOut>(`/messages/${userId}/`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ content }),
+  });
 }
 
 export async function getUnreadMessageCount(token: string): Promise<{ count: number }> {
@@ -1569,20 +1503,24 @@ export interface NotificationOut {
   created_at: string;
 }
 
-export async function getNotifications(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<NotificationOut>> {
-  return fetchPaginated<NotificationOut>('/notifications/', { token, limit, offset });
+export async function getNotifications(
+  token: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<NotificationOut>> {
+  return fetchPaginated<NotificationOut>("/notifications/", { token, limit, offset });
 }
 
 export async function getUnreadNotificationCount(token: string): Promise<{ count: number }> {
-  return fetchAPI<{ count: number }>('/notifications/unread-count', { token });
+  return fetchAPI<{ count: number }>("/notifications/unread-count", { token });
 }
 
 export async function markNotificationRead(token: string, id: string): Promise<void> {
-  await fetchAPI('/notifications/' + id + '/read/', { method: 'POST', token });
+  await fetchAPI(`/notifications/${id}/read/`, { method: "POST", token });
 }
 
 export async function markAllNotificationsRead(token: string): Promise<void> {
-  await fetchAPI('/notifications/read-all/', { method: 'POST', token });
+  await fetchAPI("/notifications/read-all/", { method: "POST", token });
 }
 
 // ── Clans ──
@@ -1711,21 +1649,29 @@ export interface MyClanResponse {
 
 // Clan CRUD
 
-export async function createClan(token: string, data: { name: string; tag: string; description?: string; color?: string; is_public?: boolean }): Promise<ClanOut> {
-  return fetchAPI<ClanOut>('/clans/', { method: 'POST', token, body: JSON.stringify(data) });
+export async function createClan(
+  token: string,
+  data: { name: string; tag: string; description?: string; color?: string; is_public?: boolean },
+): Promise<ClanOut> {
+  return fetchAPI<ClanOut>("/clans/", { method: "POST", token, body: JSON.stringify(data) });
 }
 
-export async function getClans(token: string, search?: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanOut>> {
+export async function getClans(
+  token: string,
+  search?: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<ClanOut>> {
   const params = new URLSearchParams();
-  if (search) params.set('search', search);
-  if (limit !== undefined) params.set('limit', String(limit));
-  if (offset !== undefined) params.set('offset', String(offset));
+  if (search) params.set("search", search);
+  if (limit !== undefined) params.set("limit", String(limit));
+  if (offset !== undefined) params.set("offset", String(offset));
   const qs = params.toString();
-  return fetchAPI<PaginatedResponse<ClanOut>>(`/clans/${qs ? '?' + qs : ''}`, { token });
+  return fetchAPI<PaginatedResponse<ClanOut>>(`/clans/${qs ? `?${qs}` : ""}`, { token });
 }
 
 export async function getMyClan(token: string): Promise<MyClanResponse> {
-  return fetchAPI<MyClanResponse>('/clans/my/', { token });
+  return fetchAPI<MyClanResponse>("/clans/my/", { token });
 }
 
 export async function getClan(token: string, clanId: string): Promise<ClanDetailOut> {
@@ -1733,114 +1679,175 @@ export async function getClan(token: string, clanId: string): Promise<ClanDetail
 }
 
 export async function updateClan(token: string, clanId: string, data: Record<string, unknown>): Promise<ClanOut> {
-  return fetchAPI<ClanOut>(`/clans/${clanId}/`, { method: 'PATCH', token, body: JSON.stringify(data) });
+  return fetchAPI<ClanOut>(`/clans/${clanId}/`, { method: "PATCH", token, body: JSON.stringify(data) });
 }
 
 export async function dissolveClan(token: string, clanId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/`, { method: 'DELETE', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/`, { method: "DELETE", token });
 }
 
 // Members
 
-export async function getClanMembers(token: string, clanId: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanMembershipOut>> {
+export async function getClanMembers(
+  token: string,
+  clanId: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<ClanMembershipOut>> {
   return fetchPaginated<ClanMembershipOut>(`/clans/${clanId}/members/`, { token, limit, offset });
 }
 
 export async function leaveClan(token: string, clanId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/leave/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/leave/`, { method: "POST", token });
 }
 
 export async function kickMember(token: string, clanId: string, userId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/kick/${userId}/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/kick/${userId}/`, { method: "POST", token });
 }
 
-export async function promoteMember(token: string, clanId: string, userId: string): Promise<{ ok: boolean; new_role: string }> {
-  return fetchAPI<{ ok: boolean; new_role: string }>(`/clans/${clanId}/promote/${userId}/`, { method: 'POST', token });
+export async function promoteMember(
+  token: string,
+  clanId: string,
+  userId: string,
+): Promise<{ ok: boolean; new_role: string }> {
+  return fetchAPI<{ ok: boolean; new_role: string }>(`/clans/${clanId}/promote/${userId}/`, { method: "POST", token });
 }
 
-export async function demoteMember(token: string, clanId: string, userId: string): Promise<{ ok: boolean; new_role: string }> {
-  return fetchAPI<{ ok: boolean; new_role: string }>(`/clans/${clanId}/demote/${userId}/`, { method: 'POST', token });
+export async function demoteMember(
+  token: string,
+  clanId: string,
+  userId: string,
+): Promise<{ ok: boolean; new_role: string }> {
+  return fetchAPI<{ ok: boolean; new_role: string }>(`/clans/${clanId}/demote/${userId}/`, { method: "POST", token });
 }
 
 export async function transferLeadership(token: string, clanId: string, userId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/transfer-leadership/${userId}/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/${clanId}/transfer-leadership/${userId}/`, { method: "POST", token });
 }
 
 // Invitations
 
 export async function invitePlayer(token: string, clanId: string, userId: string): Promise<ClanInvitationOut> {
-  return fetchAPI<ClanInvitationOut>(`/clans/${clanId}/invite/${userId}/`, { method: 'POST', token });
+  return fetchAPI<ClanInvitationOut>(`/clans/${clanId}/invite/${userId}/`, { method: "POST", token });
 }
 
-export async function getMyInvitations(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanInvitationOut>> {
-  return fetchPaginated<ClanInvitationOut>('/clans/my-invitations/', { token, limit, offset });
+export async function getMyInvitations(
+  token: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<ClanInvitationOut>> {
+  return fetchPaginated<ClanInvitationOut>("/clans/my-invitations/", { token, limit, offset });
 }
 
 export async function acceptInvitation(token: string, invitationId: string): Promise<{ ok: boolean; clan_id: string }> {
-  return fetchAPI<{ ok: boolean; clan_id: string }>(`/clans/invitations/${invitationId}/accept/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean; clan_id: string }>(`/clans/invitations/${invitationId}/accept/`, {
+    method: "POST",
+    token,
+  });
 }
 
 export async function declineInvitation(token: string, invitationId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/invitations/${invitationId}/decline/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/invitations/${invitationId}/decline/`, { method: "POST", token });
 }
 
 // Join Requests
 
-export async function joinClan(token: string, clanId: string, message?: string): Promise<{ ok: boolean; joined: boolean; message?: string }> {
+export async function joinClan(
+  token: string,
+  clanId: string,
+  message?: string,
+): Promise<{ ok: boolean; joined: boolean; message?: string }> {
   return fetchAPI<{ ok: boolean; joined: boolean; message?: string }>(`/clans/${clanId}/join/`, {
-    method: 'POST', token, body: JSON.stringify({ message: message || '' }),
+    method: "POST",
+    token,
+    body: JSON.stringify({ message: message || "" }),
   });
 }
 
-export async function getClanJoinRequests(token: string, clanId: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanJoinRequestOut>> {
+export async function getClanJoinRequests(
+  token: string,
+  clanId: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<ClanJoinRequestOut>> {
   return fetchPaginated<ClanJoinRequestOut>(`/clans/${clanId}/join-requests/`, { token, limit, offset });
 }
 
 export async function acceptJoinRequest(token: string, requestId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/join-requests/${requestId}/accept/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/join-requests/${requestId}/accept/`, { method: "POST", token });
 }
 
 export async function declineJoinRequest(token: string, requestId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/join-requests/${requestId}/decline/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/join-requests/${requestId}/decline/`, { method: "POST", token });
 }
 
 // Treasury
 
-export async function getClanTreasury(token: string, clanId: string): Promise<{ treasury_gold: number; tax_percent: number }> {
+export async function getClanTreasury(
+  token: string,
+  clanId: string,
+): Promise<{ treasury_gold: number; tax_percent: number }> {
   return fetchAPI<{ treasury_gold: number; tax_percent: number }>(`/clans/${clanId}/treasury/`, { token });
 }
 
-export async function donateGold(token: string, clanId: string, amount: number): Promise<{ ok: boolean; treasury_gold: number }> {
+export async function donateGold(
+  token: string,
+  clanId: string,
+  amount: number,
+): Promise<{ ok: boolean; treasury_gold: number }> {
   return fetchAPI<{ ok: boolean; treasury_gold: number }>(`/clans/${clanId}/treasury/donate/`, {
-    method: 'POST', token, body: JSON.stringify({ amount }),
+    method: "POST",
+    token,
+    body: JSON.stringify({ amount }),
   });
 }
 
-export async function withdrawGold(token: string, clanId: string, amount: number, reason?: string): Promise<{ ok: boolean; treasury_gold: number }> {
+export async function withdrawGold(
+  token: string,
+  clanId: string,
+  amount: number,
+  reason?: string,
+): Promise<{ ok: boolean; treasury_gold: number }> {
   return fetchAPI<{ ok: boolean; treasury_gold: number }>(`/clans/${clanId}/treasury/withdraw/`, {
-    method: 'POST', token, body: JSON.stringify({ amount, reason: reason || '' }),
+    method: "POST",
+    token,
+    body: JSON.stringify({ amount, reason: reason || "" }),
   });
 }
 
 // Wars
 
-export async function declareWar(token: string, clanId: string, targetId: string, data: { players_per_side?: number; wager_gold?: number }): Promise<ClanWarOut> {
-  return fetchAPI<ClanWarOut>(`/clans/${clanId}/wars/declare/${targetId}/`, { method: 'POST', token, body: JSON.stringify(data) });
+export async function declareWar(
+  token: string,
+  clanId: string,
+  targetId: string,
+  data: { players_per_side?: number; wager_gold?: number },
+): Promise<ClanWarOut> {
+  return fetchAPI<ClanWarOut>(`/clans/${clanId}/wars/declare/${targetId}/`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(data),
+  });
 }
 
 export async function acceptWar(token: string, warId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/accept/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/accept/`, { method: "POST", token });
 }
 
 export async function declineWar(token: string, warId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/decline/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/decline/`, { method: "POST", token });
 }
 
 export async function joinWar(token: string, warId: string): Promise<ClanWarParticipantOut> {
-  return fetchAPI<ClanWarParticipantOut>(`/clans/wars/${warId}/join/`, { method: 'POST', token });
+  return fetchAPI<ClanWarParticipantOut>(`/clans/wars/${warId}/join/`, { method: "POST", token });
 }
 
-export async function getClanWars(token: string, clanId: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanWarOut>> {
+export async function getClanWars(
+  token: string,
+  clanId: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<ClanWarOut>> {
   return fetchPaginated<ClanWarOut>(`/clans/${clanId}/wars/`, { token, limit, offset });
 }
 
@@ -1853,22 +1860,27 @@ export async function getWar(token: string, warId: string): Promise<ClanWarOut> 
 }
 
 export async function leaveWar(token: string, warId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/leave/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/leave/`, { method: "POST", token });
 }
 
 export async function cancelWar(token: string, warId: string): Promise<{ ok: boolean }> {
-  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/cancel/`, { method: 'POST', token });
+  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/cancel/`, { method: "POST", token });
 }
 
 // Leaderboard & Stats
 
-export async function getClanLeaderboard(token: string, sort?: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanLeaderboardEntry>> {
+export async function getClanLeaderboard(
+  token: string,
+  sort?: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<ClanLeaderboardEntry>> {
   const params = new URLSearchParams();
-  if (sort) params.set('sort', sort);
-  if (limit !== undefined) params.set('limit', String(limit));
-  if (offset !== undefined) params.set('offset', String(offset));
+  if (sort) params.set("sort", sort);
+  if (limit !== undefined) params.set("limit", String(limit));
+  if (offset !== undefined) params.set("offset", String(offset));
   const qs = params.toString();
-  return fetchAPI<PaginatedResponse<ClanLeaderboardEntry>>(`/clans/leaderboard/${qs ? '?' + qs : ''}`, { token });
+  return fetchAPI<PaginatedResponse<ClanLeaderboardEntry>>(`/clans/leaderboard/${qs ? `?${qs}` : ""}`, { token });
 }
 
 export async function getClanStats(token: string, clanId: string): Promise<ClanStats> {
@@ -1877,16 +1889,30 @@ export async function getClanStats(token: string, clanId: string): Promise<ClanS
 
 // Activity Log
 
-export async function getClanActivityLog(token: string, clanId: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanActivityLogOut>> {
+export async function getClanActivityLog(
+  token: string,
+  clanId: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<ClanActivityLogOut>> {
   return fetchPaginated<ClanActivityLogOut>(`/clans/${clanId}/activity-log/`, { token, limit, offset });
 }
 
 // Chat
 
-export async function getClanChat(token: string, clanId: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanChatMessageOut>> {
+export async function getClanChat(
+  token: string,
+  clanId: string,
+  limit?: number,
+  offset?: number,
+): Promise<PaginatedResponse<ClanChatMessageOut>> {
   return fetchPaginated<ClanChatMessageOut>(`/clans/${clanId}/chat/`, { token, limit, offset });
 }
 
 export async function sendClanChatMessage(token: string, clanId: string, content: string): Promise<ClanChatMessageOut> {
-  return fetchAPI<ClanChatMessageOut>(`/clans/${clanId}/chat/`, { method: 'POST', token, body: JSON.stringify({ content }) });
+  return fetchAPI<ClanChatMessageOut>(`/clans/${clanId}/chat/`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ content }),
+  });
 }

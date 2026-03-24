@@ -1,12 +1,11 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function DashboardSkeleton() {
   return (
     <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* ── Header ── */}
       <div className="px-4 md:px-0 space-y-1.5">
         <Skeleton className="hidden md:block h-3 w-24" />
@@ -32,10 +31,8 @@ export function DashboardSkeleton() {
 
       {/* ── Game config — 3-column on desktop ── */}
       <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-3 md:gap-6 md:items-stretch">
-
         {/* Left col spans 2 on desktop */}
         <div className="md:col-span-2 md:space-y-6">
-
           {/* Mode selector card */}
           <div className="px-4 md:px-0">
             {/* Mobile: flat pills */}

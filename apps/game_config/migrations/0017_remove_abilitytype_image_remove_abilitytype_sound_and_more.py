@@ -4,26 +4,25 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0016_abilitytype_image_abilitytype_sound_and_more'),
+        ("game_config", "0016_abilitytype_image_abilitytype_sound_and_more"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='abilitytype',
-            name='image',
+            model_name="abilitytype",
+            name="image",
         ),
         migrations.RemoveField(
-            model_name='abilitytype',
-            name='sound',
+            model_name="abilitytype",
+            name="sound",
         ),
         migrations.RemoveField(
-            model_name='buildingtype',
-            name='image',
+            model_name="buildingtype",
+            name="image",
         ),
         migrations.RemoveField(
-            model_name='unittype',
-            name='image',
+            model_name="unittype",
+            name="image",
         ),
     ]

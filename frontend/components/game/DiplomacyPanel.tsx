@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { GamePlayer } from "@/hooks/useGameSocket";
 import type { DiplomacyState, War } from "@/lib/gameTypes";
@@ -38,7 +38,7 @@ function PeaceDialog({ targetPlayer, war, currentPlayerId, onPropose, onClose }:
 
   const conqueredProvinces = useMemo(() => {
     return war.provinces_changed.filter(
-      (pc) => pc.from_player_id === targetPlayer.user_id && pc.to_player_id === currentPlayerId
+      (pc) => pc.from_player_id === targetPlayer.user_id && pc.to_player_id === currentPlayerId,
     );
   }, [war.provinces_changed, targetPlayer.user_id, currentPlayerId]);
 
@@ -60,11 +60,13 @@ function PeaceDialog({ targetPlayer, war, currentPlayerId, onPropose, onClose }:
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
-        <h3 className="mb-1 font-display text-base font-semibold text-foreground">
-          Zaproponuj pokoj
-        </h3>
+        <h3 className="mb-1 font-display text-base font-semibold text-foreground">Zaproponuj pokoj</h3>
         <p className="mb-4 text-xs text-muted-foreground">
-          Do: <span style={{ color: targetPlayer.color }} className="font-medium">{targetPlayer.clan_tag && `[${targetPlayer.clan_tag}] `}{targetPlayer.username}</span>
+          Do:{" "}
+          <span style={{ color: targetPlayer.color }} className="font-medium">
+            {targetPlayer.clan_tag && `[${targetPlayer.clan_tag}] `}
+            {targetPlayer.username}
+          </span>
         </p>
 
         <div className="mb-4 space-y-2">
@@ -144,7 +146,7 @@ export default memo(function DiplomacyPanel({
     diplomacy.wars.find(
       (w) =>
         (w.player_a === currentPlayerId && w.player_b === opponentId) ||
-        (w.player_b === currentPlayerId && w.player_a === opponentId)
+        (w.player_b === currentPlayerId && w.player_a === opponentId),
     ) ?? null;
 
   const warForPeaceTarget = peaceTarget ? getWar(peaceTarget) : null;

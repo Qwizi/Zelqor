@@ -1,36 +1,25 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { ArrowLeft, Calendar, Check, Coins, ExternalLink, Loader2, Swords, Trophy, Users, X } from "lucide-react";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Calendar,
-  Check,
-  Coins,
-  ExternalLink,
-  Loader2,
-  Swords,
-  Trophy,
-  Users,
-  X,
-} from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/hooks/useAuth";
 import {
-  useWar,
-  useWarParticipants,
-  useMyClan,
   useAcceptWar,
+  useCancelWar,
   useDeclineWar,
   useJoinWar,
   useLeaveWar,
-  useCancelWar,
+  useMyClan,
+  useWar,
+  useWarParticipants,
 } from "@/hooks/queries";
-import { APIError } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 import type { ClanWarOut, ClanWarParticipantOut } from "@/lib/api";
+import { APIError } from "@/lib/api";
 
 // ── Constants ──
 
@@ -79,14 +68,10 @@ function ClanCard({
   return (
     <div
       className={`flex flex-col items-center gap-3 rounded-2xl border p-5 flex-1 ${
-        isWinner
-          ? "border-yellow-500/40 bg-yellow-500/5"
-          : "border-border bg-card/50"
+        isWinner ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-card/50"
       }`}
     >
-      {isWinner && (
-        <Trophy className="h-4 w-4 text-yellow-400" />
-      )}
+      {isWinner && <Trophy className="h-4 w-4 text-yellow-400" />}
       <div
         className="flex h-14 w-14 items-center justify-center rounded-xl font-display text-lg font-bold text-white"
         style={{ backgroundColor: clan.color }}
@@ -95,25 +80,24 @@ function ClanCard({
       </div>
       <div className="text-center">
         <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-medium mb-0.5">{sideLabel}</p>
-        <p className="text-sm font-bold text-foreground">[{clan.tag}] {clan.name}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">Lv. {clan.level} &middot; {clan.elo_rating} ELO</p>
+        <p className="text-sm font-bold text-foreground">
+          [{clan.tag}] {clan.name}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Lv. {clan.level} &middot; {clan.elo_rating} ELO
+        </p>
       </div>
       {eloChange !== 0 && (
         <span className={`text-sm font-bold tabular-nums ${eloChange > 0 ? "text-green-400" : "text-destructive"}`}>
-          {eloChange > 0 ? "+" : ""}{eloChange} ELO
+          {eloChange > 0 ? "+" : ""}
+          {eloChange} ELO
         </span>
       )}
     </div>
   );
 }
 
-function ParticipantSlot({
-  participant,
-  isEmpty,
-}: {
-  participant?: ClanWarParticipantOut;
-  isEmpty?: boolean;
-}) {
+function ParticipantSlot({ participant, isEmpty }: { participant?: ClanWarParticipantOut; isEmpty?: boolean }) {
   if (isEmpty || !participant) {
     return (
       <div className="flex items-center gap-2.5 rounded-xl border border-dashed border-border px-3 py-2.5">
@@ -151,7 +135,9 @@ function ParticipantColumn({
       <div className="flex items-center gap-2 mb-3">
         <div className="h-2 w-2 rounded-full" style={{ backgroundColor: clanColor }} />
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{title}</span>
-        <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">{filledCount}/{totalSlots}</span>
+        <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
+          {filledCount}/{totalSlots}
+        </span>
       </div>
       <div className="space-y-1.5">
         {participants.map((p) => (
@@ -249,7 +235,6 @@ export default function WarDetailPage() {
 
   return (
     <div className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* ── Header ── */}
       <div className="flex items-center gap-3 px-4 md:px-0">
         <Link
@@ -297,7 +282,9 @@ export default function WarDetailPage() {
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Format</p>
-              <p className="text-sm font-semibold text-foreground tabular-nums">{war.players_per_side}v{war.players_per_side}</p>
+              <p className="text-sm font-semibold text-foreground tabular-nums">
+                {war.players_per_side}v{war.players_per_side}
+              </p>
             </div>
           </div>
 
@@ -310,8 +297,12 @@ export default function WarDetailPage() {
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Stawka</p>
               {war.wager_gold > 0 ? (
                 <div>
-                  <p className="text-sm font-semibold text-accent tabular-nums">{war.wager_gold.toLocaleString()} / strona</p>
-                  <p className="text-[10px] text-muted-foreground tabular-nums">Pula: {(war.wager_gold * 2).toLocaleString()} złota</p>
+                  <p className="text-sm font-semibold text-accent tabular-nums">
+                    {war.wager_gold.toLocaleString()} / strona
+                  </p>
+                  <p className="text-[10px] text-muted-foreground tabular-nums">
+                    Pula: {(war.wager_gold * 2).toLocaleString()} złota
+                  </p>
                 </div>
               ) : (
                 <p className="text-sm font-semibold text-muted-foreground">Brak</p>
@@ -327,7 +318,11 @@ export default function WarDetailPage() {
             <div>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Ogłoszono</p>
               <p className="text-sm font-semibold text-foreground">
-                {new Date(war.created_at).toLocaleDateString("pl-PL", { day: "numeric", month: "short", year: "numeric" })}
+                {new Date(war.created_at).toLocaleDateString("pl-PL", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
               </p>
             </div>
           </div>
@@ -375,7 +370,9 @@ export default function WarDetailPage() {
             {war.wager_gold > 0 && (
               <div className="ml-auto text-right">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Nagroda</p>
-                <p className="text-sm font-bold text-accent tabular-nums">+{(war.wager_gold * 2).toLocaleString()} złota</p>
+                <p className="text-sm font-bold text-accent tabular-nums">
+                  +{(war.wager_gold * 2).toLocaleString()} złota
+                </p>
               </div>
             )}
           </div>

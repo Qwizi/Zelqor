@@ -1,12 +1,11 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function LeaderboardSkeleton() {
   return (
     <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 px-4 md:px-0">
         <div className="space-y-1.5">
@@ -30,7 +29,6 @@ export function LeaderboardSkeleton() {
 
       {/* ── List / Table ── */}
       <div className="px-4 md:px-0">
-
         {/* Mobile: clean list */}
         <div className="md:hidden space-y-0.5">
           {Array.from({ length: 15 }).map((_, i) => (

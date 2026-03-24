@@ -1,11 +1,11 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
-import { createSocket } from "@/lib/ws";
-import { getAccessToken } from "@/lib/auth";
-import { getWsTicket } from "@/lib/api";
-import { solveChallenge } from "@/lib/pow";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { getWsTicket } from "@/lib/api";
+import { getAccessToken } from "@/lib/auth";
+import { solveChallenge } from "@/lib/pow";
+import { createSocket } from "@/lib/ws";
 
 export interface ChatMessage {
   user_id: string;
@@ -54,7 +54,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const chatOpenRef = useRef(false);
   const initializedRef = useRef(false);
 
-  useEffect(() => { chatOpenRef.current = chatOpen; }, [chatOpen]);
+  useEffect(() => {
+    chatOpenRef.current = chatOpen;
+  }, [chatOpen]);
 
   useEffect(() => {
     userIdRef.current = user?.id ?? null;
@@ -111,7 +113,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               // Deduplicate by timestamp + user_id + content
               const cm = msg as unknown as ChatMessage;
               const isDup = prev.some(
-                (m) => m.timestamp === cm.timestamp && m.user_id === cm.user_id && m.content === cm.content
+                (m) => m.timestamp === cm.timestamp && m.user_id === cm.user_id && m.content === cm.content,
               );
               if (isDup) return prev;
               return [...prev.slice(-199), cm];
@@ -181,7 +183,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
     setActiveTab(friendId);
     setChatOpen(true);
-    setDmUnread((prev) => { const next = { ...prev }; delete next[friendId]; return next; });
+    setDmUnread((prev) => {
+      const next = { ...prev };
+      delete next[friendId];
+      return next;
+    });
   }, []);
 
   const addDMTabSilent = useCallback((friendId: string, friendUsername: string) => {
@@ -197,14 +203,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const closeDMTab = useCallback((friendId: string) => {
     setDmTabs((prev) => prev.filter((t) => t.friendId !== friendId));
     setActiveTab((current) => (current === friendId ? "global" : current));
-    setDmUnread((prev) => { const next = { ...prev }; delete next[friendId]; return next; });
+    setDmUnread((prev) => {
+      const next = { ...prev };
+      delete next[friendId];
+      return next;
+    });
   }, []);
 
   return (
-    <ChatContext.Provider value={{
-      messages, connected, sendMessage, unreadCount, resetUnread, chatOpen, setChatOpen,
-      activeTab, dmTabs, dmUnread, openDMTab, addDMTabSilent, closeDMTab, setActiveTab,
-    }}>
+    <ChatContext.Provider
+      value={{
+        messages,
+        connected,
+        sendMessage,
+        unreadCount,
+        resetUnread,
+        chatOpen,
+        setChatOpen,
+        activeTab,
+        dmTabs,
+        dmUnread,
+        openDMTab,
+        addDMTabSilent,
+        closeDMTab,
+        setActiveTab,
+      }}
+    >
       {children}
     </ChatContext.Provider>
   );

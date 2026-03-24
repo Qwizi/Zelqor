@@ -17,9 +17,7 @@ class Command(BaseCommand):
         from apps.game.models import MatchPlayerResult
 
         # Build level thresholds
-        thresholds = list(
-            AccountLevel.objects.order_by("level").values_list("level", "experience_required")
-        )
+        thresholds = list(AccountLevel.objects.order_by("level").values_list("level", "experience_required"))
         if not thresholds:
             self.stderr.write("No AccountLevel data — run migrations first.")
             return

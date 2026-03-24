@@ -4,21 +4,16 @@ import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
+  CartesianGrid,
+  Legend,
+  PolarAngleAxis,
+  PolarGrid,
+  Radar,
+  RadarChart,
   XAxis,
   YAxis,
-  CartesianGrid,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  Radar,
-  Legend,
 } from "recharts";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import type { Match, MatchResult } from "@/lib/api";
 
 type TabKey = "comparison" | "radar";
@@ -39,7 +34,10 @@ export default function MatchCharts({ match, result }: MatchChartsProps) {
   const chartConfig = useMemo<ChartConfig>(() => {
     const cfg: ChartConfig = {};
     players.forEach((p, i) => {
-      cfg[p.username] = { label: p.username, color: match.players.find((mp) => mp.user_id === p.user_id)?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length] };
+      cfg[p.username] = {
+        label: p.username,
+        color: match.players.find((mp) => mp.user_id === p.user_id)?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length],
+      };
     });
     return cfg;
   }, [players, match.players]);
@@ -113,15 +111,29 @@ export default function MatchCharts({ match, result }: MatchChartsProps) {
         <ChartContainer config={chartConfig} className="h-[200px] md:h-[260px] w-full">
           <BarChart data={barData} margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-            <XAxis dataKey="category" tick={{ fontSize: 11 }} stroke="var(--color-muted-foreground)" tickLine={false} axisLine={false} />
-            <YAxis tick={{ fontSize: 10 }} stroke="var(--color-muted-foreground)" tickLine={false} axisLine={false} allowDecimals={false} />
+            <XAxis
+              dataKey="category"
+              tick={{ fontSize: 11 }}
+              stroke="var(--color-muted-foreground)"
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 10 }}
+              stroke="var(--color-muted-foreground)"
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+            />
             <ChartTooltip content={<ChartTooltipContent />} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
             {players.map((p, i) => (
               <Bar
                 key={p.user_id}
                 dataKey={p.username}
-                fill={match.players.find((mp) => mp.user_id === p.user_id)?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length]}
+                fill={
+                  match.players.find((mp) => mp.user_id === p.user_id)?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length]
+                }
                 radius={[3, 3, 0, 0]}
               />
             ))}
@@ -140,8 +152,12 @@ export default function MatchCharts({ match, result }: MatchChartsProps) {
                 key={p.user_id}
                 name={p.username}
                 dataKey={p.username}
-                stroke={match.players.find((mp) => mp.user_id === p.user_id)?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length]}
-                fill={match.players.find((mp) => mp.user_id === p.user_id)?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length]}
+                stroke={
+                  match.players.find((mp) => mp.user_id === p.user_id)?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length]
+                }
+                fill={
+                  match.players.find((mp) => mp.user_id === p.user_id)?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length]
+                }
                 fillOpacity={0.15}
                 strokeWidth={2}
               />

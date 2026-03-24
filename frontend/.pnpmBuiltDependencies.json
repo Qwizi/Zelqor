@@ -1,1 +1,1 @@
-{"onlyBuiltDependencies": ["@swc/core", "esbuild"]}
+{ "onlyBuiltDependencies": ["@swc/core", "esbuild"] }

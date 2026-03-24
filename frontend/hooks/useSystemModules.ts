@@ -46,18 +46,16 @@ export function useSystemModules(): SystemModulesContextValue {
  *   const autoBan = getValue('auto_ban_enabled', false);
  */
 export function useModuleConfig(slug: string) {
-  const { isEnabled, getConfig, getConfigValue, getModule } =
-    useSystemModules();
+  const { isEnabled, getConfig, getConfigValue, getModule } = useSystemModules();
 
   return useMemo(
     () => ({
       enabled: isEnabled(slug),
       config: getConfig(slug),
       module: getModule(slug),
-      getValue: <T>(key: string, fallback: T): T =>
-        getConfigValue(slug, key, fallback),
+      getValue: <T>(key: string, fallback: T): T => getConfigValue(slug, key, fallback),
     }),
-    [slug, isEnabled, getConfig, getConfigValue, getModule]
+    [slug, isEnabled, getConfig, getConfigValue, getModule],
   );
 }
 
@@ -65,9 +63,7 @@ export function useModuleConfig(slug: string) {
  * Build the context value from a list of SystemModule objects.
  * Used in the provider component.
  */
-export function buildSystemModulesValue(
-  modules: SystemModule[]
-): SystemModulesContextValue {
+export function buildSystemModulesValue(modules: SystemModule[]): SystemModulesContextValue {
   const bySlug = new Map(modules.map((m) => [m.slug, m]));
 
   return {

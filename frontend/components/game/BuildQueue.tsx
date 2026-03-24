@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useMemo } from "react";
 import Image from "next/image";
+import { memo, useMemo } from "react";
 import type { BuildingQueueItem, UnitQueueItem } from "@/hooks/useGameSocket";
 import type { BuildingType, UnitType } from "@/lib/api";
 import { getActionAsset, getPlayerBuildingAsset, getPlayerUnitAsset } from "@/lib/gameAssets";
@@ -28,12 +28,9 @@ export default memo(function BuildQueue({
 
   const buildingMap = useMemo(
     () => Object.fromEntries(buildings.map((building) => [building.slug, building])),
-    [buildings]
+    [buildings],
   );
-  const unitMap = useMemo(
-    () => Object.fromEntries(units.map((unit) => [unit.slug, unit])),
-    [units]
-  );
+  const unitMap = useMemo(() => Object.fromEntries(units.map((unit) => [unit.slug, unit])), [units]);
 
   if (myBuilds.length === 0 && myUnits.length === 0) return null;
 
@@ -44,7 +41,9 @@ export default memo(function BuildQueue({
       name: config?.name || item.building_type,
       remaining: item.ticks_remaining,
       total: item.total_ticks || 1,
-      image: getPlayerBuildingAsset(config?.asset_key || item.building_type, myCosmetics, config?.asset_url) || getActionAsset("build"),
+      image:
+        getPlayerBuildingAsset(config?.asset_key || item.building_type, myCosmetics, config?.asset_url) ||
+        getActionAsset("build"),
     };
   });
 
@@ -64,11 +63,7 @@ export default memo(function BuildQueue({
       {/* Desktop */}
       <div className="absolute bottom-4 left-4 z-20 hidden w-[220px] space-y-3 sm:block lg:bottom-4">
         {buildItems.length > 0 && (
-          <QueueSection
-            title={`Budowa (${buildItems.length})`}
-            asset={getActionAsset("build")}
-            items={buildItems}
-          />
+          <QueueSection title={`Budowa (${buildItems.length})`} asset={getActionAsset("build")} items={buildItems} />
         )}
         {unitItems.length > 0 && (
           <QueueSection
@@ -135,13 +130,7 @@ const QueueSection = memo(function QueueSection({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.24em] text-accent">
-        <Image
-          src={asset}
-          alt=""
-          width={16}
-          height={16}
-          className="h-4 w-4 object-contain"
-        />
+        <Image src={asset} alt="" width={16} height={16} className="h-4 w-4 object-contain" />
         {title}
       </div>
       {items.map((item) => {
@@ -154,13 +143,7 @@ const QueueSection = memo(function QueueSection({
           >
             <div className="flex items-center gap-2 px-2.5 py-2">
               <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30">
-                <Image
-                  src={item.image}
-                  alt={item.name}
-                  width={28}
-                  height={28}
-                  className="h-7 w-7 object-contain"
-                />
+                <Image src={item.image} alt={item.name} width={28} height={28} className="h-7 w-7 object-contain" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-display text-sm font-semibold tracking-wide text-foreground">
@@ -170,9 +153,7 @@ const QueueSection = memo(function QueueSection({
                   {item.remaining > 0 ? `${item.remaining} tur do końca` : "Ukończono!"}
                 </div>
               </div>
-              <span className="font-display text-xs font-bold tabular-nums text-accent">
-                {percent}%
-              </span>
+              <span className="font-display text-xs font-bold tabular-nums text-accent">{percent}%</span>
             </div>
             <div className="h-1 w-full bg-muted/30">
               <div

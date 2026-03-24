@@ -1,262 +1,726 @@
 """Populate all system modules with comprehensive config params from hardcoded values."""
+
 from django.db import migrations
 
-
 CONFIGS = {
-    'registration': {
-        'config': {
-            'username_min_length': 3,
-            'username_max_length': 30,
-            'password_min_length': 8,
-            'default_elo_rating': 1000,
-            'starter_gold': 100,
-            'starter_items': [
-                'pkg-shield-1', 'bp-barracks-1', 'bp-factory-1',
-                'bp-tower-1', 'bp-port-1', 'bp-carrier-1', 'bp-radar-1',
+    "registration": {
+        "config": {
+            "username_min_length": 3,
+            "username_max_length": 30,
+            "password_min_length": 8,
+            "default_elo_rating": 1000,
+            "starter_gold": 100,
+            "starter_items": [
+                "pkg-shield-1",
+                "bp-barracks-1",
+                "bp-factory-1",
+                "bp-tower-1",
+                "bp-port-1",
+                "bp-carrier-1",
+                "bp-radar-1",
             ],
-            'pow_difficulty': 16,
-            'ws_ticket_expiry_seconds': 30,
+            "pow_difficulty": 16,
+            "ws_ticket_expiry_seconds": 30,
         },
-        'config_schema': [
-            {'key': 'username_min_length', 'label': 'Min username length', 'type': 'int', 'default': 3, 'min': 1, 'max': 20},
-            {'key': 'username_max_length', 'label': 'Max username length', 'type': 'int', 'default': 30, 'min': 5, 'max': 100},
-            {'key': 'password_min_length', 'label': 'Min password length', 'type': 'int', 'default': 8, 'min': 4, 'max': 64},
-            {'key': 'default_elo_rating', 'label': 'Default ELO rating', 'type': 'int', 'default': 1000, 'min': 0, 'max': 5000},
-            {'key': 'starter_gold', 'label': 'Starting gold for new accounts', 'type': 'int', 'default': 100, 'min': 0, 'max': 100000},
-            {'key': 'starter_items', 'label': 'Item slugs given to new players', 'type': 'list', 'default': []},
-            {'key': 'pow_difficulty', 'label': 'Proof-of-work difficulty bits', 'type': 'int', 'default': 16, 'min': 0, 'max': 32},
-            {'key': 'ws_ticket_expiry_seconds', 'label': 'WebSocket ticket expiry', 'type': 'int', 'default': 30, 'min': 5, 'max': 300},
+        "config_schema": [
+            {
+                "key": "username_min_length",
+                "label": "Min username length",
+                "type": "int",
+                "default": 3,
+                "min": 1,
+                "max": 20,
+            },
+            {
+                "key": "username_max_length",
+                "label": "Max username length",
+                "type": "int",
+                "default": 30,
+                "min": 5,
+                "max": 100,
+            },
+            {
+                "key": "password_min_length",
+                "label": "Min password length",
+                "type": "int",
+                "default": 8,
+                "min": 4,
+                "max": 64,
+            },
+            {
+                "key": "default_elo_rating",
+                "label": "Default ELO rating",
+                "type": "int",
+                "default": 1000,
+                "min": 0,
+                "max": 5000,
+            },
+            {
+                "key": "starter_gold",
+                "label": "Starting gold for new accounts",
+                "type": "int",
+                "default": 100,
+                "min": 0,
+                "max": 100000,
+            },
+            {"key": "starter_items", "label": "Item slugs given to new players", "type": "list", "default": []},
+            {
+                "key": "pow_difficulty",
+                "label": "Proof-of-work difficulty bits",
+                "type": "int",
+                "default": 16,
+                "min": 0,
+                "max": 32,
+            },
+            {
+                "key": "ws_ticket_expiry_seconds",
+                "label": "WebSocket ticket expiry",
+                "type": "int",
+                "default": 30,
+                "min": 5,
+                "max": 300,
+            },
         ],
     },
-    'social-auth': {
-        'config': {
-            'enabled_providers': ['google', 'discord'],
-            'auto_link_by_email': True,
+    "social-auth": {
+        "config": {
+            "enabled_providers": ["google", "discord"],
+            "auto_link_by_email": True,
         },
-        'config_schema': [
-            {'key': 'enabled_providers', 'label': 'Enabled OAuth providers', 'type': 'list', 'default': ['google', 'discord']},
-            {'key': 'auto_link_by_email', 'label': 'Auto-link accounts with same email', 'type': 'bool', 'default': True},
+        "config_schema": [
+            {
+                "key": "enabled_providers",
+                "label": "Enabled OAuth providers",
+                "type": "list",
+                "default": ["google", "discord"],
+            },
+            {
+                "key": "auto_link_by_email",
+                "label": "Auto-link accounts with same email",
+                "type": "bool",
+                "default": True,
+            },
         ],
     },
-    'matchmaking': {
-        'config': {
-            'bot_fill_timeout_seconds': 30,
-            'lobby_ttl_seconds': 600,
-            'stale_queue_cleanup_minutes': 30,
-            'match_selection_timeout_extra_seconds': 300,
-            'match_overtime_minutes': 15,
-            'max_match_fallback_hours': 2,
+    "matchmaking": {
+        "config": {
+            "bot_fill_timeout_seconds": 30,
+            "lobby_ttl_seconds": 600,
+            "stale_queue_cleanup_minutes": 30,
+            "match_selection_timeout_extra_seconds": 300,
+            "match_overtime_minutes": 15,
+            "max_match_fallback_hours": 2,
         },
-        'config_schema': [
-            {'key': 'bot_fill_timeout_seconds', 'label': 'Seconds before filling with bots', 'type': 'int', 'default': 30, 'min': 5, 'max': 300},
-            {'key': 'lobby_ttl_seconds', 'label': 'Lobby Redis TTL (seconds)', 'type': 'int', 'default': 600, 'min': 60, 'max': 3600},
-            {'key': 'stale_queue_cleanup_minutes', 'label': 'Stale queue entry cleanup (minutes)', 'type': 'int', 'default': 30, 'min': 5, 'max': 120},
-            {'key': 'match_selection_timeout_extra_seconds', 'label': 'Extra time for selection phase timeout', 'type': 'int', 'default': 300, 'min': 60, 'max': 600},
-            {'key': 'match_overtime_minutes', 'label': 'Overtime after match duration limit', 'type': 'int', 'default': 15, 'min': 0, 'max': 60},
-            {'key': 'max_match_fallback_hours', 'label': 'Max match duration fallback (hours)', 'type': 'int', 'default': 2, 'min': 1, 'max': 12},
+        "config_schema": [
+            {
+                "key": "bot_fill_timeout_seconds",
+                "label": "Seconds before filling with bots",
+                "type": "int",
+                "default": 30,
+                "min": 5,
+                "max": 300,
+            },
+            {
+                "key": "lobby_ttl_seconds",
+                "label": "Lobby Redis TTL (seconds)",
+                "type": "int",
+                "default": 600,
+                "min": 60,
+                "max": 3600,
+            },
+            {
+                "key": "stale_queue_cleanup_minutes",
+                "label": "Stale queue entry cleanup (minutes)",
+                "type": "int",
+                "default": 30,
+                "min": 5,
+                "max": 120,
+            },
+            {
+                "key": "match_selection_timeout_extra_seconds",
+                "label": "Extra time for selection phase timeout",
+                "type": "int",
+                "default": 300,
+                "min": 60,
+                "max": 600,
+            },
+            {
+                "key": "match_overtime_minutes",
+                "label": "Overtime after match duration limit",
+                "type": "int",
+                "default": 15,
+                "min": 0,
+                "max": 60,
+            },
+            {
+                "key": "max_match_fallback_hours",
+                "label": "Max match duration fallback (hours)",
+                "type": "int",
+                "default": 2,
+                "min": 1,
+                "max": 12,
+            },
         ],
     },
-    'tutorial': {
-        'config': {
-            'auto_start_for_new_users': False,
-            'bot_difficulty': 'easy',
+    "tutorial": {
+        "config": {
+            "auto_start_for_new_users": False,
+            "bot_difficulty": "easy",
         },
-        'config_schema': [
-            {'key': 'auto_start_for_new_users', 'label': 'Auto-start tutorial for new players', 'type': 'bool', 'default': False},
-            {'key': 'bot_difficulty', 'label': 'Tutorial bot difficulty', 'type': 'str', 'default': 'easy', 'options': ['easy', 'medium', 'hard']},
+        "config_schema": [
+            {
+                "key": "auto_start_for_new_users",
+                "label": "Auto-start tutorial for new players",
+                "type": "bool",
+                "default": False,
+            },
+            {
+                "key": "bot_difficulty",
+                "label": "Tutorial bot difficulty",
+                "type": "str",
+                "default": "easy",
+                "options": ["easy", "medium", "hard"],
+            },
         ],
     },
-    'bots': {
-        'config': {
-            'default_difficulty': 'medium',
-            'enabled_difficulties': ['easy', 'medium', 'hard'],
+    "bots": {
+        "config": {
+            "default_difficulty": "medium",
+            "enabled_difficulties": ["easy", "medium", "hard"],
         },
-        'config_schema': [
-            {'key': 'default_difficulty', 'label': 'Default bot difficulty', 'type': 'str', 'default': 'medium', 'options': ['easy', 'medium', 'hard']},
-            {'key': 'enabled_difficulties', 'label': 'Available difficulty levels', 'type': 'list', 'default': ['easy', 'medium', 'hard']},
+        "config_schema": [
+            {
+                "key": "default_difficulty",
+                "label": "Default bot difficulty",
+                "type": "str",
+                "default": "medium",
+                "options": ["easy", "medium", "hard"],
+            },
+            {
+                "key": "enabled_difficulties",
+                "label": "Available difficulty levels",
+                "type": "list",
+                "default": ["easy", "medium", "hard"],
+            },
         ],
     },
-    'chat': {
-        'config': {
-            'max_message_length': 500,
-            'rate_limit_seconds': 1.0,
-            'history_fetch_limit': 50,
-            'username_cache_ttl_seconds': 300,
+    "chat": {
+        "config": {
+            "max_message_length": 500,
+            "rate_limit_seconds": 1.0,
+            "history_fetch_limit": 50,
+            "username_cache_ttl_seconds": 300,
         },
-        'config_schema': [
-            {'key': 'max_message_length', 'label': 'Max message length (chars)', 'type': 'int', 'default': 500, 'min': 10, 'max': 5000},
-            {'key': 'rate_limit_seconds', 'label': 'Min seconds between messages', 'type': 'float', 'default': 1.0, 'min': 0.1, 'max': 30.0},
-            {'key': 'history_fetch_limit', 'label': 'Chat history messages to load', 'type': 'int', 'default': 50, 'min': 10, 'max': 500},
-            {'key': 'username_cache_ttl_seconds', 'label': 'Username cache TTL (seconds)', 'type': 'int', 'default': 300, 'min': 30, 'max': 3600},
+        "config_schema": [
+            {
+                "key": "max_message_length",
+                "label": "Max message length (chars)",
+                "type": "int",
+                "default": 500,
+                "min": 10,
+                "max": 5000,
+            },
+            {
+                "key": "rate_limit_seconds",
+                "label": "Min seconds between messages",
+                "type": "float",
+                "default": 1.0,
+                "min": 0.1,
+                "max": 30.0,
+            },
+            {
+                "key": "history_fetch_limit",
+                "label": "Chat history messages to load",
+                "type": "int",
+                "default": 50,
+                "min": 10,
+                "max": 500,
+            },
+            {
+                "key": "username_cache_ttl_seconds",
+                "label": "Username cache TTL (seconds)",
+                "type": "int",
+                "default": 300,
+                "min": 30,
+                "max": 3600,
+            },
         ],
     },
-    'voice-chat': {
-        'config': {
-            'token_ttl_seconds': 86400,
+    "voice-chat": {
+        "config": {
+            "token_ttl_seconds": 86400,
         },
-        'config_schema': [
-            {'key': 'token_ttl_seconds', 'label': 'Voice token TTL (seconds)', 'type': 'int', 'default': 86400, 'min': 3600, 'max': 604800},
+        "config_schema": [
+            {
+                "key": "token_ttl_seconds",
+                "label": "Voice token TTL (seconds)",
+                "type": "int",
+                "default": 86400,
+                "min": 3600,
+                "max": 604800,
+            },
         ],
     },
-    'anticheat': {
-        'config': {
-            'auto_ban_enabled': False,
-            'max_violations_before_flag': 5,
-            'action_flood_threshold': 20,
-            'flood_detection_window_ticks': 5,
-            'min_action_interval_ms': 50,
-            'timing_violation_window': 15,
-            'repetition_sequence_length': 8,
-            'repetition_min_repeats': 3,
-            'warning_threshold': 30,
-            'flag_threshold': 100,
-            'cancel_ban_threshold': 150,
-            'max_action_log_size': 10000,
+    "anticheat": {
+        "config": {
+            "auto_ban_enabled": False,
+            "max_violations_before_flag": 5,
+            "action_flood_threshold": 20,
+            "flood_detection_window_ticks": 5,
+            "min_action_interval_ms": 50,
+            "timing_violation_window": 15,
+            "repetition_sequence_length": 8,
+            "repetition_min_repeats": 3,
+            "warning_threshold": 30,
+            "flag_threshold": 100,
+            "cancel_ban_threshold": 150,
+            "max_action_log_size": 10000,
         },
-        'config_schema': [
-            {'key': 'auto_ban_enabled', 'label': 'Auto-ban on excessive violations', 'type': 'bool', 'default': False},
-            {'key': 'max_violations_before_flag', 'label': 'Violations before flagging', 'type': 'int', 'default': 5, 'min': 1, 'max': 50},
-            {'key': 'action_flood_threshold', 'label': 'Actions in window to trigger flood', 'type': 'int', 'default': 20, 'min': 5, 'max': 100},
-            {'key': 'flood_detection_window_ticks', 'label': 'Flood detection window (ticks)', 'type': 'int', 'default': 5, 'min': 1, 'max': 20},
-            {'key': 'min_action_interval_ms', 'label': 'Min action interval (ms)', 'type': 'int', 'default': 50, 'min': 10, 'max': 500},
-            {'key': 'timing_violation_window', 'label': 'Consecutive fast actions to flag', 'type': 'int', 'default': 15, 'min': 3, 'max': 50},
-            {'key': 'repetition_sequence_length', 'label': 'Repetition sequence length', 'type': 'int', 'default': 8, 'min': 3, 'max': 20},
-            {'key': 'repetition_min_repeats', 'label': 'Min pattern repeats', 'type': 'int', 'default': 3, 'min': 2, 'max': 10},
-            {'key': 'warning_threshold', 'label': 'Warning violation score', 'type': 'int', 'default': 30, 'min': 5, 'max': 200},
-            {'key': 'flag_threshold', 'label': 'Flag player violation score', 'type': 'int', 'default': 100, 'min': 10, 'max': 500},
-            {'key': 'cancel_ban_threshold', 'label': 'Cancel/ban violation score', 'type': 'int', 'default': 150, 'min': 20, 'max': 1000},
-            {'key': 'max_action_log_size', 'label': 'Max action log entries per player', 'type': 'int', 'default': 10000, 'min': 100, 'max': 100000},
+        "config_schema": [
+            {"key": "auto_ban_enabled", "label": "Auto-ban on excessive violations", "type": "bool", "default": False},
+            {
+                "key": "max_violations_before_flag",
+                "label": "Violations before flagging",
+                "type": "int",
+                "default": 5,
+                "min": 1,
+                "max": 50,
+            },
+            {
+                "key": "action_flood_threshold",
+                "label": "Actions in window to trigger flood",
+                "type": "int",
+                "default": 20,
+                "min": 5,
+                "max": 100,
+            },
+            {
+                "key": "flood_detection_window_ticks",
+                "label": "Flood detection window (ticks)",
+                "type": "int",
+                "default": 5,
+                "min": 1,
+                "max": 20,
+            },
+            {
+                "key": "min_action_interval_ms",
+                "label": "Min action interval (ms)",
+                "type": "int",
+                "default": 50,
+                "min": 10,
+                "max": 500,
+            },
+            {
+                "key": "timing_violation_window",
+                "label": "Consecutive fast actions to flag",
+                "type": "int",
+                "default": 15,
+                "min": 3,
+                "max": 50,
+            },
+            {
+                "key": "repetition_sequence_length",
+                "label": "Repetition sequence length",
+                "type": "int",
+                "default": 8,
+                "min": 3,
+                "max": 20,
+            },
+            {
+                "key": "repetition_min_repeats",
+                "label": "Min pattern repeats",
+                "type": "int",
+                "default": 3,
+                "min": 2,
+                "max": 10,
+            },
+            {
+                "key": "warning_threshold",
+                "label": "Warning violation score",
+                "type": "int",
+                "default": 30,
+                "min": 5,
+                "max": 200,
+            },
+            {
+                "key": "flag_threshold",
+                "label": "Flag player violation score",
+                "type": "int",
+                "default": 100,
+                "min": 10,
+                "max": 500,
+            },
+            {
+                "key": "cancel_ban_threshold",
+                "label": "Cancel/ban violation score",
+                "type": "int",
+                "default": 150,
+                "min": 20,
+                "max": 1000,
+            },
+            {
+                "key": "max_action_log_size",
+                "label": "Max action log entries per player",
+                "type": "int",
+                "default": 10000,
+                "min": 100,
+                "max": 100000,
+            },
         ],
     },
-    'replay': {
-        'config': {
-            'public_replays_default': True,
-            'max_replay_age_days': 90,
+    "replay": {
+        "config": {
+            "public_replays_default": True,
+            "max_replay_age_days": 90,
         },
-        'config_schema': [
-            {'key': 'public_replays_default', 'label': 'Replays public by default', 'type': 'bool', 'default': True},
-            {'key': 'max_replay_age_days', 'label': 'Max replay age (days, 0=unlimited)', 'type': 'int', 'default': 90, 'min': 0, 'max': 365},
+        "config_schema": [
+            {"key": "public_replays_default", "label": "Replays public by default", "type": "bool", "default": True},
+            {
+                "key": "max_replay_age_days",
+                "label": "Max replay age (days, 0=unlimited)",
+                "type": "int",
+                "default": 90,
+                "min": 0,
+                "max": 365,
+            },
         ],
     },
-    'leaderboard': {
-        'config': {
-            'min_matches_to_rank': 5,
-            'default_page_size': 50,
-            'elo_performance_weight_regions': 0.35,
-            'elo_performance_weight_units': 0.25,
-            'elo_performance_weight_buildings': 0.15,
-            'elo_performance_weight_survival': 0.25,
-            'elo_performance_component_weight': 0.35,
-            'elo_discipline_penalty_left': -0.20,
-            'elo_discipline_penalty_disconnect': -0.12,
-            'min_human_players_for_ranked': 2,
+    "leaderboard": {
+        "config": {
+            "min_matches_to_rank": 5,
+            "default_page_size": 50,
+            "elo_performance_weight_regions": 0.35,
+            "elo_performance_weight_units": 0.25,
+            "elo_performance_weight_buildings": 0.15,
+            "elo_performance_weight_survival": 0.25,
+            "elo_performance_component_weight": 0.35,
+            "elo_discipline_penalty_left": -0.20,
+            "elo_discipline_penalty_disconnect": -0.12,
+            "min_human_players_for_ranked": 2,
         },
-        'config_schema': [
-            {'key': 'min_matches_to_rank', 'label': 'Min matches to appear on leaderboard', 'type': 'int', 'default': 5, 'min': 0, 'max': 100},
-            {'key': 'default_page_size', 'label': 'Default leaderboard page size', 'type': 'int', 'default': 50, 'min': 10, 'max': 200},
-            {'key': 'elo_performance_weight_regions', 'label': 'ELO weight: regions controlled', 'type': 'float', 'default': 0.35, 'min': 0.0, 'max': 1.0},
-            {'key': 'elo_performance_weight_units', 'label': 'ELO weight: units remaining', 'type': 'float', 'default': 0.25, 'min': 0.0, 'max': 1.0},
-            {'key': 'elo_performance_weight_buildings', 'label': 'ELO weight: buildings built', 'type': 'float', 'default': 0.15, 'min': 0.0, 'max': 1.0},
-            {'key': 'elo_performance_weight_survival', 'label': 'ELO weight: survival time', 'type': 'float', 'default': 0.25, 'min': 0.0, 'max': 1.0},
-            {'key': 'elo_performance_component_weight', 'label': 'Performance vs win weight', 'type': 'float', 'default': 0.35, 'min': 0.0, 'max': 1.0},
-            {'key': 'elo_discipline_penalty_left', 'label': 'ELO penalty: left match', 'type': 'float', 'default': -0.20, 'min': -1.0, 'max': 0.0},
-            {'key': 'elo_discipline_penalty_disconnect', 'label': 'ELO penalty: disconnect timeout', 'type': 'float', 'default': -0.12, 'min': -1.0, 'max': 0.0},
-            {'key': 'min_human_players_for_ranked', 'label': 'Min humans for ranked match', 'type': 'int', 'default': 2, 'min': 1, 'max': 10},
+        "config_schema": [
+            {
+                "key": "min_matches_to_rank",
+                "label": "Min matches to appear on leaderboard",
+                "type": "int",
+                "default": 5,
+                "min": 0,
+                "max": 100,
+            },
+            {
+                "key": "default_page_size",
+                "label": "Default leaderboard page size",
+                "type": "int",
+                "default": 50,
+                "min": 10,
+                "max": 200,
+            },
+            {
+                "key": "elo_performance_weight_regions",
+                "label": "ELO weight: regions controlled",
+                "type": "float",
+                "default": 0.35,
+                "min": 0.0,
+                "max": 1.0,
+            },
+            {
+                "key": "elo_performance_weight_units",
+                "label": "ELO weight: units remaining",
+                "type": "float",
+                "default": 0.25,
+                "min": 0.0,
+                "max": 1.0,
+            },
+            {
+                "key": "elo_performance_weight_buildings",
+                "label": "ELO weight: buildings built",
+                "type": "float",
+                "default": 0.15,
+                "min": 0.0,
+                "max": 1.0,
+            },
+            {
+                "key": "elo_performance_weight_survival",
+                "label": "ELO weight: survival time",
+                "type": "float",
+                "default": 0.25,
+                "min": 0.0,
+                "max": 1.0,
+            },
+            {
+                "key": "elo_performance_component_weight",
+                "label": "Performance vs win weight",
+                "type": "float",
+                "default": 0.35,
+                "min": 0.0,
+                "max": 1.0,
+            },
+            {
+                "key": "elo_discipline_penalty_left",
+                "label": "ELO penalty: left match",
+                "type": "float",
+                "default": -0.20,
+                "min": -1.0,
+                "max": 0.0,
+            },
+            {
+                "key": "elo_discipline_penalty_disconnect",
+                "label": "ELO penalty: disconnect timeout",
+                "type": "float",
+                "default": -0.12,
+                "min": -1.0,
+                "max": 0.0,
+            },
+            {
+                "key": "min_human_players_for_ranked",
+                "label": "Min humans for ranked match",
+                "type": "int",
+                "default": 2,
+                "min": 1,
+                "max": 10,
+            },
         ],
     },
-    'inventory': {
-        'config': {
-            'max_stack_size': 999,
-            'wear_factory_new': 0.07,
-            'wear_minimal_wear': 0.15,
-            'wear_field_tested': 0.38,
-            'wear_well_worn': 0.45,
-            'rare_pattern_threshold': 10,
+    "inventory": {
+        "config": {
+            "max_stack_size": 999,
+            "wear_factory_new": 0.07,
+            "wear_minimal_wear": 0.15,
+            "wear_field_tested": 0.38,
+            "wear_well_worn": 0.45,
+            "rare_pattern_threshold": 10,
         },
-        'config_schema': [
-            {'key': 'max_stack_size', 'label': 'Max item stack size', 'type': 'int', 'default': 999, 'min': 1, 'max': 99999},
-            {'key': 'wear_factory_new', 'label': 'Wear threshold: Factory New', 'type': 'float', 'default': 0.07, 'min': 0.0, 'max': 1.0},
-            {'key': 'wear_minimal_wear', 'label': 'Wear threshold: Minimal Wear', 'type': 'float', 'default': 0.15, 'min': 0.0, 'max': 1.0},
-            {'key': 'wear_field_tested', 'label': 'Wear threshold: Field-Tested', 'type': 'float', 'default': 0.38, 'min': 0.0, 'max': 1.0},
-            {'key': 'wear_well_worn', 'label': 'Wear threshold: Well-Worn', 'type': 'float', 'default': 0.45, 'min': 0.0, 'max': 1.0},
-            {'key': 'rare_pattern_threshold', 'label': 'Pattern seeds below this are rare', 'type': 'int', 'default': 10, 'min': 1, 'max': 100},
+        "config_schema": [
+            {
+                "key": "max_stack_size",
+                "label": "Max item stack size",
+                "type": "int",
+                "default": 999,
+                "min": 1,
+                "max": 99999,
+            },
+            {
+                "key": "wear_factory_new",
+                "label": "Wear threshold: Factory New",
+                "type": "float",
+                "default": 0.07,
+                "min": 0.0,
+                "max": 1.0,
+            },
+            {
+                "key": "wear_minimal_wear",
+                "label": "Wear threshold: Minimal Wear",
+                "type": "float",
+                "default": 0.15,
+                "min": 0.0,
+                "max": 1.0,
+            },
+            {
+                "key": "wear_field_tested",
+                "label": "Wear threshold: Field-Tested",
+                "type": "float",
+                "default": 0.38,
+                "min": 0.0,
+                "max": 1.0,
+            },
+            {
+                "key": "wear_well_worn",
+                "label": "Wear threshold: Well-Worn",
+                "type": "float",
+                "default": 0.45,
+                "min": 0.0,
+                "max": 1.0,
+            },
+            {
+                "key": "rare_pattern_threshold",
+                "label": "Pattern seeds below this are rare",
+                "type": "int",
+                "default": 10,
+                "min": 1,
+                "max": 100,
+            },
         ],
     },
-    'cosmetics': {
-        'config': {
-            'max_deck_name_length': 50,
-            'max_decks_per_user': 10,
+    "cosmetics": {
+        "config": {
+            "max_deck_name_length": 50,
+            "max_decks_per_user": 10,
         },
-        'config_schema': [
-            {'key': 'max_deck_name_length', 'label': 'Max deck name length', 'type': 'int', 'default': 50, 'min': 5, 'max': 200},
-            {'key': 'max_decks_per_user', 'label': 'Max decks per user', 'type': 'int', 'default': 10, 'min': 1, 'max': 100},
+        "config_schema": [
+            {
+                "key": "max_deck_name_length",
+                "label": "Max deck name length",
+                "type": "int",
+                "default": 50,
+                "min": 5,
+                "max": 200,
+            },
+            {
+                "key": "max_decks_per_user",
+                "label": "Max decks per user",
+                "type": "int",
+                "default": 10,
+                "min": 1,
+                "max": 100,
+            },
         ],
     },
-    'shop': {
-        'config': {
-            'daily_refresh_enabled': False,
-            'featured_items_count': 6,
+    "shop": {
+        "config": {
+            "daily_refresh_enabled": False,
+            "featured_items_count": 6,
         },
-        'config_schema': [
-            {'key': 'daily_refresh_enabled', 'label': 'Enable daily shop refresh', 'type': 'bool', 'default': False},
-            {'key': 'featured_items_count', 'label': 'Number of featured items', 'type': 'int', 'default': 6, 'min': 0, 'max': 50},
+        "config_schema": [
+            {"key": "daily_refresh_enabled", "label": "Enable daily shop refresh", "type": "bool", "default": False},
+            {
+                "key": "featured_items_count",
+                "label": "Number of featured items",
+                "type": "int",
+                "default": 6,
+                "min": 0,
+                "max": 50,
+            },
         ],
     },
-    'marketplace': {
-        'config': {
-            'transaction_fee_percent': 5.0,
-            'listing_duration_hours': 72,
-            'max_active_listings_per_user': 20,
-            'bot_restock_interval_minutes': 60,
-            'bot_price_variance_percent': 15.0,
+    "marketplace": {
+        "config": {
+            "transaction_fee_percent": 5.0,
+            "listing_duration_hours": 72,
+            "max_active_listings_per_user": 20,
+            "bot_restock_interval_minutes": 60,
+            "bot_price_variance_percent": 15.0,
         },
-        'config_schema': [
-            {'key': 'transaction_fee_percent', 'label': 'Transaction fee (%)', 'type': 'float', 'default': 5.0, 'min': 0.0, 'max': 50.0},
-            {'key': 'listing_duration_hours', 'label': 'Listing duration (hours)', 'type': 'int', 'default': 72, 'min': 1, 'max': 720},
-            {'key': 'max_active_listings_per_user', 'label': 'Max active listings per user', 'type': 'int', 'default': 20, 'min': 1, 'max': 500},
-            {'key': 'bot_restock_interval_minutes', 'label': 'Bot restock interval (minutes)', 'type': 'int', 'default': 60, 'min': 5, 'max': 1440},
-            {'key': 'bot_price_variance_percent', 'label': 'Bot price variance (%)', 'type': 'float', 'default': 15.0, 'min': 0.0, 'max': 50.0},
+        "config_schema": [
+            {
+                "key": "transaction_fee_percent",
+                "label": "Transaction fee (%)",
+                "type": "float",
+                "default": 5.0,
+                "min": 0.0,
+                "max": 50.0,
+            },
+            {
+                "key": "listing_duration_hours",
+                "label": "Listing duration (hours)",
+                "type": "int",
+                "default": 72,
+                "min": 1,
+                "max": 720,
+            },
+            {
+                "key": "max_active_listings_per_user",
+                "label": "Max active listings per user",
+                "type": "int",
+                "default": 20,
+                "min": 1,
+                "max": 500,
+            },
+            {
+                "key": "bot_restock_interval_minutes",
+                "label": "Bot restock interval (minutes)",
+                "type": "int",
+                "default": 60,
+                "min": 5,
+                "max": 1440,
+            },
+            {
+                "key": "bot_price_variance_percent",
+                "label": "Bot price variance (%)",
+                "type": "float",
+                "default": 15.0,
+                "min": 0.0,
+                "max": 50.0,
+            },
         ],
     },
-    'crafting': {
-        'config': {
-            'default_gold_cost': 0,
-            'default_crafting_time_seconds': 0,
-            'allow_dismantle': True,
+    "crafting": {
+        "config": {
+            "default_gold_cost": 0,
+            "default_crafting_time_seconds": 0,
+            "allow_dismantle": True,
         },
-        'config_schema': [
-            {'key': 'default_gold_cost', 'label': 'Default gold cost for recipes', 'type': 'int', 'default': 0, 'min': 0, 'max': 100000},
-            {'key': 'default_crafting_time_seconds', 'label': 'Default crafting time (seconds)', 'type': 'int', 'default': 0, 'min': 0, 'max': 86400},
-            {'key': 'allow_dismantle', 'label': 'Allow dismantling items', 'type': 'bool', 'default': True},
+        "config_schema": [
+            {
+                "key": "default_gold_cost",
+                "label": "Default gold cost for recipes",
+                "type": "int",
+                "default": 0,
+                "min": 0,
+                "max": 100000,
+            },
+            {
+                "key": "default_crafting_time_seconds",
+                "label": "Default crafting time (seconds)",
+                "type": "int",
+                "default": 0,
+                "min": 0,
+                "max": 86400,
+            },
+            {"key": "allow_dismantle", "label": "Allow dismantling items", "type": "bool", "default": True},
         ],
     },
-    'developers': {
-        'config': {
-            'default_rate_limit': 1000,
-            'rate_limit_window_seconds': 60,
-            'max_webhook_failures': 10,
-            'api_usage_tracking_window_seconds': 86400,
-            'last_used_debounce_seconds': 60,
+    "developers": {
+        "config": {
+            "default_rate_limit": 1000,
+            "rate_limit_window_seconds": 60,
+            "max_webhook_failures": 10,
+            "api_usage_tracking_window_seconds": 86400,
+            "last_used_debounce_seconds": 60,
         },
-        'config_schema': [
-            {'key': 'default_rate_limit', 'label': 'Default API rate limit (requests/window)', 'type': 'int', 'default': 1000, 'min': 10, 'max': 100000},
-            {'key': 'rate_limit_window_seconds', 'label': 'Rate limit window (seconds)', 'type': 'int', 'default': 60, 'min': 10, 'max': 3600},
-            {'key': 'max_webhook_failures', 'label': 'Max webhook failures before disable', 'type': 'int', 'default': 10, 'min': 1, 'max': 100},
-            {'key': 'api_usage_tracking_window_seconds', 'label': 'Usage tracking window (seconds)', 'type': 'int', 'default': 86400, 'min': 3600, 'max': 604800},
-            {'key': 'last_used_debounce_seconds', 'label': 'Last-used update debounce (seconds)', 'type': 'int', 'default': 60, 'min': 5, 'max': 600},
+        "config_schema": [
+            {
+                "key": "default_rate_limit",
+                "label": "Default API rate limit (requests/window)",
+                "type": "int",
+                "default": 1000,
+                "min": 10,
+                "max": 100000,
+            },
+            {
+                "key": "rate_limit_window_seconds",
+                "label": "Rate limit window (seconds)",
+                "type": "int",
+                "default": 60,
+                "min": 10,
+                "max": 3600,
+            },
+            {
+                "key": "max_webhook_failures",
+                "label": "Max webhook failures before disable",
+                "type": "int",
+                "default": 10,
+                "min": 1,
+                "max": 100,
+            },
+            {
+                "key": "api_usage_tracking_window_seconds",
+                "label": "Usage tracking window (seconds)",
+                "type": "int",
+                "default": 86400,
+                "min": 3600,
+                "max": 604800,
+            },
+            {
+                "key": "last_used_debounce_seconds",
+                "label": "Last-used update debounce (seconds)",
+                "type": "int",
+                "default": 60,
+                "min": 5,
+                "max": 600,
+            },
         ],
     },
 }
 
 
 def enrich_configs(apps, schema_editor):
-    SystemModule = apps.get_model('game_config', 'SystemModule')
+    SystemModule = apps.get_model("game_config", "SystemModule")
     for slug, data in CONFIGS.items():
         try:
             module = SystemModule.objects.get(slug=slug)
-            module.config = data['config']
-            module.config_schema = data['config_schema']
-            module.save(update_fields=['config', 'config_schema'])
+            module.config = data["config"]
+            module.config_schema = data["config_schema"]
+            module.save(update_fields=["config", "config_schema"])
         except SystemModule.DoesNotExist:
             pass
 
@@ -266,9 +730,8 @@ def noop(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0023_seed_system_modules'),
+        ("game_config", "0023_seed_system_modules"),
     ]
 
     operations = [

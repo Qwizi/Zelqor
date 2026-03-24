@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { getAccessToken } from "@/lib/auth";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getVapidKey, subscribePush, unsubscribePush } from "@/lib/api";
+import { getAccessToken } from "@/lib/auth";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -54,8 +54,8 @@ export function usePushNotifications(autoPrompt = false) {
       const json = sub.toJSON();
       await subscribePush(token, {
         endpoint: json.endpoint!,
-        p256dh: json.keys!.p256dh!,
-        auth: json.keys!.auth!,
+        p256dh: json.keys?.p256dh!,
+        auth: json.keys?.auth!,
       });
 
       setSubscribed(true);

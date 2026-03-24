@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Loader2, Palette, Settings2, Coins } from "lucide-react";
+import { ArrowLeft, Coins, Loader2, Palette, Settings2 } from "lucide-react";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/hooks/useAuth";
 import { useClan, useUpdateClan } from "@/hooks/queries";
+import { useAuth } from "@/hooks/useAuth";
 import { APIError } from "@/lib/api";
 
 const settingsSchema = z.object({
@@ -114,8 +114,12 @@ export default function ClanSettingsPage() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="flex-1 min-w-0">
-          <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">USTAWIENIA KLANU</p>
-          <h1 className="font-display text-2xl md:text-5xl text-foreground truncate">[{clan.tag}] {clan.name}</h1>
+          <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">
+            USTAWIENIA KLANU
+          </p>
+          <h1 className="font-display text-2xl md:text-5xl text-foreground truncate">
+            [{clan.tag}] {clan.name}
+          </h1>
         </div>
       </div>
 
@@ -133,7 +137,9 @@ export default function ClanSettingsPage() {
               <p className="text-lg font-display text-foreground">
                 <span style={{ color: watchColor || clan.color }}>[{clan.tag}]</span> {watch("name") || clan.name}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5">Level {clan.level} &middot; ELO {clan.elo_rating}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Level {clan.level} &middot; ELO {clan.elo_rating}
+              </p>
             </div>
           </div>
         </section>
@@ -144,9 +150,7 @@ export default function ClanSettingsPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary">
               <Settings2 className="h-4 w-4 text-primary" />
             </div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">
-              Informacje
-            </p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Informacje</p>
           </div>
 
           <div className="space-y-5">
@@ -169,12 +173,26 @@ export default function ClanSettingsPage() {
 
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <input type="checkbox" id="is_recruiting" {...register("is_recruiting")} className="h-4 w-4 rounded border-input" />
-                <Label htmlFor="is_recruiting" className="cursor-pointer text-sm">Rekrutacja otwarta</Label>
+                <input
+                  type="checkbox"
+                  id="is_recruiting"
+                  {...register("is_recruiting")}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="is_recruiting" className="cursor-pointer text-sm">
+                  Rekrutacja otwarta
+                </Label>
               </div>
               <div className="flex items-center gap-3">
-                <input type="checkbox" id="is_public" {...register("is_public")} className="h-4 w-4 rounded border-input" />
-                <Label htmlFor="is_public" className="cursor-pointer text-sm">Klan publiczny (każdy może dołączyć bez akceptacji)</Label>
+                <input
+                  type="checkbox"
+                  id="is_public"
+                  {...register("is_public")}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="is_public" className="cursor-pointer text-sm">
+                  Klan publiczny (każdy może dołączyć bez akceptacji)
+                </Label>
               </div>
             </div>
           </div>
@@ -186,9 +204,7 @@ export default function ClanSettingsPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary">
               <Palette className="h-4 w-4 text-primary" />
             </div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">
-              Kolor
-            </p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Kolor</p>
           </div>
 
           <div className="space-y-2">
@@ -229,14 +245,20 @@ export default function ClanSettingsPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary">
               <Coins className="h-4 w-4 text-accent" />
             </div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">
-              Skarbiec
-            </p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Skarbiec</p>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="tax_percent">Podatek od transakcji (%)</Label>
-            <Input id="tax_percent" type="number" step="0.1" min="0" max="50" {...register("tax_percent", { valueAsNumber: true })} className="h-10 md:h-12 md:text-base w-32" />
+            <Input
+              id="tax_percent"
+              type="number"
+              step="0.1"
+              min="0"
+              max="50"
+              {...register("tax_percent", { valueAsNumber: true })}
+              className="h-10 md:h-12 md:text-base w-32"
+            />
             {errors.tax_percent && <p className="text-xs text-destructive">{errors.tax_percent.message}</p>}
             <p className="text-xs text-muted-foreground">Procent od transakcji członków trafia do skarbca (0-50%)</p>
           </div>

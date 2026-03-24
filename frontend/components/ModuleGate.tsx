@@ -46,9 +46,7 @@ export function ModuleDisabledPage({ slug }: { slug: string }) {
       <div className="flex h-14 w-14 md:h-16 md:w-16 items-center justify-center rounded-2xl bg-muted border border-border">
         <span className="text-2xl">{mod?.icon || "🚫"}</span>
       </div>
-      <h2 className="font-display text-xl md:text-2xl text-foreground">
-        {mod?.name || slug} jest wyłączony
-      </h2>
+      <h2 className="font-display text-xl md:text-2xl text-foreground">{mod?.name || slug} jest wyłączony</h2>
       <p className="text-sm md:text-base text-muted-foreground max-w-xs">
         {mod?.description || "Ten moduł jest tymczasowo niedostępny."}
       </p>

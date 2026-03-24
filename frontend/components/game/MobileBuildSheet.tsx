@@ -1,11 +1,11 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
-import Image from "next/image";
-import type { GameRegion, BuildingQueueItem } from "@/hooks/useGameSocket";
-import type { BuildingType, UnitType } from "@/lib/api";
-import { getPlayerBuildingAsset, getActionAsset, getPlayerUnitAsset } from "@/lib/gameAssets";
 import { Lock } from "lucide-react";
+import Image from "next/image";
+import { memo, useMemo, useState } from "react";
+import type { BuildingQueueItem, GameRegion } from "@/hooks/useGameSocket";
+import type { BuildingType, UnitType } from "@/lib/api";
+import { getActionAsset, getPlayerBuildingAsset, getPlayerUnitAsset } from "@/lib/gameAssets";
 
 type SheetMode = null | "build" | "produce";
 
@@ -42,10 +42,7 @@ export default memo(function MobileBuildSheet({
   myCosmetics,
 }: MobileBuildSheetProps) {
   const [mode, setMode] = useState<SheetMode>(null);
-  const unitConfigMap = useMemo(
-    () => new Map(units.map((u) => [u.slug, u])),
-    [units]
-  );
+  const unitConfigMap = useMemo(() => new Map(units.map((u) => [u.slug, u])), [units]);
   const hasBuildingLocks = unlockedBuildings != null && unlockedBuildings.length > 0;
   const hasUnitLocks = unlockedUnits != null && unlockedUnits.length > 0;
 
@@ -78,17 +75,13 @@ export default memo(function MobileBuildSheet({
           acc[item.building_type] = (acc[item.building_type] ?? 0) + 1;
           return acc;
         }, {}),
-    [buildingQueue, regionId]
+    [buildingQueue, regionId],
   );
 
   const buildOptions = useMemo(() => {
     return [...buildings]
       .filter((b) => !b.requires_coastal || region.is_coastal)
-      .filter(
-        (b) =>
-          (buildingCounts[b.slug] ?? 0) + (queuedBuildingCounts[b.slug] ?? 0) <
-          b.max_per_region
-      )
+      .filter((b) => (buildingCounts[b.slug] ?? 0) + (queuedBuildingCounts[b.slug] ?? 0) < b.max_per_region)
       .sort((a, b) => a.order - b.order || a.energy_cost - b.energy_cost || a.name.localeCompare(b.name));
   }, [buildings, region.is_coastal, buildingCounts, queuedBuildingCounts]);
 
@@ -129,7 +122,11 @@ export default memo(function MobileBuildSheet({
             className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/20 bg-card shadow-lg transition-colors active:bg-primary/20"
           >
             <Image
-              src={getPlayerUnitAsset(region.unit_type ?? "default", myCosmetics, unitConfigMap.get(region.unit_type ?? "")?.asset_url)}
+              src={getPlayerUnitAsset(
+                region.unit_type ?? "default",
+                myCosmetics,
+                unitConfigMap.get(region.unit_type ?? "")?.asset_url,
+              )}
               alt="Produkuj"
               width={18}
               height={18}
@@ -150,11 +147,15 @@ export default memo(function MobileBuildSheet({
     <div className="fixed inset-x-0 bottom-0 z-40 sm:hidden">
       <div className="fixed inset-0 bg-background/60" onClick={() => setMode(null)} />
 
-      <div className={`relative max-h-[45vh] overflow-y-auto rounded-t-[18px] border-t ${accentBorder} bg-card pb-4 shadow-lg`}>
+      <div
+        className={`relative max-h-[45vh] overflow-y-auto rounded-t-[18px] border-t ${accentBorder} bg-card pb-4 shadow-lg`}
+      >
         <div className="sticky top-0 z-10 flex items-center justify-between bg-card px-4 pb-1.5 pt-2.5">
           <h4 className={`flex items-center gap-2 text-sm font-medium ${isBuildMode ? "text-accent" : "text-primary"}`}>
             <Image
-              src={isBuildMode ? getActionAsset("build") : getPlayerUnitAsset(region.unit_type ?? "default", myCosmetics)}
+              src={
+                isBuildMode ? getActionAsset("build") : getPlayerUnitAsset(region.unit_type ?? "default", myCosmetics)
+              }
               alt=""
               width={16}
               height={16}
@@ -167,41 +168,29 @@ export default memo(function MobileBuildSheet({
             aria-label="Zamknij"
             className="rounded-full p-1.5 text-muted-foreground active:bg-secondary"
           >
-            <Image
-              src={getActionAsset("close")}
-              alt=""
-              width={14}
-              height={14}
-              className="h-3.5 w-3.5 object-contain"
-            />
+            <Image src={getActionAsset("close")} alt="" width={14} height={14} className="h-3.5 w-3.5 object-contain" />
           </button>
         </div>
 
         <div className="px-4 space-y-1.5">
           {isBuildMode &&
             buildOptions.map((building) => {
-              const isBuildingLocked = hasBuildingLocks && !unlockedBuildings!.includes(building.slug);
+              const isBuildingLocked = hasBuildingLocks && !unlockedBuildings?.includes(building.slug);
               // Derive the minimum level instance for this building type (weakest = first to upgrade)
               const typeInstances = instancesByType[building.slug] ?? [];
-              const currentRegionLevel = typeInstances.length > 0
-                ? typeInstances[0].level
-                : region.building_levels?.[building.slug];
+              const currentRegionLevel =
+                typeInstances.length > 0 ? typeInstances[0].level : region.building_levels?.[building.slug];
               const playerMaxLevel = buildingLevels?.[building.slug];
               const canUpgrade =
-                currentRegionLevel != null &&
-                playerMaxLevel != null &&
-                currentRegionLevel < playerMaxLevel;
+                currentRegionLevel != null && playerMaxLevel != null && currentRegionLevel < playerMaxLevel;
               const isAtMaxLevel =
-                currentRegionLevel != null &&
-                playerMaxLevel != null &&
-                currentRegionLevel >= playerMaxLevel;
+                currentRegionLevel != null && playerMaxLevel != null && currentRegionLevel >= playerMaxLevel;
               const hasBuilt = (buildingCounts[building.slug] ?? 0) > 0;
               const upgradeLabel = canUpgrade
                 ? `Ulepsz do Lvl ${currentRegionLevel! + 1}${typeInstances.length > 1 ? ` (najslabsza: Lvl ${currentRegionLevel})` : ""}`
                 : "Buduj Lvl 1";
-              const displayName = hasBuilt && currentRegionLevel != null
-                ? `${building.name} Lvl ${currentRegionLevel}`
-                : building.name;
+              const displayName =
+                hasBuilt && currentRegionLevel != null ? `${building.name} Lvl ${currentRegionLevel}` : building.name;
               const isUpgrade = (currentRegionLevel ?? 0) > 0;
               const nextLevel = isUpgrade ? (currentRegionLevel ?? 0) + 1 : 1;
               const nextCost = building.level_stats?.[String(nextLevel)]?.energy_cost ?? building.energy_cost;
@@ -219,7 +208,9 @@ export default memo(function MobileBuildSheet({
                   <span className="flex min-w-0 items-center gap-2.5">
                     {getPlayerBuildingAsset(building.asset_key || building.slug, myCosmetics, building.asset_url) && (
                       <Image
-                        src={getPlayerBuildingAsset(building.asset_key || building.slug, myCosmetics, building.asset_url)!}
+                        src={
+                          getPlayerBuildingAsset(building.asset_key || building.slug, myCosmetics, building.asset_url)!
+                        }
                         alt={building.name}
                         width={24}
                         height={24}
@@ -260,7 +251,8 @@ export default memo(function MobileBuildSheet({
 
           {!isBuildMode &&
             producedUnits.map((unit) => {
-              const isUnitLocked = hasUnitLocks && Boolean(unit.produced_by_slug) && !unlockedUnits!.includes(unit.slug);
+              const isUnitLocked =
+                hasUnitLocks && Boolean(unit.produced_by_slug) && !unlockedUnits?.includes(unit.slug);
               return (
                 <button
                   key={unit.id}

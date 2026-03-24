@@ -1,8 +1,10 @@
 import hashlib
-from django.utils import timezone
-from ninja.security import APIKeyHeader
-from ninja.errors import HttpError
+
 from django.core.cache import cache
+from django.utils import timezone
+from ninja.errors import HttpError
+from ninja.security import APIKeyHeader
+
 from apps.game_config.modules import get_module_config
 
 
@@ -14,7 +16,7 @@ class APIKeyAuth(APIKeyHeader):
 
         key_hash = hashlib.sha256(key.encode()).hexdigest()
         try:
-            api_key = APIKey.objects.select_related('app').get(
+            api_key = APIKey.objects.select_related("app").get(
                 key_hash=key_hash,
                 is_active=True,
                 app__is_active=True,
@@ -23,7 +25,7 @@ class APIKeyAuth(APIKeyHeader):
             return None
 
         # Rate limiting using Redis cache (rolling window configurable via module config)
-        rate_limit_window = get_module_config('developers', 'rate_limit_window_seconds', 60)
+        rate_limit_window = get_module_config("developers", "rate_limit_window_seconds", 60)
         cache_key = f"ratelimit:apikey:{api_key.id}"
         current = cache.get(cache_key, 0)
         if current >= api_key.rate_limit:
@@ -40,13 +42,13 @@ class APIKeyAuth(APIKeyHeader):
 
         # Store rate limit info on request so middleware can add response headers
         request.rate_limit_info = {
-            'limit': api_key.rate_limit,
-            'remaining': max(0, api_key.rate_limit - (current + 1)),
-            'reset': rate_limit_window,
+            "limit": api_key.rate_limit,
+            "remaining": max(0, api_key.rate_limit - (current + 1)),
+            "reset": rate_limit_window,
         }
 
         # Track total API usage for stats (rolling counter per key, window configurable)
-        usage_tracking_window = get_module_config('developers', 'api_usage_tracking_window_seconds', 86400)
+        usage_tracking_window = get_module_config("developers", "api_usage_tracking_window_seconds", 86400)
         usage_key = f"api_usage:{api_key.app_id}:{api_key.id}"
         try:
             cache.incr(usage_key)
@@ -54,7 +56,7 @@ class APIKeyAuth(APIKeyHeader):
             cache.set(usage_key, 1, timeout=usage_tracking_window)
 
         # Update last_used debounced — only write to DB once per configurable window per key
-        last_used_debounce = get_module_config('developers', 'last_used_debounce_seconds', 60)
+        last_used_debounce = get_module_config("developers", "last_used_debounce_seconds", 60)
         last_used_cache_key = f"apikey:last_used:{api_key.id}"
         if not cache.get(last_used_cache_key):
             APIKey.objects.filter(id=api_key.id).update(last_used=timezone.now())
@@ -67,4 +69,4 @@ class APIKeyAuth(APIKeyHeader):
 
 def check_scope(request, scope: str) -> bool:
     """Check if the authenticated API key carries the required scope."""
-    return hasattr(request, 'api_key') and scope in request.api_key.scopes
+    return hasattr(request, "api_key") and scope in request.api_key.scopes

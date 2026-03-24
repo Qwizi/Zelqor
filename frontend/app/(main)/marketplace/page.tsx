@@ -1,48 +1,30 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronRight, Coins, Search, ShoppingCart, Store } from "lucide-react";
 import Link from "next/link";
-import {
-  ChevronRight,
-  Coins,
-  Search,
-  ShoppingCart,
-  Store,
-} from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
+import { MarketplaceSkeleton } from "@/components/skeletons/MarketplaceSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import ItemIcon from "@/components/ui/ItemIcon";
 import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useAuth } from "@/hooks/useAuth";
-import { useModuleConfig } from "@/hooks/useSystemModules";
-import { ModuleDisabledPage } from "@/components/ModuleGate";
-import {
-  type ItemCategoryOut,
-  type ItemOut,
-  type MarketListingOut,
-  type MarketTransactionOut,
-} from "@/lib/api";
-import {
+  useCancelListing,
+  useItemCategories,
   useMarketListings,
   useMyListings,
   useMyTradeHistory,
   useMyWallet,
-  useItemCategories,
-  useCancelListing,
 } from "@/hooks/queries";
-import ItemIcon from "@/components/ui/ItemIcon";
-import { MarketplaceSkeleton } from "@/components/skeletons/MarketplaceSkeleton";
+import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
+import type { ItemCategoryOut, ItemOut, MarketListingOut, MarketTransactionOut } from "@/lib/api";
 
 // ─── Rarity styling maps ────────────────────────────────────────────────────
 
@@ -204,63 +186,79 @@ function BrowseList({
               const rarity = agg.item.rarity ?? "common";
               return (
                 <HoverCard key={agg.item.slug}>
-                <HoverCardTrigger render={<div />}>
-                <Link
-                  href={`/marketplace/${agg.item.slug}`}
-                  className="hover-lift group flex items-center gap-3 md:gap-4 rounded-xl md:border md:border-border px-1 md:px-4 py-2.5 md:py-3.5 transition-all hover:bg-muted active:bg-muted/50"
-                >
-                  {/* Item icon */}
-                  <div className={`flex h-10 w-10 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-lg border border-l-2 border-border/60 ${RARITY_LEFT_BORDER_SLOT[rarity]} ${RARITY_SLOT_BG[rarity]}`}>
-                    <ItemIcon slug={agg.item.slug} icon={agg.item.icon} size={28} />
-                  </div>
+                  <HoverCardTrigger render={<div />}>
+                    <Link
+                      href={`/marketplace/${agg.item.slug}`}
+                      className="hover-lift group flex items-center gap-3 md:gap-4 rounded-xl md:border md:border-border px-1 md:px-4 py-2.5 md:py-3.5 transition-all hover:bg-muted active:bg-muted/50"
+                    >
+                      {/* Item icon */}
+                      <div
+                        className={`flex h-10 w-10 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-lg border border-l-2 border-border/60 ${RARITY_LEFT_BORDER_SLOT[rarity]} ${RARITY_SLOT_BG[rarity]}`}
+                      >
+                        <ItemIcon slug={agg.item.slug} icon={agg.item.icon} size={28} />
+                      </div>
 
-                  {/* Name + badges */}
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm md:text-lg font-medium text-foreground">{agg.item.name}</p>
-                    <div className="mt-0.5 flex items-center gap-1">
-                      <span className={`rounded px-1 md:px-1.5 py-px text-[10px] md:text-sm font-medium ${RARITY_BADGE_CLASS[rarity]}`}>
-                        {RARITY_LABELS[rarity]}
-                      </span>
-                      <span className="hidden md:inline text-sm text-muted-foreground">{TYPE_LABELS[agg.item.item_type] ?? agg.item.item_type}</span>
-                    </div>
-                  </div>
+                      {/* Name + badges */}
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm md:text-lg font-medium text-foreground">{agg.item.name}</p>
+                        <div className="mt-0.5 flex items-center gap-1">
+                          <span
+                            className={`rounded px-1 md:px-1.5 py-px text-[10px] md:text-sm font-medium ${RARITY_BADGE_CLASS[rarity]}`}
+                          >
+                            {RARITY_LABELS[rarity]}
+                          </span>
+                          <span className="hidden md:inline text-sm text-muted-foreground">
+                            {TYPE_LABELS[agg.item.item_type] ?? agg.item.item_type}
+                          </span>
+                        </div>
+                      </div>
 
-                  {/* Price */}
-                  <div className="shrink-0 text-right">
-                    {agg.cheapestPrice > 0 ? (
-                      <>
-                        <p className="text-sm md:text-lg font-mono tabular-nums text-accent">{agg.cheapestPrice}g</p>
-                        <p className="text-[10px] md:text-sm text-muted-foreground">{agg.listingCount} ofert</p>
-                      </>
-                    ) : (
-                      <p className="text-xs md:text-base text-muted-foreground">Brak</p>
-                    )}
-                  </div>
+                      {/* Price */}
+                      <div className="shrink-0 text-right">
+                        {agg.cheapestPrice > 0 ? (
+                          <>
+                            <p className="text-sm md:text-lg font-mono tabular-nums text-accent">
+                              {agg.cheapestPrice}g
+                            </p>
+                            <p className="text-[10px] md:text-sm text-muted-foreground">{agg.listingCount} ofert</p>
+                          </>
+                        ) : (
+                          <p className="text-xs md:text-base text-muted-foreground">Brak</p>
+                        )}
+                      </div>
 
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 md:text-muted-foreground" />
-                </Link>
-                </HoverCardTrigger>
-                <HoverCardContent side="right" sideOffset={8} className="hidden md:block w-80 p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <ItemIcon slug={agg.item.slug} icon={agg.item.icon} size={32} />
-                    <div>
-                      <p className={`text-lg font-semibold ${RARITY_TEXT[rarity]}`}>{agg.item.name}</p>
-                      <div className="flex gap-1.5 mt-0.5">
-                        <Badge className={`text-xs ${RARITY_BADGE_CLASS[rarity]}`} variant="outline">{RARITY_LABELS[rarity]}</Badge>
-                        <Badge variant="outline" className="text-xs">{TYPE_LABELS[agg.item.item_type] ?? agg.item.item_type}</Badge>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 md:text-muted-foreground" />
+                    </Link>
+                  </HoverCardTrigger>
+                  <HoverCardContent side="right" sideOffset={8} className="hidden md:block w-80 p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <ItemIcon slug={agg.item.slug} icon={agg.item.icon} size={32} />
+                      <div>
+                        <p className={`text-lg font-semibold ${RARITY_TEXT[rarity]}`}>{agg.item.name}</p>
+                        <div className="flex gap-1.5 mt-0.5">
+                          <Badge className={`text-xs ${RARITY_BADGE_CLASS[rarity]}`} variant="outline">
+                            {RARITY_LABELS[rarity]}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {TYPE_LABELS[agg.item.item_type] ?? agg.item.item_type}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  {agg.item.description && (
-                    <p className="text-sm text-muted-foreground mb-3">{agg.item.description}</p>
-                  )}
-                  <div className="flex gap-4 text-sm text-muted-foreground">
-                    {agg.cheapestPrice > 0 && (
-                      <span>Od: <span className="text-accent font-semibold">{agg.cheapestPrice}g</span></span>
+                    {agg.item.description && (
+                      <p className="text-sm text-muted-foreground mb-3">{agg.item.description}</p>
                     )}
-                    <span>Ofert: <span className="text-foreground font-semibold">{agg.listingCount}</span></span>
-                  </div>
-                </HoverCardContent>
+                    <div className="flex gap-4 text-sm text-muted-foreground">
+                      {agg.cheapestPrice > 0 && (
+                        <span>
+                          Od: <span className="text-accent font-semibold">{agg.cheapestPrice}g</span>
+                        </span>
+                      )}
+                      <span>
+                        Ofert: <span className="text-foreground font-semibold">{agg.listingCount}</span>
+                      </span>
+                    </div>
+                  </HoverCardContent>
                 </HoverCard>
               );
             })}
@@ -327,11 +325,15 @@ function MyListingsTab({ listings }: MyListingsTabProps) {
           <div key={listing.id} className="flex items-center gap-3 py-3 px-1">
             <div
               className={`h-2 w-2 shrink-0 rounded-full ${
-                listing.item.rarity === "legendary" ? "bg-amber-500"
-                  : listing.item.rarity === "epic" ? "bg-purple-500"
-                  : listing.item.rarity === "rare" ? "bg-blue-500"
-                  : listing.item.rarity === "uncommon" ? "bg-green-500"
-                  : "bg-slate-500"
+                listing.item.rarity === "legendary"
+                  ? "bg-amber-500"
+                  : listing.item.rarity === "epic"
+                    ? "bg-purple-500"
+                    : listing.item.rarity === "rare"
+                      ? "bg-blue-500"
+                      : listing.item.rarity === "uncommon"
+                        ? "bg-green-500"
+                        : "bg-slate-500"
               }`}
             />
             <div className="flex-1 min-w-0">
@@ -344,9 +346,11 @@ function MyListingsTab({ listings }: MyListingsTabProps) {
             <Badge
               variant="outline"
               className={`shrink-0 rounded-full px-2 py-px text-[10px] border-0 ${
-                listing.status === "active" ? "bg-green-500/15 text-green-400"
-                  : listing.status === "cancelled" ? "bg-destructive/15 text-destructive"
-                  : "bg-muted text-muted-foreground"
+                listing.status === "active"
+                  ? "bg-green-500/15 text-green-400"
+                  : listing.status === "cancelled"
+                    ? "bg-destructive/15 text-destructive"
+                    : "bg-muted text-muted-foreground"
               }`}
             >
               {STATUS_LABELS[listing.status] ?? listing.status}
@@ -382,34 +386,54 @@ function MyListingsTab({ listings }: MyListingsTabProps) {
               <TableRow key={listing.id} className="transition-colors hover:bg-muted/30">
                 <TableCell className="pl-6 py-5">
                   <div className="flex items-center gap-3">
-                    <div className={`h-2.5 w-2.5 rounded-full ${
-                      listing.item.rarity === "legendary" ? "bg-amber-500"
-                        : listing.item.rarity === "epic" ? "bg-purple-500"
-                        : listing.item.rarity === "rare" ? "bg-blue-500"
-                        : listing.item.rarity === "uncommon" ? "bg-green-500"
-                        : "bg-slate-500"
-                    }`} />
+                    <div
+                      className={`h-2.5 w-2.5 rounded-full ${
+                        listing.item.rarity === "legendary"
+                          ? "bg-amber-500"
+                          : listing.item.rarity === "epic"
+                            ? "bg-purple-500"
+                            : listing.item.rarity === "rare"
+                              ? "bg-blue-500"
+                              : listing.item.rarity === "uncommon"
+                                ? "bg-green-500"
+                                : "bg-slate-500"
+                      }`}
+                    />
                     <span className="text-base font-medium text-foreground">{listing.item.name}</span>
                   </div>
                 </TableCell>
                 <TableCell className="py-5 text-base text-muted-foreground">
                   {listing.listing_type === "sell" ? "Sprzedaż" : "Kupno"}
                 </TableCell>
-                <TableCell className="py-5 text-right font-mono tabular-nums text-base text-accent">{listing.price_per_unit}g</TableCell>
-                <TableCell className="py-5 text-right text-base text-foreground/80">{listing.quantity_remaining}/{listing.quantity}</TableCell>
+                <TableCell className="py-5 text-right font-mono tabular-nums text-base text-accent">
+                  {listing.price_per_unit}g
+                </TableCell>
+                <TableCell className="py-5 text-right text-base text-foreground/80">
+                  {listing.quantity_remaining}/{listing.quantity}
+                </TableCell>
                 <TableCell className="py-5 text-center">
-                  <Badge variant="outline" className={`rounded-full px-3 py-1 text-sm border-0 ${
-                    listing.status === "active" ? "bg-green-500/15 text-green-400 hover:bg-green-500/15"
-                      : listing.status === "cancelled" ? "bg-destructive/15 text-destructive hover:bg-destructive/15"
-                      : "bg-muted text-muted-foreground hover:bg-muted"
-                  }`}>
+                  <Badge
+                    variant="outline"
+                    className={`rounded-full px-3 py-1 text-sm border-0 ${
+                      listing.status === "active"
+                        ? "bg-green-500/15 text-green-400 hover:bg-green-500/15"
+                        : listing.status === "cancelled"
+                          ? "bg-destructive/15 text-destructive hover:bg-destructive/15"
+                          : "bg-muted text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
                     {STATUS_LABELS[listing.status] ?? listing.status}
                   </Badge>
                 </TableCell>
                 <TableCell className="py-5 pr-6 text-right">
                   {listing.status === "active" && (
-                    <Button size="sm" variant="ghost" onClick={() => handleCancel(listing.id)} disabled={cancelMutation.isPending}
-                      className="h-11 rounded-md bg-destructive/10 px-4 text-base text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleCancel(listing.id)}
+                      disabled={cancelMutation.isPending}
+                      className="h-11 rounded-md bg-destructive/10 px-4 text-base text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
+                    >
                       {cancelMutation.isPending ? "..." : "Anuluj"}
                     </Button>
                   )}
@@ -455,12 +479,18 @@ function HistoryTab({ history, currentUsername }: HistoryTabProps) {
                   {tx.quantity > 1 && <span className="ml-1">x{tx.quantity}</span>}
                 </span>
               </div>
-              <span className={`font-mono text-sm tabular-nums shrink-0 ${isBuyer ? "text-destructive" : "text-green-400"}`}>
-                {isBuyer ? "-" : "+"}{isBuyer ? tx.total_price : tx.total_price - tx.fee}g
+              <span
+                className={`font-mono text-sm tabular-nums shrink-0 ${isBuyer ? "text-destructive" : "text-green-400"}`}
+              >
+                {isBuyer ? "-" : "+"}
+                {isBuyer ? tx.total_price : tx.total_price - tx.fee}g
               </span>
-              <Badge variant="outline" className={`shrink-0 rounded-full px-2 py-px text-[10px] border-0 ${
-                isBuyer ? "bg-destructive/15 text-destructive" : "bg-green-500/15 text-green-400"
-              }`}>
+              <Badge
+                variant="outline"
+                className={`shrink-0 rounded-full px-2 py-px text-[10px] border-0 ${
+                  isBuyer ? "bg-destructive/15 text-destructive" : "bg-green-500/15 text-green-400"
+                }`}
+              >
                 {isBuyer ? "Kupno" : "Sprzedaż"}
               </Badge>
             </div>
@@ -478,7 +508,9 @@ function HistoryTab({ history, currentUsername }: HistoryTabProps) {
               <TableHead className="h-14 text-base font-semibold text-center text-muted-foreground">Typ</TableHead>
               <TableHead className="h-14 text-base font-semibold text-right text-muted-foreground">Ilość</TableHead>
               <TableHead className="h-14 text-base font-semibold text-right text-muted-foreground">Cena</TableHead>
-              <TableHead className="h-14 pr-6 text-base font-semibold text-right text-muted-foreground">Prowizja</TableHead>
+              <TableHead className="h-14 pr-6 text-base font-semibold text-right text-muted-foreground">
+                Prowizja
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -491,15 +523,23 @@ function HistoryTab({ history, currentUsername }: HistoryTabProps) {
                   </TableCell>
                   <TableCell className="py-5 text-base font-medium text-foreground">{tx.item.name}</TableCell>
                   <TableCell className="py-5 text-center">
-                    <Badge variant="outline" className={`rounded-full border-0 px-3 py-1 text-sm ${
-                      isBuyer ? "bg-destructive/15 text-destructive hover:bg-destructive/15" : "bg-green-500/15 text-green-400 hover:bg-green-500/15"
-                    }`}>
+                    <Badge
+                      variant="outline"
+                      className={`rounded-full border-0 px-3 py-1 text-sm ${
+                        isBuyer
+                          ? "bg-destructive/15 text-destructive hover:bg-destructive/15"
+                          : "bg-green-500/15 text-green-400 hover:bg-green-500/15"
+                      }`}
+                    >
                       {isBuyer ? "Kupno" : "Sprzedaż"}
                     </Badge>
                   </TableCell>
                   <TableCell className="py-5 text-right text-base text-foreground/80">x{tx.quantity}</TableCell>
-                  <TableCell className={`py-5 text-right font-mono tabular-nums text-base ${isBuyer ? "text-destructive" : "text-green-400"}`}>
-                    {isBuyer ? "-" : "+"}{isBuyer ? tx.total_price : tx.total_price - tx.fee}g
+                  <TableCell
+                    className={`py-5 text-right font-mono tabular-nums text-base ${isBuyer ? "text-destructive" : "text-green-400"}`}
+                  >
+                    {isBuyer ? "-" : "+"}
+                    {isBuyer ? tx.total_price : tx.total_price - tx.fee}g
                   </TableCell>
                   <TableCell className="py-5 pr-6 text-right font-mono tabular-nums text-base text-muted-foreground">
                     {tx.fee > 0 ? `${tx.fee}g` : "—"}
@@ -616,7 +656,12 @@ function MarketplaceContent() {
       <div className="flex gap-1 md:gap-1.5 overflow-x-auto px-4 md:px-0 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
         {[
           { href: "/marketplace", label: "Przeglądaj", mobileLabel: "Oferty", key: "browse" as const },
-          { href: "/marketplace?tab=my-listings", label: "Moje oferty", mobileLabel: "Moje", key: "my-listings" as const },
+          {
+            href: "/marketplace?tab=my-listings",
+            label: "Moje oferty",
+            mobileLabel: "Moje",
+            key: "my-listings" as const,
+          },
           { href: "/marketplace?tab=history", label: "Historia", mobileLabel: "Historia", key: "history" as const },
         ].map((t) => (
           <Link
@@ -654,16 +699,9 @@ function MarketplaceContent() {
             />
           )}
 
-          {tab === "my-listings" && (
-            <MyListingsTab
-              listings={myListings}
-              currentUsername={user.username}
-            />
-          )}
+          {tab === "my-listings" && <MyListingsTab listings={myListings} currentUsername={user.username} />}
 
-          {tab === "history" && (
-            <HistoryTab history={history} currentUsername={user.username} />
-          )}
+          {tab === "history" && <HistoryTab history={history} currentUsername={user.username} />}
         </div>
       </div>
     </div>

@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('accounts', '0003_user_tutorial_completed'),
+        ("accounts", "0003_user_tutorial_completed"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='user',
-            name='banned_reason',
-            field=models.TextField(blank=True, default=''),
+            model_name="user",
+            name="banned_reason",
+            field=models.TextField(blank=True, default=""),
         ),
         migrations.AddField(
-            model_name='user',
-            name='is_banned',
+            model_name="user",
+            name="is_banned",
             field=models.BooleanField(default=False),
         ),
     ]

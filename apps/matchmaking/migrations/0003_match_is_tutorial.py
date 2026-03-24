@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('matchmaking', '0002_match_game_mode_matchqueue_game_mode'),
+        ("matchmaking", "0002_match_game_mode_matchqueue_game_mode"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='match',
-            name='is_tutorial',
+            model_name="match",
+            name="is_tutorial",
             field=models.BooleanField(default=False),
         ),
     ]

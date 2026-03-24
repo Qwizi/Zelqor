@@ -1,10 +1,9 @@
 import json
 import logging
-import os
 import tempfile
 
 from django.conf import settings
-from pywebpush import webpush, WebPushException
+from pywebpush import WebPushException, webpush
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +24,14 @@ def send_push(user_id: str, title: str, body: str, url: str = "/dashboard", tag:
     if not _vapid_key_path:
         return
 
-    payload = json.dumps({
-        "title": title,
-        "body": body,
-        "url": url,
-        "tag": tag,
-    })
+    payload = json.dumps(
+        {
+            "title": title,
+            "body": body,
+            "url": url,
+            "tag": tag,
+        }
+    )
 
     subs = PushSubscription.objects.filter(user_id=user_id)
     stale_ids = []

@@ -1,4 +1,4 @@
-import { test as base, type Page, type BrowserContext } from "@playwright/test";
+import { type BrowserContext, test as base, type Page } from "@playwright/test";
 
 // ---------------------------------------------------------------------------
 // Environment-driven credentials
@@ -33,9 +33,7 @@ export async function loginViaAPI(page: Page): Promise<string> {
   });
 
   if (!tokenRes.ok()) {
-    throw new Error(
-      `Login API returned ${tokenRes.status()}: ${await tokenRes.text()}`
-    );
+    throw new Error(`Login API returned ${tokenRes.status()}: ${await tokenRes.text()}`);
   }
 
   const { access, refresh } = await tokenRes.json();
@@ -46,7 +44,7 @@ export async function loginViaAPI(page: Page): Promise<string> {
       localStorage.setItem("maplord_access", accessToken);
       localStorage.setItem("maplord_refresh", refreshToken);
     },
-    { accessToken: access, refreshToken: refresh }
+    { accessToken: access, refreshToken: refresh },
   );
 
   return access;
@@ -108,11 +106,7 @@ export { expect } from "@playwright/test";
  * Lightweight login helper used by tests that exercise the login form
  * (i.e. tests that want to interact with the form UI, not bypass it).
  */
-export async function fillLoginForm(
-  page: Page,
-  email: string,
-  password: string
-): Promise<void> {
+export async function fillLoginForm(page: Page, email: string, password: string): Promise<void> {
   await page.getByLabel("Login lub email").fill(email);
   await page.getByLabel("Hasło").fill(password);
   await page.getByRole("button", { name: /wejdź do gry/i }).click();
@@ -131,16 +125,12 @@ export async function waitForDashboard(page: Page): Promise<void> {
  * Inject tokens into a fresh context's storage state so every page in that
  * context starts as authenticated. Useful for multi-page / context tests.
  */
-export async function injectAuthTokens(
-  context: BrowserContext,
-  access: string,
-  refresh: string
-): Promise<void> {
+export async function injectAuthTokens(context: BrowserContext, access: string, refresh: string): Promise<void> {
   await context.addInitScript(
     ({ accessToken, refreshToken }) => {
       localStorage.setItem("maplord_access", accessToken);
       localStorage.setItem("maplord_refresh", refreshToken);
     },
-    { accessToken: access, refreshToken: refresh }
+    { accessToken: access, refreshToken: refresh },
   );
 }

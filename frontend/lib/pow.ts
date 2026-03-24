@@ -1,9 +1,5 @@
 /** Solve a proof-of-work challenge using a Web Worker. */
-export function solveChallenge(
-  challenge: string,
-  difficulty: number,
-  timeoutMs = 5000,
-): Promise<string> {
+export function solveChallenge(challenge: string, difficulty: number, timeoutMs = 5000): Promise<string> {
   return new Promise((resolve, reject) => {
     const worker = new Worker("/pow-worker.js");
     const timer = setTimeout(() => {

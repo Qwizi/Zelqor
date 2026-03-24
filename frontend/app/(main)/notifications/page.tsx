@@ -1,14 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/useAuth";
-import { useSocialSocketContext } from "@/hooks/SocialSocketContext";
-import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/queries";
-import { type NotificationOut } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import {
   Bell,
   Check,
@@ -22,18 +14,19 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { NotificationsSkeleton } from "@/components/skeletons/NotificationsSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications } from "@/hooks/queries";
+import { useSocialSocketContext } from "@/hooks/SocialSocketContext";
+import { useAuth } from "@/hooks/useAuth";
+import type { NotificationOut } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,25 +34,39 @@ import {
 
 function notifIcon(type: string) {
   switch (type) {
-    case "friend_request_received": return <UserPlus size={18} className="text-primary" />;
-    case "friend_request_accepted": return <Check size={18} className="text-green-400" />;
-    case "match_won": return <Trophy size={18} className="text-accent" />;
-    case "match_lost": return <X size={18} className="text-destructive" />;
-    case "player_eliminated": return <Shield size={18} className="text-destructive" />;
-    case "game_invite": return <Swords size={18} className="text-primary" />;
-    default: return <Bell size={18} className="text-muted-foreground" />;
+    case "friend_request_received":
+      return <UserPlus size={18} className="text-primary" />;
+    case "friend_request_accepted":
+      return <Check size={18} className="text-green-400" />;
+    case "match_won":
+      return <Trophy size={18} className="text-accent" />;
+    case "match_lost":
+      return <X size={18} className="text-destructive" />;
+    case "player_eliminated":
+      return <Shield size={18} className="text-destructive" />;
+    case "game_invite":
+      return <Swords size={18} className="text-primary" />;
+    default:
+      return <Bell size={18} className="text-muted-foreground" />;
   }
 }
 
 function notifLabel(type: string): string {
   switch (type) {
-    case "friend_request_received": return "Zaproszenie";
-    case "friend_request_accepted": return "Znajomy";
-    case "match_won": return "Wygrana";
-    case "match_lost": return "Przegrana";
-    case "player_eliminated": return "Eliminacja";
-    case "game_invite": return "Zaproszenie do gry";
-    default: return "Powiadomienie";
+    case "friend_request_received":
+      return "Zaproszenie";
+    case "friend_request_accepted":
+      return "Znajomy";
+    case "match_won":
+      return "Wygrana";
+    case "match_lost":
+      return "Przegrana";
+    case "player_eliminated":
+      return "Eliminacja";
+    case "game_invite":
+      return "Zaproszenie do gry";
+    default:
+      return "Powiadomienie";
   }
 }
 
@@ -168,15 +175,14 @@ export default function NotificationsPage() {
 
   return (
     <div className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 px-4 md:px-0">
         <div>
-          <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">AKTYWNOŚĆ</p>
-          <h1 className="font-display text-2xl md:text-5xl text-foreground">Powiadomienia</h1>
-          <p className="hidden md:block mt-1 text-sm text-muted-foreground">
-            Historia aktywności i powiadomień.
+          <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">
+            AKTYWNOŚĆ
           </p>
+          <h1 className="font-display text-2xl md:text-5xl text-foreground">Powiadomienia</h1>
+          <p className="hidden md:block mt-1 text-sm text-muted-foreground">Historia aktywności i powiadomień.</p>
         </div>
         <div className="flex items-center gap-3">
           {unreadOnPage > 0 && (
@@ -199,10 +205,7 @@ export default function NotificationsPage() {
       {/* ── Mobile: mark all ── */}
       {unreadOnPage > 0 && (
         <div className="px-4 md:hidden">
-          <button
-            onClick={handleMarkAllRead}
-            className="flex items-center gap-1.5 text-xs text-primary"
-          >
+          <button onClick={handleMarkAllRead} className="flex items-center gap-1.5 text-xs text-primary">
             <CheckCheck size={14} />
             Oznacz wszystkie jako przeczytane
           </button>
@@ -233,7 +236,7 @@ export default function NotificationsPage() {
                     }}
                     className={cn(
                       "hover-lift w-full flex items-center gap-3 rounded-xl py-3 px-2 text-left transition-all active:bg-muted/50",
-                      !n.is_read && "bg-primary/5"
+                      !n.is_read && "bg-primary/5",
                     )}
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary">
@@ -275,7 +278,7 @@ export default function NotificationsPage() {
                         }}
                         className={cn(
                           "hover-lift cursor-pointer",
-                          !n.is_read ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/50"
+                          !n.is_read ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/50",
                         )}
                       >
                         <TableCell className="pl-6 py-4">
@@ -286,9 +289,7 @@ export default function NotificationsPage() {
                         <TableCell className="py-4">
                           <div className="flex items-center gap-2">
                             <span className="text-base font-medium text-muted-foreground">{notifLabel(n.type)}</span>
-                            {!n.is_read && (
-                              <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                            )}
+                            {!n.is_read && <span className="h-2 w-2 rounded-full bg-primary shrink-0" />}
                           </div>
                         </TableCell>
                         <TableCell className="py-4">

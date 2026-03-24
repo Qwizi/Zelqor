@@ -1,8 +1,8 @@
 "use client";
 
-import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -19,9 +19,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="animate-pulse text-2xl font-bold text-zinc-400">
-        MapLord
-      </div>
+      <div className="animate-pulse text-2xl font-bold text-zinc-400">MapLord</div>
     </div>
   );
 }

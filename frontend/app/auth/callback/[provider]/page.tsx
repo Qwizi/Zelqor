@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, Suspense } from "react";
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import AuthScreen from "@/components/auth/AuthScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { socialAuthCallback } from "@/lib/api";
-import AuthScreen from "@/components/auth/AuthScreen";
-import { Loader2 } from "lucide-react";
 
 function CallbackContent() {
   const params = useParams();
@@ -15,7 +15,7 @@ function CallbackContent() {
   const [error, setError] = useState<string | null>(null);
   const processedRef = useRef(false);
 
-  const provider = params.provider as 'google' | 'discord';
+  const provider = params.provider as "google" | "discord";
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const errorParam = searchParams.get("error");
@@ -34,7 +34,7 @@ function CallbackContent() {
       return;
     }
 
-    if (!['google', 'discord'].includes(provider)) {
+    if (!["google", "discord"].includes(provider)) {
       setError("Nieznany dostawca logowania.");
       return;
     }
@@ -74,7 +74,7 @@ function CallbackContent() {
       <div className="flex flex-col items-center gap-4 py-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">
-          Trwa weryfikacja danych z {provider === 'google' ? 'Google' : 'Discord'}...
+          Trwa weryfikacja danych z {provider === "google" ? "Google" : "Discord"}...
         </p>
       </div>
     </AuthScreen>

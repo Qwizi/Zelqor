@@ -1,37 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Check, ChevronRight, Layers, Pencil, Plus, Shield, Star, StarOff, Trash2, X } from "lucide-react";
 import Link from "next/link";
-import {
-  Check,
-  ChevronRight,
-  Layers,
-  Pencil,
-  Plus,
-  Shield,
-  Star,
-  StarOff,
-  Trash2,
-  X,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
+import { DecksSkeleton } from "@/components/skeletons/DecksSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import ItemIcon from "@/components/ui/ItemIcon";
 import { Separator } from "@/components/ui/separator";
+import { useCreateDeck, useDeleteDeck, useMyDecks, useSetDefaultDeck } from "@/hooks/queries";
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
-import { ModuleDisabledPage } from "@/components/ModuleGate";
-import ItemIcon from "@/components/ui/ItemIcon";
-import { type DeckOut } from "@/lib/api";
-import {
-  useMyDecks,
-  useCreateDeck,
-  useDeleteDeck,
-  useSetDefaultDeck,
-} from "@/hooks/queries";
-import { DecksSkeleton } from "@/components/skeletons/DecksSkeleton";
+import type { DeckOut } from "@/lib/api";
 
 export default function DecksPage() {
   const { enabled } = useModuleConfig("cosmetics");
@@ -124,9 +107,11 @@ function DecksContent() {
                 placeholder="Nazwa talii..."
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreate();
-                  if (e.key === "Escape") { setCreating(false); setNewDeckName(""); }
+                  if (e.key === "Escape") {
+                    setCreating(false);
+                    setNewDeckName("");
+                  }
                 }}
-                autoFocus
                 className="w-full bg-transparent font-display text-lg md:text-2xl text-foreground placeholder:text-muted-foreground/40 outline-none border-b-2 border-primary/30 focus:border-primary pb-1"
               />
             </div>
@@ -139,7 +124,10 @@ function DecksContent() {
               <span className="hidden md:inline font-display text-lg uppercase tracking-wider">Utwórz</span>
             </button>
             <button
-              onClick={() => { setCreating(false); setNewDeckName(""); }}
+              onClick={() => {
+                setCreating(false);
+                setNewDeckName("");
+              }}
               className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               <X className="h-5 w-5" />
@@ -171,19 +159,25 @@ function DecksContent() {
                     deck.is_default ? "bg-accent/5" : ""
                   }`}
                   onClick={() => router.push(`/decks/${deck.id}`)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push(`/decks/${deck.id}`); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") router.push(`/decks/${deck.id}`);
+                  }}
                 >
-                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                    deck.is_default ? "bg-accent/15 border border-accent/25" : "bg-secondary border border-border"
-                  }`}>
-                    {deck.is_default ? <Shield className="h-5 w-5 text-accent" /> : <Layers className="h-5 w-5 text-muted-foreground" />}
+                  <div
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                      deck.is_default ? "bg-accent/15 border border-accent/25" : "bg-secondary border border-border"
+                    }`}
+                  >
+                    {deck.is_default ? (
+                      <Shield className="h-5 w-5 text-accent" />
+                    ) : (
+                      <Layers className="h-5 w-5 text-muted-foreground" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-foreground truncate">{deck.name}</span>
-                      {deck.is_default && (
-                        <span className="text-[10px] font-bold uppercase text-accent">Domyślna</span>
-                      )}
+                      {deck.is_default && <span className="text-[10px] font-bold uppercase text-accent">Domyślna</span>}
                     </div>
                     <span className="text-xs text-muted-foreground">
                       {totalItems} {totalItems === 1 ? "przedmiot" : totalItems < 5 ? "przedmioty" : "przedmiotów"}
@@ -223,9 +217,11 @@ function DecksContent() {
                 >
                   <CardContent className="p-6">
                     <div className="flex items-center gap-5">
-                      <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border ${
-                        deck.is_default ? "border-accent/30 bg-accent/10" : "border-border bg-secondary"
-                      }`}>
+                      <div
+                        className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border ${
+                          deck.is_default ? "border-accent/30 bg-accent/10" : "border-border bg-secondary"
+                        }`}
+                      >
                         {deck.is_default ? (
                           <Shield className="h-7 w-7 text-accent" />
                         ) : (
@@ -291,7 +287,9 @@ function DecksContent() {
                                 {di.item.name.replace(/^(Pakiet|Blueprint|Bonus): ?/, "")}
                               </span>
                               {di.quantity > 1 && (
-                                <Badge variant="outline" className="text-xs">x{di.quantity}</Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  x{di.quantity}
+                                </Badge>
                               )}
                             </div>
                           ))}

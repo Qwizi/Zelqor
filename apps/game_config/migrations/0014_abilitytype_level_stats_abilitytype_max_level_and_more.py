@@ -4,30 +4,37 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0013_alter_abilitytype_energy_cost_and_more'),
+        ("game_config", "0013_alter_abilitytype_energy_cost_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='abilitytype',
-            name='level_stats',
-            field=models.JSONField(blank=True, default=dict, help_text='Per-level stat overrides. Keys are level numbers as strings. Example: {"1": {"damage": 50}, "2": {"damage": 65, "cooldown_ticks": 50}, "3": {"damage": 80, "effect_duration_ticks": 25}}. Supported keys: energy_cost, cooldown_ticks, damage, effect_duration_ticks, range, effect_params'),
+            model_name="abilitytype",
+            name="level_stats",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text='Per-level stat overrides. Keys are level numbers as strings. Example: {"1": {"damage": 50}, "2": {"damage": 65, "cooldown_ticks": 50}, "3": {"damage": 80, "effect_duration_ticks": 25}}. Supported keys: energy_cost, cooldown_ticks, damage, effect_duration_ticks, range, effect_params',
+            ),
         ),
         migrations.AddField(
-            model_name='abilitytype',
-            name='max_level',
-            field=models.PositiveIntegerField(default=3, help_text='Maximum upgrade level (1-5)'),
+            model_name="abilitytype",
+            name="max_level",
+            field=models.PositiveIntegerField(default=3, help_text="Maximum upgrade level (1-5)"),
         ),
         migrations.AddField(
-            model_name='buildingtype',
-            name='level_stats',
-            field=models.JSONField(blank=True, default=dict, help_text='Per-level stat overrides. Keys are level numbers as strings. Example: {"1": {"defense_bonus": 0.1}, "2": {"defense_bonus": 0.16}, "3": {"defense_bonus": 0.22}}. Supported keys: defense_bonus, vision_range, unit_generation_bonus, energy_generation_bonus, energy_cost, build_time_ticks'),
+            model_name="buildingtype",
+            name="level_stats",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text='Per-level stat overrides. Keys are level numbers as strings. Example: {"1": {"defense_bonus": 0.1}, "2": {"defense_bonus": 0.16}, "3": {"defense_bonus": 0.22}}. Supported keys: defense_bonus, vision_range, unit_generation_bonus, energy_generation_bonus, energy_cost, build_time_ticks',
+            ),
         ),
         migrations.AddField(
-            model_name='buildingtype',
-            name='max_level',
-            field=models.PositiveIntegerField(default=3, help_text='Maximum upgrade level (1-5)'),
+            model_name="buildingtype",
+            name="max_level",
+            field=models.PositiveIntegerField(default=3, help_text="Maximum upgrade level (1-5)"),
         ),
     ]

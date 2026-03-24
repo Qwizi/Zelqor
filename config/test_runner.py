@@ -2,6 +2,7 @@
 Custom test runner that skips the system check phase so we can run tests
 without GDAL/PostGIS installed (the geo app FK to Region causes admin check failures).
 """
+
 from django.test.runner import DiscoverRunner
 
 

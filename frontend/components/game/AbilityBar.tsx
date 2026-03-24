@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useCallback, useMemo } from "react";
 import Image from "next/image";
+import { memo, useCallback, useMemo } from "react";
 import type { AbilityType } from "@/lib/api";
 import { getAssetUrl } from "@/lib/assetOverrides";
 
@@ -57,14 +57,14 @@ export default memo(function AbilityBar({
     (slug: string) => {
       onSelectAbility(selectedAbility === slug ? null : slug);
     },
-    [selectedAbility, onSelectAbility]
+    [selectedAbility, onSelectAbility],
   );
 
   const handleBoostClick = useCallback(
     (slug: string) => {
       onActivateBoost(slug);
     },
-    [onActivateBoost]
+    [onActivateBoost],
   );
 
   if (sortedAbilities.length === 0 && sortedBoosts.length === 0) return null;
@@ -77,46 +77,46 @@ export default memo(function AbilityBar({
         className="pointer-events-auto absolute left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col gap-2 rounded-xl border border-border bg-card/90 px-2 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:flex"
       >
         <div className="flex flex-col gap-2">
-        {sortedAbilities.map((ability) => (
-          <AbilityButton
-            key={ability.slug}
-            ability={ability}
-            abilityCooldowns={abilityCooldowns}
-            currentTick={currentTick}
-            myEnergy={myEnergy}
-            isSelected={selectedAbility === ability.slug}
-            onClick={handleAbilityClick}
-            size="lg"
-            locked={allowedAbility != null && allowedAbility !== ability.slug}
-            remainingUses={abilityScrolls?.[ability.slug]}
-            abilityLevel={abilityLevels?.[ability.slug]}
-            myCosmetics={myCosmetics}
-            isBoost={false}
-          />
-        ))}
+          {sortedAbilities.map((ability) => (
+            <AbilityButton
+              key={ability.slug}
+              ability={ability}
+              abilityCooldowns={abilityCooldowns}
+              currentTick={currentTick}
+              myEnergy={myEnergy}
+              isSelected={selectedAbility === ability.slug}
+              onClick={handleAbilityClick}
+              size="lg"
+              locked={allowedAbility != null && allowedAbility !== ability.slug}
+              remainingUses={abilityScrolls?.[ability.slug]}
+              abilityLevel={abilityLevels?.[ability.slug]}
+              myCosmetics={myCosmetics}
+              isBoost={false}
+            />
+          ))}
 
-        {/* Separator between abilities and boosts */}
-        {sortedAbilities.length > 0 && sortedBoosts.length > 0 && (
-          <div className="mx-auto h-px w-8 rounded-full bg-white/10" />
-        )}
+          {/* Separator between abilities and boosts */}
+          {sortedAbilities.length > 0 && sortedBoosts.length > 0 && (
+            <div className="mx-auto h-px w-8 rounded-full bg-white/10" />
+          )}
 
-        {sortedBoosts.map((ability) => (
-          <AbilityButton
-            key={ability.slug}
-            ability={ability}
-            abilityCooldowns={abilityCooldowns}
-            currentTick={currentTick}
-            myEnergy={myEnergy}
-            isSelected={false}
-            onClick={handleBoostClick}
-            size="lg"
-            locked={allowedAbility != null && allowedAbility !== ability.slug}
-            remainingUses={abilityScrolls?.[ability.slug]}
-            abilityLevel={abilityLevels?.[ability.slug]}
-            myCosmetics={myCosmetics}
-            isBoost={true}
-          />
-        ))}
+          {sortedBoosts.map((ability) => (
+            <AbilityButton
+              key={ability.slug}
+              ability={ability}
+              abilityCooldowns={abilityCooldowns}
+              currentTick={currentTick}
+              myEnergy={myEnergy}
+              isSelected={false}
+              onClick={handleBoostClick}
+              size="lg"
+              locked={allowedAbility != null && allowedAbility !== ability.slug}
+              remainingUses={abilityScrolls?.[ability.slug]}
+              abilityLevel={abilityLevels?.[ability.slug]}
+              myCosmetics={myCosmetics}
+              isBoost={true}
+            />
+          ))}
         </div>
       </div>
 
@@ -202,11 +202,9 @@ function AbilityButton({
   const isOnCooldown = currentTick < cooldownReady;
   const cooldownRemaining = isOnCooldown ? cooldownReady - currentTick : 0;
   const totalCooldown = ability.cooldown_ticks;
-  const cooldownProgress =
-    isOnCooldown && totalCooldown > 0 ? cooldownRemaining / totalCooldown : 0;
+  const cooldownProgress = isOnCooldown && totalCooldown > 0 ? cooldownRemaining / totalCooldown : 0;
   const level = abilityLevel ?? 1;
-  const levelEnergyCost =
-    ability.level_stats?.[String(level)]?.energy_cost ?? ability.energy_cost;
+  const levelEnergyCost = ability.level_stats?.[String(level)]?.energy_cost ?? ability.energy_cost;
   const canAfford = myEnergy >= levelEnergyCost;
   const isDisabled = isOnCooldown || !canAfford || locked;
 
@@ -248,12 +246,7 @@ function AbilityButton({
                   ? (v as { url?: string | null }).url
                   : null;
             return (
-              url ??
-              ability.asset_url ??
-              getAssetUrl(
-                ability.asset_key,
-                `/assets/abilities/${ability.asset_key}.webp`
-              )
+              url ?? ability.asset_url ?? getAssetUrl(ability.asset_key, `/assets/abilities/${ability.asset_key}.webp`)
             );
           })()}
           alt={ability.name}
@@ -270,10 +263,7 @@ function AbilityButton({
             <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="48" fill="rgba(0,0,0,0.6)" stroke="none" />
               {cooldownProgress > 0 && (
-                <path
-                  d={describeArc(50, 50, 48, 360 * (1 - cooldownProgress), 360)}
-                  fill="rgba(0,0,0,0.75)"
-                />
+                <path d={describeArc(50, 50, 48, 360 * (1 - cooldownProgress), 360)} fill="rgba(0,0,0,0.75)" />
               )}
             </svg>
             <span
@@ -297,9 +287,7 @@ function AbilityButton({
 
         {/* Boost indicator chip — bottom-left corner */}
         {isBoost && !isOnCooldown && (
-          <span
-            className="absolute -bottom-1 -left-1 rounded-sm border border-accent/40 bg-card/90 px-1 py-px font-bold uppercase leading-none tracking-widest text-accent text-[10px]"
-          >
+          <span className="absolute -bottom-1 -left-1 rounded-sm border border-accent/40 bg-card/90 px-1 py-px font-bold uppercase leading-none tracking-widest text-accent text-[10px]">
             BOOST
           </span>
         )}
@@ -318,11 +306,7 @@ function AbilityButton({
       {abilityLevel !== undefined && (
         <div
           className={`text-center font-display font-bold tabular-nums leading-none text-[10px] sm:text-xs ${
-            abilityLevel >= 3
-              ? "text-accent"
-              : abilityLevel === 2
-                ? "text-primary"
-                : "text-muted-foreground"
+            abilityLevel >= 3 ? "text-accent" : abilityLevel === 2 ? "text-primary" : "text-muted-foreground"
           }`}
         >
           Lvl {abilityLevel}
@@ -333,13 +317,7 @@ function AbilityButton({
 }
 
 /** SVG arc path for radial cooldown sweep */
-function describeArc(
-  cx: number,
-  cy: number,
-  r: number,
-  startAngle: number,
-  endAngle: number
-): string {
+function describeArc(cx: number, cy: number, r: number, startAngle: number, endAngle: number): string {
   if (endAngle - startAngle >= 360) {
     return `M ${cx - r},${cy} A ${r},${r} 0 1,1 ${cx + r},${cy} A ${r},${r} 0 1,1 ${cx - r},${cy} Z`;
   }

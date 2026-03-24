@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0003_merge_20260311_0019'),
+        ("game_config", "0003_merge_20260311_0019"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='buildingtype',
-            name='asset_key',
-            field=models.SlugField(blank=True, default='', max_length=100),
+            model_name="buildingtype",
+            name="asset_key",
+            field=models.SlugField(blank=True, default="", max_length=100),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='asset_key',
-            field=models.SlugField(blank=True, default='', max_length=100),
+            model_name="unittype",
+            name="asset_key",
+            field=models.SlugField(blank=True, default="", max_length=100),
         ),
     ]

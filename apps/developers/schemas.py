@@ -1,20 +1,21 @@
+import contextlib
 import uuid
-from typing import Optional, List
 from datetime import datetime
+
 from ninja import Schema
 from pydantic import model_validator
 
-
 # === Developer App Schemas ===
+
 
 class DeveloperAppCreateSchema(Schema):
     name: str
-    description: str = ''
+    description: str = ""
 
 
 class DeveloperAppUpdateSchema(Schema):
-    name: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
 
 
 class DeveloperAppOutSchema(Schema):
@@ -31,23 +32,25 @@ class DeveloperAppOutSchema(Schema):
 
 class DeveloperAppCreatedSchema(DeveloperAppOutSchema):
     """Returned only on creation — includes the client_secret (shown once)."""
+
     client_secret: str
 
 
 # === API Key Schemas ===
 
+
 class APIKeyCreateSchema(Schema):
-    scopes: List[str]
+    scopes: list[str]
     rate_limit: int = 1000
 
 
 class APIKeyOutSchema(Schema):
     id: uuid.UUID
     prefix: str
-    scopes: List[str]
+    scopes: list[str]
     rate_limit: int
     is_active: bool
-    last_used: Optional[datetime] = None
+    last_used: datetime | None = None
     created_at: datetime
 
     class Config:
@@ -56,27 +59,29 @@ class APIKeyOutSchema(Schema):
 
 class APIKeyCreatedSchema(APIKeyOutSchema):
     """Returned only on creation — includes the full key (shown once)."""
+
     key: str
 
 
 # === Webhook Schemas ===
 
+
 class WebhookCreateSchema(Schema):
     url: str
-    events: List[str]
+    events: list[str]
 
 
 class WebhookUpdateSchema(Schema):
-    url: Optional[str] = None
-    events: Optional[List[str]] = None
-    is_active: Optional[bool] = None
+    url: str | None = None
+    events: list[str] | None = None
+    is_active: bool | None = None
 
 
 class WebhookOutSchema(Schema):
     id: uuid.UUID
     url: str
     secret: str
-    events: List[str]
+    events: list[str]
     is_active: bool
     failure_count: int
     created_at: datetime
@@ -89,7 +94,7 @@ class WebhookDeliveryOutSchema(Schema):
     id: uuid.UUID
     event: str
     payload: dict
-    response_status: Optional[int] = None
+    response_status: int | None = None
     success: bool
     created_at: datetime
 
@@ -99,11 +104,12 @@ class WebhookDeliveryOutSchema(Schema):
 
 class WebhookTestSchema(Schema):
     success: bool
-    status_code: Optional[int] = None
+    status_code: int | None = None
     message: str
 
 
 # === Public API Schemas ===
+
 
 class PaginatedSchema(Schema):
     items: list
@@ -116,29 +122,27 @@ class PublicLeaderboardEntrySchema(Schema):
     user_id: uuid.UUID
     username: str
     elo_rating: int
-    avatar: Optional[str] = None
+    avatar: str | None = None
 
     class Config:
         from_attributes = True
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def _map_from_user(cls, data):
         # When populated from a Django User ORM instance, map id -> user_id
         # and resolve the avatar ImageField to a URL string.
-        if hasattr(data, 'id'):
-            avatar_field = getattr(data, 'avatar', None)
-            avatar_url: Optional[str] = None
+        if hasattr(data, "id"):
+            avatar_field = getattr(data, "avatar", None)
+            avatar_url: str | None = None
             if avatar_field:
-                try:
+                with contextlib.suppress(Exception):
                     avatar_url = str(avatar_field.url)
-                except Exception:
-                    pass
             return {
-                'user_id': data.id,
-                'username': data.username,
-                'elo_rating': data.elo_rating,
-                'avatar': avatar_url,
+                "user_id": data.id,
+                "username": data.username,
+                "elo_rating": data.elo_rating,
+                "avatar": avatar_url,
             }
         return data
 
@@ -161,24 +165,25 @@ class PublicMatchOutSchema(Schema):
 
 
 class PublicMatchDetailSchema(PublicMatchOutSchema):
-    players: List[PublicMatchPlayerSchema] = []
-    winner_username: Optional[str] = None
-    duration_ticks: Optional[int] = None
+    players: list[PublicMatchPlayerSchema] = []
+    winner_username: str | None = None
+    duration_ticks: int | None = None
 
 
 class PublicPlayerStatsSchema(Schema):
     user_id: uuid.UUID
     username: str
     elo_rating: int
-    avatar: Optional[str] = None
+    avatar: str | None = None
     matches_played: int
     wins: int
     win_rate: float
-    avg_placement: Optional[float] = None
+    avg_placement: float | None = None
 
 
 class PublicConfigOutSchema(Schema):
     """Wraps the existing game config response for public API."""
+
     pass  # Reuses existing game_config schema at the controller level
 
 
@@ -195,35 +200,37 @@ class UsageStatsSchema(Schema):
 
 # === Scope / Event Listing ===
 
+
 class AvailableScopesSchema(Schema):
-    scopes: List[str]
+    scopes: list[str]
 
 
 class AvailableEventsSchema(Schema):
-    events: List[str]
+    events: list[str]
 
 
 # === OAuth2 Schemas ===
+
 
 class OAuthAuthorizeRequestSchema(Schema):
     client_id: str
     redirect_uri: str
     scope: str  # space-separated scopes
-    state: Optional[str] = None
+    state: str | None = None
 
 
 class OAuthTokenRequestSchema(Schema):
     grant_type: str  # 'authorization_code' or 'refresh_token'
     client_id: str
     client_secret: str
-    code: Optional[str] = None          # for authorization_code
-    redirect_uri: Optional[str] = None  # for authorization_code
-    refresh_token: Optional[str] = None # for refresh_token
+    code: str | None = None  # for authorization_code
+    redirect_uri: str | None = None  # for authorization_code
+    refresh_token: str | None = None  # for refresh_token
 
 
 class OAuthTokenResponseSchema(Schema):
     access_token: str
-    token_type: str = 'Bearer'
+    token_type: str = "Bearer"
     expires_in: int
     refresh_token: str
     scope: str
@@ -234,5 +241,5 @@ class OAuthUserInfoSchema(Schema):
     username: str
     email: str
     elo_rating: int
-    avatar: Optional[str] = None
+    avatar: str | None = None
     date_joined: str

@@ -1,8 +1,8 @@
 // ── Unit change floating labels ──────────────────────────────────────────────
 // Extracted from GameCanvas.tsx — floating +N/-N labels on unit count changes.
 
+import { type Application, type Container, Text, TextStyle } from "pixi.js";
 import { useEffect } from "react";
-import { Application, Text, TextStyle, Container } from "pixi.js";
 import type { ShapesData } from "@/lib/canvasTypes";
 import { UNIT_PULSE_DURATION_MS } from "@/lib/canvasTypes";
 
@@ -11,7 +11,7 @@ import { UNIT_PULSE_DURATION_MS } from "@/lib/canvasTypes";
  * Uses a Pixi ticker for smooth animation (drift up + fade out).
  */
 export function useUnitPulseLabels(
-  appReady: boolean,
+  _appReady: boolean,
   appRef: React.RefObject<Application | null>,
   shapesData: ShapesData | null,
   unitChangeLayerRef: React.RefObject<Container | null>,
@@ -102,6 +102,6 @@ export function useUnitPulseLabels(
       }
       activeTexts.clear();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appReady, shapesData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapesData, appRef.current, centroidCacheRef.current, unitChangeLayerRef.current, unitPulsesRef.current]);
 }

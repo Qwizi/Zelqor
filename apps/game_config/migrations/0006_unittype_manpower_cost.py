@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("game_config", "0005_gamesettings_currency_buildingtype_currency"),
     ]

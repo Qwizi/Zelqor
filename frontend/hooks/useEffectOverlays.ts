@@ -1,10 +1,10 @@
 // ── Ability effect overlays + Nuke blackout ──────────────────────────────────
 // Extracted from GameCanvas.tsx — renders dashed effect borders and nuke fades.
 
+import { type Application, type Container, Graphics, Text, TextStyle } from "pixi.js";
 import { useEffect } from "react";
-import { Application, Graphics, Text, TextStyle, Container } from "pixi.js";
 import type { ActiveEffect } from "@/hooks/useGameSocket";
-import type { ShapesData, ProvinceShape } from "@/lib/canvasTypes";
+import type { ProvinceShape, ShapesData } from "@/lib/canvasTypes";
 import { EFFECT_CONFIG, hexStringToNumber } from "@/lib/canvasTypes";
 
 /**
@@ -12,7 +12,7 @@ import { EFFECT_CONFIG, hexStringToNumber } from "@/lib/canvasTypes";
  * nuke blackout fading overlays onto dedicated Pixi layers.
  */
 export function useEffectOverlays(
-  appReady: boolean,
+  _appReady: boolean,
   shapesData: ShapesData | null,
   activeEffects: ActiveEffect[] | undefined,
   nukeBlackout: Array<{ rid: string; startTime: number }> | undefined,
@@ -40,12 +40,11 @@ export function useEffectOverlays(
       color: number,
       width: number,
       dashLen = 8,
-      gapLen = 5
+      gapLen = 5,
     ): void {
       if (ring.length < 2) return;
-      const pts = ring[ring.length - 1][0] !== ring[0][0] || ring[ring.length - 1][1] !== ring[0][1]
-        ? [...ring, ring[0]]
-        : ring;
+      const pts =
+        ring[ring.length - 1][0] !== ring[0][0] || ring[ring.length - 1][1] !== ring[0][1] ? [...ring, ring[0]] : ring;
 
       for (let i = 0; i < pts.length - 1; i++) {
         const [x0, y0] = pts[i];
@@ -78,10 +77,7 @@ export function useEffectOverlays(
       const cfg = EFFECT_CONFIG[effect.effect_type];
       if (!cfg) continue;
 
-      const regionIds = new Set<string>([
-        effect.target_region_id,
-        ...effect.affected_region_ids,
-      ]);
+      const regionIds = new Set<string>([effect.target_region_id, ...effect.affected_region_ids]);
 
       const fillColor = hexStringToNumber(cfg.color);
       const borderColor = hexStringToNumber(cfg.borderColor);
@@ -129,7 +125,7 @@ export function useEffectOverlays(
         effectLayer.addChild(badge);
       }
     }
-  }, [activeEffects, shapesData]);
+  }, [activeEffects, shapesData, effectLayerRef.current]);
 
   // ── Nuke blackout overlays ─────────────────────────────────
   useEffect(() => {
@@ -194,5 +190,5 @@ export function useEffectOverlays(
     return () => {
       app.ticker.remove(tickerFn);
     };
-  }, [nukeBlackout, shapesData]);
+  }, [nukeBlackout, shapesData, appRef.current, nukeLayerRef.current]);
 }

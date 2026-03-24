@@ -1,45 +1,43 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
-import { Application, Graphics, Text, Container, TextStyle, Assets, Sprite, Texture } from "pixi.js";
+import { Application, Assets, Container, Graphics, Sprite, Text, TextStyle, type Texture } from "pixi.js";
 import { Viewport } from "pixi-viewport";
-import type { GameRegion, ActiveEffect, AirTransitItem } from "@/hooks/useGameSocket";
-import type { TroopAnimation, PlannedMove, DiplomacyState } from "@/lib/gameTypes";
-import { PixiAnimationManager, computeCurvePath } from "@/lib/pixiAnimations";
-import type { CosmeticValue } from "@/lib/animationConfig";
-import { getBuildingAsset, getUnitAsset } from "@/lib/gameAssets";
-import { useBombardmentEvents, type SamIntercept } from "@/hooks/useBombardmentEvents";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { type SamIntercept, useBombardmentEvents } from "@/hooks/useBombardmentEvents";
 import { useEffectOverlays } from "@/hooks/useEffectOverlays";
+import type { GameRegion } from "@/hooks/useGameSocket";
 import { useUnitPulseLabels } from "@/hooks/useUnitPulseLabels";
+import type { CosmeticValue } from "@/lib/animationConfig";
 import {
-  type ProvinceShape,
-  type ShapesData,
-  type GameCanvasProps,
-  type ProvinceRenderState,
-  EFFECT_CONFIG,
   BG_COLOR,
+  CAPITAL_FILL,
   DEFAULT_FILL,
   DEFAULT_STROKE,
-  SELECTED_STROKE,
-  TARGET_STROKE,
-  NEIGHBOR_TINT,
-  CAPITAL_FILL,
   DIMMED_ALPHA,
+  drawCapitalMarker,
+  drawPolygon,
+  type GameCanvasProps,
+  hexStringToNumber,
+  lighten,
+  NEIGHBOR_TINT,
   NORMAL_ALPHA,
-  UNCLAIMED_FILL_ALPHA,
+  PM_STYLE_ATTACK,
+  PM_STYLE_MOVE,
+  type ProvinceRenderState,
+  type ProvinceShape,
+  SELECTED_STROKE,
   STROKE_WIDTH_DEFAULT,
   STROKE_WIDTH_SELECTED,
   STROKE_WIDTH_TARGET,
-  PM_STYLE_ATTACK,
-  PM_STYLE_MOVE,
-  UNIT_PULSE_DURATION_MS,
-  hexStringToNumber,
-  lighten,
-  drawPolygon,
-  drawCapitalMarker,
+  TARGET_STROKE,
+  UNCLAIMED_FILL_ALPHA,
 } from "@/lib/canvasTypes";
+import { getBuildingAsset } from "@/lib/gameAssets";
+import type { TroopAnimation } from "@/lib/gameTypes";
+import { PixiAnimationManager } from "@/lib/pixiAnimations";
+
 // Re-export shape types for backwards compatibility
-export type { ProvinceShape, ShapesBounds, ShapesData, WorldTextureMapping, GameCanvasProps } from "@/lib/canvasTypes";
+export type { GameCanvasProps, ProvinceShape, ShapesBounds, ShapesData, WorldTextureMapping } from "@/lib/canvasTypes";
 
 // ── Main component ────────────────────────────────────────────
 
@@ -121,8 +119,7 @@ export default function GameCanvas({
   const unitPulsesRef = useRef<Map<string, { startTime: number; delta: number }>>(new Map());
 
   /** Snapshot of the previous regions state — used to diff tick updates. */
-  const prevRegionsRef = useRef<Record<string, GameRegion>>({});
-
+  const _prevRegionsRef = useRef<Record<string, GameRegion>>({});
 
   /** Temporary visual adjustments from bombardment — subtracted from displayed unit_count
    *  until the next tick confirms the actual state. Keyed by region ID. */
@@ -162,7 +159,6 @@ export default function GameCanvas({
   const dimmedRegionsRef = useRef(dimmedRegions);
   dimmedRegionsRef.current = dimmedRegions;
 
-
   // Stable refs for animations and activeEffects — used inside drawProvince
   // without causing the callback to rebuild on every render.
   const animationsRef = useRef(animations);
@@ -186,7 +182,6 @@ export default function GameCanvas({
   const shapesDataRef = useRef(shapesData);
   shapesDataRef.current = shapesData;
 
-
   // Dirty-region rendering: track previous region snapshot + structural generation.
   const prevRegionSnapshotRef = useRef<Record<string, GameRegion>>({});
   const structuralGenRef = useRef(0);
@@ -194,7 +189,7 @@ export default function GameCanvas({
   // Bump structural gen when non-region deps change (selection, highlights, etc.)
   useEffect(() => {
     structuralGenRef.current++;
-  }, [selectedRegion, targetRegions, highlightedNeighbors, dimmedRegions, airTransitQueue, unitManpowerMap]);
+  }, []);
 
   // Rebuild centroid cache when shapesData changes (used by ticker without per-frame allocation)
   useEffect(() => {
@@ -210,8 +205,13 @@ export default function GameCanvas({
 
   // Bombardment & combat event listeners (extracted to hook)
   useBombardmentEvents(
-    shapesDataRef, animManagerRef, stateMapRef,
-    unitPulsesRef, bombardAdjustRef, recentlyBombedRef, samInterceptsRef,
+    shapesDataRef,
+    animManagerRef,
+    stateMapRef,
+    unitPulsesRef,
+    bombardAdjustRef,
+    recentlyBombedRef,
+    samInterceptsRef,
   );
 
   // ── Province drawing helper ──────────────────────────────────
@@ -222,16 +222,14 @@ export default function GameCanvas({
       shape: ProvinceShape,
       state: ProvinceRenderState,
       isHovered: boolean,
-      diplomacyRelMap?: Map<string, "war" | "nap" | "ally">
+      diplomacyRelMap?: Map<string, "war" | "nap" | "ally">,
     ) => {
       const region = regionsRef.current[id];
       // If rockets are still in flight (bombardAdjust active), keep showing the
       // previous owner so the province doesn't visually neutralize before impact.
       const hasPendingBombard = (bombardAdjustRef.current.get(id) ?? 0) > 0;
       const prevOwner = prevUnitOwnersRef.current.get(id) ?? null;
-      const ownerId = (hasPendingBombard && !region?.owner_id && prevOwner)
-        ? prevOwner
-        : (region?.owner_id ?? null);
+      const ownerId = hasPendingBombard && !region?.owner_id && prevOwner ? prevOwner : (region?.owner_id ?? null);
       const player = ownerId ? playersRef.current[ownerId] : null;
 
       const isSelected = selectedRegionRef.current === id;
@@ -277,25 +275,22 @@ export default function GameCanvas({
         const relation = relMap.get(ownerId);
         if (relation === "war") {
           relationStroke = 0x8b2020; // dark red — war
-          hatchAlpha = 0.18;        // more visible danger hatch
+          hatchAlpha = 0.18; // more visible danger hatch
         } else if (relation === "nap") {
           relationStroke = 0x1a5c2d; // dark green — allied NAP
-          showHatch = false;          // no hostile hatch for allies
-          fillAlphaOverride = 0.45;  // slightly more transparent, friendly
+          showHatch = false; // no hostile hatch for allies
+          fillAlphaOverride = 0.45; // slightly more transparent, friendly
         } else if (!relMap.size) {
           // Fallback: relMap not populated yet — scan raw diplomacy state
           const diplo = diplomacyRef.current;
           if (diplo) {
             const isAtWar = diplo.wars.some(
-              (w) =>
-                (w.player_a === myId && w.player_b === ownerId) ||
-                (w.player_b === myId && w.player_a === ownerId)
+              (w) => (w.player_a === myId && w.player_b === ownerId) || (w.player_b === myId && w.player_a === ownerId),
             );
             const hasNap = diplo.pacts.some(
               (p) =>
-                ((p.player_a === myId && p.player_b === ownerId) ||
-                  (p.player_b === myId && p.player_a === ownerId)) &&
-                p.pact_type === "nap"
+                ((p.player_a === myId && p.player_b === ownerId) || (p.player_b === myId && p.player_a === ownerId)) &&
+                p.pact_type === "nap",
             );
             if (isAtWar) {
               relationStroke = 0x8b2020;
@@ -330,7 +325,9 @@ export default function GameCanvas({
       const baseAlpha = isDimmed
         ? DIMMED_ALPHA
         : ownerId
-          ? (fillAlphaOverride !== null ? fillAlphaOverride : NORMAL_ALPHA)
+          ? fillAlphaOverride !== null
+            ? fillAlphaOverride
+            : NORMAL_ALPHA
           : UNCLAIMED_FILL_ALPHA;
       const alpha = baseAlpha;
 
@@ -360,11 +357,17 @@ export default function GameCanvas({
           const outerRing = subPoly[0];
           if (!outerRing || outerRing.length < 3) continue;
           // Iterative min/max — avoids .map() allocation + Math.min(...) spread
-          let minX = outerRing[0][0], maxX = minX, minY = outerRing[0][1], maxY = minY;
+          let minX = outerRing[0][0],
+            maxX = minX,
+            minY = outerRing[0][1],
+            maxY = minY;
           for (let pi = 1; pi < outerRing.length; pi++) {
-            const px = outerRing[pi][0], py = outerRing[pi][1];
-            if (px < minX) minX = px; else if (px > maxX) maxX = px;
-            if (py < minY) minY = py; else if (py > maxY) maxY = py;
+            const px = outerRing[pi][0],
+              py = outerRing[pi][1];
+            if (px < minX) minX = px;
+            else if (px > maxX) maxX = px;
+            if (py < minY) minY = py;
+            else if (py > maxY) maxY = py;
           }
           const spacing = 12;
           // Clip diagonal lines to the polygon bounding box.
@@ -397,9 +400,7 @@ export default function GameCanvas({
         for (let si = 0; si < state.flatPolys.length; si++) {
           const flatPoints = state.flatPolys[si];
           if (flatPoints.length < 6) continue;
-          gfx
-            .poly(flatPoints, true)
-            .stroke({ color: 0x8b2020, width: STROKE_WIDTH_DEFAULT + 1, alpha: pulse });
+          gfx.poly(flatPoints, true).stroke({ color: 0x8b2020, width: STROKE_WIDTH_DEFAULT + 1, alpha: pulse });
         }
       }
 
@@ -417,9 +418,10 @@ export default function GameCanvas({
         const isAnimTarget = animTargetSetRef.current.has(id);
 
         // Check whether this region is revealed by submarine effect
-        const isSubRevealed = activeEffectsRef.current?.some(
-          (e) => e.effect_type === "ab_pr_submarine" && e.affected_region_ids.includes(id)
-        ) ?? false;
+        const isSubRevealed =
+          activeEffectsRef.current?.some(
+            (e) => e.effect_type === "ab_pr_submarine" && e.affected_region_ids.includes(id),
+          ) ?? false;
 
         // Show unit count on enemy provinces being bombed (in active bomber flight paths)
         // OR recently bombed (keep visible for a few seconds after flight ends).
@@ -433,7 +435,7 @@ export default function GameCanvas({
           const bombAdj = bombardAdjustRef.current.get(id) ?? 0;
 
           // Infantry = raw count minus manpower reserved by special units
-          const infantryRaw = units["infantry"] ?? 0;
+          const infantryRaw = units.infantry ?? 0;
           let reserved = 0;
           for (const [slug, count] of Object.entries(units)) {
             if (slug !== "infantry" && count > 0) {
@@ -467,12 +469,12 @@ export default function GameCanvas({
           // Full breakdown on selected/hovered province, compact on others
           const isDetailed = isSelected || isHovered;
           let specialCount = 0;
-          let specialMp = 0;
+          let _specialMp = 0;
           for (const [slug] of Object.entries(UNIT_SYMBOLS)) {
             const count = units[slug] ?? 0;
             if (count > 0) {
               specialCount += count;
-              specialMp += count * (mpMap[slug] ?? 1);
+              _specialMp += count * (mpMap[slug] ?? 1);
             }
           }
 
@@ -480,9 +482,7 @@ export default function GameCanvas({
             // Full: ▸ 319 | A1(25) F1(100) B1(100)
             const extras = parts.length > 0 ? ` | ${parts.join(" ")}` : "";
             if (infantryDisplay > 0 || parts.length > 0) {
-              label.text = infantryDisplay > 0
-                ? `▸ ${infantryDisplay}${extras}`
-                : `▸${extras}`;
+              label.text = infantryDisplay > 0 ? `▸ ${infantryDisplay}${extras}` : `▸${extras}`;
             } else {
               label.text = "";
             }
@@ -530,7 +530,7 @@ export default function GameCanvas({
       state.buildingLabel.text = "";
       state.buildingLabel.alpha = isDimmed ? 0.4 : 0.85;
     },
-    []
+    [],
   );
 
   // ── Build province graphics when shapesData arrives ──────────
@@ -698,14 +698,16 @@ export default function GameCanvas({
           const url = `/assets/map_textures/map09/chunks_game/${cx}x${cy}.webp`;
           const slotX = cx * CHUNK_W;
           const slotY = cy * CHUNK_H;
-          Assets.load(url).then((texture: Texture) => {
-            if (!viewportRef.current) return;
-            const sprite = new Sprite(texture);
-            sprite.position.set(slotX, slotY);
-            sprite.width = CHUNK_W;
-            sprite.height = CHUNK_H;
-            terrainContainer.addChild(sprite);
-          }).catch(() => {});
+          Assets.load(url)
+            .then((texture: Texture) => {
+              if (!viewportRef.current) return;
+              const sprite = new Sprite(texture);
+              sprite.position.set(slotX, slotY);
+              sprite.width = CHUNK_W;
+              sprite.height = CHUNK_H;
+              terrainContainer.addChild(sprite);
+            })
+            .catch(() => {});
         }
       }
 
@@ -737,12 +739,7 @@ export default function GameCanvas({
     const { min_x, min_y, max_x, max_y } = shapesData.bounds;
     const worldW = max_x - min_x;
     const worldH = max_y - min_y;
-    viewport.resize(
-      viewport.screenWidth,
-      viewport.screenHeight,
-      worldW,
-      worldH
-    );
+    viewport.resize(viewport.screenWidth, viewport.screenHeight, worldW, worldH);
     viewport.fit(true, worldW, worldH);
     // Ensure minimum zoom so map isn't too zoomed out
     const currentScale = viewport.scale.x;
@@ -763,8 +760,14 @@ export default function GameCanvas({
     });
 
     onMapReady?.();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shapesData, appReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    shapesData,
+    appReady, // Initial draw
+    drawProvince,
+    initialZoom,
+    onMapReady,
+  ]);
 
   // ── Re-draw all provinces when game state changes ─────────────
 
@@ -852,29 +855,31 @@ export default function GameCanvas({
 
         // Capital star sprite
         if (region.is_capital) {
-          Assets.load("/assets/units/capital_star.png").then((texture: Texture) => {
-            if (!capitalLayerRef.current) return;
-            const sprite = new Sprite(texture);
-            sprite.anchor.set(0.5, 0.5);
-            sprite.width = 26;
-            sprite.height = 26;
-            sprite.position.set(cx - 28, cy - 30);
-            sprite.eventMode = "none";
-            capitalLayerRef.current.addChild(sprite);
-            // Track it so we can remove it on next change
-            const existing = capitalSpriteMapRef.current.get(rid) ?? [];
-            existing.push(sprite);
-            capitalSpriteMapRef.current.set(rid, existing);
-          }).catch(() => {
-            if (!capitalLayerRef.current) return;
-            const cap = new Graphics();
-            cap.eventMode = "none";
-            drawCapitalMarker(cap, cx, cy - 18, 7);
-            capitalLayerRef.current.addChild(cap);
-            const existing = capitalSpriteMapRef.current.get(rid) ?? [];
-            existing.push(cap);
-            capitalSpriteMapRef.current.set(rid, existing);
-          });
+          Assets.load("/assets/units/capital_star.png")
+            .then((texture: Texture) => {
+              if (!capitalLayerRef.current) return;
+              const sprite = new Sprite(texture);
+              sprite.anchor.set(0.5, 0.5);
+              sprite.width = 26;
+              sprite.height = 26;
+              sprite.position.set(cx - 28, cy - 30);
+              sprite.eventMode = "none";
+              capitalLayerRef.current.addChild(sprite);
+              // Track it so we can remove it on next change
+              const existing = capitalSpriteMapRef.current.get(rid) ?? [];
+              existing.push(sprite);
+              capitalSpriteMapRef.current.set(rid, existing);
+            })
+            .catch(() => {
+              if (!capitalLayerRef.current) return;
+              const cap = new Graphics();
+              cap.eventMode = "none";
+              drawCapitalMarker(cap, cx, cy - 18, 7);
+              capitalLayerRef.current.addChild(cap);
+              const existing = capitalSpriteMapRef.current.get(rid) ?? [];
+              existing.push(cap);
+              capitalSpriteMapRef.current.set(rid, existing);
+            });
         }
 
         // Building sprites
@@ -917,39 +922,41 @@ export default function GameCanvas({
             const capturedCount = entry.count;
             itemIndex++;
 
-            Assets.load(entry.url).then((texture: Texture) => {
-              if (!capitalLayerRef.current) return;
+            Assets.load(entry.url)
+              .then((texture: Texture) => {
+                if (!capitalLayerRef.current) return;
 
-              const bg = new Graphics();
-              bg.circle(capturedIx, capturedIy, ICON_SIZE / 2 + 3)
-                .fill({ color: 0x0a1628, alpha: 0.85 })
-                .stroke({ color: 0x2a3a50, width: 1, alpha: 0.6 });
-              bldgContainer.addChild(bg);
+                const bg = new Graphics();
+                bg.circle(capturedIx, capturedIy, ICON_SIZE / 2 + 3)
+                  .fill({ color: 0x0a1628, alpha: 0.85 })
+                  .stroke({ color: 0x2a3a50, width: 1, alpha: 0.6 });
+                bldgContainer.addChild(bg);
 
-              const sprite = new Sprite(texture);
-              sprite.anchor.set(0.5, 0.5);
-              sprite.width = ICON_SIZE;
-              sprite.height = ICON_SIZE;
-              sprite.position.set(capturedIx, capturedIy);
-              bldgContainer.addChild(sprite);
+                const sprite = new Sprite(texture);
+                sprite.anchor.set(0.5, 0.5);
+                sprite.width = ICON_SIZE;
+                sprite.height = ICON_SIZE;
+                sprite.position.set(capturedIx, capturedIy);
+                bldgContainer.addChild(sprite);
 
-              if (capturedCount > 1) {
-                const countText = new Text({
-                  text: String(capturedCount),
-                  style: new TextStyle({
-                    fontFamily: "Rajdhani, sans-serif",
-                    fontSize: 9,
-                    fill: 0xffffff,
-                    fontWeight: "bold",
-                    dropShadow: { color: 0x000000, blur: 2, distance: 0, alpha: 1, angle: 0 },
-                  }),
-                  resolution: 3,
-                });
-                countText.anchor.set(0.5, 0.5);
-                countText.position.set(capturedIx + ICON_SIZE / 2 + 2, capturedIy + ICON_SIZE / 2);
-                bldgContainer.addChild(countText);
-              }
-            }).catch(() => {});
+                if (capturedCount > 1) {
+                  const countText = new Text({
+                    text: String(capturedCount),
+                    style: new TextStyle({
+                      fontFamily: "Rajdhani, sans-serif",
+                      fontSize: 9,
+                      fill: 0xffffff,
+                      fontWeight: "bold",
+                      dropShadow: { color: 0x000000, blur: 2, distance: 0, alpha: 1, angle: 0 },
+                    }),
+                    resolution: 3,
+                  });
+                  countText.anchor.set(0.5, 0.5);
+                  countText.position.set(capturedIx + ICON_SIZE / 2 + 2, capturedIy + ICON_SIZE / 2);
+                  bldgContainer.addChild(countText);
+                }
+              })
+              .catch(() => {});
           }
 
           capitalLayer.addChild(bldgContainer);
@@ -1055,8 +1062,14 @@ export default function GameCanvas({
         if (!curr) continue;
         // Always redraw if bombardment adjustment is pending
         const hasBombAdj = (bombardAdjustRef.current.get(rid) ?? 0) > 0;
-        if (!hasBombAdj && p && p.unit_count === curr.unit_count && p.owner_id === curr.owner_id &&
-            p.is_capital === curr.is_capital && p.building_type === curr.building_type) {
+        if (
+          !hasBombAdj &&
+          p &&
+          p.unit_count === curr.unit_count &&
+          p.owner_id === curr.owner_id &&
+          p.is_capital === curr.is_capital &&
+          p.building_type === curr.building_type
+        ) {
           continue; // unchanged — skip redraw
         }
         const state = stateMapRef.current.get(rid);
@@ -1069,19 +1082,7 @@ export default function GameCanvas({
       snapshot[rid] = r;
     }
     prevRegionSnapshotRef.current = snapshot;
-  }, [
-    shapesData,
-    regions,
-    players,
-    selectedRegion,
-    targetRegions,
-    highlightedNeighbors,
-    dimmedRegions,
-    myUserId,
-    diplomacy,
-    drawProvince,
-    airTransitQueue,
-  ]);
+  }, [shapesData, regions, myUserId, diplomacy, drawProvince, airTransitQueue, animations]);
 
   // ── Sync animations with the manager ──────────────────────────
 
@@ -1186,7 +1187,7 @@ export default function GameCanvas({
         // Render each escort fighter as a separate animation beside the bomber.
         // Each gets a perpendicular offset so they fly in formation.
         if (flight.escort_fighters > 0 && flight.unit_type === "bomber") {
-          const fighterMc = unitManpowerMap?.["fighter"] ?? 1;
+          const fighterMc = unitManpowerMap?.fighter ?? 1;
           const numEscorts = Math.min(flight.escort_fighters, 4); // max 4 visible escorts
           const offsets = [-18, 18, -32, 32]; // px offsets from bomber path
           for (let ei = 0; ei < numEscorts; ei++) {
@@ -1279,7 +1280,7 @@ export default function GameCanvas({
         return;
       }
 
-      container!.appendChild(app.canvas);
+      container?.appendChild(app.canvas);
       appRef.current = app;
 
       // Build layer containers
@@ -1301,10 +1302,10 @@ export default function GameCanvas({
 
       // Viewport — defaults to screen size; world size updated when shapesData loads
       const viewport = new Viewport({
-        screenWidth: container!.clientWidth,
-        screenHeight: container!.clientHeight,
-        worldWidth: container!.clientWidth,
-        worldHeight: container!.clientHeight,
+        screenWidth: container?.clientWidth,
+        screenHeight: container?.clientHeight,
+        worldWidth: container?.clientWidth,
+        worldHeight: container?.clientHeight,
         events: app.renderer.events,
       });
 
@@ -1328,7 +1329,6 @@ export default function GameCanvas({
       const capitalRadar = new Graphics();
       capitalRadar.eventMode = "none";
       capitalRadarRef.current = capitalRadar;
-
 
       // Tactical grid overlay — drawn behind provinces, updated when shapesData loads
       const gridLayer = new Graphics();
@@ -1453,8 +1453,7 @@ export default function GameCanvas({
                 }
                 interceptorPoolIdxRef.current++;
 
-                g.moveTo(intSrc[0], intSrc[1]).lineTo(intX, intY)
-                  .stroke({ color: intColor, width: 1.5, alpha: 0.4 });
+                g.moveTo(intSrc[0], intSrc[1]).lineTo(intX, intY).stroke({ color: intColor, width: 1.5, alpha: 0.4 });
                 g.circle(intX, intY, 8)
                   .fill({ color: intColor, alpha: 0.7 })
                   .stroke({ color: 0xffffff, width: 1.5, alpha: 0.8 });
@@ -1479,7 +1478,7 @@ export default function GameCanvas({
             const playerColor = hexStringToNumber(player.color);
             // 2 concentric expanding rings, cycle every 3 seconds
             for (let ring = 0; ring < 2; ring++) {
-              const phase = ((now / 3000) + ring * 0.5) % 1.0;
+              const phase = (now / 3000 + ring * 0.5) % 1.0;
               const radius = 15 + phase * 40;
               const alpha = (1 - phase) * (1 - phase) * 0.35;
               radar.circle(cx, cy, radius).stroke({ color: playerColor, width: 1.5, alpha });
@@ -1490,58 +1489,56 @@ export default function GameCanvas({
         // SAM intercept animations — SAM rocket flies to meet point + explosion
         const samAnims = samInterceptsRef.current;
         if (airLayer) {
-        // Reset SAM pool visibility
-        const samPool = samGfxPoolRef.current;
-        for (let pi = 0; pi < samGfxPoolIdxRef.current; pi++) {
-          samPool[pi].visible = false;
-        }
-        samGfxPoolIdxRef.current = 0;
+          // Reset SAM pool visibility
+          const samPool = samGfxPoolRef.current;
+          for (let pi = 0; pi < samGfxPoolIdxRef.current; pi++) {
+            samPool[pi].visible = false;
+          }
+          samGfxPoolIdxRef.current = 0;
 
-        for (let si = samAnims.length - 1; si >= 0; si--) {
-          const sa = samAnims[si];
-          const elapsed = now - sa.startTime;
-          const progress = Math.min(elapsed / sa.meetMs, 1);
+          for (let si = samAnims.length - 1; si >= 0; si--) {
+            const sa = samAnims[si];
+            const elapsed = now - sa.startTime;
+            const progress = Math.min(elapsed / sa.meetMs, 1);
 
-          if (progress < 1) {
-            const samX = sa.samFrom[0] + (sa.meetPoint[0] - sa.samFrom[0]) * progress;
-            const samY = sa.samFrom[1] + (sa.meetPoint[1] - sa.samFrom[1]) * progress;
+            if (progress < 1) {
+              const samX = sa.samFrom[0] + (sa.meetPoint[0] - sa.samFrom[0]) * progress;
+              const samY = sa.samFrom[1] + (sa.meetPoint[1] - sa.samFrom[1]) * progress;
 
-            let samGfx: Graphics;
-            const samPoolIdx = samGfxPoolIdxRef.current;
-            if (samPoolIdx < samPool.length) {
-              samGfx = samPool[samPoolIdx];
-              samGfx.clear();
-              samGfx.visible = true;
-            } else {
-              samGfx = new Graphics();
-              samGfx.eventMode = "none";
-              airLayer.addChild(samGfx);
-              samPool.push(samGfx);
+              let samGfx: Graphics;
+              const samPoolIdx = samGfxPoolIdxRef.current;
+              if (samPoolIdx < samPool.length) {
+                samGfx = samPool[samPoolIdx];
+                samGfx.clear();
+                samGfx.visible = true;
+              } else {
+                samGfx = new Graphics();
+                samGfx.eventMode = "none";
+                airLayer.addChild(samGfx);
+                samPool.push(samGfx);
+              }
+              samGfxPoolIdxRef.current++;
+
+              samGfx.circle(samX, samY, 3).fill({ color: 0x22d3ee, alpha: 0.95 });
+              samGfx.circle(samX, samY, 7).fill({ color: 0x22d3ee, alpha: 0.2 });
+              const tailP = Math.max(0, progress - 0.2);
+              const tailX = sa.samFrom[0] + (sa.meetPoint[0] - sa.samFrom[0]) * tailP;
+              const tailY = sa.samFrom[1] + (sa.meetPoint[1] - sa.samFrom[1]) * tailP;
+              samGfx.moveTo(tailX, tailY).lineTo(samX, samY).stroke({ color: 0x22d3ee, width: 2.5, alpha: 0.6 });
+              samGfx.moveTo(tailX, tailY).lineTo(samX, samY).stroke({ color: 0x22d3ee, width: 5, alpha: 0.15 });
+            } else if (!sa.exploded) {
+              sa.exploded = true;
+              const mgr = animManagerRef.current;
+              if (mgr) {
+                mgr.spawnParticleEffect("explosion", sa.meetPoint[0], sa.meetPoint[1]);
+                mgr.spawnParticleEffect("sparks", sa.meetPoint[0], sa.meetPoint[1]);
+              }
             }
-            samGfxPoolIdxRef.current++;
 
-            samGfx.circle(samX, samY, 3).fill({ color: 0x22d3ee, alpha: 0.95 });
-            samGfx.circle(samX, samY, 7).fill({ color: 0x22d3ee, alpha: 0.2 });
-            const tailP = Math.max(0, progress - 0.2);
-            const tailX = sa.samFrom[0] + (sa.meetPoint[0] - sa.samFrom[0]) * tailP;
-            const tailY = sa.samFrom[1] + (sa.meetPoint[1] - sa.samFrom[1]) * tailP;
-            samGfx.moveTo(tailX, tailY).lineTo(samX, samY)
-              .stroke({ color: 0x22d3ee, width: 2.5, alpha: 0.6 });
-            samGfx.moveTo(tailX, tailY).lineTo(samX, samY)
-              .stroke({ color: 0x22d3ee, width: 5, alpha: 0.15 });
-          } else if (!sa.exploded) {
-            sa.exploded = true;
-            const mgr = animManagerRef.current;
-            if (mgr) {
-              mgr.spawnParticleEffect("explosion", sa.meetPoint[0], sa.meetPoint[1]);
-              mgr.spawnParticleEffect("sparks", sa.meetPoint[0], sa.meetPoint[1]);
+            if (elapsed > sa.meetMs + 1500) {
+              samAnims.splice(si, 1);
             }
           }
-
-          if (elapsed > sa.meetMs + 1500) {
-            samAnims.splice(si, 1);
-          }
-        }
         } // end airLayer guard
 
         // Render planned move arrows (pooled)
@@ -1593,8 +1590,10 @@ export default function GameCanvas({
               for (let si = 0; si < steps; si++) {
                 const startD = si * (dashLen + gapLen);
                 const endD = startD + dashLen;
-                g.moveTo(src[0] + ux * startD, src[1] + uy * startD)
-                  .lineTo(src[0] + ux * Math.min(endD, dist), src[1] + uy * Math.min(endD, dist));
+                g.moveTo(src[0] + ux * startD, src[1] + uy * startD).lineTo(
+                  src[0] + ux * Math.min(endD, dist),
+                  src[1] + uy * Math.min(endD, dist),
+                );
               }
               const pulse = 0.5 + Math.sin(now * 0.004) * 0.3;
               g.stroke({ color, width: 2.5, alpha: pulse });
@@ -1636,13 +1635,12 @@ export default function GameCanvas({
       // Handle canvas resize
       const resizeObserver = new ResizeObserver(() => {
         if (!appRef.current || !viewportRef.current) return;
-        viewport.resize(container!.clientWidth, container!.clientHeight);
+        viewport.resize(container?.clientWidth, container?.clientHeight);
       });
       resizeObserver.observe(container!);
 
       // Store cleanup reference
-      (app as Application & { _resizeObserver?: ResizeObserver })._resizeObserver =
-        resizeObserver;
+      (app as Application & { _resizeObserver?: ResizeObserver })._resizeObserver = resizeObserver;
     }
 
     init().catch(console.error);
@@ -1664,13 +1662,13 @@ export default function GameCanvas({
         for (const s of stateMapRef.current.values()) {
           s.graphics.destroy();
           s.label.destroy();
-      s.labelBg.destroy();
+          s.labelBg.destroy();
           s.buildingLabel.destroy();
         }
         stateMapRef.current.clear();
 
         // Remove canvas from DOM before destroy to prevent flash
-        if (a.canvas && a.canvas.parentNode) {
+        if (a.canvas?.parentNode) {
           a.canvas.parentNode.removeChild(a.canvas);
         }
 
@@ -1690,7 +1688,7 @@ export default function GameCanvas({
     };
     // Only run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [myUserId]);
 
   return (
     <div

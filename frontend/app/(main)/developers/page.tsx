@@ -1,37 +1,32 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { ArrowRight, BookOpen, CheckCheck, Code, Copy, KeyRound, Plus } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { Plus, Code, Copy, ArrowRight, KeyRound, CheckCheck, BookOpen } from "lucide-react";
-
-import { useAuth } from "@/hooks/useAuth";
-import { useModuleConfig } from "@/hooks/useSystemModules";
+import { z } from "zod";
 import { ModuleDisabledPage } from "@/components/ModuleGate";
-import { useDeveloperApps, useCreateDeveloperApp } from "@/hooks/queries";
-import {
-  type DeveloperApp,
-  type DeveloperAppCreated,
-} from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { DevelopersSkeleton } from "@/components/skeletons/DevelopersSkeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
-import { DevelopersSkeleton } from "@/components/skeletons/DevelopersSkeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useCreateDeveloperApp, useDeveloperApps } from "@/hooks/queries";
+import { useAuth } from "@/hooks/useAuth";
+import { useModuleConfig } from "@/hooks/useSystemModules";
+import type { DeveloperApp, DeveloperAppCreated } from "@/lib/api";
 
 // ── Zod schema ──────────────────────────────────────────────
 
@@ -88,9 +83,7 @@ function AppCard({ app }: { app: DeveloperApp }) {
             {app.name}
           </h3>
           {app.description ? (
-            <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-400">
-              {app.description}
-            </p>
+            <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-400">{app.description}</p>
           ) : (
             <p className="mt-0.5 text-xs italic text-slate-500">Brak opisu</p>
           )}
@@ -99,12 +92,8 @@ function AppCard({ app }: { app: DeveloperApp }) {
 
       {/* Client ID */}
       <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
-          Client ID
-        </div>
-        <div className="mt-0.5 font-mono text-xs text-slate-300">
-          {truncate(app.client_id, 28)}
-        </div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">Client ID</div>
+        <div className="mt-0.5 font-mono text-xs text-slate-300">{truncate(app.client_id, 28)}</div>
       </div>
 
       {/* Footer */}
@@ -163,11 +152,13 @@ function SecretDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
-      <DialogContent
-        showCloseButton={false}
-        className="border border-amber-300/20 bg-slate-950 sm:max-w-md"
-      >
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose();
+      }}
+    >
+      <DialogContent showCloseButton={false} className="border border-amber-300/20 bg-slate-950 sm:max-w-md">
         <DialogHeader>
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-400/10">
             <KeyRound className="h-6 w-6 text-amber-200" />
@@ -184,9 +175,7 @@ function SecretDialog({
         {createdApp && (
           <div className="space-y-3">
             <div>
-              <div className="mb-1.5 text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">
-                Client ID
-              </div>
+              <div className="mb-1.5 text-[11px] uppercase tracking-[0.2em] text-slate-400 font-medium">Client ID</div>
               <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 font-mono text-xs text-slate-300 break-all">
                 {createdApp.client_id}
               </div>
@@ -205,11 +194,7 @@ function SecretDialog({
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-zinc-100"
                   title="Copy to clipboard"
                 >
-                  {copied ? (
-                    <CheckCheck className="h-4 w-4 text-emerald-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                  {copied ? <CheckCheck className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                 </button>
               </div>
             </div>
@@ -276,9 +261,7 @@ function CreateAppDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border border-white/10 bg-slate-950 sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl text-zinc-50">
-            Utworz aplikacje
-          </DialogTitle>
+          <DialogTitle className="font-display text-xl text-zinc-50">Utworz aplikacje</DialogTitle>
           <DialogDescription className="text-sm text-slate-400">
             Aplikacje pozwalaja generowac klucze API i konfigurowac webhooki do integracji z MapLord.
           </DialogDescription>
@@ -295,9 +278,7 @@ function CreateAppDialog({
               className="border-white/10 bg-white/[0.04] text-zinc-50 placeholder:text-slate-600 focus-visible:border-cyan-400/40 focus-visible:ring-cyan-400/20"
               {...register("name")}
             />
-            {errors.name && (
-              <p className="text-xs text-red-400">{errors.name.message}</p>
-            )}
+            {errors.name && <p className="text-xs text-red-400">{errors.name.message}</p>}
           </div>
 
           <div className="space-y-1.5">
@@ -311,9 +292,7 @@ function CreateAppDialog({
               className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-2 text-sm text-zinc-50 placeholder:text-slate-600 outline-none transition-colors focus-visible:border-cyan-400/40 focus-visible:ring-2 focus-visible:ring-cyan-400/20 disabled:pointer-events-none disabled:opacity-50 resize-none"
               {...register("description")}
             />
-            {errors.description && (
-              <p className="text-xs text-red-400">{errors.description.message}</p>
-            )}
+            {errors.description && <p className="text-xs text-red-400">{errors.description.message}</p>}
           </div>
 
           <DialogFooter className="-mx-4 -mb-4 border-t border-white/10 bg-transparent p-4">
@@ -425,26 +404,16 @@ function DevelopersContent() {
       {/* ── Stats strip ────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-xl">
-          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
-            Wszystkie
-          </div>
+          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">Wszystkie</div>
           <div className="mt-1 font-display text-2xl text-zinc-50">{apps.length}</div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-xl">
-          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
-            Aktywne
-          </div>
-          <div className="mt-1 font-display text-2xl text-emerald-300">
-            {apps.filter((a) => a.is_active).length}
-          </div>
+          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">Aktywne</div>
+          <div className="mt-1 font-display text-2xl text-emerald-300">{apps.filter((a) => a.is_active).length}</div>
         </div>
         <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-xl sm:col-span-1">
-          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
-            Nieaktywne
-          </div>
-          <div className="mt-1 font-display text-2xl text-slate-400">
-            {apps.filter((a) => !a.is_active).length}
-          </div>
+          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">Nieaktywne</div>
+          <div className="mt-1 font-display text-2xl text-slate-400">{apps.filter((a) => !a.is_active).length}</div>
         </div>
       </div>
 
@@ -460,17 +429,9 @@ function DevelopersContent() {
       )}
 
       {/* ── Dialogs ────────────────────────────────────────── */}
-      <CreateAppDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={handleCreated}
-      />
+      <CreateAppDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} />
 
-      <SecretDialog
-        open={secretOpen}
-        createdApp={createdApp}
-        onClose={handleSecretClose}
-      />
+      <SecretDialog open={secretOpen} createdApp={createdApp} onClose={handleSecretClose} />
     </div>
   );
 }

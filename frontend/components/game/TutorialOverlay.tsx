@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { type TutorialStep } from "@/lib/tutorialSteps";
+import { ChevronLeft, ChevronRight, SkipForward } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { SkipForward, ChevronRight, ChevronLeft } from "lucide-react";
+import type { TutorialStep } from "@/lib/tutorialSteps";
 
 interface TutorialOverlayProps {
   step: TutorialStep;
@@ -52,8 +52,20 @@ function TutorialPointer({ target }: { target: string }) {
           top: rect.top - 38,
         }}
       >
-        <svg width="28" height="28" viewBox="0 0 24 24" className="animate-bounce text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.7)]">
-          <path d="M12 4 L12 16 M7 12 L12 18 L17 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          className="animate-bounce text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.7)]"
+        >
+          <path
+            d="M12 4 L12 16 M7 12 L12 18 L17 12"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
         </svg>
       </div>
     </div>
@@ -83,33 +95,22 @@ export default function TutorialOverlay({
               <div
                 key={i}
                 className={`h-1.5 flex-1 rounded-full transition-colors ${
-                  i < stepIndex
-                    ? "bg-emerald-400"
-                    : i === stepIndex
-                      ? "bg-cyan-400"
-                      : "bg-white/10"
+                  i < stepIndex ? "bg-emerald-400" : i === stepIndex ? "bg-cyan-400" : "bg-white/10"
                 }`}
               />
             ))}
           </div>
 
           {/* Title */}
-          <h3 className="text-base font-bold text-white">
-            {step.title}
-          </h3>
+          <h3 className="text-base font-bold text-white">{step.title}</h3>
 
           {/* Description */}
-          <p className="mt-1.5 text-sm leading-relaxed text-zinc-200">
-            {step.description}
-          </p>
+          <p className="mt-1.5 text-sm leading-relaxed text-zinc-200">{step.description}</p>
 
           {/* Actions */}
           <div className="mt-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button
-                onClick={onSkip}
-                className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300"
-              >
+              <button onClick={onSkip} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
                 <SkipForward className="h-3 w-3" />
                 Pomin
               </button>

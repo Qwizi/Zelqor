@@ -11,7 +11,7 @@ export function computeCurvePath(
   from: [number, number],
   to: [number, number],
   offsetFactor: number,
-  n: number
+  n: number,
 ): [number, number][] {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
@@ -30,10 +30,7 @@ export function computeCurvePath(
   for (let i = 0; i <= n; i++) {
     const t = i / n;
     const u = 1 - t;
-    pts.push([
-      u * u * from[0] + 2 * u * t * cpx + t * t * to[0],
-      u * u * from[1] + 2 * u * t * cpy + t * t * to[1],
-    ]);
+    pts.push([u * u * from[0] + 2 * u * t * cpx + t * t * to[0], u * u * from[1] + 2 * u * t * cpy + t * t * to[1]]);
   }
   return pts;
 }
@@ -42,11 +39,7 @@ export function computeCurvePath(
  * Compute a sinusoidal march path between `from` and `to`.
  * Produces a gentle wave pattern suited for infantry movement.
  */
-export function computeMarchPath(
-  from: [number, number],
-  to: [number, number],
-  n = 28
-): [number, number][] {
+export function computeMarchPath(from: [number, number], to: [number, number], n = 28): [number, number][] {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -59,8 +52,7 @@ export function computeMarchPath(
 
   for (let i = 0; i <= n; i++) {
     const t = i / n;
-    const wave =
-      Math.sin(t * Math.PI * 3) * wobble * (1 - Math.abs(0.5 - t) * 1.15);
+    const wave = Math.sin(t * Math.PI * 3) * wobble * (1 - Math.abs(0.5 - t) * 1.15);
     pts.push([from[0] + dx * t + nx * wave, from[1] + dy * t + ny * wave]);
   }
 
@@ -109,10 +101,7 @@ export function buildBomberFlightPath(waypoints: [number, number][]): [number, n
     for (let j = 0; j < POINTS_PER_SEGMENT; j++) {
       const t = j / POINTS_PER_SEGMENT;
       const alt = Math.sin(t * Math.PI) * altitude;
-      path.push([
-        x0 + dx * t + nx * alt,
-        y0 + dy * t + ny * alt,
-      ]);
+      path.push([x0 + dx * t + nx * alt, y0 + dy * t + ny * alt]);
     }
   }
   path.push(waypoints[waypoints.length - 1]);
@@ -124,7 +113,7 @@ export function buildAnimationPath(
   from: [number, number],
   to: [number, number],
   unitType?: string | null,
-  actionType?: "attack" | "move"
+  actionType?: "attack" | "move",
 ): [number, number][] {
   if (unitType === "nuke_rocket") return computeCurvePath(from, to, 0.35, 200);
   if (unitType === "bomber") return computeCurvePath(from, to, 0.28, 60);
@@ -147,10 +136,7 @@ export function buildAnimationPath(
  *   Phase 2 (40–80%): tight orbiting circles around the target
  *   Phase 3 (80–100%): straight dive to target
  */
-export function computeFighterAttackPath(
-  from: [number, number],
-  to: [number, number]
-): [number, number][] {
+export function computeFighterAttackPath(from: [number, number], to: [number, number]): [number, number][] {
   const points: [number, number][] = [];
   const totalPoints = 80;
   const dx = to[0] - from[0];
@@ -201,32 +187,22 @@ export function computeFighterAttackPath(
 /**
  * Apply a per-kind easing curve to a linear [0,1] progress value.
  */
-export function easeAnimationProgress(
-  kind: AnimKind,
-  linearProgress: number
-): number {
+export function easeAnimationProgress(kind: AnimKind, linearProgress: number): number {
   const t = Math.max(0, Math.min(1, linearProgress));
-  if (kind === "fighter") return 1 - Math.pow(1 - t, 2.2);
+  if (kind === "fighter") return 1 - (1 - t) ** 2.2;
   if (kind === "ship") return t * t * (3 - 2 * t);
-  if (kind === "tank")
-    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  if (kind === "tank") return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
   return t * t * (3 - 2 * t);
 }
 
 /**
  * Linearly interpolate a position along a path at fractional progress [0,1].
  */
-export function lerpPath(
-  path: [number, number][],
-  t: number
-): [number, number] {
+export function lerpPath(path: [number, number][], t: number): [number, number] {
   const n = path.length - 1;
   if (n <= 0) return path[0];
   const f = Math.max(0, Math.min(1, t)) * n;
   const i = Math.min(Math.floor(f), n - 1);
   const frac = f - i;
-  return [
-    path[i][0] + (path[i + 1][0] - path[i][0]) * frac,
-    path[i][1] + (path[i + 1][1] - path[i][1]) * frac,
-  ];
+  return [path[i][0] + (path[i + 1][0] - path[i][0]) * frac, path[i][1] + (path[i + 1][1] - path[i][1]) * frac];
 }

@@ -4,19 +4,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 // Slot counts per section matching SLOT_SECTIONS in the real page
 const SECTIONS: { labelWidth: string; slots: number }[] = [
-  { labelWidth: "w-20", slots: 4 },  // Jednostki
-  { labelWidth: "w-16", slots: 6 },  // Budynki
-  { labelWidth: "w-24", slots: 5 },  // Efekty akcji
-  { labelWidth: "w-28", slots: 2 },  // Efekty specjalne
-  { labelWidth: "w-20", slots: 5 },  // Umiejętności
-  { labelWidth: "w-14", slots: 4 },  // Profil
-  { labelWidth: "w-14", slots: 2 },  // Audio
+  { labelWidth: "w-20", slots: 4 }, // Jednostki
+  { labelWidth: "w-16", slots: 6 }, // Budynki
+  { labelWidth: "w-24", slots: 5 }, // Efekty akcji
+  { labelWidth: "w-28", slots: 2 }, // Efekty specjalne
+  { labelWidth: "w-20", slots: 5 }, // Umiejętności
+  { labelWidth: "w-14", slots: 4 }, // Profil
+  { labelWidth: "w-14", slots: 2 }, // Audio
 ];
 
 function SlotSquare() {
-  return (
-    <Skeleton className="aspect-square rounded-xl border-2 border-dashed border-border/30" />
-  );
+  return <Skeleton className="aspect-square rounded-xl border-2 border-dashed border-border/30" />;
 }
 
 function SectionCard({ labelWidth, slots }: { labelWidth: string; slots: number }) {
@@ -45,7 +43,6 @@ function SectionCard({ labelWidth, slots }: { labelWidth: string; slots: number 
 export function CosmeticsSkeleton() {
   return (
     <div className="space-y-4 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* Header */}
       <div className="px-4 md:px-0 space-y-1.5">
         <Skeleton className="hidden md:block h-3 w-16" />

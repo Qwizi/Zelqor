@@ -4,34 +4,33 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0028_add_ticks_per_hop_fields'),
+        ("game_config", "0028_add_ticks_per_hop_fields"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='buildingtype',
-            name='build_time_ticks',
+            model_name="buildingtype",
+            name="build_time_ticks",
         ),
         migrations.RemoveField(
-            model_name='buildingtype',
-            name='cost',
+            model_name="buildingtype",
+            name="cost",
         ),
         migrations.RemoveField(
-            model_name='buildingtype',
-            name='energy_cost',
+            model_name="buildingtype",
+            name="energy_cost",
         ),
         migrations.RemoveField(
-            model_name='unittype',
-            name='manpower_cost',
+            model_name="unittype",
+            name="manpower_cost",
         ),
         migrations.RemoveField(
-            model_name='unittype',
-            name='production_cost',
+            model_name="unittype",
+            name="production_cost",
         ),
         migrations.RemoveField(
-            model_name='unittype',
-            name='production_time_ticks',
+            model_name="unittype",
+            name="production_time_ticks",
         ),
     ]

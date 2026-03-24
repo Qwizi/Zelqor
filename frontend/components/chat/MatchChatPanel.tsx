@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { MessageList, type ChatMessage } from "./MessageList";
+import { ChevronDown, ChevronUp, MessageSquare, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { ChatInput } from "./ChatInput";
-import { MessageSquare, ChevronDown, ChevronUp, X } from "lucide-react";
+import { type ChatMessage, MessageList } from "./MessageList";
 
 const CHAT_NOTIFICATION_SOUND = "/assets/audio/gui/int_popup.ogg";
 
@@ -47,7 +47,7 @@ export default function MatchChatPanel({ messages, currentUserId, onSend }: Matc
         setUnread((u) => u + newCount);
       }
     }
-  }, [messages.length, currentUserId, expanded, mobileOpen]);
+  }, [messages.length, currentUserId, expanded, mobileOpen, messages]);
 
   return (
     <>

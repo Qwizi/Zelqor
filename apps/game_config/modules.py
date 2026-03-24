@@ -1,16 +1,18 @@
 """Helper functions for the unified module system."""
+
 from __future__ import annotations
 
 from typing import Any, TypeVar, overload
 
 from apps.game_config.models import SystemModule
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 # ---------------------------------------------------------------------------
 # System module helpers
 # ---------------------------------------------------------------------------
+
 
 def is_module_enabled(slug: str) -> bool:
     """Check if a system module is enabled. Shortcut for SystemModule.is_enabled()."""
@@ -18,9 +20,10 @@ def is_module_enabled(slug: str) -> bool:
 
 
 @overload
-def get_module_config(slug: str, key: str, default: T) -> T: ...
+def get_module_config[T](slug: str, key: str, default: T) -> T: ...
 @overload
 def get_module_config(slug: str, key: str) -> Any: ...
+
 
 def get_module_config(slug: str, key: str, default: Any = None) -> Any:
     """
@@ -31,7 +34,8 @@ def get_module_config(slug: str, key: str, default: Any = None) -> Any:
         max_violations = get_module_config('anticheat', 'max_violations_before_flag', 5)
     """
     from django.core.cache import cache
-    cache_key = f'sysmodule_cfg:{slug}'
+
+    cache_key = f"sysmodule_cfg:{slug}"
     config = cache.get(cache_key)
     if config is None:
         try:
@@ -49,14 +53,15 @@ def get_all_module_configs() -> dict[str, dict]:
     Returns: {slug: {'enabled': bool, 'config': dict}}
     """
     from django.core.cache import cache
-    cache_key = 'sysmodules:full'
+
+    cache_key = "sysmodules:full"
     result = cache.get(cache_key)
     if result is None:
         result = {}
         for m in SystemModule.objects.all():
             result[m.slug] = {
-                'enabled': m.enabled,
-                'config': m.config or {},
+                "enabled": m.enabled,
+                "config": m.config or {},
             }
         cache.set(cache_key, result, 60)
     return result
@@ -65,6 +70,7 @@ def get_all_module_configs() -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 # Game module (match settings) helpers
 # ---------------------------------------------------------------------------
+
 
 def get_modules_snapshot(source):
     """
@@ -84,13 +90,13 @@ def get_modules_snapshot(source):
             - flat_overrides: {"weather_enabled": true, "storm_randomness_modifier": 1.4, ...}
     """
     overrides_by_module = {}
-    for override in source.module_overrides.select_related('module').all():
+    for override in source.module_overrides.select_related("module").all():
         overrides_by_module[override.module.slug] = override
 
     modules_dict = {}
     flat_overrides = {}
 
-    for module in SystemModule.objects.filter(module_type='game', enabled=True).order_by('order'):
+    for module in SystemModule.objects.filter(module_type="game", enabled=True).order_by("order"):
         override = overrides_by_module.get(module.slug)
 
         if override is not None:
@@ -101,17 +107,17 @@ def get_modules_snapshot(source):
             config = dict(module.default_config)
 
         modules_dict[module.slug] = {
-            'enabled': enabled,
-            'config': config,
+            "enabled": enabled,
+            "config": config,
         }
 
         # Apply to flat fields via field_mapping
         mapping = module.field_mapping or {}
-        enabled_field = mapping.get('enabled_field')
+        enabled_field = mapping.get("enabled_field")
         if enabled_field:
             flat_overrides[enabled_field] = enabled
 
-        config_fields = mapping.get('config_fields', {})
+        config_fields = mapping.get("config_fields", {})
         for config_key, snapshot_field in config_fields.items():
             if config_key in config:
                 flat_overrides[snapshot_field] = config[config_key]

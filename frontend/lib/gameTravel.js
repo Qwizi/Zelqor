@@ -19,7 +19,7 @@ export function getTravelDistance(
   movementType,
   seaRange,
   maxDepth,
-  canVisit
+  canVisit,
 ) {
   if (movementType === "sea") {
     const sourceRegion = regions[sourceId];

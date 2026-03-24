@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+
 from ninja import Schema
 from pydantic import EmailStr, Field, model_validator
 
@@ -66,7 +67,7 @@ class UserOutSchema(Schema):
 
     @staticmethod
     def resolve_clan_tag(obj):
-        m = getattr(obj, '_prefetched_clan_tag', None)
+        m = getattr(obj, "_prefetched_clan_tag", None)
         if m is not None:
             return m
         try:
@@ -104,8 +105,8 @@ class LeaderboardEntrySchema(Schema):
     class Config:
         from_attributes = True
 
-    @model_validator(mode='after')
-    def compute_derived(self) -> 'LeaderboardEntrySchema':
+    @model_validator(mode="after")
+    def compute_derived(self) -> "LeaderboardEntrySchema":
         if self.matches_played > 0:
             self.win_rate = self.wins / self.matches_played
         return self
@@ -132,7 +133,7 @@ class FriendUserSchema(Schema):
     username: str
     elo_rating: int
     is_online: bool = False
-    activity_status: str = 'offline'
+    activity_status: str = "offline"
     activity_details: dict = {}
     clan_tag: str | None = None
 

@@ -4,15 +4,24 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('notifications', '0001_initial'),
+        ("notifications", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='notification',
-            name='type',
-            field=models.CharField(choices=[('friend_request_received', 'Friend Request Received'), ('friend_request_accepted', 'Friend Request Accepted'), ('match_won', 'Match Won'), ('match_lost', 'Match Lost'), ('player_eliminated', 'Player Eliminated'), ('game_invite', 'Game Invite')], max_length=30),
+            model_name="notification",
+            name="type",
+            field=models.CharField(
+                choices=[
+                    ("friend_request_received", "Friend Request Received"),
+                    ("friend_request_accepted", "Friend Request Accepted"),
+                    ("match_won", "Match Won"),
+                    ("match_lost", "Match Lost"),
+                    ("player_eliminated", "Player Eliminated"),
+                    ("game_invite", "Game Invite"),
+                ],
+                max_length=30,
+            ),
         ),
     ]

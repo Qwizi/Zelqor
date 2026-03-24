@@ -4,32 +4,31 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('accounts', '0010_alter_socialaccount_provider'),
+        ("accounts", "0010_alter_socialaccount_provider"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='AccountLevel',
+            name="AccountLevel",
             fields=[
-                ('level', models.PositiveIntegerField(primary_key=True, serialize=False, unique=True)),
-                ('experience_required', models.PositiveIntegerField()),
-                ('title', models.CharField(blank=True, max_length=50)),
-                ('perks', models.JSONField(blank=True, default=dict)),
+                ("level", models.PositiveIntegerField(primary_key=True, serialize=False, unique=True)),
+                ("experience_required", models.PositiveIntegerField()),
+                ("title", models.CharField(blank=True, max_length=50)),
+                ("perks", models.JSONField(blank=True, default=dict)),
             ],
             options={
-                'ordering': ['level'],
+                "ordering": ["level"],
             },
         ),
         migrations.AddField(
-            model_name='user',
-            name='experience',
+            model_name="user",
+            name="experience",
             field=models.PositiveIntegerField(default=0),
         ),
         migrations.AddField(
-            model_name='user',
-            name='level',
+            model_name="user",
+            name="level",
             field=models.PositiveIntegerField(default=1),
         ),
     ]

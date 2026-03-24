@@ -1,12 +1,12 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { AlertTriangle, Hammer, Info, Lock, Swords as SwordsIcon, Timer, X } from "lucide-react";
 import Image from "next/image";
-import type { GameRegion, GamePlayer, BuildingQueueItem } from "@/hooks/useGameSocket";
-import type { BuildingType, UnitType } from "@/lib/api";
-import { getActionAsset, getPlayerBuildingAsset, getPlayerUnitAsset } from "@/lib/gameAssets";
+import { memo, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Lock, X, Hammer, Swords as SwordsIcon, Info, Timer, AlertTriangle } from "lucide-react";
+import type { BuildingQueueItem, GamePlayer, GameRegion } from "@/hooks/useGameSocket";
+import type { BuildingType, UnitType } from "@/lib/api";
+import { getPlayerBuildingAsset, getPlayerUnitAsset } from "@/lib/gameAssets";
 
 interface RegionPanelProps {
   regionId: string;
@@ -63,10 +63,7 @@ export default memo(function RegionPanel({
     return region.buildings ?? {};
   }, [region.building_instances, region.buildings]);
 
-  const unitConfigMap = useMemo(
-    () => new Map(units.map((unit) => [unit.slug, unit])),
-    [units]
-  );
+  const unitConfigMap = useMemo(() => new Map(units.map((unit) => [unit.slug, unit])), [units]);
   const getUnitConfig = (slug: string) => unitConfigMap.get(slug) ?? null;
 
   const instancesByType = useMemo(() => {
@@ -86,7 +83,7 @@ export default memo(function RegionPanel({
           acc[item.building_type] = (acc[item.building_type] ?? 0) + 1;
           return acc;
         }, {}),
-    [buildingQueue, regionId]
+    [buildingQueue, regionId],
   );
 
   const { buildOptions, producedUnits, displayedBuildings } = useMemo(() => {
@@ -94,8 +91,7 @@ export default memo(function RegionPanel({
       .filter((building) => !building.requires_coastal || region.is_coastal)
       .filter(
         (building) =>
-          (buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0) <
-          building.max_per_region
+          (buildingCounts[building.slug] ?? 0) + (queuedBuildingCounts[building.slug] ?? 0) < building.max_per_region,
       )
       .sort((a, b) => a.order - b.order || a.energy_cost - b.energy_cost || a.name.localeCompare(b.name));
     const produced = [...units]
@@ -145,7 +141,6 @@ export default memo(function RegionPanel({
 
   return (
     <div className="absolute inset-x-0 bottom-0 z-20 flex h-[min(55vh,520px)] flex-col overflow-hidden rounded-t-[20px] border-t border-border bg-card shadow-lg sm:bg-card/95 sm:inset-y-0 sm:left-auto sm:right-0 sm:h-full sm:w-[300px] sm:rounded-t-none sm:border-l sm:border-t-0 sm:shadow-[-16px_0_48px_rgba(0,0,0,0.3)] sm:backdrop-blur-xl">
-
       {/* ── Drag handle (mobile) ── */}
       <div className="flex justify-center py-2 sm:hidden">
         <div className="h-1 w-8 rounded-full bg-muted-foreground/30" />
@@ -161,7 +156,11 @@ export default memo(function RegionPanel({
           <h3 className="truncate font-display text-base font-bold text-foreground sm:text-lg">{region.name}</h3>
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             {owner ? (
-              <span className="truncate">{owner.clan_tag && `[${owner.clan_tag}] `}{owner.username}{owner.is_bot ? " (BOT)" : ""}</span>
+              <span className="truncate">
+                {owner.clan_tag && `[${owner.clan_tag}] `}
+                {owner.username}
+                {owner.is_bot ? " (BOT)" : ""}
+              </span>
             ) : (
               <span>Neutralny</span>
             )}
@@ -186,29 +185,35 @@ export default memo(function RegionPanel({
           <div className="flex items-center gap-1 rounded-lg bg-muted/30 px-2 py-1">
             <Image
               src={getPlayerUnitAsset("infantry", ownerCosmetics, getUnitConfig("infantry")?.asset_url)}
-              alt="" width={14} height={14} className="h-3.5 w-3.5 object-contain"
+              alt=""
+              width={14}
+              height={14}
+              className="h-3.5 w-3.5 object-contain"
             />
             <span className="font-display font-bold text-foreground">
               {isOwned ? Math.max(0, (region.units?.infantry ?? 0) - reservedInfantry) : "?"}
             </span>
           </div>
           {/* Other units as compact badges */}
-          {isOwned && unitBreakdown
-            .filter(([type]) => type !== "infantry")
-            .map(([type, count]) => {
-              const cfg = getUnitConfig(type);
-              const mp = count * Math.max(1, cfg?.manpower_cost ?? 1);
-              return (
-                <div key={type} className="flex items-center gap-0.5 rounded-lg bg-muted/30 px-1.5 py-1">
-                  <Image
-                    src={getPlayerUnitAsset(type, ownerCosmetics, cfg?.asset_url)}
-                    alt="" width={12} height={12} className="h-3 w-3 object-contain"
-                  />
-                  <span className="font-display font-bold text-foreground text-[11px]">{count}</span>
-                </div>
-              );
-            })
-          }
+          {isOwned &&
+            unitBreakdown
+              .filter(([type]) => type !== "infantry")
+              .map(([type, count]) => {
+                const cfg = getUnitConfig(type);
+                const _mp = count * Math.max(1, cfg?.manpower_cost ?? 1);
+                return (
+                  <div key={type} className="flex items-center gap-0.5 rounded-lg bg-muted/30 px-1.5 py-1">
+                    <Image
+                      src={getPlayerUnitAsset(type, ownerCosmetics, cfg?.asset_url)}
+                      alt=""
+                      width={12}
+                      height={12}
+                      className="h-3 w-3 object-contain"
+                    />
+                    <span className="font-display font-bold text-foreground text-[11px]">{count}</span>
+                  </div>
+                );
+              })}
           <div className="flex items-center gap-1 rounded-lg bg-muted/30 px-2 py-1">
             <span className="text-[11px] text-primary">⚡</span>
             <span className="font-display font-bold text-foreground">{isOwned ? myEnergy : "?"}</span>
@@ -227,30 +232,31 @@ export default memo(function RegionPanel({
       {/* ── Tabs ── */}
       {(hasBuild || hasProduce) && (
         <div className="flex gap-1 border-b border-border px-3 pb-0">
-          {tabs.filter(t => t.show).map((tab) => {
-            const active = activeTab === tab.id;
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors ${
-                  active
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            );
-          })}
+          {tabs
+            .filter((t) => t.show)
+            .map((tab) => {
+              const active = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors ${
+                    active
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </button>
+              );
+            })}
         </div>
       )}
 
       {/* ── Scrollable content ── */}
       <div className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin scrollbar-thumb-border">
-
         {/* ═══ INFO TAB ═══ */}
         {activeTab === "info" && (
           <div className="space-y-2">
@@ -265,10 +271,16 @@ export default memo(function RegionPanel({
                   const isBaseInfantry = type === "infantry";
                   const freeInfantry = Math.max(0, count - reservedInfantry);
                   return (
-                    <div key={type} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
+                    <div
+                      key={type}
+                      className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5"
+                    >
                       <Image
                         src={getPlayerUnitAsset(type, ownerCosmetics, unitConfig?.asset_url)}
-                        alt={type} width={16} height={16} className="h-4 w-4 object-contain"
+                        alt={type}
+                        width={16}
+                        height={16}
+                        className="h-4 w-4 object-contain"
                       />
                       <span className="flex-1 truncate text-xs text-foreground">{unitConfig?.name ?? type}</span>
                       <span className="text-xs font-bold tabular-nums text-foreground">
@@ -286,19 +298,31 @@ export default memo(function RegionPanel({
             {/* Infrastructure */}
             {displayedBuildings.length > 0 && (
               <div className="space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Infrastruktura</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Infrastruktura
+                </p>
                 {displayedBuildings.map((building) => {
                   const instances = instancesByType[building.slug] ?? [];
                   const legacyCount = !region.building_instances ? (buildingCounts[building.slug] ?? 0) : 0;
-                  const asset = getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url);
+                  const asset = getPlayerBuildingAsset(
+                    building.asset_key || building.slug,
+                    ownerCosmetics,
+                    building.asset_url,
+                  );
 
                   if (instances.length > 0) {
                     return instances.map((inst, idx) => {
                       const lvl = inst.level;
-                      const lvlColor = lvl >= 3 ? "text-yellow-300" : lvl === 2 ? "text-blue-300" : "text-muted-foreground";
+                      const lvlColor =
+                        lvl >= 3 ? "text-yellow-300" : lvl === 2 ? "text-blue-300" : "text-muted-foreground";
                       return (
-                        <div key={`${building.slug}-${idx}`} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
-                          {asset && <Image src={asset} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
+                        <div
+                          key={`${building.slug}-${idx}`}
+                          className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5"
+                        >
+                          {asset && (
+                            <Image src={asset} alt="" width={16} height={16} className="h-4 w-4 object-contain" />
+                          )}
                           <span className="flex-1 truncate text-xs text-foreground">{building.name}</span>
                           <span className={`text-[10px] font-bold ${lvlColor}`}>Lvl {lvl}</span>
                         </div>
@@ -306,10 +330,15 @@ export default memo(function RegionPanel({
                     });
                   }
                   return (
-                    <div key={building.slug} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
+                    <div
+                      key={building.slug}
+                      className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5"
+                    >
                       {asset && <Image src={asset} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
                       <span className="flex-1 truncate text-xs text-foreground">{building.name}</span>
-                      <Badge variant="secondary" className="text-[10px]">x{legacyCount}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">
+                        x{legacyCount}
+                      </Badge>
                     </div>
                   );
                 })}
@@ -324,10 +353,15 @@ export default memo(function RegionPanel({
                   const building = buildings.find((e) => e.slug === slug);
                   const asset = getPlayerBuildingAsset(building?.asset_key || slug, myCosmetics, building?.asset_url);
                   return (
-                    <div key={slug} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
+                    <div
+                      key={slug}
+                      className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5"
+                    >
                       {asset && <Image src={asset} alt="" width={16} height={16} className="h-4 w-4 object-contain" />}
                       <span className="flex-1 truncate text-xs text-foreground">{building?.name ?? slug}</span>
-                      <Badge variant="secondary" className="text-[10px]">+{count}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">
+                        +{count}
+                      </Badge>
                     </div>
                   );
                 })}
@@ -347,7 +381,9 @@ export default memo(function RegionPanel({
                 {(region.energy_generation_bonus ?? 0) > 0 && (
                   <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-xs">
                     <span className="text-muted-foreground">Energia</span>
-                    <span className="font-bold text-primary">+{(region.energy_generation_bonus ?? 0).toFixed(1)}/tick</span>
+                    <span className="font-bold text-primary">
+                      +{(region.energy_generation_bonus ?? 0).toFixed(1)}/tick
+                    </span>
                   </div>
                 )}
               </div>
@@ -401,23 +437,27 @@ export default memo(function RegionPanel({
         {activeTab === "build" && (
           <div className="space-y-1.5" data-tutorial="build-section">
             {buildOptions.map((building) => {
-              const isBuildingLocked = hasBuildingLocks && !unlockedBuildings!.includes(building.slug);
+              const isBuildingLocked = hasBuildingLocks && !unlockedBuildings?.includes(building.slug);
               const typeInstances = instancesByType[building.slug] ?? [];
-              const currentRegionLevel = typeInstances.length > 0
-                ? typeInstances[0].level
-                : region.building_levels?.[building.slug];
+              const currentRegionLevel =
+                typeInstances.length > 0 ? typeInstances[0].level : region.building_levels?.[building.slug];
               const playerMaxLevel = buildingLevels?.[building.slug];
-              const canUpgrade = currentRegionLevel != null && playerMaxLevel != null && currentRegionLevel < playerMaxLevel;
-              const isAtMaxLevel = currentRegionLevel != null && playerMaxLevel != null && currentRegionLevel >= playerMaxLevel;
+              const canUpgrade =
+                currentRegionLevel != null && playerMaxLevel != null && currentRegionLevel < playerMaxLevel;
+              const isAtMaxLevel =
+                currentRegionLevel != null && playerMaxLevel != null && currentRegionLevel >= playerMaxLevel;
               const hasBuilt = (buildingCounts[building.slug] ?? 0) > 0;
-              const displayName = hasBuilt && currentRegionLevel != null
-                ? `${building.name} Lvl ${currentRegionLevel}`
-                : building.name;
+              const displayName =
+                hasBuilt && currentRegionLevel != null ? `${building.name} Lvl ${currentRegionLevel}` : building.name;
               const isUpgrade = (currentRegionLevel ?? 0) > 0;
               const nextLevel = isUpgrade ? (currentRegionLevel ?? 0) + 1 : 1;
               const nextCost = building.level_stats?.[String(nextLevel)]?.energy_cost ?? building.energy_cost;
               const nextTime = building.level_stats?.[String(nextLevel)]?.build_time_ticks ?? building.build_time_ticks;
-              const asset = getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url);
+              const asset = getPlayerBuildingAsset(
+                building.asset_key || building.slug,
+                ownerCosmetics,
+                building.asset_url,
+              );
 
               return (
                 <button
@@ -448,12 +488,16 @@ export default memo(function RegionPanel({
                     {isBuildingLocked ? (
                       <Lock className="h-4 w-4 text-muted-foreground" />
                     ) : isAtMaxLevel ? (
-                      <span className="rounded border border-yellow-300/20 bg-yellow-300/10 px-1.5 py-0.5 text-[10px] font-bold text-yellow-300">Max</span>
+                      <span className="rounded border border-yellow-300/20 bg-yellow-300/10 px-1.5 py-0.5 text-[10px] font-bold text-yellow-300">
+                        Max
+                      </span>
                     ) : (
                       <div className="space-y-0.5">
                         <div className="flex items-center justify-end gap-0.5 text-xs font-bold">
                           <span className="text-primary">⚡</span>
-                          <span className={myEnergy >= nextCost ? "text-foreground" : "text-destructive"}>{nextCost}</span>
+                          <span className={myEnergy >= nextCost ? "text-foreground" : "text-destructive"}>
+                            {nextCost}
+                          </span>
                         </div>
                         <div className="text-[10px] text-muted-foreground">{nextTime}t</div>
                       </div>
@@ -469,7 +513,8 @@ export default memo(function RegionPanel({
         {activeTab === "produce" && (
           <div className="space-y-1.5">
             {producedUnits.map((unit) => {
-              const isUnitLocked = hasUnitLocks && Boolean(unit.produced_by_slug) && !unlockedUnits!.includes(unit.slug);
+              const isUnitLocked =
+                hasUnitLocks && Boolean(unit.produced_by_slug) && !unlockedUnits?.includes(unit.slug);
               return (
                 <button
                   key={unit.id}
@@ -479,7 +524,10 @@ export default memo(function RegionPanel({
                 >
                   <Image
                     src={getPlayerUnitAsset(unit.asset_key || unit.slug, myCosmetics, unit.asset_url)}
-                    alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain"
+                    alt=""
+                    width={28}
+                    height={28}
+                    className="h-7 w-7 shrink-0 object-contain"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1 truncate text-sm font-medium text-foreground">
@@ -487,7 +535,9 @@ export default memo(function RegionPanel({
                       {unit.name}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
-                      {isUnitLocked ? "Wymaga blueprintu" : `Zaloga ${unit.manpower_cost} · ${unit.production_time_ticks}t`}
+                      {isUnitLocked
+                        ? "Wymaga blueprintu"
+                        : `Zaloga ${unit.manpower_cost} · ${unit.production_time_ticks}t`}
                     </div>
                   </div>
                   <div className="shrink-0">
@@ -496,7 +546,9 @@ export default memo(function RegionPanel({
                     ) : (
                       <div className="flex items-center gap-0.5 text-xs font-bold">
                         <span className="text-primary">⚡</span>
-                        <span className={myEnergy >= unit.production_cost ? "text-foreground" : "text-destructive"}>{unit.production_cost}</span>
+                        <span className={myEnergy >= unit.production_cost ? "text-foreground" : "text-destructive"}>
+                          {unit.production_cost}
+                        </span>
                       </div>
                     )}
                   </div>

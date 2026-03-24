@@ -1,16 +1,15 @@
 import json
 import math
-from typing import List
 
 from django.contrib.gis.serializers.geojson import Serializer as GeoJSONSerializer
 from django.core.cache import cache
 from django.db import connection
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from ninja_extra import api_controller, route
 
-from django.shortcuts import get_object_or_404
 from apps.geo.models import Country, Region
-from apps.geo.schemas import CountryOutSchema, RegionOutSchema, RegionShapesOutSchema
+from apps.geo.schemas import CountryOutSchema, RegionOutSchema
 
 
 def _lng_to_mercator_x(lng: float) -> float:
@@ -23,14 +22,13 @@ def _lat_to_mercator_y(lat: float) -> float:
     return math.log(math.tan(math.pi / 4 + lat_rad / 2))
 
 
-@api_controller('/geo', tags=['Geo'])
+@api_controller("/geo", tags=["Geo"])
 class GeoController:
-
-    @route.get('/countries/', response=List[CountryOutSchema], auth=None)
+    @route.get("/countries/", response=list[CountryOutSchema], auth=None)
     def list_countries(self):
         return list(Country.objects.all())
 
-    @route.get('/regions/graph/', auth=None)
+    @route.get("/regions/graph/", auth=None)
     def regions_graph(self, match_id: str = None):
         """Lightweight neighbor graph with centroids — no geometry.
         Used by frontend to build neighborMap and animation centroids.
@@ -45,7 +43,7 @@ class GeoController:
         if cached is not None:
             return cached
 
-        qs = Region.objects.prefetch_related('neighbors').all()
+        qs = Region.objects.prefetch_related("neighbors").all()
         if country_codes:
             qs = qs.filter(country__code__in=country_codes)
         result = [
@@ -59,7 +57,7 @@ class GeoController:
         cache.set(cache_key, result, timeout=86400)
         return result
 
-    @route.get('/regions/shapes/', auth=None)
+    @route.get("/regions/shapes/", auth=None)
     def region_shapes(self, match_id: str = None, canvas_size: int = 4096):
         """Return region polygons in normalised pixel space for Pixi.js.
 
@@ -78,11 +76,7 @@ class GeoController:
         if cached is not None:
             return cached
 
-        qs = (
-            Region.objects
-            .select_related('country')
-            .prefetch_related('neighbors')
-        )
+        qs = Region.objects.select_related("country").prefetch_related("neighbors")
         if country_codes:
             qs = qs.filter(country__code__in=country_codes)
 
@@ -93,14 +87,13 @@ class GeoController:
         # Province terrain baked into chunks (chunks_game/).
         TEX_W, TEX_H = 7452.0, 4928.0
         GX_MIN = -2891.9338
-        GX_MAX = 3.622519 * TEX_W + GX_MIN   # 24103.08
+        GX_MAX = 3.622519 * TEX_W + GX_MIN  # 24103.08
         GY_MIN = 7184.4125
-        GY_MAX = 3.248962 * TEX_H + GY_MIN   # 23195.30
+        GY_MAX = 3.248962 * TEX_H + GY_MIN  # 23195.30
 
         # Map game coords to canvas preserving aspect ratio.
         # Use a uniform scale so the map isn't distorted.
-        scale = min(canvas_size / (GX_MAX - GX_MIN),
-                    canvas_size / (GY_MAX - GY_MIN))
+        scale = min(canvas_size / (GX_MAX - GX_MIN), canvas_size / (GY_MAX - GY_MIN))
         scale_x = scale
         scale_y = scale
 
@@ -134,16 +127,18 @@ class GeoController:
             if cg and len(cg) == 2:
                 centroid_px = project(cg[0], cg[1])
 
-            out_regions.append({
-                "id": str(region.id),
-                "name": region.name,
-                "polygons": pixel_polygons,
-                "centroid": centroid_px,
-                "neighbors": [str(n.id) for n in region.neighbors.all()],
-                "is_coastal": region.is_coastal,
-                "population_weight": region.population_weight,
-                "tile_chunks": region.tile_chunks or [],
-            })
+            out_regions.append(
+                {
+                    "id": str(region.id),
+                    "name": region.name,
+                    "polygons": pixel_polygons,
+                    "centroid": centroid_px,
+                    "neighbors": [str(n.id) for n in region.neighbors.all()],
+                    "is_coastal": region.is_coastal,
+                    "population_weight": region.population_weight,
+                    "tile_chunks": region.tile_chunks or [],
+                }
+            )
 
         # World texture mapping: the full game coordinate space projected to canvas.
         # map09 chunks cover the same game coords, so this tells the frontend
@@ -169,7 +164,7 @@ class GeoController:
         cache.set(cache_key, result, timeout=86400)
         return result
 
-    @route.get('/tiles/{z}/{x}/{y}/', auth=None)
+    @route.get("/tiles/{z}/{x}/{y}/", auth=None)
     def get_tile(self, z: int, x: int, y: int, match_id: str = None):
         """Serves MVT vector tiles for the regions layer.
         MapLibre requests only tiles visible in the current viewport.
@@ -182,9 +177,8 @@ class GeoController:
         cache_key = f"mvt:{z}:{x}:{y}:{codes_key}"
         cached = cache.get(cache_key)
         if cached is not None:
-            response = HttpResponse(cached or b'', content_type='application/x-protobuf',
-                                    status=200 if cached else 204)
-            response['Cache-Control'] = 'public, max-age=86400, stale-while-revalidate=3600'
+            response = HttpResponse(cached or b"", content_type="application/x-protobuf", status=200 if cached else 204)
+            response["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=3600"
             return response
 
         if country_codes:
@@ -237,16 +231,16 @@ class GeoController:
             cursor.execute(sql, params)
             tile = cursor.fetchone()[0]
 
-        tile_bytes = bytes(tile) if tile else b''
+        tile_bytes = bytes(tile) if tile else b""
         # Cache for 24h — geometry is immutable
         cache.set(cache_key, tile_bytes, timeout=86400)
 
         if tile_bytes:
-            response = HttpResponse(tile_bytes, content_type='application/x-protobuf')
+            response = HttpResponse(tile_bytes, content_type="application/x-protobuf")
         else:
-            response = HttpResponse(b'', content_type='application/x-protobuf', status=204)
+            response = HttpResponse(b"", content_type="application/x-protobuf", status=204)
 
-        response['Cache-Control'] = 'public, max-age=86400, stale-while-revalidate=3600'
+        response["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=3600"
         return response
 
     @staticmethod
@@ -260,7 +254,8 @@ class GeoController:
             return cached
         try:
             from apps.matchmaking.models import Match
-            match = Match.objects.select_related('map_config').get(id=match_id)
+
+            match = Match.objects.select_related("map_config").get(id=match_id)
             if match.map_config and match.map_config.country_codes:
                 result = match.map_config.country_codes
                 cache.set(cache_key, result, timeout=3600)
@@ -270,38 +265,36 @@ class GeoController:
         cache.set(cache_key, [], timeout=3600)
         return []
 
-    @route.get('/regions/', auth=None)
+    @route.get("/regions/", auth=None)
     def list_regions(self, country_code: str = None):
         """Returns regions as GeoJSON FeatureCollection (kept for tooling/debug)."""
-        qs = Region.objects.select_related('country').prefetch_related('neighbors')
+        qs = Region.objects.select_related("country").prefetch_related("neighbors")
         if country_code:
             qs = qs.filter(country__code=country_code)
 
         serializer = GeoJSONSerializer()
         geojson_str = serializer.serialize(
             qs,
-            geometry_field='geometry',
-            fields=('name', 'is_coastal', 'population_weight'),
+            geometry_field="geometry",
+            fields=("name", "is_coastal", "population_weight"),
         )
         geojson = json.loads(geojson_str)
 
         regions_by_pk = {str(r.pk): r for r in qs}
-        for feature in geojson['features']:
-            pk = feature['properties'].get('pk') or feature.get('id')
+        for feature in geojson["features"]:
+            pk = feature["properties"].get("pk") or feature.get("id")
             region = regions_by_pk.get(str(pk))
             if region:
-                feature['id'] = str(region.id)
-                feature['properties']['id'] = str(region.id)
-                feature['properties']['country_code'] = region.country.code
-                feature['properties']['country_name'] = region.country.name
-                feature['properties']['neighbor_ids'] = [
-                    str(n.id) for n in region.neighbors.all()
-                ]
+                feature["id"] = str(region.id)
+                feature["properties"]["id"] = str(region.id)
+                feature["properties"]["country_code"] = region.country.code
+                feature["properties"]["country_name"] = region.country.name
+                feature["properties"]["neighbor_ids"] = [str(n.id) for n in region.neighbors.all()]
                 if region.centroid:
-                    feature['properties']['centroid'] = [region.centroid.x, region.centroid.y]
+                    feature["properties"]["centroid"] = [region.centroid.x, region.centroid.y]
 
         return geojson
 
-    @route.get('/regions/{region_id}/', response=RegionOutSchema, auth=None)
+    @route.get("/regions/{region_id}/", response=RegionOutSchema, auth=None)
     def get_region(self, region_id: str):
-        return get_object_or_404(Region.objects.select_related('country'), id=region_id)
+        return get_object_or_404(Region.objects.select_related("country"), id=region_id)

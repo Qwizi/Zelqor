@@ -1,11 +1,12 @@
 import logging
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from math import isclose
 
-import redis
 from celery import shared_task
 from django.conf import settings
 from django.db import transaction
+
+import redis
 from apps.game_config.modules import get_module_config
 
 logger = logging.getLogger(__name__)
@@ -27,10 +28,7 @@ def _balanced_round_elo_changes(raw_changes: list[float]) -> list[int]:
     if delta == 0:
         return rounded
 
-    residuals = [
-        (index, raw_changes[index] - rounded[index])
-        for index in range(len(raw_changes))
-    ]
+    residuals = [(index, raw_changes[index] - rounded[index]) for index in range(len(raw_changes))]
     if delta > 0:
         residuals.sort(key=lambda item: item[1], reverse=True)
         for step in range(delta):
@@ -72,8 +70,8 @@ def _award_match_xp(player_rows: list[dict], winner_id: str | None) -> None:
             AccountLevel.objects.filter(
                 experience_required__lte=user.experience,
             )
-            .order_by('-level')
-            .values_list('level', flat=True)
+            .order_by("-level")
+            .values_list("level", flat=True)
             .first()
         )
         if new_level is not None and new_level > (user.level or 1):
@@ -82,7 +80,7 @@ def _award_match_xp(player_rows: list[dict], winner_id: str | None) -> None:
         users_xp_update.append(user)
 
     if users_xp_update:
-        User.objects.bulk_update(users_xp_update, ['experience', 'level'])
+        User.objects.bulk_update(users_xp_update, ["experience", "level"])
 
     # Dispatch clan XP awards outside the DB loop (fire-and-forget Celery tasks)
     for row in player_rows:
@@ -91,6 +89,7 @@ def _award_match_xp(player_rows: list[dict], winner_id: str | None) -> None:
         xp_gain = 50 if row["pid"] == winner_id else 20
         try:
             from apps.clans.tasks import award_clan_xp
+
             award_clan_xp.delay(row["pid"], xp_gain)
         except Exception as e:
             logger.error(
@@ -140,7 +139,7 @@ def finalize_match_results_sync(
             total_ticks=total_ticks,
         )
 
-        regions = final_state.get("regions", {})
+        final_state.get("regions", {})
         players_data = final_state.get("players", {})
         snapshot_k = match.settings_snapshot.get("elo_k_factor") if match.settings_snapshot else None
         if snapshot_k is not None:
@@ -159,19 +158,21 @@ def finalize_match_results_sync(
             cumulative_units_lost = int(player_info.get("total_units_lost", 0))
             buildings_count = int(player_info.get("total_buildings_built", 0))
 
-            player_rows.append({
-                "match_player": mp,
-                "pid": pid,
-                "is_bot": mp.user.is_bot,
-                "is_alive": bool(player_info.get("is_alive", False)),
-                "eliminated_reason": str(player_info.get("eliminated_reason") or ""),
-                "eliminated_tick": int(player_info.get("eliminated_tick") or 0),
-                "owned_regions": owned_regions,
-                "total_units": total_units,
-                "units_lost": cumulative_units_lost,
-                "buildings_built": buildings_count,
-                "rating_before": int(mp.user.elo_rating),
-            })
+            player_rows.append(
+                {
+                    "match_player": mp,
+                    "pid": pid,
+                    "is_bot": mp.user.is_bot,
+                    "is_alive": bool(player_info.get("is_alive", False)),
+                    "eliminated_reason": str(player_info.get("eliminated_reason") or ""),
+                    "eliminated_tick": int(player_info.get("eliminated_tick") or 0),
+                    "owned_regions": owned_regions,
+                    "total_units": total_units,
+                    "units_lost": cumulative_units_lost,
+                    "buildings_built": buildings_count,
+                    "rating_before": int(mp.user.elo_rating),
+                }
+            )
 
         player_rows.sort(
             key=lambda row: (
@@ -192,7 +193,7 @@ def finalize_match_results_sync(
         max_survival_ticks = max(total_ticks, 1)
 
         # Determine if match is ranked (configurable minimum human player count)
-        min_human_players = get_module_config('leaderboard', 'min_human_players_for_ranked', 2)
+        min_human_players = get_module_config("leaderboard", "min_human_players_for_ranked", 2)
         human_rows = [r for r in player_rows if not r["is_bot"]]
         is_ranked = len(human_rows) >= min_human_players
 
@@ -218,9 +219,7 @@ def finalize_match_results_sync(
                     actual_score = 0.0
                 else:
                     actual_score = 0.5
-                expected_score = 1 / (
-                    1 + 10 ** ((opponent["rating_before"] - row["rating_before"]) / 400)
-                )
+                expected_score = 1 / (1 + 10 ** ((opponent["rating_before"] - row["rating_before"]) / 400))
                 placement_total += actual_score
                 expected_total += expected_score
 
@@ -228,14 +227,14 @@ def finalize_match_results_sync(
             row["survived_ticks"] = survived_ticks
             discipline_penalty = 0.0
             if row["eliminated_reason"] == "left_match":
-                discipline_penalty = get_module_config('leaderboard', 'discipline_penalty_left_match', -0.2)
+                discipline_penalty = get_module_config("leaderboard", "discipline_penalty_left_match", -0.2)
             elif row["eliminated_reason"] == "disconnect_timeout":
-                discipline_penalty = get_module_config('leaderboard', 'discipline_penalty_disconnect', -0.12)
+                discipline_penalty = get_module_config("leaderboard", "discipline_penalty_disconnect", -0.12)
 
-            w_regions = get_module_config('leaderboard', 'perf_weight_regions', 0.35)
-            w_units = get_module_config('leaderboard', 'perf_weight_units', 0.25)
-            w_buildings = get_module_config('leaderboard', 'perf_weight_buildings', 0.15)
-            w_survival = get_module_config('leaderboard', 'perf_weight_survival', 0.25)
+            w_regions = get_module_config("leaderboard", "perf_weight_regions", 0.35)
+            w_units = get_module_config("leaderboard", "perf_weight_units", 0.25)
+            w_buildings = get_module_config("leaderboard", "perf_weight_buildings", 0.15)
+            w_survival = get_module_config("leaderboard", "perf_weight_survival", 0.25)
             performance_score = (
                 w_regions * _safe_ratio(row["owned_regions"], max_regions)
                 + w_units * _safe_ratio(row["total_units"], max_units)
@@ -253,10 +252,12 @@ def finalize_match_results_sync(
             human_perf = [player_rows[i]["performance_score"] for i in human_indices]
             average_performance = sum(human_perf) / len(human_perf) if human_perf else 0.0
 
-            perf_component_weight = get_module_config('leaderboard', 'performance_component_weight', 0.35)
+            perf_component_weight = get_module_config("leaderboard", "performance_component_weight", 0.35)
             for i in human_indices:
                 row = player_rows[i]
-                performance_component = k_factor * perf_component_weight * (row["performance_score"] - average_performance)
+                performance_component = (
+                    k_factor * perf_component_weight * (row["performance_score"] - average_performance)
+                )
                 row["raw_elo_change"] = row["base_elo_component"] + performance_component
                 raw_changes[i] = row["raw_elo_change"]
 
@@ -275,21 +276,24 @@ def finalize_match_results_sync(
                 users_to_update.append(user)
 
             row["final_elo_change"] = int(elo_change)
-            player_results_to_create.append(PlayerResult(
-                match_result=result,
-                user=user,
-                placement=row["placement"],
-                regions_conquered=row["owned_regions"],
-                units_produced=row["total_units"],
-                units_lost=row.get("units_lost", 0),
-                buildings_built=row["buildings_built"],
-                elo_change=int(elo_change),
-            ))
+            player_results_to_create.append(
+                PlayerResult(
+                    match_result=result,
+                    user=user,
+                    placement=row["placement"],
+                    regions_conquered=row["owned_regions"],
+                    units_produced=row["total_units"],
+                    units_lost=row.get("units_lost", 0),
+                    buildings_built=row["buildings_built"],
+                    elo_change=int(elo_change),
+                )
+            )
 
         # Bulk operations: 2 queries instead of up to 16
         if users_to_update:
             from apps.accounts.models import User
-            User.objects.bulk_update(users_to_update, ['elo_rating'])
+
+            User.objects.bulk_update(users_to_update, ["elo_rating"])
         PlayerResult.objects.bulk_create(player_results_to_create)
 
         # Award XP to non-bot players and check for level-ups
@@ -298,6 +302,7 @@ def finalize_match_results_sync(
         # Send match result notifications to non-bot players
         try:
             from apps.notifications.services import notify_match_result
+
             for row in player_rows:
                 if not row["is_bot"]:
                     notify_match_result(
@@ -318,31 +323,32 @@ def finalize_match_results_sync(
 
     # --- StatTrak increment ---
     try:
-        from apps.inventory.models import ItemInstance
         from django.db.models import F
+
+        from apps.inventory.models import ItemInstance
 
         stattrak_instance_ids = set()
 
         for mp in match.players.all():
             # Collect instance_ids from deck_snapshot
             if mp.deck_snapshot:
-                for iid in mp.deck_snapshot.get('instance_ids', []):
+                for iid in mp.deck_snapshot.get("instance_ids", []):
                     stattrak_instance_ids.add(iid)
 
             # Collect instance_ids from cosmetic_snapshot
             if mp.cosmetic_snapshot:
-                for slot, val in mp.cosmetic_snapshot.items():
-                    if isinstance(val, dict) and val.get('instance_id'):
-                        stattrak_instance_ids.add(val['instance_id'])
+                for _slot, val in mp.cosmetic_snapshot.items():
+                    if isinstance(val, dict) and val.get("instance_id"):
+                        stattrak_instance_ids.add(val["instance_id"])
 
         if stattrak_instance_ids:
             # Build per-player stats map keyed by user_id string
             player_stats = {}
             for row in player_rows:
-                pid = row['pid']
+                pid = row["pid"]
                 player_stats[pid] = {
-                    'regions': row.get('owned_regions', 0),
-                    'units': row.get('total_units', 0),
+                    "regions": row.get("owned_regions", 0),
+                    "units": row.get("total_units", 0),
                 }
 
             # Increment matches counter on all StatTrak instances that participated
@@ -350,7 +356,7 @@ def finalize_match_results_sync(
                 id__in=stattrak_instance_ids,
                 stattrak=True,
             ).update(
-                stattrak_matches=F('stattrak_matches') + 1,
+                stattrak_matches=F("stattrak_matches") + 1,
             )
 
             # Per-player updates for region kills and units produced
@@ -360,20 +366,20 @@ def finalize_match_results_sync(
 
                 mp_instance_ids = set()
                 if mp.deck_snapshot:
-                    for iid in mp.deck_snapshot.get('instance_ids', []):
+                    for iid in mp.deck_snapshot.get("instance_ids", []):
                         mp_instance_ids.add(iid)
                 if mp.cosmetic_snapshot:
-                    for slot, val in mp.cosmetic_snapshot.items():
-                        if isinstance(val, dict) and val.get('instance_id'):
-                            mp_instance_ids.add(val['instance_id'])
+                    for _slot, val in mp.cosmetic_snapshot.items():
+                        if isinstance(val, dict) and val.get("instance_id"):
+                            mp_instance_ids.add(val["instance_id"])
 
                 if mp_instance_ids:
                     ItemInstance.objects.filter(
                         id__in=mp_instance_ids,
                         stattrak=True,
                     ).update(
-                        stattrak_kills=F('stattrak_kills') + stats.get('regions', 0),
-                        stattrak_units_produced=F('stattrak_units_produced') + stats.get('units', 0),
+                        stattrak_kills=F("stattrak_kills") + stats.get("regions", 0),
+                        stattrak_units_produced=F("stattrak_units_produced") + stats.get("units", 0),
                     )
     except Exception as e:
         logger.error("Failed to update StatTrak for match %s: %s", match_id, e)
@@ -381,6 +387,7 @@ def finalize_match_results_sync(
     # Generate post-match item drops
     try:
         from apps.inventory.tasks import generate_match_drops
+
         generate_match_drops(match_id)
     except Exception as e:
         logger.error("Failed to generate match drops for %s: %s", match_id, e)
@@ -389,31 +396,42 @@ def finalize_match_results_sync(
     try:
         from apps.developers.tasks import dispatch_webhook_event
 
-        dispatch_webhook_event('match.finished', {
-            'match_id': str(match_id),
-            'winner_id': str(winner_id) if winner_id else None,
-        })
+        dispatch_webhook_event(
+            "match.finished",
+            {
+                "match_id": str(match_id),
+                "winner_id": str(winner_id) if winner_id else None,
+            },
+        )
 
         for row in player_rows:
             if not row["is_bot"] and row.get("final_elo_change", 0) != 0:
                 user = row["match_player"].user
-                dispatch_webhook_event('player.elo_changed', {
-                    'user_id': str(user.id),
-                    'username': user.username,
-                    'elo_change': row["final_elo_change"],
-                    'new_elo': user.elo_rating,
-                    'match_id': str(match_id),
-                })
+                dispatch_webhook_event(
+                    "player.elo_changed",
+                    {
+                        "user_id": str(user.id),
+                        "username": user.username,
+                        "elo_change": row["final_elo_change"],
+                        "new_elo": user.elo_rating,
+                        "match_id": str(match_id),
+                    },
+                )
     except Exception as e:
         logger.error(f"Failed to dispatch webhook events: {e}")
 
     # --- Clan war resolution ---
     try:
-        from apps.clans.models import ClanWar, ClanWarParticipant
-        clan_war = ClanWar.objects.filter(
-            match_id=match_id,
-            status=ClanWar.Status.IN_PROGRESS,
-        ).select_related('challenger', 'defender').first()
+        from apps.clans.models import ClanWar
+
+        clan_war = (
+            ClanWar.objects.filter(
+                match_id=match_id,
+                status=ClanWar.Status.IN_PROGRESS,
+            )
+            .select_related("challenger", "defender")
+            .first()
+        )
 
         if clan_war:
             _resolve_clan_war(clan_war, match_id, winner_id)
@@ -424,6 +442,7 @@ def finalize_match_results_sync(
 def _resolve_clan_war(clan_war, match_id: str, winner_id: str | None) -> None:
     """Determine the winning clan for a clan war and kick off ELO calculation."""
     from django.utils import timezone
+
     from apps.clans.models import ClanWar, ClanWarParticipant
     from apps.clans.tasks import calculate_clan_war_elo
     from apps.matchmaking.models import MatchPlayer
@@ -437,7 +456,7 @@ def _resolve_clan_war(clan_war, match_id: str, winner_id: str | None) -> None:
                 war=clan_war,
                 user_id=winner_id,
             )
-            .values_list('clan_id', flat=True)
+            .values_list("clan_id", flat=True)
             .first()
         )
         if participant:
@@ -449,41 +468,46 @@ def _resolve_clan_war(clan_war, match_id: str, winner_id: str | None) -> None:
                     match_id=match_id,
                     user_id=winner_id,
                 )
-                .values_list('team_label', flat=True)
+                .values_list("team_label", flat=True)
                 .first()
             )
-            if mp == 'challenger':
+            if mp == "challenger":
                 winning_clan_id = clan_war.challenger_id
-            elif mp == 'defender':
+            elif mp == "defender":
                 winning_clan_id = clan_war.defender_id
 
     if winning_clan_id:
         clan_war.status = ClanWar.Status.FINISHED
         clan_war.finished_at = timezone.now()
         clan_war.winner_id = winning_clan_id
-        clan_war.save(update_fields=['status', 'finished_at', 'winner'])
+        clan_war.save(update_fields=["status", "finished_at", "winner"])
         calculate_clan_war_elo.delay(str(clan_war.pk))
         logger.info(
             "Clan war %s resolved: winner clan %s (match %s)",
-            clan_war.pk, winning_clan_id, match_id,
+            clan_war.pk,
+            winning_clan_id,
+            match_id,
         )
     else:
         # Draw or no winner — refund wagers to both clans
         from apps.clans.models import Clan
+
         clan_war.status = ClanWar.Status.FINISHED
         clan_war.finished_at = timezone.now()
-        clan_war.save(update_fields=['status', 'finished_at'])
+        clan_war.save(update_fields=["status", "finished_at"])
 
         if clan_war.wager_gold > 0:
             from django.db.models import F
+
             with transaction.atomic():
                 for clan_pk in (clan_war.challenger_id, clan_war.defender_id):
                     Clan.objects.filter(pk=clan_pk).update(
-                        treasury_gold=F('treasury_gold') + clan_war.wager_gold,
+                        treasury_gold=F("treasury_gold") + clan_war.wager_gold,
                     )
             logger.info(
                 "Clan war %s ended as draw — refunded %d gold to each clan",
-                clan_war.pk, clan_war.wager_gold,
+                clan_war.pk,
+                clan_war.wager_gold,
             )
 
 
@@ -520,10 +544,18 @@ def cleanup_redis_game_state(match_id: str):
         db=settings.REDIS_GAME_DB,
     )
     known_suffixes = [
-        "meta", "players", "regions", "actions",
-        "buildings_queue", "unit_queue", "transit_queue",
-        "active_effects", "loop_lock", "init_lock",
-        "capital_timer_lock", "capital_finalize_lock",
+        "meta",
+        "players",
+        "regions",
+        "actions",
+        "buildings_queue",
+        "unit_queue",
+        "transit_queue",
+        "active_effects",
+        "loop_lock",
+        "init_lock",
+        "capital_timer_lock",
+        "capital_finalize_lock",
         "cancel_requested",
     ]
     keys = [f"game:{match_id}:{suffix}" for suffix in known_suffixes]
@@ -549,20 +581,18 @@ def cleanup_stale_matches():
 
     selecting_timeout = timedelta(seconds=max(300, capital_selection_seconds + 300))
     in_progress_timeout = (
-        timedelta(minutes=max(15, match_limit_minutes + 15))
-        if match_limit_minutes > 0
-        else timedelta(hours=2)
+        timedelta(minutes=max(15, match_limit_minutes + 15)) if match_limit_minutes > 0 else timedelta(hours=2)
     )
 
     # Push time filter to DB — only fetch matches that are actually stale
     selecting_cutoff = now - selecting_timeout
     in_progress_cutoff = now - in_progress_timeout
 
-    from django.db.models import Q, F, functions as db_fn
+    from django.db.models import Q
 
     stale_matches = Match.objects.filter(
-        Q(status=Match.Status.SELECTING, created_at__lt=selecting_cutoff) |
-        Q(status=Match.Status.IN_PROGRESS, started_at__lt=in_progress_cutoff)
+        Q(status=Match.Status.SELECTING, created_at__lt=selecting_cutoff)
+        | Q(status=Match.Status.IN_PROGRESS, started_at__lt=in_progress_cutoff)
     )
 
     count = 0
@@ -588,7 +618,7 @@ def cleanup_stale_queue_entries():
 
     from apps.matchmaking.models import MatchQueue
 
-    stale_queue_minutes = get_module_config('matchmaking', 'stale_queue_cleanup_minutes', 30)
+    stale_queue_minutes = get_module_config("matchmaking", "stale_queue_cleanup_minutes", 30)
     cutoff = timezone.now() - timedelta(minutes=stale_queue_minutes)
     deleted, _ = MatchQueue.objects.filter(joined_at__lt=cutoff).delete()
     if deleted:

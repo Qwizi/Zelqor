@@ -1,18 +1,13 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { AlertTriangle, Check, Loader2, Shield, Trophy, X } from "lucide-react";
 import Image from "next/image";
-import { Shield, Trophy, AlertTriangle, Loader2, X, Check } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
-
-import { useAuth } from "@/hooks/useAuth";
-import {
-  getAppByClientId,
-  oauthAuthorize,
-  type OAuthAppInfo,
-} from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { getAppByClientId, type OAuthAppInfo, oauthAuthorize } from "@/lib/api";
 
 // ── Scope definitions ─────────────────────────────────────────────────────────
 
@@ -38,10 +33,7 @@ function parseScopes(raw: string): string[] {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function buildRedirectUrl(
-  base: string,
-  params: Record<string, string>
-): string {
+function buildRedirectUrl(base: string, params: Record<string, string>): string {
   const url = new URL(base);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
@@ -97,9 +89,7 @@ function OAuthAuthorizeInner() {
     if (authLoading) return;
     if (!user || !token) {
       const currentParams = searchParams.toString();
-      router.replace(
-        `/login?next=${encodeURIComponent(`/oauth/authorize?${currentParams}`)}`
-      );
+      router.replace(`/login?next=${encodeURIComponent(`/oauth/authorize?${currentParams}`)}`);
     }
   }, [user, authLoading, token, router, searchParams]);
 
@@ -120,8 +110,8 @@ function OAuthAuthorizeInner() {
       setAppLoading(false);
       return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, redirectUri, scopeRaw]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, redirectUri, scopes.length]);
 
   // Fetch app info by client_id
   useEffect(() => {
@@ -155,7 +145,7 @@ function OAuthAuthorizeInner() {
         state,
       });
       const params: Record<string, string> = { code: result.code };
-      if (result.state) params["state"] = result.state;
+      if (result.state) params.state = result.state;
       window.location.href = buildRedirectUrl(redirectUri, params);
     } catch {
       toast.error("Nie udalo sie autoryzowac aplikacji. Sprobuj ponownie.", { id: "oauth-authorize-error" });
@@ -165,7 +155,7 @@ function OAuthAuthorizeInner() {
 
   const handleDeny = () => {
     const params: Record<string, string> = { error: "access_denied" };
-    if (state) params["state"] = state;
+    if (state) params.state = state;
     window.location.href = buildRedirectUrl(redirectUri, params);
   };
 
@@ -191,26 +181,15 @@ function OAuthAuthorizeInner() {
 
       {/* Ambient glows */}
       <div className="pointer-events-none absolute right-0 top-0 h-[360px] w-[360px] opacity-40">
-        <Image
-          src="/assets/match_making/g707.webp"
-          alt=""
-          fill
-          className="object-contain object-top-right"
-        />
+        <Image src="/assets/match_making/g707.webp" alt="" fill className="object-contain object-top-right" />
       </div>
       <div className="pointer-events-none absolute left-0 top-24 h-[280px] w-[280px] opacity-25">
-        <Image
-          src="/assets/match_making/g16.webp"
-          alt=""
-          fill
-          className="object-contain object-left"
-        />
+        <Image src="/assets/match_making/g16.webp" alt="" fill className="object-contain object-left" />
       </div>
 
       {/* Centered card */}
       <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
         <div className="w-full max-w-md rounded-[24px] border border-white/10 bg-slate-950/80 p-8 backdrop-blur-xl">
-
           {/* MapLord logo */}
           <div className="mb-6 flex flex-col items-center gap-2">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
@@ -222,15 +201,11 @@ function OAuthAuthorizeInner() {
                 className="h-9 w-9 object-contain"
               />
             </div>
-            <span className="font-display text-lg text-zinc-200 tracking-wide">
-              MapLord
-            </span>
+            <span className="font-display text-lg text-zinc-200 tracking-wide">MapLord</span>
           </div>
 
           {/* Title */}
-          <h1 className="text-center font-display text-2xl text-zinc-50">
-            Autoryzacja aplikacji
-          </h1>
+          <h1 className="text-center font-display text-2xl text-zinc-50">Autoryzacja aplikacji</h1>
 
           {/* App request card */}
           <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
@@ -240,23 +215,16 @@ function OAuthAuthorizeInner() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm leading-snug text-zinc-100">
-                  <span className="font-semibold text-zinc-50">{appName}</span>{" "}
-                  prosi o dostep do Twojego konta
+                  <span className="font-semibold text-zinc-50">{appName}</span> prosi o dostep do Twojego konta
                 </p>
-                {appDescription && (
-                  <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                    {appDescription}
-                  </p>
-                )}
+                {appDescription && <p className="mt-1 text-xs leading-relaxed text-slate-400">{appDescription}</p>}
               </div>
             </div>
           </div>
 
           {/* Scopes */}
           <div className="mt-5">
-            <div className="mb-2.5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-              Ta aplikacja chce:
-            </div>
+            <div className="mb-2.5 text-[10px] uppercase tracking-[0.2em] text-slate-500">Ta aplikacja chce:</div>
             <ul className="space-y-2">
               {scopes.map((scope) => (
                 <li
@@ -266,9 +234,7 @@ function OAuthAuthorizeInner() {
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-400/8">
                     <Shield className="h-3.5 w-3.5 text-cyan-300" />
                   </div>
-                  <span className="text-sm text-zinc-300">
-                    {parseScopeLabel(scope)}
-                  </span>
+                  <span className="text-sm text-zinc-300">{parseScopeLabel(scope)}</span>
                 </li>
               ))}
             </ul>
@@ -277,9 +243,7 @@ function OAuthAuthorizeInner() {
           {/* Logged-in-as notice */}
           <div className="mt-5 flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2.5">
             <div className="text-xs text-slate-500">Zalogowany jako:</div>
-            <span className="text-sm font-medium text-zinc-200">
-              {user.username}
-            </span>
+            <span className="text-sm font-medium text-zinc-200">{user.username}</span>
             <div className="ml-auto flex items-center gap-1 rounded-full bg-amber-400/12 px-2 py-0.5 text-xs font-medium text-amber-200">
               <Trophy className="h-3 w-3" />
               {user.elo_rating}
@@ -302,19 +266,15 @@ function OAuthAuthorizeInner() {
               disabled={submitting}
               className="flex-1 gap-2 rounded-full border border-emerald-300/30 bg-[linear-gradient(135deg,#34d399,#059669)] font-display uppercase tracking-[0.15em] text-slate-950 hover:opacity-90 disabled:opacity-60"
             >
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Check className="h-4 w-4" />
-              )}
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               {submitting ? "Przetwarzanie…" : "Zezwol"}
             </Button>
           </div>
 
           {/* Security notice */}
           <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-600">
-            Autoryzujac, zgadzasz sie na udostepnienie powyzszych danych tej
-            aplikacji. Mozesz cofnac dostep w ustawieniach konta.
+            Autoryzujac, zgadzasz sie na udostepnienie powyzszych danych tej aplikacji. Mozesz cofnac dostep w
+            ustawieniach konta.
           </p>
         </div>
       </div>

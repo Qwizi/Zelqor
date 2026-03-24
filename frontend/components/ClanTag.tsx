@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 interface ClanTagProps {
   tag: string | null | undefined;
   className?: string;
@@ -7,9 +5,7 @@ interface ClanTagProps {
 
 export function ClanTag({ tag, className = "" }: ClanTagProps) {
   if (!tag) return null;
-  return (
-    <span className={`text-muted-foreground font-medium ${className}`}>[{tag}]</span>
-  );
+  return <span className={`text-muted-foreground font-medium ${className}`}>[{tag}]</span>;
 }
 
 export function UsernameWithClan({

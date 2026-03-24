@@ -4,55 +4,54 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0011_seed_ability_types'),
+        ("game_config", "0011_seed_ability_types"),
     ]
 
     operations = [
         migrations.RenameField(
-            model_name='abilitytype',
-            old_name='currency_cost',
-            new_name='energy_cost',
+            model_name="abilitytype",
+            old_name="currency_cost",
+            new_name="energy_cost",
         ),
         migrations.RenameField(
-            model_name='buildingtype',
-            old_name='currency_cost',
-            new_name='energy_cost',
+            model_name="buildingtype",
+            old_name="currency_cost",
+            new_name="energy_cost",
         ),
         migrations.RenameField(
-            model_name='buildingtype',
-            old_name='currency_generation_bonus',
-            new_name='energy_generation_bonus',
+            model_name="buildingtype",
+            old_name="currency_generation_bonus",
+            new_name="energy_generation_bonus",
         ),
         migrations.RenameField(
-            model_name='gamemode',
-            old_name='base_currency_per_tick',
-            new_name='base_energy_per_tick',
+            model_name="gamemode",
+            old_name="base_currency_per_tick",
+            new_name="base_energy_per_tick",
         ),
         migrations.RenameField(
-            model_name='gamemode',
-            old_name='region_currency_per_tick',
-            new_name='region_energy_per_tick',
+            model_name="gamemode",
+            old_name="region_currency_per_tick",
+            new_name="region_energy_per_tick",
         ),
         migrations.RenameField(
-            model_name='gamemode',
-            old_name='starting_currency',
-            new_name='starting_energy',
+            model_name="gamemode",
+            old_name="starting_currency",
+            new_name="starting_energy",
         ),
         migrations.RenameField(
-            model_name='gamesettings',
-            old_name='base_currency_per_tick',
-            new_name='base_energy_per_tick',
+            model_name="gamesettings",
+            old_name="base_currency_per_tick",
+            new_name="base_energy_per_tick",
         ),
         migrations.RenameField(
-            model_name='gamesettings',
-            old_name='region_currency_per_tick',
-            new_name='region_energy_per_tick',
+            model_name="gamesettings",
+            old_name="region_currency_per_tick",
+            new_name="region_energy_per_tick",
         ),
         migrations.RenameField(
-            model_name='gamesettings',
-            old_name='starting_currency',
-            new_name='starting_energy',
+            model_name="gamesettings",
+            old_name="starting_currency",
+            new_name="starting_energy",
         ),
     ]

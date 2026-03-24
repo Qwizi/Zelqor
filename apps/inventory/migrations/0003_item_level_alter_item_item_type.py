@@ -4,20 +4,31 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('inventory', '0002_deck_deckitem'),
+        ("inventory", "0002_deck_deckitem"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='item',
-            name='level',
-            field=models.PositiveIntegerField(default=1, help_text='Item level (1-3)'),
+            model_name="item",
+            name="level",
+            field=models.PositiveIntegerField(default=1, help_text="Item level (1-3)"),
         ),
         migrations.AlterField(
-            model_name='item',
-            name='item_type',
-            field=models.CharField(choices=[('material', 'Material'), ('blueprint_building', 'Blueprint: Building'), ('blueprint_unit', 'Blueprint: Unit'), ('tactical_package', 'Tactical Package'), ('boost', 'Boost'), ('crate', 'Crate'), ('key', 'Key'), ('cosmetic', 'Cosmetic')], max_length=30),
+            model_name="item",
+            name="item_type",
+            field=models.CharField(
+                choices=[
+                    ("material", "Material"),
+                    ("blueprint_building", "Blueprint: Building"),
+                    ("blueprint_unit", "Blueprint: Unit"),
+                    ("tactical_package", "Tactical Package"),
+                    ("boost", "Boost"),
+                    ("crate", "Crate"),
+                    ("key", "Key"),
+                    ("cosmetic", "Cosmetic"),
+                ],
+                max_length=30,
+            ),
         ),
     ]

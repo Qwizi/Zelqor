@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 
 import { getSeaTravelRange, getTravelDistance } from "../lib/gameTravel.js";
 
@@ -27,7 +27,7 @@ test("sea travel distance allows long-range coastal travel when fallback range i
     "sea",
     getSeaTravelRange({ sea_range: 0, sea_hop_distance_km: 2800 }),
     4,
-    () => true
+    () => true,
   );
 
   assert.equal(distance, 4);
@@ -52,7 +52,7 @@ test("sea travel blocks non-coastal targets", () => {
     "sea",
     getSeaTravelRange({ sea_range: 80, sea_hop_distance_km: 2800 }),
     4,
-    (targetId) => regions[targetId]?.is_coastal === true
+    (targetId) => regions[targetId]?.is_coastal === true,
   );
 
   assert.equal(distance, null);

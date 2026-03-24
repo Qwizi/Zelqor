@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0001_initial'),
+        ("game_config", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='gamesettings',
-            name='neutral_region_units',
-            field=models.PositiveIntegerField(default=3, help_text='Garrison units in unowned (neutral) regions'),
+            model_name="gamesettings",
+            name="neutral_region_units",
+            field=models.PositiveIntegerField(default=3, help_text="Garrison units in unowned (neutral) regions"),
         ),
     ]

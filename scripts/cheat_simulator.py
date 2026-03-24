@@ -52,6 +52,7 @@ TICK_INTERVAL = 1.0  # sekundy (domyslny tick interval)
 # Helpers
 # ============================================================================
 
+
 async def connect(ws_url: str, match_id: str, token: str):
     """Polacz sie z WebSocket gry."""
     url = f"{ws_url}/ws/game/{match_id}/?token={token}"
@@ -139,7 +140,7 @@ async def recv_messages(ws, duration: float):
                     elif event.get("type") == "action_rejected":
                         pass  # Expected for invalid actions
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             continue
         except websockets.ConnectionClosed:
             print("  [x] Polaczenie zamkniete przez serwer!")
@@ -151,6 +152,7 @@ async def recv_messages(ws, duration: float):
 # ============================================================================
 # Cheat Modes
 # ============================================================================
+
 
 async def mode_flood(ws, state, player_id):
     """
@@ -173,14 +175,16 @@ async def mode_flood(ws, state, player_id):
 
     for tick in range(10):
         print(f"  [tick {tick + 1}/10] Wysylam 50 ataków...")
-        for i in range(50):
-            msg = json.dumps({
-                "action": "attack",
-                "source_region_id": source["id"],
-                "target_region_id": target["id"],
-                "units": 1,
-                "unit_type": "infantry",
-            })
+        for _i in range(50):
+            msg = json.dumps(
+                {
+                    "action": "attack",
+                    "source_region_id": source["id"],
+                    "target_region_id": target["id"],
+                    "units": 1,
+                    "unit_type": "infantry",
+                }
+            )
             await ws.send(msg)
 
         # Czekaj na tick
@@ -217,14 +221,16 @@ async def mode_timing(ws, state, player_id):
 
     # Wyslij 100 akcji tak szybko jak to mozliwe
     start = time.time()
-    for i in range(100):
-        msg = json.dumps({
-            "action": "attack",
-            "source_region_id": source["id"],
-            "target_region_id": target["id"],
-            "units": 1,
-            "unit_type": "infantry",
-        })
+    for _i in range(100):
+        msg = json.dumps(
+            {
+                "action": "attack",
+                "source_region_id": source["id"],
+                "target_region_id": target["id"],
+                "units": 1,
+                "unit_type": "infantry",
+            }
+        )
         await ws.send(msg)
     elapsed = time.time() - start
     print(f"  Wyslano 100 akcji w {elapsed * 1000:.1f}ms")
@@ -257,13 +263,17 @@ async def mode_pattern(ws, state, player_id):
     # Zdefiniuj sekwencje 8 akcji
     sequence = []
     for t in targets:
-        sequence.append(json.dumps({
-            "action": "attack",
-            "source_region_id": source["id"],
-            "target_region_id": t["id"],
-            "units": 1,
-            "unit_type": "infantry",
-        }))
+        sequence.append(
+            json.dumps(
+                {
+                    "action": "attack",
+                    "source_region_id": source["id"],
+                    "target_region_id": t["id"],
+                    "units": 1,
+                    "unit_type": "infantry",
+                }
+            )
+        )
 
     # Powtorz 5 razy
     for rep in range(5):
@@ -301,13 +311,15 @@ async def mode_fog(ws, state, player_id):
     # Atakuj 10 odleglych regionow
     count = 0
     for target in far_regions[:10]:
-        msg = json.dumps({
-            "action": "attack",
-            "source_region_id": source["id"],
-            "target_region_id": target["id"],
-            "units": 1,
-            "unit_type": "infantry",
-        })
+        msg = json.dumps(
+            {
+                "action": "attack",
+                "source_region_id": source["id"],
+                "target_region_id": target["id"],
+                "units": 1,
+                "unit_type": "infantry",
+            }
+        )
         await ws.send(msg)
         count += 1
         await asyncio.sleep(0.05)
@@ -390,7 +402,7 @@ async def main(args):
         try:
             await MODES[args.mode](ws, state, player_id)
         except websockets.ConnectionClosed:
-            print(f"\n[x] Polaczenie zamkniete - anticheat zadziatal!")
+            print("\n[x] Polaczenie zamkniete - anticheat zadziatal!")
             return
 
     print("\n" + "=" * 60)
@@ -421,10 +433,10 @@ Przyklady:
     )
     parser.add_argument("--token", required=True, help="JWT access token")
     parser.add_argument("--match-id", required=True, help="Match ID (z URL /game/MATCH_ID)")
-    parser.add_argument("--mode", default="all", choices=list(MODES.keys()) + ["all"],
-                        help="Tryb cheata (default: all)")
-    parser.add_argument("--ws-url", default=DEFAULT_WS_URL,
-                        help=f"WebSocket URL (default: {DEFAULT_WS_URL})")
+    parser.add_argument(
+        "--mode", default="all", choices=list(MODES.keys()) + ["all"], help="Tryb cheata (default: all)"
+    )
+    parser.add_argument("--ws-url", default=DEFAULT_WS_URL, help=f"WebSocket URL (default: {DEFAULT_WS_URL})")
 
     args = parser.parse_args()
     asyncio.run(main(args))

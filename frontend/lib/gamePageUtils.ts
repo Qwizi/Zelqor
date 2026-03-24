@@ -31,11 +31,7 @@ export function getUnitRules(units: UnitType[], unitSlug: string | null | undefi
   );
 }
 
-export function getAnimationPower(
-  unitsConfig: UnitType[],
-  unitType: string | null | undefined,
-  carrierCount: number
-) {
+export function getAnimationPower(unitsConfig: UnitType[], unitType: string | null | undefined, carrierCount: number) {
   const rules = getUnitRules(unitsConfig, unitType);
   const scale = Math.max(1, rules.manpower_cost || 1);
   return carrierCount * scale;
@@ -44,7 +40,7 @@ export function getAnimationPower(
 export function getAvailableUnits(
   units: Record<string, number> | undefined,
   unitType: string,
-  unitConfigBySlug: Record<string, { manpower_cost?: number }>
+  unitConfigBySlug: Record<string, { manpower_cost?: number }>,
 ): number {
   const raw = units?.[unitType] ?? 0;
   if (unitType !== "infantry") return raw;

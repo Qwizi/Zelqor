@@ -1,4 +1,5 @@
 """Decorator to gate API controllers/endpoints behind system modules."""
+
 from functools import wraps
 
 from django.http import JsonResponse
@@ -17,20 +18,23 @@ def require_module(slug: str):
         def list_items(self):
             ...
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             if not SystemModule.is_enabled(slug):
                 return JsonResponse(
                     {
-                        'detail': f'Module "{slug}" is currently disabled.',
-                        'module': slug,
-                        'enabled': False,
+                        "detail": f'Module "{slug}" is currently disabled.',
+                        "module": slug,
+                        "enabled": False,
                     },
                     status=503,
                 )
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -45,11 +49,13 @@ def require_module_controller(slug: str):
         class ShopController:
             ...
     """
+
     def decorator(cls):
         cls._system_module_slug = slug
         for attr_name in dir(cls):
             attr = getattr(cls, attr_name, None)
-            if callable(attr) and hasattr(attr, '_ninja_operation'):
+            if callable(attr) and hasattr(attr, "_ninja_operation"):
                 setattr(cls, attr_name, require_module(slug)(attr))
         return cls
+
     return decorator

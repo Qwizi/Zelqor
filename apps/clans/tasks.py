@@ -1,11 +1,10 @@
 import logging
 from datetime import timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from math import isclose
 
 from celery import shared_task
 from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ def expire_clan_invitations():
     ).update(status=ClanInvitation.Status.EXPIRED)
 
     if expired:
-        logger.info('Expired %d clan invitations', expired)
+        logger.info("Expired %d clan invitations", expired)
 
 
 @shared_task
@@ -47,14 +46,14 @@ def expire_pending_wars(hours: int = 24):
         status=ClanWar.Status.PENDING,
         created_at__lt=cutoff,
         wager_gold__gt=0,
-    ).select_related('challenger')
+    ).select_related("challenger")
 
     refund_count = 0
     with transaction.atomic():
         for war in stale_wars:
             locked = Clan.objects.select_for_update().get(pk=war.challenger_id)
             locked.treasury_gold += war.wager_gold
-            locked.save(update_fields=['treasury_gold'])
+            locked.save(update_fields=["treasury_gold"])
             refund_count += 1
 
     # Cancel all stale wars (including zero-wager ones)
@@ -64,7 +63,7 @@ def expire_pending_wars(hours: int = 24):
     ).update(status=ClanWar.Status.CANCELLED)
 
     if cancelled:
-        logger.info('Cancelled %d pending clan wars (%d wagers refunded)', cancelled, refund_count)
+        logger.info("Cancelled %d pending clan wars (%d wagers refunded)", cancelled, refund_count)
 
 
 @shared_task
@@ -79,98 +78,107 @@ def start_clan_war(war_id: str):
     5. Mark the war as IN_PROGRESS and set started_at.
     6. Publish a lobby:events message so the gateway can wire up connections.
     """
-    from apps.clans.models import Clan, ClanWar, ClanWarParticipant
-    from apps.matchmaking.events import publish_lobby_event
+    from apps.clans.models import ClanWar, ClanWarParticipant
     from apps.game_config.models import GameMode
+    from apps.matchmaking.events import publish_lobby_event
 
     try:
-        war = ClanWar.objects.select_related('challenger', 'defender').get(pk=war_id)
+        war = ClanWar.objects.select_related("challenger", "defender").get(pk=war_id)
     except ClanWar.DoesNotExist:
-        logger.error('start_clan_war: ClanWar %s not found', war_id)
+        logger.error("start_clan_war: ClanWar %s not found", war_id)
         return
 
     if war.status != ClanWar.Status.ACCEPTED:
         logger.warning(
-            'start_clan_war: war %s has status %s, expected accepted — skipping',
-            war_id, war.status,
+            "start_clan_war: war %s has status %s, expected accepted — skipping",
+            war_id,
+            war.status,
         )
         return
 
-    game_mode = GameMode.objects.filter(slug='clan-war', is_active=True).first()
+    game_mode = GameMode.objects.filter(slug="clan-war", is_active=True).first()
     if not game_mode:
-        logger.error('start_clan_war: GameMode clan-war not found or inactive')
+        logger.error("start_clan_war: GameMode clan-war not found or inactive")
         return
 
-    participants = list(
-        ClanWarParticipant.objects.select_related('user').filter(war_id=war_id)
-    )
+    participants = list(ClanWarParticipant.objects.select_related("user").filter(war_id=war_id))
     if not participants:
-        logger.warning('start_clan_war: war %s has no participants yet', war_id)
+        logger.warning("start_clan_war: war %s has no participants yet", war_id)
         return
 
     # Use challenger leader as lobby host
-    host = war.challenger.leader
     max_players = war.players_per_side * 2
 
     # Build team labels
     team_labels = {}
     for p in participants:
-        team_labels[str(p.user_id)] = 'challenger' if p.clan_id == war.challenger_id else 'defender'
+        team_labels[str(p.user_id)] = "challenger" if p.clan_id == war.challenger_id else "defender"
 
     # Create match directly (skip lobby queue — all players are known)
     from apps.matchmaking.internal_api import _create_match_from_users
+
     users = [p.user for p in participants]
     match_result = _create_match_from_users(users, game_mode, team_labels=team_labels)
-    match_id = match_result['match_id']
+    match_id = match_result["match_id"]
 
     with transaction.atomic():
         from apps.matchmaking.models import Match
+
         match = Match.objects.get(id=match_id)
 
         now = timezone.now()
         war.status = ClanWar.Status.IN_PROGRESS
         war.match = match
         war.started_at = now
-        war.save(update_fields=['status', 'match', 'started_at'])
+        war.save(update_fields=["status", "match", "started_at"])
 
     participant_ids = [str(p.user_id) for p in participants]
 
     # Notify all participants via push notification
     from apps.accounts.push import send_push_to_users
+
     send_push_to_users(
         participant_ids,
-        title='Wojna klanowa się rozpoczyna!',
-        body=f'{war.challenger.tag} vs {war.defender.tag} — dołącz do meczu!',
-        url=f'/game/{match_id}',
-        tag=f'clan_war_{war_id}',
+        title="Wojna klanowa się rozpoczyna!",
+        body=f"{war.challenger.tag} vs {war.defender.tag} — dołącz do meczu!",
+        url=f"/game/{match_id}",
+        tag=f"clan_war_{war_id}",
     )
 
     # Notify participants via social WebSocket so frontend redirects to game
     import json
-    import redis as redis_lib
+
     from django.conf import settings as django_settings
+
+    import redis as redis_lib
+
     social_r = redis_lib.Redis(
         host=django_settings.REDIS_HOST,
         port=int(django_settings.REDIS_PORT),
-        db=int(getattr(django_settings, 'REDIS_GAME_DB', 1)),
+        db=int(getattr(django_settings, "REDIS_GAME_DB", 1)),
     )
     for uid in participant_ids:
-        social_r.publish('social:events', json.dumps({
-            'type': 'clan_war_started',
-            'user_id': uid,
-            'payload': {
-                'war_id': war_id,
-                'match_id': match_id,
-                'challenger_tag': war.challenger.tag,
-                'defender_tag': war.defender.tag,
-            },
-        }))
+        social_r.publish(
+            "social:events",
+            json.dumps(
+                {
+                    "type": "clan_war_started",
+                    "user_id": uid,
+                    "payload": {
+                        "war_id": war_id,
+                        "match_id": match_id,
+                        "challenger_tag": war.challenger.tag,
+                        "defender_tag": war.defender.tag,
+                    },
+                }
+            ),
+        )
 
     publish_lobby_event(
-        'clan_war_started',
+        "clan_war_started",
         match_id,
         war_id=war_id,
-        game_mode='clan-war',
+        game_mode="clan-war",
         max_players=max_players,
         participant_user_ids=participant_ids,
         challenger_id=str(war.challenger_id),
@@ -178,8 +186,10 @@ def start_clan_war(war_id: str):
     )
 
     logger.info(
-        'start_clan_war: war %s started, match %s created with %d participants',
-        war_id, match_id, len(participants),
+        "start_clan_war: war %s started, match %s created with %d participants",
+        war_id,
+        match_id,
+        len(participants),
     )
 
 
@@ -189,14 +199,14 @@ def award_clan_xp(user_id: str, xp_amount: int):
     from apps.clans.models import Clan, ClanActivityLog, ClanLevel, ClanMembership
 
     try:
-        membership = ClanMembership.objects.select_related('clan').get(user_id=user_id)
+        membership = ClanMembership.objects.select_related("clan").get(user_id=user_id)
     except ClanMembership.DoesNotExist:
         return
 
     with transaction.atomic():
         clan = Clan.objects.select_for_update().get(pk=membership.clan_id)
         clan.experience += xp_amount
-        clan.save(update_fields=['experience'])
+        clan.save(update_fields=["experience"])
 
         # Check level up
         next_level = ClanLevel.objects.filter(
@@ -207,14 +217,15 @@ def award_clan_xp(user_id: str, xp_amount: int):
         if next_level:
             clan.level = next_level.level
             clan.max_members = next_level.max_members
-            clan.save(update_fields=['level', 'max_members'])
+            clan.save(update_fields=["level", "max_members"])
 
             ClanActivityLog.objects.create(
-                clan=clan, actor=None,
+                clan=clan,
+                actor=None,
                 action=ClanActivityLog.Action.CLAN_LEVELED_UP,
-                detail={'new_level': next_level.level},
+                detail={"new_level": next_level.level},
             )
-            logger.info('Clan [%s] leveled up to %d', clan.tag, next_level.level)
+            logger.info("Clan [%s] leveled up to %d", clan.tag, next_level.level)
 
 
 @shared_task
@@ -223,9 +234,9 @@ def calculate_clan_war_elo(war_id: str):
     from apps.clans.models import Clan, ClanActivityLog, ClanWar
 
     try:
-        war = ClanWar.objects.select_related('challenger', 'defender').get(pk=war_id)
+        war = ClanWar.objects.select_related("challenger", "defender").get(pk=war_id)
     except ClanWar.DoesNotExist:
-        logger.error('ClanWar %s not found', war_id)
+        logger.error("ClanWar %s not found", war_id)
         return
 
     if war.status != ClanWar.Status.FINISHED or not war.winner_id:
@@ -243,19 +254,18 @@ def calculate_clan_war_elo(war_id: str):
     actual_d = 1.0 - actual_c
 
     raw_c = k_factor * (actual_c - expected_c)
-    raw_d = k_factor * (actual_d - expected_d)
+    k_factor * (actual_d - expected_d)
 
     change_c = _round_elo_delta(raw_c)
     change_d = -change_c  # Zero-sum
 
     winner_is_challenger = war.winner_id == challenger.pk
     winner_tag = challenger.tag if winner_is_challenger else defender.tag
-    loser_tag = defender.tag if winner_is_challenger else challenger.tag
 
     with transaction.atomic():
         war.challenger_elo_change = change_c
         war.defender_elo_change = change_d
-        war.save(update_fields=['challenger_elo_change', 'defender_elo_change'])
+        war.save(update_fields=["challenger_elo_change", "defender_elo_change"])
 
         Clan.objects.filter(pk=challenger.pk).update(
             elo_rating=challenger.elo_rating + change_c,
@@ -271,42 +281,50 @@ def calculate_clan_war_elo(war_id: str):
             total_prize = war.wager_gold * 2
             winner_clan = Clan.objects.select_for_update().get(pk=war.winner_id)
             winner_clan.treasury_gold += total_prize
-            winner_clan.save(update_fields=['treasury_gold'])
+            winner_clan.save(update_fields=["treasury_gold"])
             logger.info(
-                'Clan war %s: transferred %d gold to winner [%s]',
-                war_id, total_prize, winner_tag,
+                "Clan war %s: transferred %d gold to winner [%s]",
+                war_id,
+                total_prize,
+                winner_tag,
             )
 
         # Activity logs
         ClanActivityLog.objects.create(
-            clan=war.challenger, actor=None,
-            action=(ClanActivityLog.Action.WAR_WON if winner_is_challenger
-                    else ClanActivityLog.Action.WAR_LOST),
+            clan=war.challenger,
+            actor=None,
+            action=(ClanActivityLog.Action.WAR_WON if winner_is_challenger else ClanActivityLog.Action.WAR_LOST),
             detail={
-                'against': defender.tag,
-                'elo_change': change_c,
-                'wager_gold': war.wager_gold,
+                "against": defender.tag,
+                "elo_change": change_c,
+                "wager_gold": war.wager_gold,
             },
         )
         ClanActivityLog.objects.create(
-            clan=war.defender, actor=None,
-            action=(ClanActivityLog.Action.WAR_WON if not winner_is_challenger
-                    else ClanActivityLog.Action.WAR_LOST),
+            clan=war.defender,
+            actor=None,
+            action=(ClanActivityLog.Action.WAR_WON if not winner_is_challenger else ClanActivityLog.Action.WAR_LOST),
             detail={
-                'against': challenger.tag,
-                'elo_change': change_d,
-                'wager_gold': war.wager_gold,
+                "against": challenger.tag,
+                "elo_change": change_d,
+                "wager_gold": war.wager_gold,
             },
         )
 
     # Award XP to all participants — winning side gets more
     from apps.clans.models import ClanWarParticipant
-    participants = ClanWarParticipant.objects.select_related('user').filter(war_id=war_id)
+
+    participants = ClanWarParticipant.objects.select_related("user").filter(war_id=war_id)
     for p in participants:
         xp = CLAN_WAR_XP_WIN if str(p.clan_id) == str(war.winner_id) else CLAN_WAR_XP_LOSS
         award_clan_xp.delay(str(p.user_id), xp)
 
     logger.info(
-        'Clan war %s: [%s] vs [%s] — winner [%s], ELO: %+d / %+d',
-        war_id, challenger.tag, defender.tag, winner_tag, change_c, change_d,
+        "Clan war %s: [%s] vs [%s] — winner [%s], ELO: %+d / %+d",
+        war_id,
+        challenger.tag,
+        defender.tag,
+        winner_tag,
+        change_c,
+        change_d,
     )

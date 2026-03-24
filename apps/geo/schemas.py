@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, List
+
 from ninja import Schema
 
 
@@ -18,8 +18,8 @@ class RegionOutSchema(Schema):
     country_id: uuid.UUID
     is_coastal: bool
     population_weight: float
-    centroid_lat: Optional[float] = None
-    centroid_lng: Optional[float] = None
+    centroid_lat: float | None = None
+    centroid_lng: float | None = None
 
     class Config:
         from_attributes = True
@@ -34,15 +34,15 @@ class RegionOutSchema(Schema):
 
 
 class RegionGeoJsonFeature(Schema):
-    type: str = 'Feature'
+    type: str = "Feature"
     id: str
     properties: dict
     geometry: dict
 
 
 class RegionGeoJsonCollection(Schema):
-    type: str = 'FeatureCollection'
-    features: List[RegionGeoJsonFeature]
+    type: str = "FeatureCollection"
+    features: list[RegionGeoJsonFeature]
 
 
 class RegionPixelShape(Schema):
@@ -50,9 +50,9 @@ class RegionPixelShape(Schema):
     name: str
     # Each sub-polygon: [exterior_ring, hole1, hole2, ...]
     # MultiPolygon regions have multiple sub-polygons (e.g. islands)
-    polygons: List[List[List[List[float]]]]
-    centroid: Optional[List[float]] = None
-    neighbors: List[str]
+    polygons: list[list[list[list[float]]]]
+    centroid: list[float] | None = None
+    neighbors: list[str]
     is_coastal: bool
     population_weight: float
 
@@ -65,5 +65,5 @@ class PixelBounds(Schema):
 
 
 class RegionShapesOutSchema(Schema):
-    regions: List[RegionPixelShape]
+    regions: list[RegionPixelShape]
     bounds: PixelBounds

@@ -8,6 +8,7 @@ Usage:
     python3 scripts/generate_prod_env.py /path/to/.env      # custom path
     python3 scripts/generate_prod_env.py --domain maplord.pl  # set domain
 """
+
 import base64
 import os
 import secrets
@@ -38,15 +39,18 @@ def generate_vapid_keys():
     with tempfile.NamedTemporaryFile(suffix=".pem") as tmp:
         subprocess.run(
             ["openssl", "ecparam", "-genkey", "-noout", "-name", "prime256v1", "-out", tmp.name],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
         priv_pem = subprocess.run(
             ["openssl", "pkcs8", "-topk8", "-nocrypt", "-in", tmp.name],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         ).stdout.decode()
         pub_der = subprocess.run(
             ["openssl", "ec", "-in", tmp.name, "-pubout", "-outform", "DER"],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         ).stdout
 
     pub_point = pub_der[-65:]

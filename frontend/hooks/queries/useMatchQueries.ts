@@ -1,27 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  getMyMatches,
-  getPlayerMatches,
   getMatch,
+  getMatchmakingStatus,
   getMatchResult,
   getMatchSnapshots,
+  getMyMatches,
+  getPlayerMatches,
   getSnapshot,
-  getMatchmakingStatus,
   type Match,
-  type MatchResult,
   type MatchmakingStatus,
-  type SnapshotTick,
-  type SnapshotDetail,
+  type MatchResult,
   type PaginatedResponse,
+  type SnapshotDetail,
+  type SnapshotTick,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
-export function useMyMatches(
-  limit?: number,
-  offset?: number,
-  options?: { refetchInterval?: number }
-) {
+export function useMyMatches(limit?: number, offset?: number, options?: { refetchInterval?: number }) {
   return useQuery<PaginatedResponse<Match>>({
     queryKey: queryKeys.matches.my(limit, offset),
     queryFn: () => getMyMatches(requireToken(), limit, offset),
@@ -30,11 +26,7 @@ export function useMyMatches(
   });
 }
 
-export function usePlayerMatches(
-  userId: string,
-  limit?: number,
-  offset?: number
-) {
+export function usePlayerMatches(userId: string, limit?: number, offset?: number) {
   return useQuery<PaginatedResponse<Match>>({
     queryKey: queryKeys.matches.player(userId, limit, offset),
     queryFn: () => getPlayerMatches(requireToken(), userId, limit, offset),

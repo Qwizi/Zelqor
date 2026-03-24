@@ -7,40 +7,39 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
-
 VALID_EVENTS = [
-    'match.started',
-    'match.finished',
-    'player.elo_changed',
+    "match.started",
+    "match.finished",
+    "player.elo_changed",
 ]
 
 VALID_SCOPES = [
-    'matches:read',
-    'leaderboard:read',
-    'players:read',
-    'config:read',
-    'webhooks:manage',
-    'user:profile',
+    "matches:read",
+    "leaderboard:read",
+    "players:read",
+    "config:read",
+    "webhooks:manage",
+    "user:profile",
 ]
 
 
 class DeveloperApp(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
-    description = models.TextField(blank=True, default='')
+    description = models.TextField(blank=True, default="")
     client_id = models.CharField(max_length=64, unique=True, editable=False)
     client_secret_hash = models.CharField(max_length=128, editable=False)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='developer_apps',
+        related_name="developer_apps",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
         if not self.client_id:
-            self.client_id = 'ml_' + secrets.token_hex(16)
+            self.client_id = "ml_" + secrets.token_hex(16)
         super().save(*args, **kwargs)
 
     @classmethod
@@ -58,7 +57,7 @@ class APIKey(models.Model):
     app = models.ForeignKey(
         DeveloperApp,
         on_delete=models.CASCADE,
-        related_name='api_keys',
+        related_name="api_keys",
     )
     key_hash = models.CharField(max_length=128, unique=True, db_index=True)
     prefix = models.CharField(max_length=12)
@@ -70,7 +69,7 @@ class APIKey(models.Model):
 
     @classmethod
     def generate_key(cls) -> tuple[str, str, str]:
-        raw_key = 'ml_' + secrets.token_urlsafe(48)
+        raw_key = "ml_" + secrets.token_urlsafe(48)
         prefix = raw_key[:12]
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         return raw_key, prefix, key_hash
@@ -84,7 +83,7 @@ class Webhook(models.Model):
     app = models.ForeignKey(
         DeveloperApp,
         on_delete=models.CASCADE,
-        related_name='webhooks',
+        related_name="webhooks",
     )
     url = models.URLField(max_length=500)
     secret = models.CharField(max_length=128, editable=False)
@@ -96,7 +95,8 @@ class Webhook(models.Model):
     @property
     def max_failures(self):
         from apps.game_config.modules import get_module_config
-        return get_module_config('developers', 'max_webhook_failures', 10)
+
+        return get_module_config("developers", "max_webhook_failures", 10)
 
     def save(self, *args, **kwargs):
         if not self.secret:
@@ -112,17 +112,17 @@ class WebhookDelivery(models.Model):
     webhook = models.ForeignKey(
         Webhook,
         on_delete=models.CASCADE,
-        related_name='deliveries',
+        related_name="deliveries",
     )
     event = models.CharField(max_length=100)
     payload = models.JSONField()
     response_status = models.PositiveIntegerField(null=True, blank=True)
-    response_body = models.TextField(blank=True, default='')
+    response_body = models.TextField(blank=True, default="")
     success = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"{self.event} -> {self.webhook} ({'ok' if self.success else 'fail'})"
@@ -133,7 +133,7 @@ class OAuthAuthorizationCode(models.Model):
     app = models.ForeignKey(
         DeveloperApp,
         on_delete=models.CASCADE,
-        related_name='auth_codes',
+        related_name="auth_codes",
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -166,7 +166,7 @@ class OAuthAccessToken(models.Model):
     app = models.ForeignKey(
         DeveloperApp,
         on_delete=models.CASCADE,
-        related_name='oauth_tokens',
+        related_name="oauth_tokens",
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

@@ -1,35 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  Check,
-  Coins,
-  Hammer,
-  Lock,
-  Search,
-  Sparkles,
-} from "lucide-react";
 import { gsap } from "gsap";
+import { Check, Coins, Hammer, Lock, Search, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
+import { CraftingSkeleton } from "@/components/skeletons/CraftingSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import ItemIcon from "@/components/ui/ItemIcon";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { useCraftItem, useMyInventory, useMyWallet, useRecipes } from "@/hooks/queries";
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
-import { ModuleDisabledPage } from "@/components/ModuleGate";
-import ItemIcon from "@/components/ui/ItemIcon";
-import {
-  type CraftResult,
-  type InventoryItemOut,
-  type RecipeOut,
-  type WalletOut,
-} from "@/lib/api";
-import { useRecipes, useMyInventory, useMyWallet, useCraftItem } from "@/hooks/queries";
-import { CraftingSkeleton } from "@/components/skeletons/CraftingSkeleton";
+import type { CraftResult, RecipeOut, WalletOut } from "@/lib/api";
 
 // ─── Wear / Rarity constants ────────────────────────────────────────────────
 
@@ -104,7 +92,14 @@ const CATEGORIES = [
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-function RecipeRow({ recipe, craftable, active, rarity, owned, onSelect }: {
+function RecipeRow({
+  recipe,
+  craftable,
+  active,
+  rarity,
+  owned,
+  onSelect,
+}: {
   recipe: RecipeOut;
   craftable: boolean;
   active: boolean;
@@ -120,24 +115,32 @@ function RecipeRow({ recipe, craftable, active, rarity, owned, onSelect }: {
       } ${!craftable ? "opacity-50" : ""}`}
     >
       <div className="flex items-center gap-3 md:gap-4">
-        <div className={`flex h-10 w-10 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-xl border ${RARITY_BORDER[rarity]} bg-secondary`}>
+        <div
+          className={`flex h-10 w-10 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-xl border ${RARITY_BORDER[rarity]} bg-secondary`}
+        >
           <ItemIcon slug={recipe.result_item.slug} icon={recipe.result_item.icon} size={28} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 md:gap-2">
             <span className="text-sm md:text-lg font-semibold text-foreground truncate">{recipe.result_item.name}</span>
-            <Badge className={`shrink-0 border px-1 md:px-1.5 py-0.5 text-[10px] md:text-xs font-bold uppercase ${RARITY_BORDER[rarity]} ${RARITY_BG[rarity]} ${RARITY_TEXT[rarity]}`}>
+            <Badge
+              className={`shrink-0 border px-1 md:px-1.5 py-0.5 text-[10px] md:text-xs font-bold uppercase ${RARITY_BORDER[rarity]} ${RARITY_BG[rarity]} ${RARITY_TEXT[rarity]}`}
+            >
               {RARITY_LABEL[rarity]}
             </Badge>
             {recipe.result_item.level > 1 && (
-              <span className="hidden md:inline text-sm font-medium text-muted-foreground">Lvl {recipe.result_item.level}</span>
+              <span className="hidden md:inline text-sm font-medium text-muted-foreground">
+                Lvl {recipe.result_item.level}
+              </span>
             )}
           </div>
           <div className="mt-1 md:mt-2 flex items-center gap-2 md:gap-3">
             {recipe.ingredients.slice(0, 3).map((ing) => (
               <span key={ing.item.slug} className="flex items-center gap-0.5 md:gap-1">
                 <ItemIcon slug={ing.item.slug} icon={ing.item.icon} size={18} />
-                <span className={`text-xs md:text-base font-semibold tabular-nums ${owned(ing.item.slug) >= ing.quantity ? "text-foreground" : "text-red-400"}`}>
+                <span
+                  className={`text-xs md:text-base font-semibold tabular-nums ${owned(ing.item.slug) >= ing.quantity ? "text-foreground" : "text-red-400"}`}
+                >
                   {owned(ing.item.slug)}/{ing.quantity}
                 </span>
               </span>
@@ -147,7 +150,8 @@ function RecipeRow({ recipe, craftable, active, rarity, owned, onSelect }: {
             )}
             {recipe.gold_cost > 0 && (
               <span className="flex items-center gap-0.5 text-xs md:text-base font-semibold text-accent">
-                <Coins className="h-3 w-3 md:h-4 md:w-4" />{recipe.gold_cost}
+                <Coins className="h-3 w-3 md:h-4 md:w-4" />
+                {recipe.gold_cost}
               </span>
             )}
           </div>
@@ -211,9 +215,9 @@ function CraftingContent() {
   const canCraft = useCallback(
     (r: RecipeOut) => {
       if (wallet && wallet.gold < r.gold_cost) return false;
-      return r.ingredients.every((ing) => owned(ing.item.slug) >= ing.quantity);
+      return r.ingredients.every((ing) => (ownedMap[ing.item.slug] ?? 0) >= ing.quantity);
     },
-    [wallet, ownedMap]
+    [wallet, ownedMap],
   );
 
   // Crafting modal state
@@ -278,7 +282,7 @@ function CraftingContent() {
         gsap.to(modalSparkRef.current, { scale: 2, opacity: 0, duration: 0.5 });
       }
     }
-  }, [craftingModal?.phase]);
+  }, [craftingModal?.phase, craftingModal]);
 
   // ─── Filtering ────────────────────────────────────────────
 
@@ -290,7 +294,7 @@ function CraftingContent() {
       list = list.filter(
         (r) =>
           r.result_item.name.toLowerCase().includes(q) ||
-          r.ingredients.some((i) => i.item.name.toLowerCase().includes(q))
+          r.ingredients.some((i) => i.item.name.toLowerCase().includes(q)),
       );
     }
     if (showOnlyCraftable) list = list.filter(canCraft);
@@ -357,9 +361,7 @@ function CraftingContent() {
                 ST
               </Badge>
             )}
-            {lastResult.instance.is_rare_pattern && (
-              <span className="text-xs md:text-base text-accent">⭐</span>
-            )}
+            {lastResult.instance.is_rare_pattern && <span className="text-xs md:text-base text-accent">⭐</span>}
           </div>
         </div>
       )}
@@ -377,7 +379,10 @@ function CraftingContent() {
             return (
               <button
                 key={c.value}
-                onClick={() => { setCategory(c.value); setSelected(null); }}
+                onClick={() => {
+                  setCategory(c.value);
+                  setSelected(null);
+                }}
                 className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-3 text-left transition-all ${
                   active
                     ? "bg-secondary text-foreground font-semibold border border-border"
@@ -401,7 +406,10 @@ function CraftingContent() {
             {CATEGORIES.map((c) => (
               <button
                 key={c.value}
-                onClick={() => { setCategory(c.value); setSelected(null); }}
+                onClick={() => {
+                  setCategory(c.value);
+                  setSelected(null);
+                }}
                 className={`flex shrink-0 items-center gap-1 md:gap-1.5 rounded-full border px-2.5 md:px-3 py-1.5 text-xs md:text-sm font-medium transition-colors ${
                   category === c.value
                     ? "border-primary/25 bg-primary/10 text-primary"
@@ -462,13 +470,23 @@ function CraftingContent() {
                   <div className="h-px flex-1 bg-green-500/20" />
                 </div>
               )}
-              {filtered.filter((r) => canCraft(r)).map((recipe) => {
-                const active = selected === recipe.slug;
-                const rarity = recipe.result_item.rarity;
-                return (
-                  <RecipeRow key={recipe.slug} recipe={recipe} craftable active={active} rarity={rarity} owned={owned} onSelect={() => setSelected(active ? null : recipe.slug)} />
-                );
-              })}
+              {filtered
+                .filter((r) => canCraft(r))
+                .map((recipe) => {
+                  const active = selected === recipe.slug;
+                  const rarity = recipe.result_item.rarity;
+                  return (
+                    <RecipeRow
+                      key={recipe.slug}
+                      recipe={recipe}
+                      craftable
+                      active={active}
+                      rarity={rarity}
+                      owned={owned}
+                      onSelect={() => setSelected(active ? null : recipe.slug)}
+                    />
+                  );
+                })}
 
               {/* Unavailable recipes */}
               {!showOnlyCraftable && filtered.filter((r) => !canCraft(r)).length > 0 && (
@@ -480,13 +498,24 @@ function CraftingContent() {
                   <div className="h-px flex-1 bg-border/30" />
                 </div>
               )}
-              {!showOnlyCraftable && filtered.filter((r) => !canCraft(r)).map((recipe) => {
-                const active = selected === recipe.slug;
-                const rarity = recipe.result_item.rarity;
-                return (
-                  <RecipeRow key={recipe.slug} recipe={recipe} craftable={false} active={active} rarity={rarity} owned={owned} onSelect={() => setSelected(active ? null : recipe.slug)} />
-                );
-              })}
+              {!showOnlyCraftable &&
+                filtered
+                  .filter((r) => !canCraft(r))
+                  .map((recipe) => {
+                    const active = selected === recipe.slug;
+                    const rarity = recipe.result_item.rarity;
+                    return (
+                      <RecipeRow
+                        key={recipe.slug}
+                        recipe={recipe}
+                        craftable={false}
+                        active={active}
+                        rarity={rarity}
+                        owned={owned}
+                        onSelect={() => setSelected(active ? null : recipe.slug)}
+                      />
+                    );
+                  })}
             </div>
           )}
         </div>
@@ -532,11 +561,21 @@ function CraftingContent() {
         <DialogContent showCloseButton={craftingModal?.phase === "result"} className="sm:max-w-sm text-center">
           {craftingModal?.phase === "forging" && (
             <div className="flex flex-col items-center gap-6 py-6">
-              <div ref={modalSparkRef} className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div
+                ref={modalSparkRef}
+                className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              >
                 <div className="h-32 w-32 rounded-full bg-primary/10" />
               </div>
-              <div ref={modalIconRef} className="relative z-10 flex h-24 w-24 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10">
-                <ItemIcon slug={craftingModal.recipe.result_item.slug} icon={craftingModal.recipe.result_item.icon} size={48} />
+              <div
+                ref={modalIconRef}
+                className="relative z-10 flex h-24 w-24 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10"
+              >
+                <ItemIcon
+                  slug={craftingModal.recipe.result_item.slug}
+                  icon={craftingModal.recipe.result_item.icon}
+                  size={48}
+                />
               </div>
               <div>
                 <p className="font-display text-2xl text-foreground">Tworzenie...</p>
@@ -552,7 +591,11 @@ function CraftingContent() {
           {craftingModal?.phase === "result" && craftingModal.result && (
             <div className="flex flex-col items-center gap-5 py-6">
               <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-accent/30 bg-accent/10">
-                <ItemIcon slug={craftingModal.recipe.result_item.slug} icon={craftingModal.recipe.result_item.icon} size={48} />
+                <ItemIcon
+                  slug={craftingModal.recipe.result_item.slug}
+                  icon={craftingModal.recipe.result_item.icon}
+                  size={48}
+                />
               </div>
               <div>
                 <div className="flex items-center justify-center gap-2 mb-2">
@@ -563,8 +606,12 @@ function CraftingContent() {
               </div>
               {craftingModal.result.instance && (
                 <div className="flex flex-wrap justify-center gap-2">
-                  <Badge className={`text-sm ${WEAR_COLORS[craftingModal.result.instance.wear_condition] ?? ""}`} variant="outline">
-                    {WEAR_FULL[craftingModal.result.instance.wear_condition] ?? craftingModal.result.instance.wear_condition}
+                  <Badge
+                    className={`text-sm ${WEAR_COLORS[craftingModal.result.instance.wear_condition] ?? ""}`}
+                    variant="outline"
+                  >
+                    {WEAR_FULL[craftingModal.result.instance.wear_condition] ??
+                      craftingModal.result.instance.wear_condition}
                   </Badge>
                   <Badge variant="outline" className="text-sm font-mono text-muted-foreground">
                     {craftingModal.result.instance.wear.toFixed(4)}
@@ -612,9 +659,7 @@ function RecipeDetail({
   const isUnique = !recipe.result_item.is_stackable;
 
   return (
-    <Card
-      className={`rounded-2xl border space-y-0 ${RARITY_BORDER[rarity]} bg-card ${RARITY_GLOW[rarity]}`}
-    >
+    <Card className={`rounded-2xl border space-y-0 ${RARITY_BORDER[rarity]} bg-card ${RARITY_GLOW[rarity]}`}>
       <CardHeader className="pb-0 px-4 md:px-6 pt-4 md:pt-6">
         {/* Result item */}
         <div className="flex items-start gap-3">
@@ -638,9 +683,7 @@ function RecipeDetail({
               )}
             </div>
             {recipe.result_item.description && (
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {recipe.result_item.description}
-              </p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{recipe.result_item.description}</p>
             )}
           </div>
         </div>
@@ -652,9 +695,7 @@ function RecipeDetail({
           <>
             <Separator />
             <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <p className="mb-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                Losowy wear
-              </p>
+              <p className="mb-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">Losowy wear</p>
               <div className="flex gap-1">
                 {Object.entries(WEAR_LABELS).map(([key, label]) => (
                   <span
@@ -673,9 +714,7 @@ function RecipeDetail({
 
         {/* Ingredients */}
         <div>
-          <p className="mb-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-            Składniki
-          </p>
+          <p className="mb-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">Składniki</p>
           <div className="space-y-1.5 md:space-y-2">
             {recipe.ingredients.map((ing) => {
               const have = owned(ing.item.slug);
@@ -684,9 +723,7 @@ function RecipeDetail({
                 <div
                   key={ing.item.slug}
                   className={`flex items-center gap-2 md:gap-2.5 rounded-xl border px-2.5 py-2 md:px-3 md:py-2.5 ${
-                    enough
-                      ? "border-green-500/20 bg-green-500/[0.05]"
-                      : "border-red-500/20 bg-red-500/[0.05]"
+                    enough ? "border-green-500/20 bg-green-500/[0.05]" : "border-red-500/20 bg-red-500/[0.05]"
                   }`}
                 >
                   <ItemIcon slug={ing.item.slug} icon={ing.item.icon} size={20} />
@@ -780,9 +817,7 @@ function RecipeDetail({
             {lastResult.instance.is_rare_pattern && (
               <p className="text-sm text-accent">⭐ Rzadki wzór #{lastResult.instance.pattern_seed}</p>
             )}
-            <p className="text-xs text-muted-foreground">
-              Wzór: #{lastResult.instance.pattern_seed}
-            </p>
+            <p className="text-xs text-muted-foreground">Wzór: #{lastResult.instance.pattern_seed}</p>
           </div>
         )}
       </CardContent>

@@ -1,8 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Backpack,
   Bell,
@@ -37,24 +35,26 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { ClanTag } from "@/components/ClanTag";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { ClanTag } from "@/components/ClanTag";
+import { useFriends, useMyWallet, useOnlineStats } from "@/hooks/queries";
+import { SocialSocketContext } from "@/hooks/SocialSocketContext";
+import { useAudio } from "@/hooks/useAudio";
 import { useAuth } from "@/hooks/useAuth";
+import { useChat } from "@/hooks/useChat";
 import { MatchmakingProvider, useMatchmaking } from "@/hooks/useMatchmaking";
+import { useNotifications } from "@/hooks/useNotifications";
+import { useSocialSocket } from "@/hooks/useSocialSocket";
 import { useSystemModules } from "@/hooks/useSystemModules";
-import { type WalletOut, type FriendshipOut, type FriendUser } from "@/lib/api";
-import { useQueryClient } from "@tanstack/react-query";
-import { useMyWallet, useOnlineStats, useFriends } from "@/hooks/queries";
+import type { FriendshipOut, FriendUser, NotificationOut, WalletOut } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import { useAudio } from "@/hooks/useAudio";
-import { useNotifications } from "@/hooks/useNotifications";
-import { useChat } from "@/hooks/useChat";
-import { useSocialSocket } from "@/hooks/useSocialSocket";
-import { SocialSocketContext } from "@/hooks/SocialSocketContext";
-import type { NotificationOut } from "@/lib/api";
+
 // ---------------------------------------------------------------------------
 // Nav item definitions
 // ---------------------------------------------------------------------------
@@ -96,9 +96,7 @@ const ALL_ECONOMY_ITEMS: NavItem[] = [
   { href: "/crafting", label: "Kuźnia", icon: <Hammer size={20} /> },
 ];
 
-const ALL_OTHER_ITEMS: NavItem[] = [
-  { href: "/developers", label: "API", icon: <Code size={20} /> },
-];
+const ALL_OTHER_ITEMS: NavItem[] = [{ href: "/developers", label: "API", icon: <Code size={20} /> }];
 
 /** Filter nav items based on system module state. */
 function useFilteredNavItems() {
@@ -144,7 +142,7 @@ function ProfilePopover({
         className={cn(
           "flex w-full items-center gap-2.5 rounded-lg transition-colors",
           collapsed ? "justify-center py-2.5" : "px-3 py-2.5",
-          open ? "bg-muted" : "hover:bg-muted"
+          open ? "bg-muted" : "hover:bg-muted",
         )}
       >
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-xs font-bold uppercase text-primary">
@@ -152,8 +150,14 @@ function ProfilePopover({
         </div>
         {!collapsed && (
           <>
-            <span className="flex-1 truncate text-left text-sm font-medium text-foreground">{user.clan_tag && <ClanTag tag={user.clan_tag} className="text-xs mr-1" />}{user.username}</span>
-            <ChevronRight size={14} className={cn("shrink-0 text-muted-foreground/50 transition-transform duration-200", open && "rotate-90")} />
+            <span className="flex-1 truncate text-left text-sm font-medium text-foreground">
+              {user.clan_tag && <ClanTag tag={user.clan_tag} className="text-xs mr-1" />}
+              {user.username}
+            </span>
+            <ChevronRight
+              size={14}
+              className={cn("shrink-0 text-muted-foreground/50 transition-transform duration-200", open && "rotate-90")}
+            />
           </>
         )}
       </button>
@@ -178,7 +182,10 @@ function ProfilePopover({
             Ustawienia
           </Link>
           <button
-            onClick={() => { setOpen(false); onLogout(); }}
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
             className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors border-t border-border"
           >
             <LogOut size={18} />
@@ -190,16 +197,30 @@ function ProfilePopover({
       {/* Collapsed: tooltip-only, clicking goes to profile */}
       {open && collapsed && (
         <div className="mt-1 flex flex-col items-center gap-0.5">
-          <Link href="/profile" onClick={() => setOpen(false)} title="Profil"
-            className="flex h-8 w-10 items-center justify-center rounded text-slate-400 hover:bg-white/10 hover:text-zinc-100 transition-colors">
+          <Link
+            href="/profile"
+            onClick={() => setOpen(false)}
+            title="Profil"
+            className="flex h-8 w-10 items-center justify-center rounded text-slate-400 hover:bg-white/10 hover:text-zinc-100 transition-colors"
+          >
             <UserCircle size={16} />
           </Link>
-          <Link href="/settings" onClick={() => setOpen(false)} title="Ustawienia"
-            className="flex h-8 w-10 items-center justify-center rounded text-slate-400 hover:bg-white/10 hover:text-zinc-100 transition-colors">
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            title="Ustawienia"
+            className="flex h-8 w-10 items-center justify-center rounded text-slate-400 hover:bg-white/10 hover:text-zinc-100 transition-colors"
+          >
             <Settings size={16} />
           </Link>
-          <button onClick={() => { setOpen(false); onLogout(); }} title="Wyloguj"
-            className="flex h-8 w-10 items-center justify-center rounded text-red-400 hover:bg-red-500/10 transition-colors">
+          <button
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+            title="Wyloguj"
+            className="flex h-8 w-10 items-center justify-center rounded text-red-400 hover:bg-red-500/10 transition-colors"
+          >
             <LogOut size={16} />
           </button>
         </div>
@@ -247,7 +268,7 @@ function Breadcrumbs({ pathname }: { pathname: string }) {
   if (segments.length === 0) return null;
 
   const crumbs = segments.map((seg, i) => {
-    const href = "/" + segments.slice(0, i + 1).join("/");
+    const href = `/${segments.slice(0, i + 1).join("/")}`;
     const label = formatSegmentLabel(seg);
     const isLast = i === segments.length - 1;
     return { href, label, isLast };
@@ -302,9 +323,7 @@ function SidebarItem({
   collapsed: boolean;
   onClick?: () => void;
 }) {
-  const active = item.matchExact
-    ? pathname === item.href
-    : pathname.startsWith(item.href);
+  const active = item.matchExact ? pathname === item.href : pathname.startsWith(item.href);
 
   if (collapsed) {
     return (
@@ -317,7 +336,7 @@ function SidebarItem({
           "flex items-center justify-center py-2.5 mx-1 rounded-lg transition-colors",
           active
             ? "bg-primary/10 text-primary shadow-[0_0_8px_oklch(0.8_0.15_85/0.15)]"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted",
         )}
       >
         <span className="shrink-0">{item.icon}</span>
@@ -334,7 +353,7 @@ function SidebarItem({
         "flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors rounded-lg mx-2",
         active
           ? "bg-primary/10 text-primary shadow-[inset_2px_0_0_var(--primary),0_0_8px_oklch(0.8_0.15_85/0.15)]"
-          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted",
       )}
     >
       <span className="shrink-0">{item.icon}</span>
@@ -367,13 +386,7 @@ function CollapsedSeparator() {
 // Desktop sidebar content
 // ---------------------------------------------------------------------------
 
-function DesktopSidebarContent({
-  pathname,
-  collapsed,
-}: {
-  pathname: string;
-  collapsed: boolean;
-}) {
+function DesktopSidebarContent({ pathname, collapsed }: { pathname: string; collapsed: boolean }) {
   const { PLAY_ITEMS, LOADOUT_ITEMS, ECONOMY_ITEMS, OTHER_ITEMS } = useFilteredNavItems();
   const groups = [
     { label: "GRA", items: PLAY_ITEMS },
@@ -415,23 +428,20 @@ function DesktopSidebarContent({
 // Mobile sheet sidebar content (always expanded)
 // ---------------------------------------------------------------------------
 
-function MobileSidebarContent({
-  pathname,
-  onNavigate,
-}: {
-  pathname: string;
-  onNavigate?: () => void;
-}) {
+function MobileSidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const { PLAY_ITEMS, LOADOUT_ITEMS, ECONOMY_ITEMS, OTHER_ITEMS } = useFilteredNavItems();
   const groups = [
     { label: "GRA", items: PLAY_ITEMS },
     { label: "WYPOSAŻENIE", items: LOADOUT_ITEMS },
     { label: "HANDEL", items: ECONOMY_ITEMS },
     { label: "WIĘCEJ", items: OTHER_ITEMS },
-    { label: "KONTO", items: [
-      { href: "/profile", label: "Profil", icon: <UserCircle size={20} /> },
-      { href: "/settings", label: "Ustawienia", icon: <Settings size={20} /> },
-    ] as NavItem[] },
+    {
+      label: "KONTO",
+      items: [
+        { href: "/profile", label: "Profil", icon: <UserCircle size={20} /> },
+        { href: "/settings", label: "Ustawienia", icon: <Settings size={20} /> },
+      ] as NavItem[],
+    },
   ];
 
   return (
@@ -453,9 +463,7 @@ function MobileSidebarContent({
 // ---------------------------------------------------------------------------
 
 function BottomBarItem({ item, pathname }: { item: NavItem; pathname: string }) {
-  const active = item.matchExact
-    ? pathname === item.href
-    : pathname.startsWith(item.href);
+  const active = item.matchExact ? pathname === item.href : pathname.startsWith(item.href);
 
   return (
     <Link
@@ -463,12 +471,10 @@ function BottomBarItem({ item, pathname }: { item: NavItem; pathname: string }) 
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex flex-1 flex-col items-center gap-0.5 px-2 py-2 text-xs font-medium transition-colors",
-        active ? "text-accent" : "text-muted-foreground hover:text-foreground"
+        active ? "text-accent" : "text-muted-foreground hover:text-foreground",
       )}
     >
-      <span className={cn("transition-colors", active && "text-accent")}>
-        {item.icon}
-      </span>
+      <span className={cn("transition-colors", active && "text-accent")}>{item.icon}</span>
       <span>{item.label}</span>
     </Link>
   );
@@ -487,9 +493,7 @@ const BLOCKED_DURING_QUEUE = ["/decks", "/cosmetics"];
 function QueueGuard({ children, pathname }: { children: ReactNode; pathname: string }) {
   const { inQueue } = useMatchmaking();
 
-  const isBlocked = inQueue && BLOCKED_DURING_QUEUE.some(
-    (p) => pathname === p || pathname.startsWith(p + "/")
-  );
+  const isBlocked = inQueue && BLOCKED_DURING_QUEUE.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   if (!isBlocked) return <>{children}</>;
 
@@ -517,10 +521,21 @@ function QueueGuard({ children, pathname }: { children: ReactNode; pathname: str
 // ---------------------------------------------------------------------------
 
 function QueueBannerInline() {
-  const { inQueue, lobbyId, lobbyPlayers, lobbyFull, allReady, queueSeconds, leaveQueue, matchId, setReady, readyCountdown } = useMatchmaking();
+  const {
+    inQueue,
+    lobbyId,
+    lobbyPlayers,
+    lobbyFull,
+    allReady,
+    queueSeconds,
+    leaveQueue,
+    matchId,
+    setReady,
+    readyCountdown,
+  } = useMatchmaking();
   const { user } = useAuth();
   const router = useRouter();
-  const myReady = lobbyPlayers.some(p => p.user_id === user?.id && p.is_ready);
+  const myReady = lobbyPlayers.some((p) => p.user_id === user?.id && p.is_ready);
   const lobbyToastRef = useRef<string | number | null>(null);
 
   useEffect(() => {
@@ -530,7 +545,11 @@ function QueueBannerInline() {
   // Toast when lobby full
   useEffect(() => {
     if (lobbyFull && !lobbyToastRef.current && !myReady) {
-      try { const a = new Audio("/assets/audio/gui/int_message_alert.ogg"); a.volume = 0.7; a.play().catch(() => {}); } catch {}
+      try {
+        const a = new Audio("/assets/audio/gui/int_message_alert.ogg");
+        a.volume = 0.7;
+        a.play().catch(() => {});
+      } catch {}
       lobbyToastRef.current = toast.success("Mecz znaleziony!", {
         id: "matchmaking-lobby-found",
         description: "Kliknij Gotowy aby potwierdzić",
@@ -540,7 +559,8 @@ function QueueBannerInline() {
           onClick: () => setReady(),
         },
         classNames: {
-          actionButton: "!bg-green-500 !text-white !font-bold !rounded-lg !px-4 !py-2 !text-sm hover:!bg-green-400 !border-0",
+          actionButton:
+            "!bg-green-500 !text-white !font-bold !rounded-lg !px-4 !py-2 !text-sm hover:!bg-green-400 !border-0",
         },
       });
     }
@@ -562,9 +582,10 @@ function QueueBannerInline() {
 
   const mins = Math.floor(queueSeconds / 60);
   const secs = String(queueSeconds % 60).padStart(2, "0");
-  const countdownStr = readyCountdown !== null
-    ? `${Math.floor(readyCountdown / 60)}:${String(readyCountdown % 60).padStart(2, "0")}`
-    : null;
+  const countdownStr =
+    readyCountdown !== null
+      ? `${Math.floor(readyCountdown / 60)}:${String(readyCountdown % 60).padStart(2, "0")}`
+      : null;
 
   return (
     <>
@@ -584,7 +605,7 @@ function QueueBannerInline() {
                   player.is_ready
                     ? "border-green-500 bg-green-500/20 text-green-400"
                     : "border-border bg-secondary text-muted-foreground",
-                  player.is_bot && "opacity-70"
+                  player.is_bot && "opacity-70",
                 )}
               >
                 {player.username.charAt(0)}
@@ -595,7 +616,9 @@ function QueueBannerInline() {
 
         <div className="flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 pl-3 pr-1.5 py-1">
           <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-          <span className="text-sm font-semibold text-primary tabular-nums">{mins}:{secs}</span>
+          <span className="text-sm font-semibold text-primary tabular-nums">
+            {mins}:{secs}
+          </span>
           <span className="text-xs text-primary/70">· {lobbyPlayers.length} graczy</span>
 
           {lobbyFull && !allReady && !myReady && (
@@ -636,10 +659,7 @@ function QueueBannerInline() {
       <div className="fixed inset-x-0 top-12 z-39 flex items-center gap-2 px-3 py-1.5 border-b border-border bg-card/90 backdrop-blur-xl md:hidden">
         {/* Avatars */}
         {lobbyPlayers.length > 0 && (
-          <Link
-            href={lobbyId ? `/lobby/${lobbyId}` : "#"}
-            className="flex -space-x-1.5 shrink-0"
-          >
+          <Link href={lobbyId ? `/lobby/${lobbyId}` : "#"} className="flex -space-x-1.5 shrink-0">
             {lobbyPlayers.map((player) => (
               <div
                 key={player.user_id}
@@ -648,7 +668,7 @@ function QueueBannerInline() {
                   player.is_ready
                     ? "border-green-500 bg-green-500/20 text-green-400"
                     : "border-border bg-secondary text-muted-foreground",
-                  player.is_bot && "opacity-70"
+                  player.is_bot && "opacity-70",
                 )}
               >
                 {player.username.charAt(0)}
@@ -660,7 +680,9 @@ function QueueBannerInline() {
         {/* Timer */}
         <div className="flex items-center gap-1">
           <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-          <span className="text-xs font-semibold text-primary tabular-nums">{mins}:{secs}</span>
+          <span className="text-xs font-semibold text-primary tabular-nums">
+            {mins}:{secs}
+          </span>
         </div>
 
         <div className="flex-1" />
@@ -708,32 +730,28 @@ function QueueBannerInline() {
 const FRIENDS_MAX_VISIBLE = 5;
 const FRIENDS_REFRESH_INTERVAL = 15_000;
 
-function SidebarFriendsPanel({
-  collapsed,
-  currentUserId,
-}: {
-  collapsed: boolean;
-  currentUserId: string | undefined;
-}) {
+function SidebarFriendsPanel({ collapsed, currentUserId }: { collapsed: boolean; currentUserId: string | undefined }) {
   const { openDMTab: sidebarOpenDM } = useChat();
   const { data: friendsData } = useFriends(100, undefined, { refetchInterval: FRIENDS_REFRESH_INTERVAL });
 
   const friends = useMemo<FriendUser[]>(() => {
     if (!friendsData) return [];
     const resolved = friendsData.items.map((f: FriendshipOut) =>
-      f.from_user.id === currentUserId ? f.to_user : f.from_user
+      f.from_user.id === currentUserId ? f.to_user : f.from_user,
     );
     // Online friends first
     resolved.sort((a, b) => {
       const order = { in_game: 0, in_queue: 1, online: 2, offline: 3 };
-      return (order[a.activity_status as keyof typeof order] ?? 3) - (order[b.activity_status as keyof typeof order] ?? 3);
+      return (
+        (order[a.activity_status as keyof typeof order] ?? 3) - (order[b.activity_status as keyof typeof order] ?? 3)
+      );
     });
     return resolved;
   }, [friendsData, currentUserId]);
 
   const count = friends.length;
-  const visible = friends.slice(0, FRIENDS_MAX_VISIBLE);
-  const hasMore = count > FRIENDS_MAX_VISIBLE;
+  const _visible = friends.slice(0, FRIENDS_MAX_VISIBLE);
+  const _hasMore = count > FRIENDS_MAX_VISIBLE;
 
   // Collapsed state: just the Users icon with an optional count badge
   if (collapsed) {
@@ -779,9 +797,7 @@ function SidebarFriendsPanel({
 
       {/* Friend rows */}
       {count === 0 ? (
-        <p className="px-3 pb-3 text-[11px] text-muted-foreground/50 select-none">
-          Brak znajomych
-        </p>
+        <p className="px-3 pb-3 text-[11px] text-muted-foreground/50 select-none">Brak znajomych</p>
       ) : (
         <div className="flex flex-col px-2 pb-2 gap-0.5 overflow-y-auto max-h-[280px] scrollbar-thin scrollbar-thumb-border">
           {friends.map((friend) => (
@@ -794,27 +810,34 @@ function SidebarFriendsPanel({
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold uppercase text-primary">
                   {friend.username.charAt(0)}
                 </div>
-                <div className={cn(
-                  "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-card",
-                  activityDot(friend.activity_status)
-                )} />
+                <div
+                  className={cn(
+                    "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-card",
+                    activityDot(friend.activity_status),
+                  )}
+                />
               </Link>
               {/* Username — click → profile */}
-              <Link href={`/profile/${friend.id}`} className="flex-1 truncate text-[12px] font-medium text-foreground hover:text-primary transition-colors">
-                {friend.clan_tag && <ClanTag tag={friend.clan_tag} className="text-[10px] mr-0.5" />}{friend.username}
+              <Link
+                href={`/profile/${friend.id}`}
+                className="flex-1 truncate text-[12px] font-medium text-foreground hover:text-primary transition-colors"
+              >
+                {friend.clan_tag && <ClanTag tag={friend.clan_tag} className="text-[10px] mr-0.5" />}
+                {friend.username}
               </Link>
               {/* Chat */}
               <button
-                onClick={(e) => { e.stopPropagation(); sidebarOpenDM(friend.id, friend.username); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sidebarOpenDM(friend.id, friend.username);
+                }}
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 transition-all"
                 title={`Czat z ${friend.username}`}
               >
                 <MessageSquare size={11} />
               </button>
               {/* ELO */}
-              <span className="text-[10px] tabular-nums text-muted-foreground shrink-0">
-                {friend.elo_rating}
-              </span>
+              <span className="text-[10px] tabular-nums text-muted-foreground shrink-0">{friend.elo_rating}</span>
             </div>
           ))}
         </div>
@@ -840,36 +863,51 @@ function timeAgo(dateStr: string): string {
 
 function activityDot(status: string): string {
   switch (status) {
-    case "in_game": return "bg-accent";
-    case "in_queue": return "bg-yellow-500";
-    case "online": return "bg-green-500";
-    default: return "bg-muted-foreground/30";
+    case "in_game":
+      return "bg-accent";
+    case "in_queue":
+      return "bg-yellow-500";
+    case "online":
+      return "bg-green-500";
+    default:
+      return "bg-muted-foreground/30";
   }
 }
 
 function notifIcon(type: string) {
   switch (type) {
-    case "friend_request_received": return <UserPlus size={15} className="text-primary shrink-0" />;
-    case "friend_request_accepted": return <Check size={15} className="text-green-400 shrink-0" />;
-    case "match_won": return <Trophy size={15} className="text-accent shrink-0" />;
-    case "match_lost": return <X size={15} className="text-destructive shrink-0" />;
-    case "player_eliminated": return <Shield size={15} className="text-destructive shrink-0" />;
-    case "game_invite": return <Swords size={15} className="text-primary shrink-0" />;
-    default: return <Bell size={15} className="text-muted-foreground shrink-0" />;
+    case "friend_request_received":
+      return <UserPlus size={15} className="text-primary shrink-0" />;
+    case "friend_request_accepted":
+      return <Check size={15} className="text-green-400 shrink-0" />;
+    case "match_won":
+      return <Trophy size={15} className="text-accent shrink-0" />;
+    case "match_lost":
+      return <X size={15} className="text-destructive shrink-0" />;
+    case "player_eliminated":
+      return <Shield size={15} className="text-destructive shrink-0" />;
+    case "game_invite":
+      return <Swords size={15} className="text-primary shrink-0" />;
+    default:
+      return <Bell size={15} className="text-muted-foreground shrink-0" />;
   }
 }
 
 function notifHref(n: { type: string; data: Record<string, unknown> }): string | null {
   switch (n.type) {
-    case "friend_request_received": return "/friends";
-    case "friend_request_accepted": return "/friends";
-    case "game_invite": return n.data.lobby_id ? `/lobby/${n.data.lobby_id}` : "/dashboard";
+    case "friend_request_received":
+      return "/friends";
+    case "friend_request_accepted":
+      return "/friends";
+    case "game_invite":
+      return n.data.lobby_id ? `/lobby/${n.data.lobby_id}` : "/dashboard";
     case "match_won":
     case "match_lost":
       return n.data.match_id ? `/match/${n.data.match_id}` : null;
     case "player_eliminated":
       return n.data.match_id ? `/match/${n.data.match_id}` : null;
-    default: return null;
+    default:
+      return null;
   }
 }
 
@@ -886,7 +924,8 @@ function NotificationBell({
   const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { unreadCount, notifications, loading, refreshList, markRead, markAllRead, handleIncoming } = useNotifications(token);
+  const { unreadCount, notifications, loading, refreshList, markRead, markAllRead, handleIncoming } =
+    useNotifications(token);
 
   // Register real-time notification handler from social socket
   useEffect(() => {
@@ -895,7 +934,9 @@ function NotificationBell({
     });
   }, [onNotification, handleIncoming]);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close on outside click
   useEffect(() => {
@@ -952,99 +993,102 @@ function NotificationBell({
           {/* List — only unread notifications */}
           <div className="max-h-[360px] overflow-y-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
-                Ładowanie...
-              </div>
-            ) : (() => {
-              const unreadNotifs = notifications.filter((n) => !n.is_read);
-              return unreadNotifs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
-                <Bell size={28} className="opacity-20" />
-                <span className="text-sm">Brak nowych powiadomień</span>
-              </div>
+              <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">Ładowanie...</div>
             ) : (
-              <div className="divide-y divide-border">
-                {unreadNotifs.map((n) => {
-                  const isGameInvite = n.type === "game_invite" && !!n.data.lobby_id;
+              (() => {
+                const unreadNotifs = notifications.filter((n) => !n.is_read);
+                return unreadNotifs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+                    <Bell size={28} className="opacity-20" />
+                    <span className="text-sm">Brak nowych powiadomień</span>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {unreadNotifs.map((n) => {
+                      const isGameInvite = n.type === "game_invite" && !!n.data.lobby_id;
 
-                  return (
-                    <div
-                      key={n.id}
-                      onClick={() => {
-                        if (isGameInvite) return; // handled by buttons
-                        if (!n.is_read) markRead(n.id);
-                        const href = notifHref(n);
-                        if (href) { setOpen(false); router.push(href); }
-                      }}
-                      className={cn(
-                        "w-full flex flex-col gap-2 px-4 py-3 text-left transition-colors",
-                        !isGameInvite && "hover:bg-muted/60 cursor-pointer",
-                        !n.is_read && "bg-primary/5"
-                      )}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary">
-                          {notifIcon(n.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-foreground truncate">{n.title}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0 ml-1">
-                          <span className="text-[10px] text-muted-foreground/60 tabular-nums">{timeAgo(n.created_at)}</span>
-                          {!n.is_read && !isGameInvite && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      return (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            if (isGameInvite) return; // handled by buttons
+                            if (!n.is_read) markRead(n.id);
+                            const href = notifHref(n);
+                            if (href) {
+                              setOpen(false);
+                              router.push(href);
+                            }
+                          }}
+                          className={cn(
+                            "w-full flex flex-col gap-2 px-4 py-3 text-left transition-colors",
+                            !isGameInvite && "hover:bg-muted/60 cursor-pointer",
+                            !n.is_read && "bg-primary/5",
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary">
+                              {notifIcon(n.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-foreground truncate">{n.title}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 shrink-0 ml-1">
+                              <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                                {timeAgo(n.created_at)}
+                              </span>
+                              {!n.is_read && !isGameInvite && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                            </div>
+                          </div>
+                          {isGameInvite && (
+                            <div className="flex items-center gap-2 pl-10">
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    const { acceptGameInvite } = await import("@/lib/api");
+                                    const result = await acceptGameInvite(token!, n.id);
+                                    markRead(n.id);
+                                    setOpen(false);
+                                    if (onGameInvite && result.game_mode) {
+                                      onGameInvite(result.game_mode);
+                                    }
+                                    toast.success("Dołączono do lobby!", { id: "layout-lobby-join" });
+                                  } catch {
+                                    toast.error("Nie udało się dołączyć", { id: "layout-lobby-join-error" });
+                                  }
+                                }}
+                                className="flex items-center gap-1.5 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs font-semibold text-green-400 hover:bg-green-500/25 transition-colors"
+                              >
+                                <Check size={13} />
+                                Dołącz
+                              </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    const { rejectGameInvite } = await import("@/lib/api");
+                                    await rejectGameInvite(token!, n.id);
+                                    markRead(n.id);
+                                    toast("Zaproszenie odrzucone");
+                                  } catch {
+                                    toast.error("Błąd", { id: "layout-invite-reject-error" });
+                                  }
+                                }}
+                                className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/20 transition-colors"
+                              >
+                                <X size={13} />
+                                Odrzuć
+                              </button>
+                            </div>
                           )}
                         </div>
-                      </div>
-                      {isGameInvite && (
-                        <div className="flex items-center gap-2 pl-10">
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                const { acceptGameInvite } = await import("@/lib/api");
-                                const result = await acceptGameInvite(token!, n.id);
-                                markRead(n.id);
-                                setOpen(false);
-                                if (onGameInvite && result.game_mode) {
-                                  onGameInvite(result.game_mode);
-                                }
-                                toast.success("Dołączono do lobby!", { id: "layout-lobby-join" });
-                              } catch {
-                                toast.error("Nie udało się dołączyć", { id: "layout-lobby-join-error" });
-                              }
-                            }}
-                            className="flex items-center gap-1.5 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs font-semibold text-green-400 hover:bg-green-500/25 transition-colors"
-                          >
-                            <Check size={13} />
-                            Dołącz
-                          </button>
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                const { rejectGameInvite } = await import("@/lib/api");
-                                await rejectGameInvite(token!, n.id);
-                                markRead(n.id);
-                                toast("Zaproszenie odrzucone");
-                              } catch {
-                                toast.error("Błąd", { id: "layout-invite-reject-error" });
-                              }
-                            }}
-                            className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/20 transition-colors"
-                          >
-                            <X size={13} />
-                            Odrzuć
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-            })()}
+                      );
+                    })}
+                  </div>
+                );
+              })()
+            )}
           </div>
 
           {/* Footer */}
@@ -1139,7 +1183,12 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
         toast(notif.title, { description: notif.body || undefined });
       }
     });
-  }, [social.onNotification, token, joinQueue]);
+  }, [
+    social.onNotification,
+    token,
+    joinQueue, // Invalidate notification cache on any new notification
+    queryClient.invalidateQueries,
+  ]);
 
   // Add DM tab silently when receiving a direct message (don't open chat)
   const { addDMTabSilent } = useChat();
@@ -1173,7 +1222,9 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
   // ── Menu background music ──────────────────────────────────
   const { startMenuMusic, stopMenuMusic, toggleMute, muted } = useAudio();
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     // Try autoplay immediately (works if user already interacted with the page)
@@ -1209,173 +1260,179 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
 
   return (
     <SocialSocketContext.Provider value={social}>
-    <div className="min-h-screen bg-background text-foreground">
-      {/* ------------------------------------------------------------------ */}
-      {/* Top bar                                                             */}
-      {/* ------------------------------------------------------------------ */}
-      <header className="fixed inset-x-0 top-0 z-40 h-12 border-b border-border bg-card/80 backdrop-blur-xl">
-        <div className="flex h-full items-center gap-3 px-4">
-
-          {/* Logo */}
-          <Link
-            href="/dashboard"
-            className="flex shrink-0 items-center gap-2.5 mr-2"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-secondary">
-              <Globe size={16} className="text-primary" />
-            </div>
-            <span className="font-display text-sm font-bold uppercase tracking-[0.18em] text-foreground">
-              MAPLORD
-            </span>
-          </Link>
-
-          {/* Online stats */}
-          <div className="hidden md:flex items-center gap-3 text-[11px] tabular-nums text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-              <span className="font-medium">{stats.online}</span>
-              <span className="text-muted-foreground/60">online</span>
-            </span>
-            {stats.in_game > 0 && (
-              <span className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                <span className="font-medium">{stats.in_game}</span>
-                <span className="text-muted-foreground/60">w grze</span>
-              </span>
-            )}
-            {stats.in_queue > 0 && (
-              <span className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
-                <span className="font-medium">{stats.in_queue}</span>
-                <span className="text-muted-foreground/60">szuka</span>
-              </span>
-            )}
-          </div>
-
-          <div className="flex-1" />
-
-          {/* Music mute toggle */}
-          {mounted && (
-            <button
-              onClick={toggleMute}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              title={muted ? "Włącz dźwięk" : "Wycisz"}
-            >
-              {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </button>
-          )}
-
-          {/* Notification bell */}
-          <NotificationBell token={token} onNotification={social.onNotification} onGameInvite={(mode) => joinQueue(mode)} />
-
-          {/* Queue indicator — inline in header */}
-          <QueueBannerInline />
-        </div>
-      </header>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Body (below top bar)                                                */}
-      {/* ------------------------------------------------------------------ */}
-      <div className={cn("flex pt-12", showQueueSubheader && "max-md:pt-[calc(3rem+2.25rem)]")}>
-
-        {/* ---------------------------------------------------------------- */}
-        {/* Desktop sidebar                                                   */}
-        {/* ---------------------------------------------------------------- */}
-        <aside
-          className={cn(
-            "fixed left-0 top-12 hidden h-[calc(100vh-3rem)] flex-col border-r border-border bg-card md:flex",
-            // sidebar uses bg-card which is slate-900 (#0f172a)
-            "transition-all duration-200",
-            sidebarWidth
-          )}
-        >
-          {/* Avatar popover first, then stats below */}
-          {user && (
-            <div className="border-b border-border">
-              {/* Avatar + name */}
-              <div className={cn(collapsed ? "px-1 pt-2.5 pb-1.5" : "px-2 pt-3 pb-1.5")}>
-                <ProfilePopover user={user} wallet={wallet ?? null} collapsed={collapsed} onLogout={logout} />
+      <div className="min-h-screen bg-background text-foreground">
+        {/* ------------------------------------------------------------------ */}
+        {/* Top bar                                                             */}
+        {/* ------------------------------------------------------------------ */}
+        <header className="fixed inset-x-0 top-0 z-40 h-12 border-b border-border bg-card/80 backdrop-blur-xl">
+          <div className="flex h-full items-center gap-3 px-4">
+            {/* Logo */}
+            <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5 mr-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-secondary">
+                <Globe size={16} className="text-primary" />
               </div>
-              {/* Stats */}
-              {!collapsed && (
-                <div className="px-3 pb-3 pt-1 flex gap-2">
-                  <div className="flex-1 flex items-center gap-2 rounded-lg bg-secondary/80 px-2.5 py-2">
-                    <Trophy size={14} className="text-accent shrink-0" />
-                    <span className="text-sm font-bold tabular-nums text-foreground">{user.elo_rating}</span>
-                  </div>
-                  {wallet && (
-                    <div className="flex-1 flex items-center gap-2 rounded-lg bg-accent/[0.06] px-2.5 py-2">
-                      <Coins size={14} className="text-accent shrink-0" />
-                      <span className="text-sm font-bold tabular-nums text-accent">{wallet.gold > 9999 ? `${Math.floor(wallet.gold / 1000)}k` : wallet.gold.toLocaleString("pl-PL")}</span>
-                    </div>
-                  )}
-                </div>
+              <span className="font-display text-sm font-bold uppercase tracking-[0.18em] text-foreground">
+                MAPLORD
+              </span>
+            </Link>
+
+            {/* Online stats */}
+            <div className="hidden md:flex items-center gap-3 text-[11px] tabular-nums text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <span className="font-medium">{stats.online}</span>
+                <span className="text-muted-foreground/60">online</span>
+              </span>
+              {stats.in_game > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                  <span className="font-medium">{stats.in_game}</span>
+                  <span className="text-muted-foreground/60">w grze</span>
+                </span>
               )}
-              {collapsed && (
-                <div className="flex flex-col items-center gap-1 px-1 pb-2">
-                  <div title={`ELO: ${user.elo_rating}`} className="flex h-7 w-full items-center justify-center rounded-md bg-secondary text-[10px] font-bold tabular-nums text-foreground">
-                    {user.elo_rating}
-                  </div>
-                  {wallet && (
-                    <div title={`${wallet.gold} złota`} className="flex h-7 w-full items-center justify-center rounded-md bg-accent/10 text-[10px] font-bold tabular-nums text-accent">
-                      {wallet.gold > 9999 ? `${Math.floor(wallet.gold / 1000)}k` : wallet.gold}
-                    </div>
-                  )}
-                </div>
+              {stats.in_queue > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+                  <span className="font-medium">{stats.in_queue}</span>
+                  <span className="text-muted-foreground/60">szuka</span>
+                </span>
               )}
             </div>
-          )}
 
-          {/* Nav items */}
-          <div className="flex-1 overflow-y-auto">
-            <DesktopSidebarContent pathname={pathname} collapsed={collapsed} />
+            <div className="flex-1" />
+
+            {/* Music mute toggle */}
+            {mounted && (
+              <button
+                onClick={toggleMute}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title={muted ? "Włącz dźwięk" : "Wycisz"}
+              >
+                {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+            )}
+
+            {/* Notification bell */}
+            <NotificationBell
+              token={token}
+              onNotification={social.onNotification}
+              onGameInvite={(mode) => joinQueue(mode)}
+            />
+
+            {/* Queue indicator — inline in header */}
+            <QueueBannerInline />
           </div>
+        </header>
 
-          {/* Friends panel */}
-          <SidebarFriendsPanel
-            collapsed={collapsed}
-            currentUserId={user?.id}
-          />
+        {/* ------------------------------------------------------------------ */}
+        {/* Body (below top bar)                                                */}
+        {/* ------------------------------------------------------------------ */}
+        <div className={cn("flex pt-12", showQueueSubheader && "max-md:pt-[calc(3rem+2.25rem)]")}>
+          {/* ---------------------------------------------------------------- */}
+          {/* Desktop sidebar                                                   */}
+          {/* ---------------------------------------------------------------- */}
+          <aside
+            className={cn(
+              "fixed left-0 top-12 hidden h-[calc(100vh-3rem)] flex-col border-r border-border bg-card md:flex",
+              // sidebar uses bg-card which is slate-900 (#0f172a)
+              "transition-all duration-200",
+              sidebarWidth,
+            )}
+          >
+            {/* Avatar popover first, then stats below */}
+            {user && (
+              <div className="border-b border-border">
+                {/* Avatar + name */}
+                <div className={cn(collapsed ? "px-1 pt-2.5 pb-1.5" : "px-2 pt-3 pb-1.5")}>
+                  <ProfilePopover user={user} wallet={wallet ?? null} collapsed={collapsed} onLogout={logout} />
+                </div>
+                {/* Stats */}
+                {!collapsed && (
+                  <div className="px-3 pb-3 pt-1 flex gap-2">
+                    <div className="flex-1 flex items-center gap-2 rounded-lg bg-secondary/80 px-2.5 py-2">
+                      <Trophy size={14} className="text-accent shrink-0" />
+                      <span className="text-sm font-bold tabular-nums text-foreground">{user.elo_rating}</span>
+                    </div>
+                    {wallet && (
+                      <div className="flex-1 flex items-center gap-2 rounded-lg bg-accent/[0.06] px-2.5 py-2">
+                        <Coins size={14} className="text-accent shrink-0" />
+                        <span className="text-sm font-bold tabular-nums text-accent">
+                          {wallet.gold > 9999
+                            ? `${Math.floor(wallet.gold / 1000)}k`
+                            : wallet.gold.toLocaleString("pl-PL")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {collapsed && (
+                  <div className="flex flex-col items-center gap-1 px-1 pb-2">
+                    <div
+                      title={`ELO: ${user.elo_rating}`}
+                      className="flex h-7 w-full items-center justify-center rounded-md bg-secondary text-[10px] font-bold tabular-nums text-foreground"
+                    >
+                      {user.elo_rating}
+                    </div>
+                    {wallet && (
+                      <div
+                        title={`${wallet.gold} złota`}
+                        className="flex h-7 w-full items-center justify-center rounded-md bg-accent/10 text-[10px] font-bold tabular-nums text-accent"
+                      >
+                        {wallet.gold > 9999 ? `${Math.floor(wallet.gold / 1000)}k` : wallet.gold}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
-          {/* Collapse toggle */}
-          <div className="border-t border-border">
-            <button
-              onClick={toggleCollapsed}
-              className={cn(
-                "flex w-full items-center py-3 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
-                collapsed ? "justify-center" : "gap-2.5 px-3"
-              )}
-              aria-label={collapsed ? "Rozwiń" : "Zwiń"}
-              title={collapsed ? "Rozwiń" : "Zwiń"}
-            >
-              {collapsed ? <ChevronRight size={22} /> : <><ChevronLeft size={22} /><span className="text-base">Zwiń</span></>}
-            </button>
-          </div>
-        </aside>
+            {/* Nav items */}
+            <div className="flex-1 overflow-y-auto">
+              <DesktopSidebarContent pathname={pathname} collapsed={collapsed} />
+            </div>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Main content                                                      */}
-        {/* ---------------------------------------------------------------- */}
-        <main
-          className={cn(
-            "flex-1 min-w-0 transition-all duration-200",
-            contentPadding
-          )}
-        >
-          <div className="px-4 py-4 pb-20 md:py-6 sm:px-6 lg:px-8 md:pb-6">
-            <Breadcrumbs pathname={pathname} />
-            <QueueGuard pathname={pathname}>
-              {children}
-            </QueueGuard>
-          </div>
-        </main>
+            {/* Friends panel */}
+            <SidebarFriendsPanel collapsed={collapsed} currentUserId={user?.id} />
+
+            {/* Collapse toggle */}
+            <div className="border-t border-border">
+              <button
+                onClick={toggleCollapsed}
+                className={cn(
+                  "flex w-full items-center py-3 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
+                  collapsed ? "justify-center" : "gap-2.5 px-3",
+                )}
+                aria-label={collapsed ? "Rozwiń" : "Zwiń"}
+                title={collapsed ? "Rozwiń" : "Zwiń"}
+              >
+                {collapsed ? (
+                  <ChevronRight size={22} />
+                ) : (
+                  <>
+                    <ChevronLeft size={22} />
+                    <span className="text-base">Zwiń</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </aside>
+
+          {/* ---------------------------------------------------------------- */}
+          {/* Main content                                                      */}
+          {/* ---------------------------------------------------------------- */}
+          <main className={cn("flex-1 min-w-0 transition-all duration-200", contentPadding)}>
+            <div className="px-4 py-4 pb-20 md:py-6 sm:px-6 lg:px-8 md:pb-6">
+              <Breadcrumbs pathname={pathname} />
+              <QueueGuard pathname={pathname}>{children}</QueueGuard>
+            </div>
+          </main>
+        </div>
+
+        {/* ------------------------------------------------------------------ */}
+        {/* Mobile bottom bar                                                   */}
+        {/* ------------------------------------------------------------------ */}
+        <MobileBottomBar pathname={pathname} sheetOpen={sheetOpen} setSheetOpen={setSheetOpen} />
       </div>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Mobile bottom bar                                                   */}
-      {/* ------------------------------------------------------------------ */}
-      <MobileBottomBar pathname={pathname} sheetOpen={sheetOpen} setSheetOpen={setSheetOpen} />
-    </div>
     </SocialSocketContext.Provider>
   );
 }
@@ -1409,7 +1466,7 @@ function MobileBottomBar({
               id="mobile-more-trigger"
               className={cn(
                 "flex flex-1 flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium transition-colors",
-                "text-slate-400 hover:text-slate-300"
+                "text-slate-400 hover:text-slate-300",
               )}
               aria-label="Więcej opcji"
             />
@@ -1418,17 +1475,9 @@ function MobileBottomBar({
           <MoreHorizontal size={20} />
           <span>Więcej</span>
         </SheetTrigger>
-        <SheetContent
-          side="bottom"
-          className="rounded-t-2xl border-t border-border bg-card px-0 pb-8 pt-4"
-        >
-          <div className="mb-2 px-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
-            NAWIGACJA
-          </div>
-          <MobileSidebarContent
-            pathname={pathname}
-            onNavigate={() => setSheetOpen(false)}
-          />
+        <SheetContent side="bottom" className="rounded-t-2xl border-t border-border bg-card px-0 pb-8 pt-4">
+          <div className="mb-2 px-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">NAWIGACJA</div>
+          <MobileSidebarContent pathname={pathname} onNavigate={() => setSheetOpen(false)} />
         </SheetContent>
       </Sheet>
     </nav>

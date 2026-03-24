@@ -4,50 +4,62 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0026_remove_systemmodule_is_active'),
+        ("game_config", "0026_remove_systemmodule_is_active"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='unittype',
-            name='aoe_damage',
-            field=models.FloatField(default=0.0, help_text='Fraction of damage dealt to neighboring provinces of target (artillery)'),
+            model_name="unittype",
+            name="aoe_damage",
+            field=models.FloatField(
+                default=0.0, help_text="Fraction of damage dealt to neighboring provinces of target (artillery)"
+            ),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='blockade_port',
-            field=models.BooleanField(default=False, help_text='Blocks enemy port production when stationed nearby'),
+            model_name="unittype",
+            name="blockade_port",
+            field=models.BooleanField(default=False, help_text="Blocks enemy port production when stationed nearby"),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='can_station_anywhere',
-            field=models.BooleanField(default=False, help_text='Does not require producer building to station in region'),
+            model_name="unittype",
+            name="can_station_anywhere",
+            field=models.BooleanField(
+                default=False, help_text="Does not require producer building to station in region"
+            ),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='combat_target',
-            field=models.CharField(choices=[('air', 'Air'), ('ground', 'Ground'), ('both', 'Both')], default='ground', help_text='What this unit targets in combat', max_length=10),
+            model_name="unittype",
+            name="combat_target",
+            field=models.CharField(
+                choices=[("air", "Air"), ("ground", "Ground"), ("both", "Both")],
+                default="ground",
+                help_text="What this unit targets in combat",
+                max_length=10,
+            ),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='intercept_air',
-            field=models.BooleanField(default=False, help_text='Automatically intercepts enemy air units passing through'),
+            model_name="unittype",
+            name="intercept_air",
+            field=models.BooleanField(
+                default=False, help_text="Automatically intercepts enemy air units passing through"
+            ),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='is_stealth',
-            field=models.BooleanField(default=False, help_text='Unit is invisible to enemies until it attacks'),
+            model_name="unittype",
+            name="is_stealth",
+            field=models.BooleanField(default=False, help_text="Unit is invisible to enemies until it attacks"),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='lifetime_ticks',
-            field=models.PositiveIntegerField(default=0, help_text='Auto-destruct after N ticks (0 = permanent)'),
+            model_name="unittype",
+            name="lifetime_ticks",
+            field=models.PositiveIntegerField(default=0, help_text="Auto-destruct after N ticks (0 = permanent)"),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='path_damage',
-            field=models.FloatField(default=0.0, help_text='Fraction of damage dealt to provinces along flight path (bomber)'),
+            model_name="unittype",
+            name="path_damage",
+            field=models.FloatField(
+                default=0.0, help_text="Fraction of damage dealt to provinces along flight path (bomber)"
+            ),
         ),
     ]

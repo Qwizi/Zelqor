@@ -1,15 +1,15 @@
 """
 Tests for apps/game_config — GameSettings singleton, BuildingType, UnitType.
 """
-from django.core.exceptions import ValidationError
+
 from django.test import TestCase
 
 from apps.game_config.models import BuildingType, GameSettings, MovementType, UnitType
 
-
 # ---------------------------------------------------------------------------
 # GameSettings singleton
 # ---------------------------------------------------------------------------
+
 
 class GameSettingsTests(TestCase):
     """Tests for the GameSettings singleton model."""
@@ -48,7 +48,7 @@ class GameSettingsTests(TestCase):
 
     def test_str_representation(self):
         obj = GameSettings.get()
-        self.assertEqual(str(obj), 'Game Settings')
+        self.assertEqual(str(obj), "Game Settings")
 
     def test_update_existing_instance_allowed(self):
         obj = GameSettings.get()
@@ -66,13 +66,14 @@ class GameSettingsTests(TestCase):
 # BuildingType model
 # ---------------------------------------------------------------------------
 
+
 class BuildingTypeTests(TestCase):
     """Tests for the BuildingType model."""
 
     def setUp(self):
         self.building = BuildingType.objects.create(
-            name='Barracks',
-            slug='barracks',
+            name="Barracks",
+            slug="barracks",
             cost=50,
             energy_cost=30,
             build_time_ticks=10,
@@ -81,26 +82,26 @@ class BuildingTypeTests(TestCase):
         )
 
     def test_creation_and_attribute_access(self):
-        self.assertEqual(self.building.name, 'Barracks')
-        self.assertEqual(self.building.slug, 'barracks')
+        self.assertEqual(self.building.name, "Barracks")
+        self.assertEqual(self.building.slug, "barracks")
         self.assertEqual(self.building.cost, 50)
         self.assertEqual(self.building.defense_bonus, 0.1)
 
     def test_str_representation(self):
-        self.assertEqual(str(self.building), 'Barracks')
+        self.assertEqual(str(self.building), "Barracks")
 
     def test_level_stats_jsonfield_default_is_empty_dict(self):
         self.assertEqual(self.building.level_stats, {})
 
     def test_level_stats_can_store_per_level_data(self):
         self.building.level_stats = {
-            '1': {'defense_bonus': 0.1},
-            '2': {'defense_bonus': 0.2},
-            '3': {'defense_bonus': 0.3},
+            "1": {"defense_bonus": 0.1},
+            "2": {"defense_bonus": 0.2},
+            "3": {"defense_bonus": 0.3},
         }
         self.building.save()
         self.building.refresh_from_db()
-        self.assertEqual(self.building.level_stats['2']['defense_bonus'], 0.2)
+        self.assertEqual(self.building.level_stats["2"]["defense_bonus"], 0.2)
 
     def test_is_active_default_true(self):
         self.assertTrue(self.building.is_active)
@@ -110,32 +111,34 @@ class BuildingTypeTests(TestCase):
 
     def test_unique_slug_constraint(self):
         from django.db import IntegrityError
+
         with self.assertRaises(IntegrityError):
             BuildingType.objects.create(
-                name='Barracks Duplicate',
-                slug='barracks',  # same slug
+                name="Barracks Duplicate",
+                slug="barracks",  # same slug
             )
 
     def test_ordering_by_order_then_name(self):
         BuildingType.objects.all().delete()  # clear any fixtures
-        BuildingType.objects.create(name='Alpha', slug='alpha', order=1)
-        BuildingType.objects.create(name='Zeta', slug='zeta', order=0)
+        BuildingType.objects.create(name="Alpha", slug="alpha", order=1)
+        BuildingType.objects.create(name="Zeta", slug="zeta", order=0)
         buildings = list(BuildingType.objects.all())
         # Zeta has order=0, should come before Alpha (order=1)
-        self.assertEqual(buildings[0].slug, 'zeta')
+        self.assertEqual(buildings[0].slug, "zeta")
 
 
 # ---------------------------------------------------------------------------
 # UnitType model
 # ---------------------------------------------------------------------------
 
+
 class UnitTypeTests(TestCase):
     """Tests for the UnitType model."""
 
     def setUp(self):
         self.unit = UnitType.objects.create(
-            name='Infantry',
-            slug='infantry',
+            name="Infantry",
+            slug="infantry",
             attack=1.0,
             defense=1.0,
             speed=1,
@@ -145,38 +148,38 @@ class UnitTypeTests(TestCase):
         )
 
     def test_creation_and_attributes(self):
-        self.assertEqual(self.unit.name, 'Infantry')
+        self.assertEqual(self.unit.name, "Infantry")
         self.assertEqual(self.unit.attack, 1.0)
         self.assertEqual(self.unit.defense, 1.0)
         self.assertEqual(self.unit.movement_type, MovementType.LAND)
 
     def test_str_representation_includes_movement_type(self):
-        self.assertIn('Infantry', str(self.unit))
-        self.assertIn('Land', str(self.unit))
+        self.assertIn("Infantry", str(self.unit))
+        self.assertIn("Land", str(self.unit))
 
     def test_level_stats_default_empty_dict(self):
         self.assertEqual(self.unit.level_stats, {})
 
     def test_level_stats_can_be_set(self):
-        self.unit.level_stats = {'1': {'attack': 2.0}, '2': {'attack': 3.0}}
+        self.unit.level_stats = {"1": {"attack": 2.0}, "2": {"attack": 3.0}}
         self.unit.save()
         self.unit.refresh_from_db()
-        self.assertEqual(self.unit.level_stats['1']['attack'], 2.0)
+        self.assertEqual(self.unit.level_stats["1"]["attack"], 2.0)
 
     def test_produced_by_slug_none_when_no_building(self):
         self.assertIsNone(self.unit.produced_by_slug)
 
     def test_produced_by_slug_when_building_set(self):
-        building = BuildingType.objects.create(name='Factory', slug='factory')
+        building = BuildingType.objects.create(name="Factory", slug="factory")
         self.unit.produced_by = building
         self.unit.save()
-        self.assertEqual(self.unit.produced_by_slug, 'factory')
+        self.assertEqual(self.unit.produced_by_slug, "factory")
 
     def test_sea_unit_type(self):
         sea_unit = UnitType.objects.create(
-            name='Battleship',
-            slug='battleship',
+            name="Battleship",
+            slug="battleship",
             movement_type=MovementType.SEA,
         )
         self.assertEqual(sea_unit.movement_type, MovementType.SEA)
-        self.assertIn('Sea', str(sea_unit))
+        self.assertIn("Sea", str(sea_unit))

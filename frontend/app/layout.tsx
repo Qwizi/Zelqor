@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 
 import "./globals.css";
-import { AuthProvider } from "@/hooks/useAuth";
-import { Toaster } from "@/components/ui/sonner";
-import { ChatProvider } from "@/hooks/useChat";
 import ChatWidget from "@/components/chat/ChatWidget";
-import { SerwistProvider } from "./serwist-provider";
-import { SystemModulesProvider } from "@/components/SystemModulesProvider";
 import { QueryProvider } from "@/components/QueryProvider";
+import { SystemModulesProvider } from "@/components/SystemModulesProvider";
+import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ChatProvider } from "@/hooks/useChat";
+import { SerwistProvider } from "./serwist-provider";
 
 const uiSans = localFont({
   src: [
@@ -64,7 +64,6 @@ const displayFont = localFont({
   display: "swap",
 });
 
-
 export const metadata: Metadata = {
   title: "MapLord",
   description: "Real-time strategy game on a world map",
@@ -87,9 +86,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body
-        className={`${uiSans.variable} ${displayFont.variable} antialiased`}
-      >
+      <body className={`${uiSans.variable} ${displayFont.variable} antialiased`}>
         <SerwistProvider swUrl="/serwist/sw.js">
           <QueryProvider>
             <AuthProvider>
