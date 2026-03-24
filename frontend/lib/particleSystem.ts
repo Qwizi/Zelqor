@@ -326,6 +326,7 @@ function applySpawnBehaviors(particle: Particle, config: EmitterConfig, emitterX
 export class ParticleEmitter {
   emit = true;
   spawnPos: { x: number; y: number };
+  private container: Container;
   private config: EmitterConfig;
   private pool: ParticlePool;
   private spawnTimer = 0;
