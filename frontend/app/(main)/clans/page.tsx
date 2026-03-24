@@ -40,6 +40,7 @@ import {
   useDeclineInvitation,
   useClanLeaderboard,
 } from "@/hooks/queries";
+import { APIError } from "@/lib/api";
 
 const ROLE_LABELS: Record<string, string> = {
   leader: "Lider",
@@ -364,7 +365,7 @@ export default function ClansPage() {
                           disabled={actionPending}
                           onClick={() => acceptMut.mutate(inv.id, {
                             onSuccess: () => toast.success("Dołączono do klanu!"),
-                            onError: () => toast.error("Nie udało się dołączyć"),
+                            onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się dołączyć"),
                           })}
                           className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors"
                         >
@@ -374,7 +375,7 @@ export default function ClansPage() {
                           disabled={actionPending}
                           onClick={() => declineMut.mutate(inv.id, {
                             onSuccess: () => toast.success("Odrzucono zaproszenie"),
-                            onError: () => toast.error("Błąd"),
+                            onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić"),
                           })}
                           className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors"
                         >
@@ -410,7 +411,7 @@ export default function ClansPage() {
                             disabled={actionPending}
                             onClick={() => acceptMut.mutate(inv.id, {
                               onSuccess: () => toast.success("Dołączono do klanu!"),
-                              onError: () => toast.error("Nie udało się dołączyć"),
+                              onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się dołączyć"),
                             })}
                             className="gap-2 text-base text-green-400 hover:text-green-400 hover:bg-green-400/10"
                           >
@@ -422,7 +423,7 @@ export default function ClansPage() {
                             disabled={actionPending}
                             onClick={() => declineMut.mutate(inv.id, {
                               onSuccess: () => toast.success("Odrzucono"),
-                              onError: () => toast.error("Błąd"),
+                              onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić"),
                             })}
                             className="gap-2 text-base text-destructive hover:text-destructive hover:bg-destructive/10"
                           >

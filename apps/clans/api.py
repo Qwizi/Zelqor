@@ -206,13 +206,19 @@ class ClanGlobalController:
         require_officer(request.auth, war.defender_id)
 
         if war.wager_gold > 0 and war.defender.treasury_gold < war.wager_gold:
-            raise HttpError(400, 'Niewystarczająca ilość złota w skarbcu na zakład.')
+            raise HttpError(
+                400,
+                f'Skarbiec Twojego klanu nie ma wystarczających środków na zakład (potrzebujesz {war.wager_gold} złota, masz {war.defender.treasury_gold}).',
+            )
 
         with transaction.atomic():
             if war.wager_gold > 0:
                 locked_defender = Clan.objects.select_for_update().get(pk=war.defender_id)
                 if locked_defender.treasury_gold < war.wager_gold:
-                    raise HttpError(400, 'Niewystarczająca ilość złota w skarbcu na zakład.')
+                    raise HttpError(
+                        400,
+                        f'Skarbiec Twojego klanu nie ma wystarczających środków na zakład (potrzebujesz {war.wager_gold} złota, masz {locked_defender.treasury_gold}).',
+                    )
                 locked_defender.treasury_gold -= war.wager_gold
                 locked_defender.save(update_fields=['treasury_gold'])
 
@@ -270,10 +276,87 @@ class ClanGlobalController:
         p = ClanWarParticipant.objects.create(war=war, clan=m.clan, user=request.auth)
         return ClanWarParticipant.objects.select_related('user').get(pk=p.pk)
 
+    @route.get('/wars/{war_id}/', response=ClanWarOutSchema)
+    def get_war(self, request, war_id: uuid.UUID):
+        """Get a single clan war by ID."""
+        war = ClanWar.objects.select_related(
+            'challenger', 'defender', 'winner',
+        ).filter(pk=war_id).first()
+        if not war:
+            raise HttpError(404, 'Nie znaleziono wojny.')
+        return war
+
     @route.get('/wars/{war_id}/participants/', )
     def list_war_participants(self, request, war_id: uuid.UUID):
         participants = ClanWarParticipant.objects.select_related('user').filter(war_id=war_id)
         return [ClanWarParticipantOutSchema.from_orm(p).dict() for p in participants]
+
+    @route.post('/wars/{war_id}/leave/')
+    def leave_war(self, request, war_id: uuid.UUID):
+        """Leave a war before it starts (only when status is accepted)."""
+        war = ClanWar.objects.filter(pk=war_id).first()
+        if not war:
+            raise HttpError(404, 'Nie znaleziono wojny.')
+
+        if war.status != ClanWar.Status.ACCEPTED:
+            raise HttpError(
+                400,
+                'Można opuścić wojnę tylko gdy jest zaakceptowana i jeszcze się nie rozpoczęła.',
+            )
+
+        participant = ClanWarParticipant.objects.filter(war=war, user=request.auth).first()
+        if not participant:
+            raise HttpError(404, 'Nie jesteś uczestnikiem tej wojny.')
+
+        participant.delete()
+        return {'ok': True, 'message': 'Opuszczono wojnę.'}
+
+    @route.post('/wars/{war_id}/cancel/')
+    def cancel_war(self, request, war_id: uuid.UUID):
+        """Cancel a war (pending or accepted, officer/leader of either clan)."""
+        war = ClanWar.objects.select_related('challenger', 'defender').filter(pk=war_id).first()
+        if not war:
+            raise HttpError(404, 'Nie znaleziono wojny.')
+
+        if war.status not in (ClanWar.Status.PENDING, ClanWar.Status.ACCEPTED):
+            raise HttpError(
+                400,
+                'Można anulować wojnę tylko gdy jest oczekująca lub zaakceptowana (nie w trakcie ani zakończona).',
+            )
+
+        # Either side's officer/leader can cancel
+        user_membership = get_membership(request.auth)
+        if not user_membership or user_membership.clan_id not in (war.challenger_id, war.defender_id):
+            raise HttpError(403, 'Nie jesteś oficerem żadnego z klanów w tej wojnie.')
+        if user_membership.role not in ('officer', 'leader'):
+            raise HttpError(403, 'Tylko oficer lub lider może anulować wojnę.')
+
+        with transaction.atomic():
+            refunded = 0
+            # Refund challenger wager (always deducted at declaration)
+            if war.wager_gold > 0:
+                challenger = Clan.objects.select_for_update().get(pk=war.challenger_id)
+                challenger.treasury_gold += war.wager_gold
+                challenger.save(update_fields=['treasury_gold'])
+                refunded += war.wager_gold
+
+            # Refund defender wager (only if war was accepted — defender paid at acceptance)
+            if war.status == ClanWar.Status.ACCEPTED and war.wager_gold > 0:
+                defender = Clan.objects.select_for_update().get(pk=war.defender_id)
+                defender.treasury_gold += war.wager_gold
+                defender.save(update_fields=['treasury_gold'])
+                refunded += war.wager_gold
+
+            war.status = ClanWar.Status.CANCELLED
+            war.save(update_fields=['status'])
+
+            ClanActivityLog.objects.create(
+                clan=user_membership.clan, actor=request.auth,
+                action=ClanActivityLog.Action.WAR_DECLARED,
+                detail={'cancelled': True, 'refunded_gold': refunded, 'cancelled_by': request.auth.username},
+            )
+
+        return {'ok': True, 'message': 'Wojna została anulowana. Złoto zwrócone obu klanom.', 'refunded_gold': refunded}
 
 
 @api_controller('/clans', tags=['Clans'], auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
@@ -673,8 +756,13 @@ class ClanController:
 
         from apps.inventory.models import Wallet
         wallet = Wallet.objects.filter(user=request.auth).first()
-        if not wallet or wallet.gold < payload.amount:
-            raise HttpError(400, 'Niewystarczająca ilość złota.')
+        if not wallet:
+            raise HttpError(400, 'Nie masz portfela złota.')
+        if wallet.gold < payload.amount:
+            raise HttpError(
+                400,
+                f'Nie masz wystarczająco złota (potrzebujesz {payload.amount}, masz {wallet.gold}).',
+            )
 
         with transaction.atomic():
             wallet.gold -= payload.amount
@@ -709,8 +797,10 @@ class ClanController:
 
         challenger = Clan.objects.filter(pk=clan_id, dissolved_at__isnull=True).first()
         defender = Clan.objects.filter(pk=target_id, dissolved_at__isnull=True).first()
-        if not challenger or not defender:
-            raise HttpError(404, 'Klan nie znaleziony.')
+        if not challenger:
+            raise HttpError(404, 'Twój klan nie istnieje lub został rozwiązany.')
+        if not defender:
+            raise HttpError(404, 'Klan docelowy nie istnieje lub został rozwiązany.')
 
         # Check no active war between these clans
         active_war = ClanWar.objects.filter(
@@ -723,15 +813,21 @@ class ClanController:
         MIN_WAGER = 100
         if payload.wager_gold > 0:
             if payload.wager_gold < MIN_WAGER:
-                raise HttpError(400, f'Minimalna stawka to {MIN_WAGER} złota.')
+                raise HttpError(400, f'Minimalny zakład to {MIN_WAGER} złota.')
             if challenger.treasury_gold < payload.wager_gold:
-                raise HttpError(400, 'Niewystarczająca ilość złota w skarbcu na zakład.')
+                raise HttpError(
+                    400,
+                    f'Skarbiec klanu nie ma wystarczających środków (potrzebujesz {payload.wager_gold} złota, masz {challenger.treasury_gold}).',
+                )
 
         with transaction.atomic():
             if payload.wager_gold > 0:
                 locked = Clan.objects.select_for_update().get(pk=challenger.pk)
                 if locked.treasury_gold < payload.wager_gold:
-                    raise HttpError(400, 'Niewystarczająca ilość złota w skarbcu na zakład.')
+                    raise HttpError(
+                        400,
+                        f'Skarbiec klanu nie ma wystarczających środków (potrzebujesz {payload.wager_gold} złota, masz {locked.treasury_gold}).',
+                    )
                 locked.treasury_gold -= payload.wager_gold
                 locked.save(update_fields=['treasury_gold'])
 

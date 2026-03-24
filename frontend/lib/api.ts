@@ -1847,6 +1847,18 @@ export async function getWarParticipants(token: string, warId: string): Promise<
   return fetchAPI<ClanWarParticipantOut[]>(`/clans/wars/${warId}/participants/`, { token });
 }
 
+export async function getWar(token: string, warId: string): Promise<ClanWarOut> {
+  return fetchAPI<ClanWarOut>(`/clans/wars/${warId}/`, { token });
+}
+
+export async function leaveWar(token: string, warId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/leave/`, { method: 'POST', token });
+}
+
+export async function cancelWar(token: string, warId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/cancel/`, { method: 'POST', token });
+}
+
 // Leaderboard & Stats
 
 export async function getClanLeaderboard(token: string, sort?: string, limit?: number, offset?: number): Promise<PaginatedResponse<ClanLeaderboardEntry>> {

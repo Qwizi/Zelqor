@@ -27,6 +27,9 @@ import {
   acceptWar,
   declineWar,
   joinWar,
+  leaveWar,
+  cancelWar,
+  getWar,
   getClanWars,
   getWarParticipants,
   getClanLeaderboard,
@@ -126,6 +129,15 @@ export function useWarParticipants(warId: string) {
   return useQuery<ClanWarParticipantOut[]>({
     queryKey: queryKeys.clans.warParticipants(warId),
     queryFn: () => getWarParticipants(requireToken(), warId),
+    enabled: !!warId,
+    staleTime: 30_000,
+  });
+}
+
+export function useWar(warId: string) {
+  return useQuery<ClanWarOut>({
+    queryKey: queryKeys.clans.war(warId),
+    queryFn: () => getWar(requireToken(), warId),
     enabled: !!warId,
     staleTime: 30_000,
   });
@@ -377,6 +389,26 @@ export function useJoinWar() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (warId: string) => joinWar(requireToken(), warId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.clans.all });
+    },
+  });
+}
+
+export function useLeaveWar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (warId: string) => leaveWar(requireToken(), warId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.clans.all });
+    },
+  });
+}
+
+export function useCancelWar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (warId: string) => cancelWar(requireToken(), warId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.clans.all });
     },

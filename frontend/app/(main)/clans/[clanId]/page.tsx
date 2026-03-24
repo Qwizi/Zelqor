@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowDown,
   ArrowUp,
-  Calendar,
+  Calendar as CalendarIcon,
   Check,
   ChevronRight,
   Coins,
@@ -33,6 +33,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -67,12 +70,9 @@ import {
   useInvitePlayer,
   useFriends,
   useDeclareWar,
-  useAcceptWar,
-  useDeclineWar,
-  useJoinWar,
-  useWarParticipants,
   useClans,
 } from "@/hooks/queries";
+import { APIError } from "@/lib/api";
 import type { ClanMembershipOut, ClanWarOut } from "@/lib/api";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -138,147 +138,50 @@ function WarStatusBadge({ status, won }: { status: string; won?: boolean }) {
   );
 }
 
-function WarParticipants({ warId }: { warId: string }) {
-  const { data: participants } = useWarParticipants(warId);
-  if (!participants?.length) return <p className="text-xs text-muted-foreground">Brak uczestników</p>;
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {participants.map((p) => (
-        <span key={p.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-xs text-foreground">
-          {p.user.username}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-type WarCardMutations = {
-  acceptWarMut: ReturnType<typeof useAcceptWar>;
-  declineWarMut: ReturnType<typeof useDeclineWar>;
-  joinWarMut: ReturnType<typeof useJoinWar>;
-};
-
-function WarCard({
-  war, clanId, isMember, isExpanded, onToggle, acceptWarMut, declineWarMut, joinWarMut,
-}: { war: ClanWarOut; clanId: string; isMember: boolean; isExpanded: boolean; onToggle: () => void } & WarCardMutations) {
+function WarCard({ war, clanId }: { war: ClanWarOut; clanId: string }) {
   const isChallenger = war.challenger.id === clanId;
   const opponent = isChallenger ? war.defender : war.challenger;
   const eloChange = isChallenger ? war.challenger_elo_change : war.defender_elo_change;
   const won = war.winner_id === clanId;
-  const isDefender = war.defender.id === clanId;
-  const isPendingForUs = war.status === "pending" && isDefender;
 
   return (
-    <div className="rounded-2xl border border-border bg-card/50 overflow-hidden">
-      {/* Main row */}
-      <button onClick={onToggle} className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/30 transition-colors">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white" style={{ backgroundColor: opponent.color }}>
-          {opponent.tag}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">vs [{opponent.tag}] {opponent.name}</p>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[10px] text-muted-foreground">{war.players_per_side}v{war.players_per_side}</span>
-            {war.wager_gold > 0 && (
-              <>
-                <span className="text-muted-foreground/40">·</span>
-                <span className="text-[10px] text-accent tabular-nums">{war.wager_gold.toLocaleString()}g</span>
-              </>
-            )}
-            {war.started_at && (
-              <>
-                <span className="text-muted-foreground/40">·</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {new Date(war.started_at).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <WarStatusBadge status={war.status} won={won} />
-          {war.status === "finished" && eloChange !== 0 && (
-            <span className={`text-xs font-semibold tabular-nums ${eloChange > 0 ? "text-green-400" : "text-destructive"}`}>
-              {eloChange > 0 ? "+" : ""}{eloChange}
-            </span>
+    <Link
+      href={`/clans/wars/${war.id}`}
+      className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-border bg-card/50 hover:bg-muted/30 transition-colors"
+    >
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white" style={{ backgroundColor: opponent.color }}>
+        {opponent.tag}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground truncate">vs [{opponent.tag}] {opponent.name}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[10px] text-muted-foreground">{war.players_per_side}v{war.players_per_side}</span>
+          {war.wager_gold > 0 && (
+            <>
+              <span className="text-muted-foreground/40">·</span>
+              <span className="text-[10px] text-accent tabular-nums">{war.wager_gold.toLocaleString()}g</span>
+            </>
           )}
-          <ChevronRight className={`h-4 w-4 text-muted-foreground/40 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-        </div>
-      </button>
-
-      {/* Expanded panel */}
-      {isExpanded && (
-        <div className="border-t border-border px-4 py-3 space-y-3">
-          {/* Participants for accepted/in_progress/finished */}
-          {(war.status === "accepted" || war.status === "in_progress" || war.status === "finished") && (
-            <div>
-              <p className="mb-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Uczestnicy</p>
-              <WarParticipants warId={war.id} />
-            </div>
-          )}
-
-          {/* Winner for finished */}
-          {war.status === "finished" && war.winner_id && (
-            <div className="flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-2">
-              <Trophy className="h-3.5 w-3.5 text-accent shrink-0" />
-              <span className="text-xs text-foreground">
-                Wygrał: <span className="font-semibold">{war.winner_id === war.challenger.id ? war.challenger.name : war.defender.name}</span>
+          {war.started_at && (
+            <>
+              <span className="text-muted-foreground/40">·</span>
+              <span className="text-[10px] text-muted-foreground">
+                {new Date(war.started_at).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}
               </span>
-            </div>
-          )}
-
-          {/* Action buttons */}
-          {isMember && (
-            <div className="flex flex-wrap gap-2">
-              {isPendingForUs && (
-                <>
-                  <Button
-                    size="sm"
-                    className="gap-1.5 text-green-400 hover:text-green-400 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20"
-                    variant="ghost"
-                    disabled={acceptWarMut.isPending}
-                    onClick={() => acceptWarMut.mutate(war.id, {
-                      onSuccess: () => toast.success("Zaakceptowano wojnę"),
-                      onError: () => toast.error("Błąd"),
-                    })}
-                  >
-                    {acceptWarMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                    Akceptuj
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="gap-1.5 text-destructive hover:text-destructive bg-destructive/10 hover:bg-destructive/20 border border-destructive/20"
-                    disabled={declineWarMut.isPending}
-                    onClick={() => declineWarMut.mutate(war.id, {
-                      onSuccess: () => toast.success("Odrzucono wojnę"),
-                      onError: () => toast.error("Błąd"),
-                    })}
-                  >
-                    {declineWarMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
-                    Odrzuć
-                  </Button>
-                </>
-              )}
-              {war.status === "accepted" && (
-                <Button
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={joinWarMut.isPending}
-                  onClick={() => joinWarMut.mutate(war.id, {
-                    onSuccess: () => toast.success("Dołączono do wojny!"),
-                    onError: () => toast.error("Nie udało się dołączyć"),
-                  })}
-                >
-                  {joinWarMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Swords size={13} />}
-                  Dołącz
-                </Button>
-              )}
-            </div>
+            </>
           )}
         </div>
-      )}
-    </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <WarStatusBadge status={war.status} won={won} />
+        {war.status === "finished" && eloChange !== 0 && (
+          <span className={`text-xs font-semibold tabular-nums ${eloChange > 0 ? "text-green-400" : "text-destructive"}`}>
+            {eloChange > 0 ? "+" : ""}{eloChange}
+          </span>
+        )}
+        <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+      </div>
+    </Link>
   );
 }
 
@@ -287,6 +190,8 @@ export default function ClanDetailPage() {
   const router = useRouter();
   const params = useParams();
   const clanId = params.clanId as string;
+
+  const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<Tab>("members");
   const [donateAmount, setDonateAmount] = useState("");
@@ -299,7 +204,19 @@ export default function ClanDetailPage() {
   const [warTargetName, setWarTargetName] = useState("");
   const [warWager, setWarWager] = useState("100");
   const [warPlayers, setWarPlayers] = useState("3");
-  const [expandedWarId, setExpandedWarId] = useState<string | null>(null);
+  const [warScheduledAt, setWarScheduledAt] = useState("");
+
+  // Auto-open war form when redirected from another clan page
+  useEffect(() => {
+    const targetId = searchParams.get("war_target");
+    const targetName = searchParams.get("war_target_name");
+    if (targetId && targetName) {
+      setWarTargetId(targetId);
+      setWarTargetName(targetName);
+      setTab("wars");
+      setShowDeclareWar(true);
+    }
+  }, [searchParams]);
 
   const { data: clan, isLoading } = useClan(clanId);
   const { data: membersData } = useClanMembers(clanId, 100);
@@ -326,9 +243,6 @@ export default function ClanDetailPage() {
   const declineJrMut = useDeclineJoinRequest();
   const inviteMut = useInvitePlayer();
   const declareWarMut = useDeclareWar();
-  const acceptWarMut = useAcceptWar();
-  const declineWarMut = useDeclineWar();
-  const joinWarMut = useJoinWar();
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -391,7 +305,7 @@ export default function ClanDetailPage() {
     if (!amount || amount < 1) return;
     donateMut.mutate({ clanId, amount }, {
       onSuccess: () => { toast.success(`Wpłacono ${amount} złota`); setDonateAmount(""); },
-      onError: () => toast.error("Nie udało się wpłacić"),
+      onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wpłacić"),
     });
   };
 
@@ -400,7 +314,7 @@ export default function ClanDetailPage() {
     if (!amount || amount < 1) return;
     withdrawMut.mutate({ clanId, amount }, {
       onSuccess: () => { toast.success(`Wypłacono ${amount} złota`); setWithdrawAmount(""); },
-      onError: () => toast.error("Nie udało się wypłacić"),
+      onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wypłacić"),
     });
   };
 
@@ -408,7 +322,7 @@ export default function ClanDetailPage() {
     if (!chatMsg.trim()) return;
     chatMut.mutate({ clanId, content: chatMsg.trim() }, {
       onSuccess: () => { setChatMsg(""); refetchChat(); },
-      onError: () => toast.error("Nie udało się wysłać"),
+      onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wysłać"),
     });
   };
 
@@ -452,15 +366,14 @@ export default function ClanDetailPage() {
               </span>
             ) : (
               <Button
-                size="sm"
                 disabled={joinMut.isPending}
-                className="gap-1.5 md:h-10 md:px-5 md:text-base"
+                className="gap-2 h-9 md:h-10 md:px-5 md:text-sm"
                 onClick={() => joinMut.mutate({ clanId }, {
                   onSuccess: (res) => {
                     if (res.joined) { toast.success("Dołączono!"); router.refresh(); }
                     else toast.success(res.message || "Wysłano prośbę");
                   },
-                  onError: () => toast.error("Nie udało się dołączyć"),
+                  onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się dołączyć"),
                 })}
               >
                 {joinMut.isPending && <Loader2 size={14} className="animate-spin" />}
@@ -470,10 +383,11 @@ export default function ClanDetailPage() {
           )}
           {canDeclareWar && (
             <Button
-              size="sm"
               variant="destructive"
-              className="gap-1.5"
-              onClick={() => { setTab("wars"); }}
+              className="gap-2 h-9 md:h-10 md:px-5 md:text-sm"
+              onClick={() => {
+                router.push(`/clans/${myOwnClanId}?war_target=${clanId}&war_target_name=${encodeURIComponent(`[${clan.tag}] ${clan.name}`)}`);
+              }}
             >
               <Swords size={16} />
               <span className="hidden md:inline">Wypowiedz wojnę</span>
@@ -482,8 +396,7 @@ export default function ClanDetailPage() {
           {isOfficer && (
             <>
               <Button
-                size="sm"
-                className="gap-1.5"
+                className="gap-2 h-9 md:h-10 md:px-5 md:text-sm"
                 onClick={() => setShowInvitePanel((v) => !v)}
               >
                 <UserPlus size={16} />
@@ -495,7 +408,7 @@ export default function ClanDetailPage() {
                 )}
               </Button>
               <Link href={`/clans/${clanId}/settings`}>
-                <Button size="sm" variant="ghost" className="gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted">
+                <Button variant="outline" className="gap-2 h-9 md:h-10 md:px-5 md:text-sm">
                   <Settings size={16} />
                   <span className="hidden md:inline">Ustawienia</span>
                 </Button>
@@ -504,13 +417,12 @@ export default function ClanDetailPage() {
           )}
           {isMember && !isLeader && (
             <Button
-              size="sm"
-              variant="ghost"
+              variant="outline"
               disabled={leaveMut.isPending}
-              className="gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              className="gap-2 h-9 md:h-10 md:px-5 md:text-sm text-muted-foreground hover:text-destructive hover:border-destructive/30"
               onClick={() => leaveMut.mutate(clanId, {
                 onSuccess: () => { toast.success("Opuszczono klan"); router.push("/clans"); },
-                onError: () => toast.error("Błąd"),
+                onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się opuścić klanu"),
               })}
             >
               <LogOut size={16} />
@@ -519,15 +431,14 @@ export default function ClanDetailPage() {
           )}
           {isLeader && (
             <Button
-              size="sm"
-              variant="ghost"
+              variant="outline"
               disabled={dissolveMut.isPending}
-              className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+              className="gap-2 h-9 md:h-10 md:px-5 md:text-sm text-destructive hover:text-destructive hover:border-destructive/30 hover:bg-destructive/10"
               onClick={() => {
                 if (confirm("Na pewno chcesz rozwiązać klan?")) {
                   dissolveMut.mutate(clanId, {
                     onSuccess: () => { toast.success("Klan rozwiązany"); router.push("/clans"); },
-                    onError: () => toast.error("Błąd"),
+                    onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się rozwiązać klanu"),
                   });
                 }
               }}
@@ -610,18 +521,17 @@ export default function ClanDetailPage() {
                       <p className="text-xs md:text-sm text-muted-foreground">ELO: <span className="text-accent tabular-nums">{friend.elo_rating}</span></p>
                     </div>
                     <Button
-                      size="sm"
                       disabled={isPending}
-                      className="shrink-0 gap-1.5"
+                      className="shrink-0 gap-2 h-9 md:h-10 md:px-5 md:text-sm"
                       onClick={() => inviteMut.mutate(
                         { clanId, userId: friend.id },
                         {
                           onSuccess: () => toast.success(`Zaproszono ${friend.username}`),
-                          onError: () => toast.error("Nie udało się zaprosić"),
+                          onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się zaprosić"),
                         }
                       )}
                     >
-                      {isPending ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                      {isPending ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
                       Zaproś
                     </Button>
                   </div>
@@ -817,12 +727,12 @@ export default function ClanDetailPage() {
                 {isMember && canManage(m) && m.user.id !== user?.id && (
                   <div className="flex items-center gap-0.5 shrink-0">
                     {m.role !== "officer" && m.role !== "leader" && (
-                      <button onClick={() => promoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Awansowano"), onError: () => toast.error("Błąd") })} disabled={promoteMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors" title="Awansuj"><ArrowUp size={14} /></button>
+                      <button onClick={() => promoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Awansowano"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się awansować") })} disabled={promoteMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors" title="Awansuj"><ArrowUp size={14} /></button>
                     )}
                     {m.role !== "recruit" && m.role !== "leader" && (
-                      <button onClick={() => demoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Zdegradowano"), onError: () => toast.error("Błąd") })} disabled={demoteMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 transition-colors" title="Degraduj"><ArrowDown size={14} /></button>
+                      <button onClick={() => demoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Zdegradowano"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się zdegradować") })} disabled={demoteMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 transition-colors" title="Degraduj"><ArrowDown size={14} /></button>
                     )}
-                    <button onClick={() => kickMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Wyrzucono"), onError: () => toast.error("Błąd") })} disabled={kickMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors" title="Wyrzuć"><UserMinus size={14} /></button>
+                    <button onClick={() => kickMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Wyrzucono"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wyrzucić") })} disabled={kickMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors" title="Wyrzuć"><UserMinus size={14} /></button>
                   </div>
                 )}
               </div>
@@ -869,14 +779,14 @@ export default function ClanDetailPage() {
                         {canManage(m) && m.user.id !== user?.id && (
                           <div className="flex items-center justify-end gap-1">
                             {m.role !== "officer" && m.role !== "leader" && (
-                              <Button variant="ghost" size="sm" onClick={() => promoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Awansowano"), onError: () => toast.error("Błąd") })} disabled={promoteMut.isPending} className="text-green-400 hover:text-green-400 hover:bg-green-400/10"><ArrowUp size={16} /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => promoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Awansowano"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się awansować") })} disabled={promoteMut.isPending} className="text-green-400 hover:text-green-400 hover:bg-green-400/10"><ArrowUp size={16} /></Button>
                             )}
                             {m.role !== "recruit" && m.role !== "leader" && (
-                              <Button variant="ghost" size="sm" onClick={() => demoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Zdegradowano"), onError: () => toast.error("Błąd") })} disabled={demoteMut.isPending}><ArrowDown size={16} /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => demoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Zdegradowano"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się zdegradować") })} disabled={demoteMut.isPending}><ArrowDown size={16} /></Button>
                             )}
-                            <Button variant="ghost" size="sm" onClick={() => kickMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Wyrzucono"), onError: () => toast.error("Błąd") })} disabled={kickMut.isPending} className="text-destructive hover:text-destructive hover:bg-destructive/10"><UserMinus size={16} /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => kickMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Wyrzucono"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wyrzucić") })} disabled={kickMut.isPending} className="text-destructive hover:text-destructive hover:bg-destructive/10"><UserMinus size={16} /></Button>
                             {isLeader && (
-                              <Button variant="ghost" size="sm" onClick={() => { if (confirm(`Przekazać lidera do ${m.user.username}?`)) transferMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Lider przekazany"), onError: () => toast.error("Błąd") }); }} className="text-[#FFD700] hover:text-[#FFD700] hover:bg-[#FFD700]/10"><Crown size={16} /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => { if (confirm(`Przekazać lidera do ${m.user.username}?`)) transferMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Lider przekazany"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się przekazać lidera") }); }} className="text-[#FFD700] hover:text-[#FFD700] hover:bg-[#FFD700]/10"><Crown size={16} /></Button>
                             )}
                           </div>
                         )}
@@ -897,118 +807,175 @@ export default function ClanDetailPage() {
         <div className="px-4 md:px-0 space-y-3">
 
           {/* Declare War button + form */}
-          {isOfficer && (
+          {(isOfficer || canDeclareWar) && (
             <>
               <div className="flex justify-end">
                 <Button
-                  size="sm"
-                  variant={showDeclareWar ? "outline" : "default"}
-                  className="gap-1.5"
+                  variant={showDeclareWar ? "outline" : "destructive"}
+                  className="gap-2 h-10 md:h-12 md:text-base md:px-6"
                   onClick={() => setShowDeclareWar((v) => !v)}
                 >
-                  <Swords size={14} />
+                  <Swords size={16} />
                   {showDeclareWar ? "Anuluj" : "Wypowiedz wojnę"}
                 </Button>
               </div>
 
               {showDeclareWar && (
-                <section className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 md:p-5">
-                  <div className="mb-4 flex items-center gap-3">
+                <section className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 md:p-6">
+                  <div className="mb-5 flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10">
                       <Swords className="h-4 w-4 text-destructive" />
                     </div>
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Wypowiedz wojnę</p>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Wypowiedz wojnę</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Stawka zostanie pobrana ze skarbca klanu</p>
+                    </div>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-5">
                     {/* Target clan search */}
-                    <div className="relative">
-                      <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-                        <Search className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <Input
-                        placeholder="Szukaj klanu przeciwnika..."
-                        value={warTargetId ? warTargetName : warTargetSearch}
-                        onChange={(e) => {
-                          setWarTargetId("");
-                          setWarTargetName("");
-                          setWarTargetSearch(e.target.value);
-                        }}
-                        className="pl-9 h-10"
-                      />
-                      {!warTargetId && warTargetSearch.length >= 2 && (
-                        <div className="absolute z-10 mt-1 w-full rounded-xl border border-border bg-card shadow-lg overflow-hidden">
-                          {(clanSearchData?.items ?? []).filter((c) => c.id !== clanId).length === 0 ? (
-                            <div className="px-4 py-3 text-sm text-muted-foreground text-center">Brak wyników</div>
-                          ) : (
-                            (clanSearchData?.items ?? []).filter((c) => c.id !== clanId).map((c) => (
-                              <button
-                                key={c.id}
-                                onClick={() => { setWarTargetId(c.id); setWarTargetName(`[${c.tag}] ${c.name}`); setWarTargetSearch(""); }}
-                                className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted transition-colors"
-                              >
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md font-display text-[10px] font-bold text-white" style={{ backgroundColor: c.color }}>{c.tag}</div>
-                                <div>
-                                  <p className="text-sm font-semibold text-foreground">{c.name}</p>
-                                  <p className="text-[10px] text-muted-foreground">{c.member_count} czł. · {c.elo_rating} ELO</p>
-                                </div>
-                              </button>
-                            ))
-                          )}
+                    <div className="space-y-2">
+                      <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">Klan przeciwnika</label>
+                      <div className="relative">
+                        <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                          <Search className="h-4 w-4 text-muted-foreground" />
                         </div>
-                      )}
+                        <Input
+                          placeholder="Szukaj klanu..."
+                          value={warTargetId ? warTargetName : warTargetSearch}
+                          onChange={(e) => {
+                            setWarTargetId("");
+                            setWarTargetName("");
+                            setWarTargetSearch(e.target.value);
+                          }}
+                          className="pl-10 h-10 md:h-12 md:text-base"
+                        />
+                        {!warTargetId && warTargetSearch.length >= 2 && (
+                          <div className="absolute z-10 mt-1 w-full rounded-xl border border-border bg-card shadow-lg overflow-hidden max-h-60 overflow-y-auto">
+                            {(clanSearchData?.items ?? []).filter((c) => c.id !== clanId).length === 0 ? (
+                              <div className="px-4 py-4 text-sm text-muted-foreground text-center">Brak wyników</div>
+                            ) : (
+                              (clanSearchData?.items ?? []).filter((c) => c.id !== clanId).map((c) => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => { setWarTargetId(c.id); setWarTargetName(`[${c.tag}] ${c.name}`); setWarTargetSearch(""); }}
+                                  className="flex w-full items-center gap-3 px-4 py-3 md:py-4 text-left hover:bg-muted transition-colors"
+                                >
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white" style={{ backgroundColor: c.color }}>{c.tag}</div>
+                                  <div>
+                                    <p className="text-sm md:text-base font-semibold text-foreground">{c.name}</p>
+                                    <p className="text-xs text-muted-foreground">{c.member_count} członków · {c.elo_rating} ELO</p>
+                                  </div>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {warTargetId && (
-                      <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-                        <Swords className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <span className="text-sm text-foreground font-medium">{warTargetName}</span>
-                        <button onClick={() => { setWarTargetId(""); setWarTargetName(""); }} className="ml-auto text-muted-foreground hover:text-foreground">
-                          <X className="h-3.5 w-3.5" />
+                      <div className="flex items-center gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
+                        <Swords className="h-4 w-4 text-accent shrink-0" />
+                        <span className="text-sm md:text-base text-foreground font-semibold">{warTargetName}</span>
+                        <button onClick={() => { setWarTargetId(""); setWarTargetName(""); }} className="ml-auto text-muted-foreground hover:text-foreground transition-colors">
+                          <X className="h-4 w-4" />
                         </button>
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Stawka (złoto, min. 100)</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="space-y-2">
+                        <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">Stawka (złoto)</label>
                         <Input
                           type="number"
                           min={100}
+                          placeholder="min. 100"
                           value={warWager}
                           onChange={(e) => setWarWager(e.target.value)}
-                          className="h-10"
+                          className="h-10 md:h-12 md:text-base font-mono"
                         />
+                        <p className="text-[10px] text-muted-foreground">Minimalna stawka: 100 złota. Wygrana = pula obu klanów.</p>
                       </div>
-                      <div>
-                        <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Graczy na stronę (1–5)</label>
+                      <div className="space-y-2">
+                        <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">Graczy na stronę</label>
                         <Input
                           type="number"
                           min={1}
                           max={5}
                           value={warPlayers}
                           onChange={(e) => setWarPlayers(e.target.value)}
-                          className="h-10"
+                          className="h-10 md:h-12 md:text-base font-mono"
                         />
+                        <p className="text-[10px] text-muted-foreground">Od 1 do 5 graczy na stronę (np. 3v3).</p>
                       </div>
                     </div>
 
+                    <div className="space-y-2">
+                      <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">Zaplanowana data (opcjonalnie)</label>
+                      <Popover>
+                        <PopoverTrigger
+                          className={cn(
+                            "flex w-full items-center justify-start gap-2 rounded-md border border-input bg-background px-3 text-left font-normal h-10 md:h-12 md:text-base transition-colors hover:bg-muted",
+                            !warScheduledAt && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="h-4 w-4 shrink-0" />
+                          {warScheduledAt ? new Date(warScheduledAt).toLocaleString("pl-PL", { dateStyle: "medium", timeStyle: "short" }) : "Wybierz datę i godzinę..."}
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={warScheduledAt ? new Date(warScheduledAt) : undefined}
+                            onSelect={(date) => {
+                              if (!date) { setWarScheduledAt(""); return; }
+                              const prev = warScheduledAt ? new Date(warScheduledAt) : new Date();
+                              date.setHours(prev.getHours(), prev.getMinutes());
+                              setWarScheduledAt(date.toISOString());
+                            }}
+                          />
+                          <div className="border-t border-border px-4 py-3 flex items-center gap-2">
+                            <label className="text-xs text-muted-foreground shrink-0">Godzina:</label>
+                            <Input
+                              type="time"
+                              className="h-9 w-28 text-sm"
+                              value={warScheduledAt ? `${String(new Date(warScheduledAt).getHours()).padStart(2,"0")}:${String(new Date(warScheduledAt).getMinutes()).padStart(2,"0")}` : ""}
+                              onChange={(e) => {
+                                const [h, m] = e.target.value.split(":").map(Number);
+                                const d = warScheduledAt ? new Date(warScheduledAt) : new Date();
+                                d.setHours(h, m);
+                                setWarScheduledAt(d.toISOString());
+                              }}
+                            />
+                            {warScheduledAt && (
+                              <Button variant="ghost" size="sm" className="ml-auto text-xs text-muted-foreground" onClick={() => setWarScheduledAt("")}>
+                                Wyczyść
+                              </Button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <p className="text-[10px] text-muted-foreground">Zostaw puste aby rozpocząć wojnę od razu po akceptacji.</p>
+                    </div>
+
                     <Button
-                      className="w-full gap-2"
+                      variant="destructive"
+                      className="w-full md:w-auto h-10 md:h-12 md:text-base md:px-10 gap-2"
                       disabled={!warTargetId || declareWarMut.isPending}
                       onClick={() => {
                         const wager = parseInt(warWager);
                         const players = parseInt(warPlayers);
                         if (!warTargetId || isNaN(wager) || wager < 100 || isNaN(players) || players < 1 || players > 5) return;
+                        const attackerClanId = canDeclareWar ? myOwnClanId! : clanId;
                         declareWarMut.mutate(
-                          { clanId, targetId: warTargetId, data: { wager_gold: wager, players_per_side: players } },
+                          { clanId: attackerClanId, targetId: warTargetId, data: { wager_gold: wager, players_per_side: players, ...(warScheduledAt ? { scheduled_at: new Date(warScheduledAt).toISOString() } : {}) } },
                           {
                             onSuccess: () => {
                               toast.success("Wypowiedziano wojnę!");
                               setShowDeclareWar(false);
-                              setWarTargetId(""); setWarTargetName(""); setWarTargetSearch(""); setWarWager("100"); setWarPlayers("3");
+                              setWarTargetId(""); setWarTargetName(""); setWarTargetSearch(""); setWarWager("100"); setWarPlayers("3"); setWarScheduledAt("");
                             },
-                            onError: () => toast.error("Nie udało się wypowiedzieć wojny"),
+                            onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wypowiedzieć wojny"),
                           }
                         );
                       }}
@@ -1035,12 +1002,6 @@ export default function ClanDetailPage() {
                   key={war.id}
                   war={war}
                   clanId={clanId}
-                  isMember={isMember}
-                  isExpanded={expandedWarId === war.id}
-                  onToggle={() => setExpandedWarId((id) => id === war.id ? null : war.id)}
-                  acceptWarMut={acceptWarMut}
-                  declineWarMut={declineWarMut}
-                  joinWarMut={joinWarMut}
                 />
               ))}
             </div>
@@ -1145,8 +1106,8 @@ export default function ClanDetailPage() {
                         <p className="text-xs text-muted-foreground">ELO: <span className="text-accent tabular-nums">{jr.user.elo_rating}</span>{jr.message && ` — "${jr.message}"`}</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <button disabled={busy} onClick={() => acceptJrMut.mutate(jr.id, { onSuccess: () => toast.success("Przyjęto"), onError: () => toast.error("Błąd") })} className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors"><Check size={14} /></button>
-                        <button disabled={busy} onClick={() => declineJrMut.mutate(jr.id, { onSuccess: () => toast.success("Odrzucono"), onError: () => toast.error("Błąd") })} className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors"><X size={14} /></button>
+                        <button disabled={busy} onClick={() => acceptJrMut.mutate(jr.id, { onSuccess: () => toast.success("Przyjęto"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się przyjąć") })} className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors"><Check size={14} /></button>
+                        <button disabled={busy} onClick={() => declineJrMut.mutate(jr.id, { onSuccess: () => toast.success("Odrzucono"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić") })} className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors"><X size={14} /></button>
                       </div>
                     </div>
                   );
@@ -1165,11 +1126,11 @@ export default function ClanDetailPage() {
                           <p className="text-sm text-muted-foreground">ELO: <span className="text-accent tabular-nums">{jr.user.elo_rating}</span>{jr.message && ` — "${jr.message}"`}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <Button variant="ghost" disabled={busy} onClick={() => acceptJrMut.mutate(jr.id, { onSuccess: () => toast.success("Przyjęto"), onError: () => toast.error("Błąd") })} className="gap-2 text-base text-green-400 hover:text-green-400 hover:bg-green-400/10">
+                          <Button variant="ghost" disabled={busy} onClick={() => acceptJrMut.mutate(jr.id, { onSuccess: () => toast.success("Przyjęto"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się przyjąć") })} className="gap-2 text-base text-green-400 hover:text-green-400 hover:bg-green-400/10">
                             {busy && acceptJrMut.variables === jr.id ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                             Przyjmij
                           </Button>
-                          <Button variant="ghost" disabled={busy} onClick={() => declineJrMut.mutate(jr.id, { onSuccess: () => toast.success("Odrzucono"), onError: () => toast.error("Błąd") })} className="gap-2 text-base text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <Button variant="ghost" disabled={busy} onClick={() => declineJrMut.mutate(jr.id, { onSuccess: () => toast.success("Odrzucono"), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić") })} className="gap-2 text-base text-destructive hover:text-destructive hover:bg-destructive/10">
                             {busy && declineJrMut.variables === jr.id ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}
                             Odrzuć
                           </Button>

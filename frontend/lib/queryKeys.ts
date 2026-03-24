@@ -150,6 +150,8 @@ export const queryKeys = {
       [...queryKeys.clans.all, clanId, "treasury"] as const,
     wars: (clanId: string, limit?: number, offset?: number) =>
       [...queryKeys.clans.all, clanId, "wars", { limit, offset }] as const,
+    war: (warId: string) =>
+      [...queryKeys.clans.all, "wars", warId] as const,
     warParticipants: (warId: string) =>
       [...queryKeys.clans.all, "wars", warId, "participants"] as const,
     leaderboard: (sort?: string, limit?: number, offset?: number) =>
