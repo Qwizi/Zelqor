@@ -53,6 +53,8 @@ class User(AbstractUser):
     is_banned = models.BooleanField(default=False)
     banned_reason = models.TextField(blank=True, default='')
     last_active = models.DateTimeField(null=True, blank=True)
+    level = models.PositiveIntegerField(default=1)
+    experience = models.PositiveIntegerField(default=0)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
@@ -88,6 +90,19 @@ class User(AbstractUser):
         if data and isinstance(data, dict):
             return data
         return {}
+
+
+class AccountLevel(models.Model):
+    level = models.PositiveIntegerField(primary_key=True, unique=True)
+    experience_required = models.PositiveIntegerField()
+    title = models.CharField(max_length=50, blank=True)
+    perks = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['level']
+
+    def __str__(self):
+        return f'Account Level {self.level} — {self.title} (XP: {self.experience_required})'
 
 
 class SocialAccount(models.Model):

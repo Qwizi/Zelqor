@@ -242,7 +242,7 @@ function CraftingContent() {
       setTimeout(() => setCraftingModal(null), 3000);
     } catch (e: unknown) {
       setCraftingModal(null);
-      toast.error(e instanceof Error ? e.message : "Błąd craftingu");
+      toast.error(e instanceof Error ? e.message : "Błąd craftingu", { id: "crafting-error" });
     } finally {
       setCrafting(null);
     }

@@ -6,18 +6,32 @@
  * Action Point (AP) costs matching Rust engine defaults.
  * Each action type costs a fixed number of AP.
  */
+/**
+ * Action Point (AP) costs matching Rust engine defaults.
+ * Attack cost is the MAX — actual cost scales with % of units sent:
+ *   ≤25% → 1 AP, ≤50% → 2 AP, ≤75% → 3 AP, 100% → 4 AP
+ */
 export const AP_COSTS = {
-  attack: 3,
-  move: 2,
-  build: 2,
-  produce: 1,
-  ability: 4,
+  attack: 4,
+  move: 1,
+  build: 1,
+  produce: 0,
+  ability: 3,
 } as const;
 
 export type ActionType = keyof typeof AP_COSTS;
 
 /** Maximum AP a player can hold at once. */
-export const AP_MAX = 10;
+export const AP_MAX = 15;
+
+/** Calculate dynamic AP cost for attack based on % of units sent. */
+export function getAttackApCost(unitPercent: number, maxCost = AP_COSTS.attack): number {
+  if (maxCost <= 1) return maxCost;
+  if (unitPercent <= 25) return 1;
+  if (unitPercent <= 50) return Math.max(2, Math.floor(maxCost / 2));
+  if (unitPercent <= 75) return Math.max(3, Math.floor(maxCost * 3 / 4));
+  return maxCost;
+}
 
 export interface TroopAnimation {
   id: string;

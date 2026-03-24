@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Optional
 from ninja import Schema
 from pydantic import Field
 
@@ -47,6 +48,10 @@ class WithdrawSchema(Schema):
 class DeclareWarSchema(Schema):
     players_per_side: int = Field(default=3, ge=1, le=5)
     wager_gold: int = Field(default=0, ge=0)
+    scheduled_at: Optional[datetime] = Field(
+        default=None,
+        description='Optional UTC datetime when the war should start. If None, starts immediately on acceptance.',
+    )
 
 
 class JoinRequestSchema(Schema):
@@ -162,6 +167,8 @@ class ClanWarOutSchema(Schema):
     defender_elo_change: int
     players_per_side: int
     wager_gold: int
+    match_id: uuid.UUID | None = None
+    scheduled_at: datetime | None = None
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None

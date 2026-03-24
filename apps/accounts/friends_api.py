@@ -107,6 +107,8 @@ class FriendsController:
     @route.post('/{friendship_id}/invite-game/')
     def invite_to_game(self, request, friendship_id: uuid.UUID, payload: GameInviteSchema):
         """Create a lobby and invite a friend to join it."""
+        from django.db import transaction
+
         friendship = Friendship.objects.filter(pk=friendship_id).first()
         if not friendship:
             raise HttpError(404, 'Friendship not found.')
@@ -120,44 +122,46 @@ class FriendsController:
 
         friend = friendship.to_user if friendship.from_user_id == user.pk else friendship.from_user
 
-        # Block duplicate invites — check for unread game_invite to this friend
-        from apps.notifications.models import Notification
-        existing_invite = Notification.objects.filter(
-            user=friend,
-            type=Notification.Type.GAME_INVITE,
-            is_read=False,
-            data__from_user_id=str(user.pk),
-        ).first()
-        if existing_invite:
-            raise HttpError(400, 'Zaproszenie już zostało wysłane.')
+        with transaction.atomic():
+            # Block duplicate invites — lock + check for unread game_invite to this friend
+            from apps.notifications.models import Notification
+            existing_invite = Notification.objects.select_for_update().filter(
+                user=friend,
+                type=Notification.Type.GAME_INVITE,
+                is_read=False,
+                data__from_user_id=str(user.pk),
+            ).first()
+            if existing_invite:
+                raise HttpError(400, 'Zaproszenie już zostało wysłane.')
 
-        # Resolve game mode — fall back to default if slug not found
-        from apps.game_config.models import GameMode
-        game_mode = GameMode.objects.filter(slug=payload.game_mode, is_active=True).first()
-        if not game_mode:
-            game_mode = GameMode.objects.filter(is_default=True, is_active=True).first()
-        if not game_mode:
-            raise HttpError(400, 'No active game mode found.')
+            # Resolve game mode — fall back to default if slug not found
+            from apps.game_config.models import GameMode
+            game_mode = GameMode.objects.filter(slug=payload.game_mode, is_active=True).first()
+            if not game_mode:
+                game_mode = GameMode.objects.filter(is_default=True, is_active=True).first()
+            if not game_mode:
+                raise HttpError(400, 'No active game mode found.')
 
-        # Create lobby with ONLY the inviter — friend joins after accepting
-        from apps.matchmaking.models import Lobby, LobbyPlayer
+            # Create lobby with ONLY the inviter — friend joins after accepting
+            from apps.matchmaking.models import Lobby, LobbyPlayer
 
-        lobby = Lobby.objects.create(
-            host_user=user,
-            game_mode=game_mode,
-            max_players=game_mode.max_players,
-        )
-        LobbyPlayer.objects.create(lobby=lobby, user=user)
+            lobby = Lobby.objects.create(
+                host_user=user,
+                game_mode=game_mode,
+                max_players=game_mode.max_players,
+            )
+            LobbyPlayer.objects.create(lobby=lobby, user=user)
+
+            lobby_id_str = str(lobby.id)
+
+            from apps.notifications.services import notify_game_invite
+            notify_game_invite(friend, user, payload.game_mode, lobby_id=lobby_id_str)
 
         # Set Redis key for inviter so gateway reconnects them to this lobby
         import redis as redis_lib
         from django.conf import settings
         r = redis_lib.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
-        lobby_id_str = str(lobby.id)
         r.setex(f"lobby:user:{user.pk}", 600, lobby_id_str)
-
-        from apps.notifications.services import notify_game_invite
-        notify_game_invite(friend, user, payload.game_mode, lobby_id=lobby_id_str)
 
         return {'lobby_id': lobby_id_str}
 

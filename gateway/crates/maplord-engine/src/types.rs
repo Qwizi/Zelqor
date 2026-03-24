@@ -208,16 +208,16 @@ fn default_peace_cooldown_ticks() -> i64 { 120 }
 fn default_proposal_timeout_ticks() -> i64 { 60 }
 
 // AP system defaults
-fn default_max_action_points() -> i64 { 10 }
-fn default_ap_regen_interval() -> i64 { 3 }
-fn default_ap_cost_attack() -> i64 { 3 }
-fn default_ap_cost_move() -> i64 { 2 }
-fn default_ap_cost_build() -> i64 { 2 }
-fn default_ap_cost_produce() -> i64 { 1 }
-fn default_ap_cost_ability() -> i64 { 4 }
+fn default_max_action_points() -> i64 { 15 }
+fn default_ap_regen_interval() -> i64 { 2 }
+fn default_ap_cost_attack() -> i64 { 4 }
+fn default_ap_cost_move() -> i64 { 1 }
+fn default_ap_cost_build() -> i64 { 1 }
+fn default_ap_cost_produce() -> i64 { 0 }
+fn default_ap_cost_ability() -> i64 { 3 }
 
 // Region cooldown defaults
-fn default_region_attack_cooldown() -> i64 { 5 }
+fn default_region_attack_cooldown() -> i64 { 0 }
 fn default_region_move_cooldown() -> i64 { 2 }
 
 // Combat fatigue defaults
@@ -557,6 +557,9 @@ pub struct Player {
     /// Visual cosmetics metadata — passed through to clients, never processed by the engine.
     #[serde(default)]
     pub cosmetics: HashMap<String, serde_json::Value>,
+    /// Team identifier for team-based modes (e.g. "challenger", "defender"). None = free-for-all.
+    #[serde(default)]
+    pub team: Option<String>,
 }
 
 /// Region state stored in Redis.

@@ -48,6 +48,58 @@ def _safe_ratio(value: int, denominator: int) -> float:
     return float(value) / float(denominator) if denominator > 0 else 0.0
 
 
+def _award_match_xp(player_rows: list[dict], winner_id: str | None) -> None:
+    """Award XP to all human players after a match and check for account level-ups.
+
+    Winner receives 50 XP base; all others receive 20 XP base.
+    After awarding, if the user's accumulated XP meets the next AccountLevel
+    threshold the user's level field is bumped accordingly.
+    """
+    from apps.accounts.models import AccountLevel, User
+
+    users_xp_update: list[User] = []
+
+    for row in player_rows:
+        if row["is_bot"]:
+            continue
+
+        user = row["match_player"].user
+        xp_gain = 50 if row["pid"] == winner_id else 20
+        user.experience = (user.experience or 0) + xp_gain
+
+        # Resolve highest level whose XP threshold is met
+        new_level = (
+            AccountLevel.objects.filter(
+                experience_required__lte=user.experience,
+            )
+            .order_by('-level')
+            .values_list('level', flat=True)
+            .first()
+        )
+        if new_level is not None and new_level > (user.level or 1):
+            user.level = new_level
+
+        users_xp_update.append(user)
+
+    if users_xp_update:
+        User.objects.bulk_update(users_xp_update, ['experience', 'level'])
+
+    # Dispatch clan XP awards outside the DB loop (fire-and-forget Celery tasks)
+    for row in player_rows:
+        if row["is_bot"]:
+            continue
+        xp_gain = 50 if row["pid"] == winner_id else 20
+        try:
+            from apps.clans.tasks import award_clan_xp
+            award_clan_xp.delay(row["pid"], xp_gain)
+        except Exception as e:
+            logger.error(
+                "Failed to dispatch award_clan_xp for player %s: %s",
+                row["pid"],
+                e,
+            )
+
+
 def finalize_match_results_sync(
     match_id: str,
     winner_id: str | None,
@@ -240,6 +292,9 @@ def finalize_match_results_sync(
             User.objects.bulk_update(users_to_update, ['elo_rating'])
         PlayerResult.objects.bulk_create(player_results_to_create)
 
+        # Award XP to non-bot players and check for level-ups
+        _award_match_xp(player_rows, winner_id)
+
         # Send match result notifications to non-bot players
         try:
             from apps.notifications.services import notify_match_result
@@ -351,6 +406,85 @@ def finalize_match_results_sync(
                 })
     except Exception as e:
         logger.error(f"Failed to dispatch webhook events: {e}")
+
+    # --- Clan war resolution ---
+    try:
+        from apps.clans.models import ClanWar, ClanWarParticipant
+        clan_war = ClanWar.objects.filter(
+            match_id=match_id,
+            status=ClanWar.Status.IN_PROGRESS,
+        ).select_related('challenger', 'defender').first()
+
+        if clan_war:
+            _resolve_clan_war(clan_war, match_id, winner_id)
+    except Exception as e:
+        logger.error("Failed to resolve clan war for match %s: %s", match_id, e)
+
+
+def _resolve_clan_war(clan_war, match_id: str, winner_id: str | None) -> None:
+    """Determine the winning clan for a clan war and kick off ELO calculation."""
+    from django.utils import timezone
+    from apps.clans.models import ClanWar, ClanWarParticipant
+    from apps.clans.tasks import calculate_clan_war_elo
+    from apps.matchmaking.models import MatchPlayer
+
+    winning_clan_id = None
+
+    if winner_id:
+        # Primary: look up the participant record for the winning user
+        participant = (
+            ClanWarParticipant.objects.filter(
+                war=clan_war,
+                user_id=winner_id,
+            )
+            .values_list('clan_id', flat=True)
+            .first()
+        )
+        if participant:
+            winning_clan_id = participant
+        else:
+            # Fallback: use team_label on MatchPlayer to map back to a clan
+            mp = (
+                MatchPlayer.objects.filter(
+                    match_id=match_id,
+                    user_id=winner_id,
+                )
+                .values_list('team_label', flat=True)
+                .first()
+            )
+            if mp == 'challenger':
+                winning_clan_id = clan_war.challenger_id
+            elif mp == 'defender':
+                winning_clan_id = clan_war.defender_id
+
+    if winning_clan_id:
+        clan_war.status = ClanWar.Status.FINISHED
+        clan_war.finished_at = timezone.now()
+        clan_war.winner_id = winning_clan_id
+        clan_war.save(update_fields=['status', 'finished_at', 'winner'])
+        calculate_clan_war_elo.delay(str(clan_war.pk))
+        logger.info(
+            "Clan war %s resolved: winner clan %s (match %s)",
+            clan_war.pk, winning_clan_id, match_id,
+        )
+    else:
+        # Draw or no winner — refund wagers to both clans
+        from apps.clans.models import Clan
+        clan_war.status = ClanWar.Status.FINISHED
+        clan_war.finished_at = timezone.now()
+        clan_war.save(update_fields=['status', 'finished_at'])
+
+        if clan_war.wager_gold > 0:
+            from django.db.models import F
+            with transaction.atomic():
+                for clan_pk in (clan_war.challenger_id, clan_war.defender_id):
+                    Clan.objects.filter(pk=clan_pk).update(
+                        treasury_gold=F('treasury_gold') + clan_war.wager_gold,
+                    )
+            logger.info(
+                "Clan war %s ended as draw — refunded %d gold to each clan",
+                clan_war.pk, clan_war.wager_gold,
+            )
 
 
 @shared_task

@@ -102,46 +102,46 @@ export default function FriendsPage() {
     if (!sendUsername.trim()) return;
     try {
       await sendMutation.mutateAsync(sendUsername.trim());
-      toast.success(`Wysłano zaproszenie do ${sendUsername.trim()}.`);
+      toast.success(`Wysłano zaproszenie do ${sendUsername.trim()}.`, { id: "friends-request-sent" });
       setSendUsername("");
     } catch {
-      toast.error("Nie udało się wysłać zaproszenia.");
+      toast.error("Nie udało się wysłać zaproszenia.", { id: "friends-request-send-error" });
     }
   }
 
   async function handleAccept(friendshipId: string) {
     try {
       await acceptMutation.mutateAsync(friendshipId);
-      toast.success("Zaproszenie zaakceptowane.");
+      toast.success("Zaproszenie zaakceptowane.", { id: "friends-accept" });
     } catch {
-      toast.error("Nie udało się zaakceptować zaproszenia.");
+      toast.error("Nie udało się zaakceptować zaproszenia.", { id: "friends-accept-error" });
     }
   }
 
   async function handleReject(friendshipId: string) {
     try {
       await rejectMutation.mutateAsync(friendshipId);
-      toast.success("Zaproszenie odrzucone.");
+      toast.success("Zaproszenie odrzucone.", { id: "friends-reject" });
     } catch {
-      toast.error("Nie udało się odrzucić zaproszenia.");
+      toast.error("Nie udało się odrzucić zaproszenia.", { id: "friends-reject-error" });
     }
   }
 
   async function handleCancel(friendshipId: string) {
     try {
       await rejectMutation.mutateAsync(friendshipId);
-      toast.success("Zaproszenie anulowane.");
+      toast.success("Zaproszenie anulowane.", { id: "friends-cancel" });
     } catch {
-      toast.error("Nie udało się anulować zaproszenia.");
+      toast.error("Nie udało się anulować zaproszenia.", { id: "friends-cancel-error" });
     }
   }
 
   async function handleRemove(friendshipId: string) {
     try {
       await removeMutation.mutateAsync(friendshipId);
-      toast.success("Usunięto ze znajomych.");
+      toast.success("Usunięto ze znajomych.", { id: "friends-remove" });
     } catch {
-      toast.error("Nie udało się usunąć znajomego.");
+      toast.error("Nie udało się usunąć znajomego.", { id: "friends-remove-error" });
     }
   }
 

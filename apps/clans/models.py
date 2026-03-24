@@ -249,6 +249,11 @@ class ClanWar(models.Model):
     players_per_side = models.PositiveIntegerField(default=3)
     wager_gold = models.PositiveIntegerField(default=0)
 
+    scheduled_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='When the war is scheduled to start (None = start immediately upon acceptance)',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)

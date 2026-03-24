@@ -134,6 +134,8 @@ export interface User {
   has_password: boolean;
   avatar_url: string | null;
   clan_tag: string | null;
+  level: number;
+  experience: number;
 }
 
 export class BannedError extends Error {
@@ -347,6 +349,8 @@ export interface LeaderboardEntry {
   is_banned: boolean;
   avatar_url: string | null;
   clan_tag: string | null;
+  level: number;
+  experience: number;
 }
 
 export async function getLeaderboard(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<LeaderboardEntry>> {
@@ -1653,6 +1657,7 @@ export interface ClanWarOut {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  match_id: string | null;
 }
 
 export interface ClanWarParticipantOut {
@@ -1841,6 +1846,18 @@ export async function getClanWars(token: string, clanId: string, limit?: number,
 
 export async function getWarParticipants(token: string, warId: string): Promise<ClanWarParticipantOut[]> {
   return fetchAPI<ClanWarParticipantOut[]>(`/clans/wars/${warId}/participants/`, { token });
+}
+
+export async function getWar(token: string, warId: string): Promise<ClanWarOut> {
+  return fetchAPI<ClanWarOut>(`/clans/wars/${warId}/`, { token });
+}
+
+export async function leaveWar(token: string, warId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/leave/`, { method: 'POST', token });
+}
+
+export async function cancelWar(token: string, warId: string): Promise<{ ok: boolean }> {
+  return fetchAPI<{ ok: boolean }>(`/clans/wars/${warId}/cancel/`, { method: 'POST', token });
 }
 
 // Leaderboard & Stats

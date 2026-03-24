@@ -83,7 +83,7 @@ function RegisterContent() {
     setGeneralError(null);
     try {
       await registerUser(data.username, data.email, data.password);
-      toast.success("Konto utworzone!");
+      toast.success("Konto utworzone!", { id: "auth-register-success" });
       router.push("/dashboard");
     } catch (err: unknown) {
       if (err instanceof APIError) {
@@ -136,7 +136,7 @@ function RegisterContent() {
         }
       } else {
         setGeneralError("Wystapil blad podczas rejestracji. Sprobuj ponownie.");
-        toast.error("Wystapil nieoczekiwany blad");
+        toast.error("Wystapil nieoczekiwany blad", { id: "auth-register-error" });
       }
     }
   };

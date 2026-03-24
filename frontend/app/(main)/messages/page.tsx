@@ -224,7 +224,7 @@ function ChatView({
     try {
       await sendMessageMutation.mutateAsync({ userId: partnerId, content: trimmed });
     } catch {
-      toast.error("Nie udało się wysłać wiadomości");
+      toast.error("Nie udało się wysłać wiadomości", { id: "messages-send-error" });
     }
   }
 

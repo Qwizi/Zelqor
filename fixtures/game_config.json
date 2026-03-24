@@ -19,7 +19,16 @@
       "starting_units": 10,
       "starting_regions": 1,
       "neutral_region_units": 3,
-      "elo_k_factor": 32
+      "elo_k_factor": 32,
+      "max_action_points": 15,
+      "ap_regen_interval": 2,
+      "ap_cost_attack": 4,
+      "ap_cost_move": 1,
+      "ap_cost_build": 1,
+      "ap_cost_produce": 0,
+      "ap_cost_ability": 3,
+      "region_attack_cooldown": 0,
+      "region_move_cooldown": 2
     }
   },
   {

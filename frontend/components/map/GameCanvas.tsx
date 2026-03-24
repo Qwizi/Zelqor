@@ -1288,7 +1288,9 @@ export default function GameCanvas({
       const labelLayer = new Container();
       const capitalLayer = new Container();
       const effectLayer = new Container();
+      effectLayer.eventMode = "none";
       const nukeLayer = new Container();
+      nukeLayer.eventMode = "none";
       const unitChangeLayer = new Container();
       provinceLayerRef.current = provinceLayer;
       labelLayerRef.current = labelLayer;

@@ -106,7 +106,7 @@ export default function DashboardPage() {
   const { data: friendsData } = useFriends(100, undefined, { refetchInterval: 15_000 });
   const { data: receivedData } = useReceivedRequests(1, undefined, { refetchInterval: 15_000 });
 
-  const gameModes = useMemo<GameModeListItem[]>(() => configData?.game_modes ?? [], [configData]);
+  const gameModes = useMemo<GameModeListItem[]>(() => (configData?.game_modes ?? []).filter((m) => m.slug !== "clan-war"), [configData]);
   const recentMatches = useMemo<Match[]>(() => matchesData?.items ?? [], [matchesData]);
   const decks = useMemo<DeckOut[]>(() => decksData?.items ?? [], [decksData]);
   const friends = useMemo<FriendshipOut[]>(() => {
@@ -626,13 +626,13 @@ export default function DashboardPage() {
                             disabled={inQueue}
                             onClick={async () => {
                               if (!token || !selectedMode) return;
-                              toast.info("Tworzenie lobby...");
+                              toast.info("Tworzenie lobby...", { id: "dashboard-creating-lobby" });
                               try {
                                 await inviteFriendToGame(token, friendship.id, selectedMode);
                                 joinQueue(selectedMode);
-                                toast.success("Zaproszenie wysłane!");
+                                toast.success("Zaproszenie wysłane!", { id: "dashboard-invite-sent" });
                               } catch {
-                                toast.error("Nie udało się wysłać zaproszenia");
+                                toast.error("Nie udało się wysłać zaproszenia", { id: "dashboard-invite-error" });
                               }
                             }}
                             className="shrink-0 flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 disabled:opacity-30 disabled:pointer-events-none transition-all"

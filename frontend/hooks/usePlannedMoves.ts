@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import type { PlannedMove } from "@/lib/gameTypes";
-import { PLAN_EXPIRY_S, AP_COSTS } from "@/lib/gameTypes";
+import { PLAN_EXPIRY_S, AP_COSTS, getAttackApCost } from "@/lib/gameTypes";
 import { toast } from "sonner";
 
 interface GameStateRef {
@@ -25,6 +25,7 @@ export function usePlannedMoves(
   move: (sourceId: string, targetId: string, units: number, unitType: string) => void,
   bombard: (sourceId: string, targetIds: string[], units: number) => void,
   onClear: () => void, // callback to reset selection state in parent
+  unitManpowerMap?: Record<string, number>, // slug → manpower_cost for reserve calc
 ) {
   const [plannedMoves, setPlannedMoves] = useState<PlannedMove[]>([]);
   const [planningMode, setPlanningMode] = useState(false);
@@ -48,18 +49,27 @@ export function usePlannedMoves(
 
       const key = `${pm.sourceId}:${pm.unitType}`;
       const alreadySent = committed.get(key) ?? 0;
-      const available = (source.units?.[pm.unitType] ?? 0) - alreadySent;
+      let rawCount = source.units?.[pm.unitType] ?? 0;
+      // Subtract infantry reserved as manpower for special units
+      if (pm.unitType === "infantry" && unitManpowerMap) {
+        const reserved = Object.entries(source.units ?? {})
+          .filter(([type]) => type !== "infantry")
+          .reduce((sum, [type, count]) => sum + count * Math.max(1, unitManpowerMap[type] ?? 1), 0);
+        rawCount = Math.max(0, rawCount - reserved);
+      }
+      const available = rawCount - alreadySent;
 
       if (available <= 0) { skipped++; continue; }
 
       const isAttackAction = pm.actionType === "attack" || pm.actionType === "bombard";
-      const apCost = isAttackAction ? AP_COSTS.attack : AP_COSTS.move;
+      const units = Math.min(pm.unitCount, available);
+      const unitPct = rawCount > 0 ? (units / rawCount) * 100 : 100;
+      const apCost = isAttackAction ? getAttackApCost(unitPct) : AP_COSTS.move;
       if (apRemaining < apCost) { skipped++; continue; }
 
       if (isAttackAction && (source.action_cooldowns?.attack ?? 0) > currentTick) { skipped++; continue; }
       if (!isAttackAction && pm.actionType === "move" && (source.action_cooldowns?.move ?? 0) > currentTick) { skipped++; continue; }
 
-      const units = Math.min(pm.unitCount, available);
       committed.set(key, alreadySent + units);
       apRemaining -= apCost;
 

@@ -82,7 +82,7 @@ function CopyButton({ text }: { text: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Nie udalo sie skopiowac.");
+      toast.error("Nie udalo sie skopiowac.", { id: "developers-copy-button-error" });
     }
   };
 
@@ -130,7 +130,7 @@ function CreateKeyDialog({
 
   const handleSubmit = async () => {
     if (selectedScopes.length === 0) {
-      toast.error("Wybierz co najmniej jedno uprawnienie.");
+      toast.error("Wybierz co najmniej jedno uprawnienie.", { id: "developers-key-no-scope" });
       return;
     }
     try {
@@ -143,7 +143,7 @@ function CreateKeyDialog({
       setRateLimit(1000);
       onOpenChange(false);
     } catch {
-      toast.error("Nie udalo sie utworzyc klucza API.");
+      toast.error("Nie udalo sie utworzyc klucza API.", { id: "developers-key-create-error" });
     }
   };
 
@@ -240,7 +240,7 @@ function NewKeyAlert({ keyData, onDismiss }: NewKeyAlertProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Nie udalo sie skopiowac.");
+      toast.error("Nie udalo sie skopiowac.", { id: "developers-key-copy-error" });
     }
   };
 
@@ -295,7 +295,7 @@ function APIKeysTab({ appId }: APIKeysTabProps) {
 
   const handleCreated = (key: APIKeyCreated) => {
     setNewKey(key);
-    toast.success("Klucz API zostal utworzony.");
+    toast.success("Klucz API zostal utworzony.", { id: "developers-key-created" });
   };
 
   const handleDelete = async (keyId: string) => {
@@ -303,9 +303,9 @@ function APIKeysTab({ appId }: APIKeysTabProps) {
     setDeletingId(keyId);
     try {
       await deleteAPIKey.mutateAsync({ appId, keyId });
-      toast.success("Klucz API dezaktywowany.");
+      toast.success("Klucz API dezaktywowany.", { id: "developers-key-deleted" });
     } catch {
-      toast.error("Nie udalo sie usunac klucza API.");
+      toast.error("Nie udalo sie usunac klucza API.", { id: "developers-key-delete-error" });
     } finally {
       setDeletingId(null);
     }
@@ -454,11 +454,11 @@ function CreateWebhookDialog({
 
   const handleSubmit = async () => {
     if (!url.trim()) {
-      toast.error("Adres URL webhooka jest wymagany.");
+      toast.error("Adres URL webhooka jest wymagany.", { id: "developers-webhook-no-url" });
       return;
     }
     if (selectedEvents.length === 0) {
-      toast.error("Wybierz co najmniej jedno zdarzenie.");
+      toast.error("Wybierz co najmniej jedno zdarzenie.", { id: "developers-webhook-no-events" });
       return;
     }
     try {
@@ -466,12 +466,12 @@ function CreateWebhookDialog({
         appId,
         data: { url: url.trim(), events: selectedEvents },
       });
-      toast.success("Webhook utworzony.");
+      toast.success("Webhook utworzony.", { id: "developers-webhook-created" });
       setUrl("");
       setSelectedEvents([]);
       onOpenChange(false);
     } catch {
-      toast.error("Nie udalo sie utworzyc webhooka.");
+      toast.error("Nie udalo sie utworzyc webhooka.", { id: "developers-webhook-create-error" });
     }
   };
 
@@ -585,7 +585,7 @@ function EditWebhookDialog({
 
   const handleSubmit = async () => {
     if (!url.trim()) {
-      toast.error("Adres URL webhooka jest wymagany.");
+      toast.error("Adres URL webhooka jest wymagany.", { id: "developers-webhook-edit-no-url" });
       return;
     }
     try {
@@ -595,9 +595,9 @@ function EditWebhookDialog({
         data: { url: url.trim(), events: selectedEvents, is_active: isActive },
       });
       onOpenChange(false);
-      toast.success("Webhook zaktualizowany.");
+      toast.success("Webhook zaktualizowany.", { id: "developers-webhook-updated" });
     } catch {
-      toast.error("Nie udalo sie zaktualizowac webhooka.");
+      toast.error("Nie udalo sie zaktualizowac webhooka.", { id: "developers-webhook-update-error" });
     }
   };
 
@@ -721,15 +721,17 @@ function WebhookRow({
       const result = await testWebhookMutation.mutateAsync({ appId, webhookId: webhook.id });
       if (result.success) {
         toast.success(
-          `Test webhooka wyslany — HTTP ${result.status_code ?? "?"}: ${result.message}`
+          `Test webhooka wyslany — HTTP ${result.status_code ?? "?"}: ${result.message}`,
+          { id: `developers-webhook-test-success-${webhook.id}` }
         );
       } else {
         toast.error(
-          `Test webhooka nie powiodl sie — HTTP ${result.status_code ?? "?"}: ${result.message}`
+          `Test webhooka nie powiodl sie — HTTP ${result.status_code ?? "?"}: ${result.message}`,
+          { id: `developers-webhook-test-fail-${webhook.id}` }
         );
       }
     } catch {
-      toast.error("Nie udalo sie przetestowac webhooka.");
+      toast.error("Nie udalo sie przetestowac webhooka.", { id: `developers-webhook-test-error-${webhook.id}` });
     }
   };
 
@@ -737,9 +739,9 @@ function WebhookRow({
     if (!window.confirm("Czy na pewno chcesz usunac ten webhook?")) return;
     try {
       await deleteWebhookMutation.mutateAsync({ appId, webhookId: webhook.id });
-      toast.success("Webhook usuniety.");
+      toast.success("Webhook usuniety.", { id: "developers-webhook-deleted" });
     } catch {
-      toast.error("Nie udalo sie usunac webhooka.");
+      toast.error("Nie udalo sie usunac webhooka.", { id: "developers-webhook-delete-error" });
     }
   };
 
@@ -1120,7 +1122,7 @@ function EditAppDialog({
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      toast.error("Nazwa aplikacji jest wymagana.");
+      toast.error("Nazwa aplikacji jest wymagana.", { id: "developers-app-no-name" });
       return;
     }
     try {
@@ -1129,9 +1131,9 @@ function EditAppDialog({
         data: { name: name.trim(), description: description.trim() },
       });
       onOpenChange(false);
-      toast.success("Aplikacja zaktualizowana.");
+      toast.success("Aplikacja zaktualizowana.", { id: "developers-app-updated" });
     } catch {
-      toast.error("Nie udalo sie zaktualizowac aplikacji.");
+      toast.error("Nie udalo sie zaktualizowac aplikacji.", { id: "developers-app-update-error" });
     }
   };
 
@@ -1221,10 +1223,10 @@ export default function DeveloperAppDetailPage() {
       return;
     try {
       await deleteApp.mutateAsync(app.id);
-      toast.success("Aplikacja usunieta.");
+      toast.success("Aplikacja usunieta.", { id: "developers-app-deleted" });
       router.replace("/developers");
     } catch {
-      toast.error("Nie udalo sie usunac aplikacji.");
+      toast.error("Nie udalo sie usunac aplikacji.", { id: "developers-app-delete-error" });
     }
   };
 

@@ -61,30 +61,30 @@ function DecksContent() {
     if (!newDeckName.trim()) return;
     try {
       const deck = await createMutation.mutateAsync({ name: newDeckName.trim() });
-      toast.success("Talia utworzona");
+      toast.success("Talia utworzona", { id: "deck-create" });
       setNewDeckName("");
       setCreating(false);
       router.push(`/decks/${deck.id}`);
     } catch {
-      toast.error("Nie udało się utworzyć talii");
+      toast.error("Nie udało się utworzyć talii", { id: "deck-create-error" });
     }
   };
 
   const handleDelete = async (deckId: string) => {
     try {
       await deleteMutation.mutateAsync(deckId);
-      toast.success("Talia usunięta");
+      toast.success("Talia usunięta", { id: "deck-delete" });
     } catch {
-      toast.error("Nie udało się usunąć talii");
+      toast.error("Nie udało się usunąć talii", { id: "deck-delete-error" });
     }
   };
 
   const handleSetDefault = async (deckId: string) => {
     try {
       await setDefaultMutation.mutateAsync(deckId);
-      toast.success("Domyślna talia ustawiona");
+      toast.success("Domyślna talia ustawiona", { id: "deck-set-default" });
     } catch {
-      toast.error("Nie udało się ustawić domyślnej talii");
+      toast.error("Nie udało się ustawić domyślnej talii", { id: "deck-set-default-error" });
     }
   };
 

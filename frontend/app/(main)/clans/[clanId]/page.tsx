@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowDown,
   ArrowUp,
+  Calendar as CalendarIcon,
   Check,
   ChevronRight,
   Coins,
@@ -14,13 +15,16 @@ import {
   LogOut,
   MessageSquare,
   ScrollText,
+  Search,
   Send,
   Shield,
+  Star,
   Swords,
   Settings,
   Trash2,
   Trophy,
   UserMinus,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -29,6 +33,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -59,8 +66,14 @@ import {
   useClanJoinRequests,
   useAcceptJoinRequest,
   useDeclineJoinRequest,
+  useMyClan,
+  useInvitePlayer,
+  useFriends,
+  useDeclareWar,
+  useClans,
 } from "@/hooks/queries";
-import type { ClanMembershipOut } from "@/lib/api";
+import { APIError } from "@/lib/api";
+import type { ClanMembershipOut, ClanWarOut } from "@/lib/api";
 
 const ROLE_LABELS: Record<string, string> = {
   leader: "Lider",
@@ -94,16 +107,116 @@ type Tab = "members" | "wars" | "chat" | "activity" | "requests";
 
 const ROLE_RANK: Record<string, number> = { leader: 4, officer: 3, member: 2, recruit: 1 };
 
+const WAR_STATUS_LABELS: Record<string, string> = {
+  pending: "Oczekuje",
+  accepted: "Zaakceptowana",
+  in_progress: "W trakcie",
+  finished: "Zakończona",
+  declined: "Odrzucona",
+  cancelled: "Anulowana",
+};
+
+function WarStatusBadge({ status, won }: { status: string; won?: boolean }) {
+  if (status === "finished") {
+    return (
+      <Badge variant="outline" className={`rounded-full border-0 px-2.5 py-0.5 text-xs ${won ? "bg-green-500/15 text-green-400" : "bg-destructive/15 text-destructive"}`}>
+        {won ? "Wygrana" : "Przegrana"}
+      </Badge>
+    );
+  }
+  const colorMap: Record<string, string> = {
+    pending: "bg-yellow-500/15 text-yellow-400",
+    accepted: "bg-blue-500/15 text-blue-400",
+    in_progress: "bg-primary/15 text-primary",
+    declined: "bg-muted text-muted-foreground",
+    cancelled: "bg-muted text-muted-foreground",
+  };
+  return (
+    <Badge variant="outline" className={`rounded-full border-0 px-2.5 py-0.5 text-xs ${colorMap[status] ?? "bg-muted text-muted-foreground"}`}>
+      {WAR_STATUS_LABELS[status] ?? status}
+    </Badge>
+  );
+}
+
+function WarCard({ war, clanId }: { war: ClanWarOut; clanId: string }) {
+  const isChallenger = war.challenger.id === clanId;
+  const opponent = isChallenger ? war.defender : war.challenger;
+  const eloChange = isChallenger ? war.challenger_elo_change : war.defender_elo_change;
+  const won = war.winner_id === clanId;
+
+  return (
+    <Link
+      href={`/clans/wars/${war.id}`}
+      className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-border bg-card/50 hover:bg-muted/30 transition-colors"
+    >
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white" style={{ backgroundColor: opponent.color }}>
+        {opponent.tag}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground truncate">vs [{opponent.tag}] {opponent.name}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[10px] text-muted-foreground">{war.players_per_side}v{war.players_per_side}</span>
+          {war.wager_gold > 0 && (
+            <>
+              <span className="text-muted-foreground/40">·</span>
+              <span className="text-[10px] text-accent tabular-nums">{war.wager_gold.toLocaleString()}g</span>
+            </>
+          )}
+          {war.started_at && (
+            <>
+              <span className="text-muted-foreground/40">·</span>
+              <span className="text-[10px] text-muted-foreground">
+                {new Date(war.started_at).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <WarStatusBadge status={war.status} won={won} />
+        {war.status === "finished" && eloChange !== 0 && (
+          <span className={`text-xs font-semibold tabular-nums ${eloChange > 0 ? "text-green-400" : "text-destructive"}`}>
+            {eloChange > 0 ? "+" : ""}{eloChange}
+          </span>
+        )}
+        <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+      </div>
+    </Link>
+  );
+}
+
 export default function ClanDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const clanId = params.clanId as string;
 
+  const searchParams = useSearchParams();
+
   const [tab, setTab] = useState<Tab>("members");
   const [donateAmount, setDonateAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [chatMsg, setChatMsg] = useState("");
+  const [showInvitePanel, setShowInvitePanel] = useState(false);
+  const [showDeclareWar, setShowDeclareWar] = useState(false);
+  const [warTargetSearch, setWarTargetSearch] = useState("");
+  const [warTargetId, setWarTargetId] = useState("");
+  const [warTargetName, setWarTargetName] = useState("");
+  const [warWager, setWarWager] = useState("100");
+  const [warPlayers, setWarPlayers] = useState("3");
+  const [warScheduledAt, setWarScheduledAt] = useState("");
+
+  // Auto-open war form when redirected from another clan page
+  useEffect(() => {
+    const targetId = searchParams.get("war_target");
+    const targetName = searchParams.get("war_target_name");
+    if (targetId && targetName) {
+      setWarTargetId(targetId);
+      setWarTargetName(targetName);
+      setTab("wars");
+      setShowDeclareWar(true);
+    }
+  }, [searchParams]);
 
   const { data: clan, isLoading } = useClan(clanId);
   const { data: membersData } = useClanMembers(clanId, 100);
@@ -112,6 +225,9 @@ export default function ClanDetailPage() {
   const { data: activityData } = useClanActivityLog(clanId, 50);
   const { data: chatData, refetch: refetchChat } = useClanChat(clanId, 50);
   const { data: joinReqData } = useClanJoinRequests(clanId, 50);
+  const { data: myClanData } = useMyClan();
+  const { data: friendsData } = useFriends(100);
+  const { data: clanSearchData } = useClans(warTargetSearch.length >= 2 ? warTargetSearch : undefined, 10);
 
   const leaveMut = useLeaveClan();
   const kickMut = useKickMember();
@@ -125,6 +241,8 @@ export default function ClanDetailPage() {
   const dissolveMut = useDissolveClan();
   const acceptJrMut = useAcceptJoinRequest();
   const declineJrMut = useDeclineJoinRequest();
+  const inviteMut = useInvitePlayer();
+  const declareWarMut = useDeclareWar();
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -165,6 +283,18 @@ export default function ClanDetailPage() {
   const chatMessages = chatData?.items ?? [];
   const joinRequests = joinReqData?.items ?? [];
   const myRank = myM ? ROLE_RANK[myM.role] ?? 0 : 0;
+  const isInAnyClan = !!myClanData?.clan;
+  const myOwnClanId = myClanData?.clan?.id;
+  const isOfficerInOwnClan = myClanData?.membership?.role === "officer" || myClanData?.membership?.role === "leader";
+  const canDeclareWar = !isMember && isOfficerInOwnClan && myOwnClanId && myOwnClanId !== clanId;
+
+  // Friends not already in any clan (clan_tag === null means no clan)
+  const allFriends = friendsData?.items ?? [];
+  const memberUserIds = new Set(members.map((m) => m.user.id));
+  const invitableFriends = allFriends.filter((f) => {
+    const friend = f.from_user.id === user?.id ? f.to_user : f.from_user;
+    return !friend.clan_tag && !memberUserIds.has(friend.id);
+  });
 
   function canManage(target: ClanMembershipOut) {
     return myRank > (ROLE_RANK[target.role] ?? 0);
@@ -174,8 +304,8 @@ export default function ClanDetailPage() {
     const amount = parseInt(donateAmount);
     if (!amount || amount < 1) return;
     donateMut.mutate({ clanId, amount }, {
-      onSuccess: () => { toast.success(`Wpłacono ${amount} złota`); setDonateAmount(""); },
-      onError: () => toast.error("Nie udało się wpłacić"),
+      onSuccess: () => { toast.success(`Wpłacono ${amount} złota`, { id: "clan-donate" }); setDonateAmount(""); },
+      onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wpłacić", { id: "clan-donate-error" }),
     });
   };
 
@@ -183,8 +313,8 @@ export default function ClanDetailPage() {
     const amount = parseInt(withdrawAmount);
     if (!amount || amount < 1) return;
     withdrawMut.mutate({ clanId, amount }, {
-      onSuccess: () => { toast.success(`Wypłacono ${amount} złota`); setWithdrawAmount(""); },
-      onError: () => toast.error("Nie udało się wypłacić"),
+      onSuccess: () => { toast.success(`Wypłacono ${amount} złota`, { id: "clan-withdraw" }); setWithdrawAmount(""); },
+      onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wypłacić", { id: "clan-withdraw-error" }),
     });
   };
 
@@ -192,7 +322,7 @@ export default function ClanDetailPage() {
     if (!chatMsg.trim()) return;
     chatMut.mutate({ clanId, content: chatMsg.trim() }, {
       onSuccess: () => { setChatMsg(""); refetchChat(); },
-      onError: () => toast.error("Nie udało się wysłać"),
+      onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wysłać", { id: "clan-chat-error" }),
     });
   };
 
@@ -230,39 +360,69 @@ export default function ClanDetailPage() {
         </div>
         <div className="flex gap-1.5 md:gap-2 shrink-0 pt-1">
           {!isMember && clan.is_recruiting && (
+            isInAnyClan ? (
+              <span className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                Musisz opuścić obecny klan
+              </span>
+            ) : (
+              <Button
+                disabled={joinMut.isPending}
+                className="gap-2 h-9 md:h-10 md:px-5 md:text-sm"
+                onClick={() => joinMut.mutate({ clanId }, {
+                  onSuccess: (res) => {
+                    if (res.joined) { toast.success("Dołączono!", { id: "clan-join" }); router.refresh(); }
+                    else toast.success(res.message || "Wysłano prośbę", { id: "clan-join" });
+                  },
+                  onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się dołączyć", { id: "clan-join-error" }),
+                })}
+              >
+                {joinMut.isPending && <Loader2 size={14} className="animate-spin" />}
+                {clan.is_public ? "Dołącz" : "Poproś"}
+              </Button>
+            )
+          )}
+          {canDeclareWar && (
             <Button
-              size="sm"
-              disabled={joinMut.isPending}
-              className="gap-1.5 md:h-10 md:px-5 md:text-base"
-              onClick={() => joinMut.mutate({ clanId }, {
-                onSuccess: (res) => {
-                  if (res.joined) { toast.success("Dołączono!"); router.refresh(); }
-                  else toast.success(res.message || "Wysłano prośbę");
-                },
-                onError: () => toast.error("Nie udało się dołączyć"),
-              })}
+              variant="destructive"
+              className="gap-2 h-9 md:h-10 md:px-5 md:text-sm"
+              onClick={() => {
+                router.push(`/clans/${myOwnClanId}?war_target=${clanId}&war_target_name=${encodeURIComponent(`[${clan.tag}] ${clan.name}`)}`);
+              }}
             >
-              {joinMut.isPending && <Loader2 size={14} className="animate-spin" />}
-              {clan.is_public ? "Dołącz" : "Poproś"}
+              <Swords size={16} />
+              <span className="hidden md:inline">Wypowiedz wojnę</span>
             </Button>
           )}
           {isOfficer && (
-            <Link href={`/clans/${clanId}/settings`}>
-              <Button size="sm" variant="ghost" className="gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted">
-                <Settings size={16} />
-                <span className="hidden md:inline">Ustawienia</span>
+            <>
+              <Button
+                className="gap-2 h-9 md:h-10 md:px-5 md:text-sm"
+                onClick={() => setShowInvitePanel((v) => !v)}
+              >
+                <UserPlus size={16} />
+                <span className="hidden md:inline">Zaproś</span>
+                {invitableFriends.length > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-foreground/20 text-[10px] font-bold tabular-nums">
+                    {invitableFriends.length}
+                  </span>
+                )}
               </Button>
-            </Link>
+              <Link href={`/clans/${clanId}/settings`}>
+                <Button variant="outline" className="gap-2 h-9 md:h-10 md:px-5 md:text-sm">
+                  <Settings size={16} />
+                  <span className="hidden md:inline">Ustawienia</span>
+                </Button>
+              </Link>
+            </>
           )}
           {isMember && !isLeader && (
             <Button
-              size="sm"
-              variant="ghost"
+              variant="outline"
               disabled={leaveMut.isPending}
-              className="gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              className="gap-2 h-9 md:h-10 md:px-5 md:text-sm text-muted-foreground hover:text-destructive hover:border-destructive/30"
               onClick={() => leaveMut.mutate(clanId, {
-                onSuccess: () => { toast.success("Opuszczono klan"); router.push("/clans"); },
-                onError: () => toast.error("Błąd"),
+                onSuccess: () => { toast.success("Opuszczono klan", { id: "clan-leave" }); router.push("/clans"); },
+                onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się opuścić klanu", { id: "clan-leave-error" }),
               })}
             >
               <LogOut size={16} />
@@ -271,15 +431,14 @@ export default function ClanDetailPage() {
           )}
           {isLeader && (
             <Button
-              size="sm"
-              variant="ghost"
+              variant="outline"
               disabled={dissolveMut.isPending}
-              className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+              className="gap-2 h-9 md:h-10 md:px-5 md:text-sm text-destructive hover:text-destructive hover:border-destructive/30 hover:bg-destructive/10"
               onClick={() => {
                 if (confirm("Na pewno chcesz rozwiązać klan?")) {
                   dissolveMut.mutate(clanId, {
-                    onSuccess: () => { toast.success("Klan rozwiązany"); router.push("/clans"); },
-                    onError: () => toast.error("Błąd"),
+                    onSuccess: () => { toast.success("Klan rozwiązany", { id: "clan-dissolve" }); router.push("/clans"); },
+                    onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się rozwiązać klanu", { id: "clan-dissolve-error" }),
                   });
                 }
               }}
@@ -291,11 +450,96 @@ export default function ClanDetailPage() {
         </div>
       </div>
 
+      {/* Clan Level Progress */}
+      {(() => {
+        const lvl = clan.level ?? 1;
+        const xp = clan.experience ?? 0;
+        // Thresholds from ClanLevel seed migration
+        const thresholds: Record<number, number> = {1:0,2:100,3:250,4:500,5:1000,6:2000,7:4000,8:8000,9:16000,10:32000,11:48000,12:72000,13:108000,14:162000,15:243000,16:364500,17:546750,18:820125,19:1230187,20:1845280};
+        const xpCurrent = thresholds[lvl] ?? 0;
+        const xpNext = thresholds[lvl + 1] ?? xpCurrent + 10000;
+        const xpInLevel = Math.max(0, xp - xpCurrent);
+        const xpNeeded = xpNext - xpCurrent;
+        const pct = Math.min(100, xpNeeded > 0 ? Math.round((xpInLevel / xpNeeded) * 100) : 100);
+        return (
+          <div className="px-4 md:px-0">
+            <div className="flex items-center gap-3 rounded-2xl border border-border bg-card/50 px-4 py-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-violet-500/20 bg-violet-500/10">
+                <Star className="h-3.5 w-3.5 text-violet-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-foreground">Poziom {lvl}</span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">{xpInLevel.toLocaleString()} / {xpNeeded.toLocaleString()} XP do lvl {lvl + 1}</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-700" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+              <span className="text-[10px] text-muted-foreground shrink-0">{pct}%</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Description */}
       {clan.description && (
         <div className="px-4 md:px-0">
           <p className="text-sm md:text-base text-muted-foreground">{clan.description}</p>
         </div>
+      )}
+
+      {/* ── Invite Panel (shows when button clicked) ── */}
+      {isOfficer && showInvitePanel && (
+        <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4 md:p-6 mx-4 md:mx-0">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/30 bg-primary/10">
+              <UserPlus className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Zaproś znajomych</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{invitableFriends.length} znajomych bez klanu</p>
+            </div>
+          </div>
+          {invitableFriends.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border py-6 text-center">
+              <UserPlus size={24} className="text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Brak znajomych do zaproszenia. Znajomi muszą być bez klanu.</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
+              {invitableFriends.map((f) => {
+                const friend = f.from_user.id === user?.id ? f.to_user : f.from_user;
+                const isPending = inviteMut.isPending && inviteMut.variables?.userId === friend.id;
+                return (
+                  <div key={f.id} className="flex items-center gap-3 px-4 md:px-6 py-3 md:py-4 bg-card/50">
+                    <div className="flex h-9 w-9 md:h-10 md:w-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm md:text-base font-bold uppercase text-foreground">
+                      {friend.username.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm md:text-base font-semibold text-foreground truncate">{friend.username}</p>
+                      <p className="text-xs md:text-sm text-muted-foreground">ELO: <span className="text-accent tabular-nums">{friend.elo_rating}</span></p>
+                    </div>
+                    <Button
+                      disabled={isPending}
+                      className="shrink-0 gap-2 h-9 md:h-10 md:px-5 md:text-sm"
+                      onClick={() => inviteMut.mutate(
+                        { clanId, userId: friend.id },
+                        {
+                          onSuccess: () => toast.success(`Zaproszono ${friend.username}`, { id: "clan-invite" }),
+                          onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się zaprosić", { id: "clan-invite-error" }),
+                        }
+                      )}
+                    >
+                      {isPending ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
+                      Zaproś
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       )}
 
       {/* ── Stats ── */}
@@ -327,59 +571,93 @@ export default function ClanDetailPage() {
         </div>
       )}
 
-      {/* ── Treasury (members) ── */}
-      {isMember && (
-        <div className="px-4 md:px-0">
-          {/* Mobile */}
-          <div className="md:hidden">
-            <div className="flex items-center gap-2.5 mb-2">
-              <Coins className="h-5 w-5 text-accent" />
-              <span className="font-display text-xl tabular-nums text-accent">{clan.treasury_gold}</span>
-              <span className="text-xs text-muted-foreground">złota w skarbcu</span>
-              {clan.tax_percent > 0 && <span className="ml-auto text-[10px] text-muted-foreground">Podatek {clan.tax_percent}%</span>}
-            </div>
-            <div className="flex gap-2">
-              <Input type="number" placeholder="Kwota" value={donateAmount} onChange={(e) => setDonateAmount(e.target.value)} className="w-24 h-9 text-sm" min={1} />
-              <button onClick={handleDonate} disabled={donateMut.isPending} className="shrink-0 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors active:scale-[0.97]">Wpłać</button>
-              {isOfficer && (
-                <>
-                  <Input type="number" placeholder="Kwota" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-24 h-9 text-sm" min={1} />
-                  <button onClick={handleWithdraw} disabled={withdrawMut.isPending} className="shrink-0 rounded-xl border border-border bg-secondary/60 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 transition-colors active:scale-[0.97]">Wypłać</button>
-                </>
+      {/* ── Treasury Vault (Revolut-style) ── */}
+      {isMember && (() => {
+        const contributors = (members ?? [])
+          .filter((m) => m.contributions_gold > 0)
+          .sort((a, b) => b.contributions_gold - a.contributions_gold);
+        const totalContributed = contributors.reduce((sum, m) => sum + m.contributions_gold, 0);
+
+        return (
+          <section className="rounded-2xl border border-border bg-card/50 mx-4 md:mx-0 overflow-hidden">
+            {/* Hero amount */}
+            <div className="flex flex-col items-center py-6 md:py-8 px-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 mb-3">
+                <Coins className="h-6 w-6 text-accent" />
+              </div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium mb-1">Skarbiec klanu</p>
+              <p className="font-display text-4xl md:text-5xl tabular-nums text-accent">{clan.treasury_gold.toLocaleString()}</p>
+              <p className="text-sm text-muted-foreground mt-1">złota</p>
+              {clan.tax_percent > 0 && (
+                <p className="text-xs text-muted-foreground/60 mt-2">Podatek od transakcji: {clan.tax_percent}%</p>
               )}
             </div>
-          </div>
-          {/* Desktop */}
-          <Card className="hidden md:block rounded-2xl">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <Coins className="h-6 w-6 text-accent" />
-                  <span className="font-mono tabular-nums text-2xl font-semibold text-accent">{clan.treasury_gold}</span>
-                  <span className="text-base text-muted-foreground">złota</span>
-                </div>
-                {clan.tax_percent > 0 && <span className="text-base text-muted-foreground">Podatek: {clan.tax_percent}%</span>}
-              </div>
-              <div className="flex gap-3">
-                <Input type="number" placeholder="Kwota" value={donateAmount} onChange={(e) => setDonateAmount(e.target.value)} className="w-32 h-12 text-base" min={1} />
-                <Button size="lg" onClick={handleDonate} disabled={donateMut.isPending} className="h-12 px-6 text-base gap-2">
+
+            {/* Deposit bar */}
+            <div className="border-t border-border px-4 md:px-6 py-4">
+              <div className="flex items-center gap-3 max-w-md mx-auto">
+                <Input
+                  type="number"
+                  placeholder="Kwota"
+                  value={donateAmount}
+                  onChange={(e) => setDonateAmount(e.target.value)}
+                  className="flex-1 h-11 md:h-12 text-base text-center font-mono"
+                  min={1}
+                />
+                <Button
+                  onClick={handleDonate}
+                  disabled={donateMut.isPending || !donateAmount}
+                  className="h-11 md:h-12 px-6 md:px-8 text-base gap-2 shrink-0"
+                >
                   {donateMut.isPending && <Loader2 size={18} className="animate-spin" />}
                   Wpłać
                 </Button>
-                {isOfficer && (
-                  <>
-                    <Input type="number" placeholder="Kwota" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-32 h-12 text-base" min={1} />
-                    <Button size="lg" variant="outline" onClick={handleWithdraw} disabled={withdrawMut.isPending} className="h-12 px-6 text-base gap-2">
-                      {withdrawMut.isPending && <Loader2 size={18} className="animate-spin" />}
-                      Wypłać
-                    </Button>
-                  </>
-                )}
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            </div>
+
+            {/* Contributors list */}
+            {contributors.length > 0 && (
+              <div className="border-t border-border">
+                <div className="px-4 md:px-6 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">
+                    Wpłaty ({contributors.length})
+                  </p>
+                </div>
+                <div className="divide-y divide-border">
+                  {contributors.map((m, idx) => {
+                    const pct = totalContributed > 0 ? (m.contributions_gold / totalContributed) * 100 : 0;
+                    const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : null;
+                    return (
+                      <div key={m.id} className="flex items-center gap-3 px-4 md:px-6 py-3 relative overflow-hidden">
+                        {/* Background progress bar */}
+                        <div
+                          className="absolute inset-y-0 left-0 bg-accent/[0.04]"
+                          style={{ width: `${pct}%` }}
+                        />
+                        <div className="relative flex items-center gap-3 flex-1 min-w-0">
+                          {medal ? (
+                            <span className="text-lg w-7 text-center shrink-0">{medal}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50 w-7 text-center tabular-nums shrink-0">{idx + 1}</span>
+                          )}
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-bold uppercase text-foreground">
+                            {m.user.username.charAt(0)}
+                          </div>
+                          <p className="text-sm font-medium text-foreground truncate">{m.user.username}</p>
+                        </div>
+                        <div className="relative flex items-center gap-2 shrink-0">
+                          <span className="font-mono text-sm tabular-nums text-accent font-semibold">{m.contributions_gold.toLocaleString()}</span>
+                          <span className="text-[10px] text-muted-foreground/60 tabular-nums w-10 text-right">{pct.toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {/* ── Tabs ── */}
       <div className="px-4 md:px-0">
@@ -449,12 +727,12 @@ export default function ClanDetailPage() {
                 {isMember && canManage(m) && m.user.id !== user?.id && (
                   <div className="flex items-center gap-0.5 shrink-0">
                     {m.role !== "officer" && m.role !== "leader" && (
-                      <button onClick={() => promoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Awansowano"), onError: () => toast.error("Błąd") })} disabled={promoteMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors" title="Awansuj"><ArrowUp size={14} /></button>
+                      <button onClick={() => promoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Awansowano", { id: "clan-promote" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się awansować", { id: "clan-promote-error" }) })} disabled={promoteMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors" title="Awansuj"><ArrowUp size={14} /></button>
                     )}
                     {m.role !== "recruit" && m.role !== "leader" && (
-                      <button onClick={() => demoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Zdegradowano"), onError: () => toast.error("Błąd") })} disabled={demoteMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 transition-colors" title="Degraduj"><ArrowDown size={14} /></button>
+                      <button onClick={() => demoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Zdegradowano", { id: "clan-demote" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się zdegradować", { id: "clan-demote-error" }) })} disabled={demoteMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 transition-colors" title="Degraduj"><ArrowDown size={14} /></button>
                     )}
-                    <button onClick={() => kickMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Wyrzucono"), onError: () => toast.error("Błąd") })} disabled={kickMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors" title="Wyrzuć"><UserMinus size={14} /></button>
+                    <button onClick={() => kickMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Wyrzucono", { id: "clan-kick" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wyrzucić", { id: "clan-kick-error" }) })} disabled={kickMut.isPending} className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors" title="Wyrzuć"><UserMinus size={14} /></button>
                   </div>
                 )}
               </div>
@@ -501,14 +779,14 @@ export default function ClanDetailPage() {
                         {canManage(m) && m.user.id !== user?.id && (
                           <div className="flex items-center justify-end gap-1">
                             {m.role !== "officer" && m.role !== "leader" && (
-                              <Button variant="ghost" size="sm" onClick={() => promoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Awansowano"), onError: () => toast.error("Błąd") })} disabled={promoteMut.isPending} className="text-green-400 hover:text-green-400 hover:bg-green-400/10"><ArrowUp size={16} /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => promoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Awansowano", { id: "clan-promote" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się awansować", { id: "clan-promote-error" }) })} disabled={promoteMut.isPending} className="text-green-400 hover:text-green-400 hover:bg-green-400/10"><ArrowUp size={16} /></Button>
                             )}
                             {m.role !== "recruit" && m.role !== "leader" && (
-                              <Button variant="ghost" size="sm" onClick={() => demoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Zdegradowano"), onError: () => toast.error("Błąd") })} disabled={demoteMut.isPending}><ArrowDown size={16} /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => demoteMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Zdegradowano", { id: "clan-demote" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się zdegradować", { id: "clan-demote-error" }) })} disabled={demoteMut.isPending}><ArrowDown size={16} /></Button>
                             )}
-                            <Button variant="ghost" size="sm" onClick={() => kickMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Wyrzucono"), onError: () => toast.error("Błąd") })} disabled={kickMut.isPending} className="text-destructive hover:text-destructive hover:bg-destructive/10"><UserMinus size={16} /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => kickMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Wyrzucono", { id: "clan-kick" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wyrzucić", { id: "clan-kick-error" }) })} disabled={kickMut.isPending} className="text-destructive hover:text-destructive hover:bg-destructive/10"><UserMinus size={16} /></Button>
                             {isLeader && (
-                              <Button variant="ghost" size="sm" onClick={() => { if (confirm(`Przekazać lidera do ${m.user.username}?`)) transferMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Lider przekazany"), onError: () => toast.error("Błąd") }); }} className="text-[#FFD700] hover:text-[#FFD700] hover:bg-[#FFD700]/10"><Crown size={16} /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => { if (confirm(`Przekazać lidera do ${m.user.username}?`)) transferMut.mutate({ clanId, userId: m.user.id }, { onSuccess: () => toast.success("Lider przekazany", { id: "clan-transfer" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się przekazać lidera", { id: "clan-transfer-error" }) }); }} className="text-[#FFD700] hover:text-[#FFD700] hover:bg-[#FFD700]/10"><Crown size={16} /></Button>
                             )}
                           </div>
                         )}
@@ -519,88 +797,214 @@ export default function ClanDetailPage() {
               </TableBody>
             </Table>
           </Card>
+
+          {/* Invite panel moved to top of page */}
         </div>
       )}
 
       {/* ── Wars ── */}
       {tab === "wars" && (
-        <div className="px-4 md:px-0">
+        <div className="px-4 md:px-0 space-y-3">
+
+          {/* Declare War button + form */}
+          {(isOfficer || canDeclareWar) && (
+            <>
+              <div className="flex justify-end">
+                <Button
+                  variant={showDeclareWar ? "outline" : "destructive"}
+                  className="gap-2 h-10 md:h-12 md:text-base md:px-6"
+                  onClick={() => setShowDeclareWar((v) => !v)}
+                >
+                  <Swords size={16} />
+                  {showDeclareWar ? "Anuluj" : "Wypowiedz wojnę"}
+                </Button>
+              </div>
+
+              {showDeclareWar && (
+                <section className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 md:p-6">
+                  <div className="mb-5 flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10">
+                      <Swords className="h-4 w-4 text-destructive" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Wypowiedz wojnę</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Stawka zostanie pobrana ze skarbca klanu</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-5">
+                    {/* Target clan search */}
+                    <div className="space-y-2">
+                      <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">Klan przeciwnika</label>
+                      <div className="relative">
+                        <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                          <Search className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <Input
+                          placeholder="Szukaj klanu..."
+                          value={warTargetId ? warTargetName : warTargetSearch}
+                          onChange={(e) => {
+                            setWarTargetId("");
+                            setWarTargetName("");
+                            setWarTargetSearch(e.target.value);
+                          }}
+                          className="pl-10 h-10 md:h-12 md:text-base"
+                        />
+                        {!warTargetId && warTargetSearch.length >= 2 && (
+                          <div className="absolute z-10 mt-1 w-full rounded-xl border border-border bg-card shadow-lg overflow-hidden max-h-60 overflow-y-auto">
+                            {(clanSearchData?.items ?? []).filter((c) => c.id !== clanId).length === 0 ? (
+                              <div className="px-4 py-4 text-sm text-muted-foreground text-center">Brak wyników</div>
+                            ) : (
+                              (clanSearchData?.items ?? []).filter((c) => c.id !== clanId).map((c) => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => { setWarTargetId(c.id); setWarTargetName(`[${c.tag}] ${c.name}`); setWarTargetSearch(""); }}
+                                  className="flex w-full items-center gap-3 px-4 py-3 md:py-4 text-left hover:bg-muted transition-colors"
+                                >
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white" style={{ backgroundColor: c.color }}>{c.tag}</div>
+                                  <div>
+                                    <p className="text-sm md:text-base font-semibold text-foreground">{c.name}</p>
+                                    <p className="text-xs text-muted-foreground">{c.member_count} członków · {c.elo_rating} ELO</p>
+                                  </div>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {warTargetId && (
+                      <div className="flex items-center gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
+                        <Swords className="h-4 w-4 text-accent shrink-0" />
+                        <span className="text-sm md:text-base text-foreground font-semibold">{warTargetName}</span>
+                        <button onClick={() => { setWarTargetId(""); setWarTargetName(""); }} className="ml-auto text-muted-foreground hover:text-foreground transition-colors">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="space-y-2">
+                        <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">Stawka (złoto)</label>
+                        <Input
+                          type="number"
+                          min={100}
+                          placeholder="min. 100"
+                          value={warWager}
+                          onChange={(e) => setWarWager(e.target.value)}
+                          className="h-10 md:h-12 md:text-base font-mono"
+                        />
+                        <p className="text-[10px] text-muted-foreground">Minimalna stawka: 100 złota. Wygrana = pula obu klanów.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">Graczy na stronę</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={5}
+                          value={warPlayers}
+                          onChange={(e) => setWarPlayers(e.target.value)}
+                          className="h-10 md:h-12 md:text-base font-mono"
+                        />
+                        <p className="text-[10px] text-muted-foreground">Od 1 do 5 graczy na stronę (np. 3v3).</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">Zaplanowana data (opcjonalnie)</label>
+                      <Popover>
+                        <PopoverTrigger
+                          className={cn(
+                            "flex w-full items-center justify-start gap-2 rounded-md border border-input bg-background px-3 text-left font-normal h-10 md:h-12 md:text-base transition-colors hover:bg-muted",
+                            !warScheduledAt && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="h-4 w-4 shrink-0" />
+                          {warScheduledAt ? new Date(warScheduledAt).toLocaleString("pl-PL", { dateStyle: "medium", timeStyle: "short" }) : "Wybierz datę i godzinę..."}
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={warScheduledAt ? new Date(warScheduledAt) : undefined}
+                            onSelect={(date) => {
+                              if (!date) { setWarScheduledAt(""); return; }
+                              const prev = warScheduledAt ? new Date(warScheduledAt) : new Date();
+                              date.setHours(prev.getHours(), prev.getMinutes());
+                              setWarScheduledAt(date.toISOString());
+                            }}
+                          />
+                          <div className="border-t border-border px-4 py-3 flex items-center gap-2">
+                            <label className="text-xs text-muted-foreground shrink-0">Godzina:</label>
+                            <Input
+                              type="time"
+                              className="h-9 w-28 text-sm"
+                              value={warScheduledAt ? `${String(new Date(warScheduledAt).getHours()).padStart(2,"0")}:${String(new Date(warScheduledAt).getMinutes()).padStart(2,"0")}` : ""}
+                              onChange={(e) => {
+                                const [h, m] = e.target.value.split(":").map(Number);
+                                const d = warScheduledAt ? new Date(warScheduledAt) : new Date();
+                                d.setHours(h, m);
+                                setWarScheduledAt(d.toISOString());
+                              }}
+                            />
+                            {warScheduledAt && (
+                              <Button variant="ghost" size="sm" className="ml-auto text-xs text-muted-foreground" onClick={() => setWarScheduledAt("")}>
+                                Wyczyść
+                              </Button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <p className="text-[10px] text-muted-foreground">Zostaw puste aby rozpocząć wojnę od razu po akceptacji.</p>
+                    </div>
+
+                    <Button
+                      variant="destructive"
+                      className="w-full md:w-auto h-10 md:h-12 md:text-base md:px-10 gap-2"
+                      disabled={!warTargetId || declareWarMut.isPending}
+                      onClick={() => {
+                        const wager = parseInt(warWager);
+                        const players = parseInt(warPlayers);
+                        if (!warTargetId || isNaN(wager) || wager < 100 || isNaN(players) || players < 1 || players > 5) return;
+                        const attackerClanId = canDeclareWar ? myOwnClanId! : clanId;
+                        declareWarMut.mutate(
+                          { clanId: attackerClanId, targetId: warTargetId, data: { wager_gold: wager, players_per_side: players, ...(warScheduledAt ? { scheduled_at: new Date(warScheduledAt).toISOString() } : {}) } },
+                          {
+                            onSuccess: () => {
+                              toast.success("Wypowiedziano wojnę!", { id: "war-declare" });
+                              setShowDeclareWar(false);
+                              setWarTargetId(""); setWarTargetName(""); setWarTargetSearch(""); setWarWager("100"); setWarPlayers("3"); setWarScheduledAt("");
+                            },
+                            onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się wypowiedzieć wojny", { id: "war-declare-error" }),
+                          }
+                        );
+                      }}
+                    >
+                      {declareWarMut.isPending && <Loader2 size={14} className="animate-spin" />}
+                      Wypowiedz wojnę
+                    </Button>
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+
+          {/* War list */}
           {wars.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-14 text-center">
               <Swords size={32} className="text-muted-foreground/40" />
               <p className="text-sm text-muted-foreground">Brak wojen.</p>
             </div>
           ) : (
-            <>
-              <div className="animate-list-in md:hidden space-y-0.5">
-                {wars.map((war) => {
-                  const isChallenger = war.challenger.id === clanId;
-                  const opponent = isChallenger ? war.defender : war.challenger;
-                  const eloChange = isChallenger ? war.challenger_elo_change : war.defender_elo_change;
-                  const won = war.winner_id === clanId;
-                  return (
-                    <div key={war.id} className="flex items-center gap-3 rounded-xl py-3 px-1 hover-lift">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-[9px] font-bold text-white" style={{ backgroundColor: opponent.color }}>{opponent.tag}</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">vs [{opponent.tag}] {opponent.name}</p>
-                        <span className="text-xs text-muted-foreground">{war.players_per_side}v{war.players_per_side}</span>
-                      </div>
-                      {war.status === "finished" ? (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <Badge variant="outline" className={`rounded-full border-0 px-2 py-px text-[10px] ${won ? "bg-green-500/15 text-green-400" : "bg-destructive/15 text-destructive"}`}>{won ? "W" : "L"}</Badge>
-                          {eloChange !== 0 && <span className={`text-xs font-semibold tabular-nums ${eloChange > 0 ? "text-green-400" : "text-destructive"}`}>{eloChange > 0 ? "+" : ""}{eloChange}</span>}
-                        </div>
-                      ) : (
-                        <Badge variant="outline" className="shrink-0 rounded-full border-0 px-2 py-px text-[10px] bg-muted text-muted-foreground">{war.status === "pending" ? "Oczekuje" : war.status === "accepted" ? "Zaakceptowana" : war.status === "in_progress" ? "W trakcie" : war.status}</Badge>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <Card className="hidden md:block rounded-2xl overflow-hidden">
-                <Table className="text-base">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="h-14 pl-6 text-sm font-semibold">Przeciwnik</TableHead>
-                      <TableHead className="h-14 text-sm font-semibold text-center">Format</TableHead>
-                      <TableHead className="h-14 text-sm font-semibold text-center">Status</TableHead>
-                      <TableHead className="h-14 pr-6 text-sm font-semibold text-right">ELO</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="animate-list-in">
-                    {wars.map((war) => {
-                      const isChallenger = war.challenger.id === clanId;
-                      const opponent = isChallenger ? war.defender : war.challenger;
-                      const eloChange = isChallenger ? war.challenger_elo_change : war.defender_elo_change;
-                      const won = war.winner_id === clanId;
-                      return (
-                        <TableRow key={war.id} className="hover:bg-muted/50 hover-lift">
-                          <TableCell className="pl-6 py-3.5">
-                            <Link href={`/clans/${opponent.id}`} className="flex items-center gap-3 group">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white" style={{ backgroundColor: opponent.color }}>{opponent.tag}</div>
-                              <span className="text-base font-semibold text-foreground group-hover:text-primary transition-colors">[{opponent.tag}] {opponent.name}</span>
-                            </Link>
-                          </TableCell>
-                          <TableCell className="py-3.5 text-center text-base text-foreground">{war.players_per_side}v{war.players_per_side}</TableCell>
-                          <TableCell className="py-3.5 text-center">
-                            {war.status === "finished" ? (
-                              <Badge variant="outline" className={`rounded-full border-0 px-3 py-1 text-sm ${won ? "bg-green-500/15 text-green-400 hover:bg-green-500/15" : "bg-destructive/15 text-destructive hover:bg-destructive/15"}`}>{won ? "Wygrana" : "Przegrana"}</Badge>
-                            ) : (
-                              <Badge variant="outline" className="rounded-full border-0 px-3 py-1 text-sm bg-muted text-muted-foreground hover:bg-muted">{war.status === "pending" ? "Oczekuje" : war.status === "accepted" ? "Zaakceptowana" : war.status === "in_progress" ? "W trakcie" : war.status}</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-3.5 pr-6 text-right">
-                            {war.status === "finished" && eloChange !== 0 && (
-                              <span className={`font-display text-xl tabular-nums ${eloChange > 0 ? "text-green-400" : "text-destructive"}`}>{eloChange > 0 ? "+" : ""}{eloChange}</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Card>
-            </>
+            <div className="animate-list-in space-y-2">
+              {wars.map((war) => (
+                <WarCard
+                  key={war.id}
+                  war={war}
+                  clanId={clanId}
+                />
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -702,8 +1106,8 @@ export default function ClanDetailPage() {
                         <p className="text-xs text-muted-foreground">ELO: <span className="text-accent tabular-nums">{jr.user.elo_rating}</span>{jr.message && ` — "${jr.message}"`}</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <button disabled={busy} onClick={() => acceptJrMut.mutate(jr.id, { onSuccess: () => toast.success("Przyjęto"), onError: () => toast.error("Błąd") })} className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors"><Check size={14} /></button>
-                        <button disabled={busy} onClick={() => declineJrMut.mutate(jr.id, { onSuccess: () => toast.success("Odrzucono"), onError: () => toast.error("Błąd") })} className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors"><X size={14} /></button>
+                        <button disabled={busy} onClick={() => acceptJrMut.mutate(jr.id, { onSuccess: () => toast.success("Przyjęto", { id: "clan-accept-jr" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się przyjąć", { id: "clan-accept-jr-error" }) })} className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors"><Check size={14} /></button>
+                        <button disabled={busy} onClick={() => declineJrMut.mutate(jr.id, { onSuccess: () => toast.success("Odrzucono", { id: "clan-decline-jr" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić", { id: "clan-decline-jr-error" }) })} className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors"><X size={14} /></button>
                       </div>
                     </div>
                   );
@@ -722,11 +1126,11 @@ export default function ClanDetailPage() {
                           <p className="text-sm text-muted-foreground">ELO: <span className="text-accent tabular-nums">{jr.user.elo_rating}</span>{jr.message && ` — "${jr.message}"`}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <Button variant="ghost" disabled={busy} onClick={() => acceptJrMut.mutate(jr.id, { onSuccess: () => toast.success("Przyjęto"), onError: () => toast.error("Błąd") })} className="gap-2 text-base text-green-400 hover:text-green-400 hover:bg-green-400/10">
+                          <Button variant="ghost" disabled={busy} onClick={() => acceptJrMut.mutate(jr.id, { onSuccess: () => toast.success("Przyjęto", { id: "clan-accept-jr" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się przyjąć", { id: "clan-accept-jr-error" }) })} className="gap-2 text-base text-green-400 hover:text-green-400 hover:bg-green-400/10">
                             {busy && acceptJrMut.variables === jr.id ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                             Przyjmij
                           </Button>
-                          <Button variant="ghost" disabled={busy} onClick={() => declineJrMut.mutate(jr.id, { onSuccess: () => toast.success("Odrzucono"), onError: () => toast.error("Błąd") })} className="gap-2 text-base text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <Button variant="ghost" disabled={busy} onClick={() => declineJrMut.mutate(jr.id, { onSuccess: () => toast.success("Odrzucono", { id: "clan-decline-jr" }), onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić", { id: "clan-decline-jr-error" }) })} className="gap-2 text-base text-destructive hover:text-destructive hover:bg-destructive/10">
                             {busy && declineJrMut.variables === jr.id ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}
                             Odrzuć
                           </Button>

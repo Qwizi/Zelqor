@@ -140,10 +140,10 @@ export default function MarketplaceItemPage() {
   const handleBuyDirect = async (listing: MarketListingOut, qty = 1) => {
     try {
       const result = await buyMutation.mutateAsync({ listingId: listing.id, quantity: qty });
-      toast.success(result.message);
+      toast.success(result.message, { id: "marketplace-buy-success" });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Błąd zakupu";
-      toast.error(msg);
+      toast.error(msg, { id: "marketplace-buy-error" });
     }
   };
 
@@ -161,10 +161,10 @@ export default function MarketplaceItemPage() {
         quantity: sellQty,
         price_per_unit: sellPrice,
       });
-      toast.success("Oferta wystawiona!");
+      toast.success("Oferta wystawiona!", { id: "marketplace-sell-success" });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Błąd wystawiania";
-      toast.error(msg);
+      toast.error(msg, { id: "marketplace-sell-error" });
     }
   };
 

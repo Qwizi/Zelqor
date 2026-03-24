@@ -216,6 +216,8 @@ class GameInternalController(ControllerBase):
                         'building_levels': (p.deck_snapshot or {}).get('building_levels', {}),
                         'unit_levels': (p.deck_snapshot or {}).get('unit_levels', {}),
                         'cosmetics': p.cosmetic_snapshot,
+                        # Team assignment for team-based modes (null for free-for-all).
+                        'team': p.team_label,
                     }
                     for p in match.players.all()
                 ],

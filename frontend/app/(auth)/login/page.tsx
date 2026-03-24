@@ -201,7 +201,7 @@ function LoginForm() {
   const handleSaveProfile = useCallback(() => {
     if (user) {
       saveProfile(user);
-      toast.success("Profil zapisany");
+      toast.success("Profil zapisany", { id: "auth-profile-save" });
     }
     redirectToDashboard();
   }, [user, redirectToDashboard]);

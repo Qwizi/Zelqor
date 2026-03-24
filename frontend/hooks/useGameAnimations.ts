@@ -82,11 +82,11 @@ export function useGameAnimations(
         });
       } else if (e.type === "boost_activated" && e.player_id === myUserId) {
         const effectLabel = BOOST_EFFECT_LABELS[e.effect_type as string] ?? (e.effect_type as string);
-        toast.success(`Boost aktywowany: ${effectLabel}`);
+        toast.success(`Boost aktywowany: ${effectLabel}`, { id: `game-boost-activated-${e.effect_type}` });
       } else if (e.type === "boost_expired" && e.player_id === myUserId) {
         const slug = e.boost_slug as string;
         const label = slug.replace(/^boost-/, "").replace(/-\d+$/, "").replace(/-/g, " ");
-        toast.warning(`Boost wygasł: ${label}`);
+        toast.warning(`Boost wygasł: ${label}`, { id: `game-boost-expired-${e.boost_slug}` });
       } else if (e.type === "bombard") {
         const sourceId = e.source_region_id as string;
         const targetId = e.target_region_id as string;
@@ -220,9 +220,9 @@ export function useGameAnimations(
         const bombersLost = (e.bombers_lost as number) ?? 0;
         const escortsLost = (e.escorts_lost as number) ?? 0;
         if (interceptorPlayerId === myUserId) {
-          toast.info(`Przechwycenie: stracono ${interceptorsLost} myśliwców, zniszczono ${bombersLost} bombowców`);
+          toast.info(`Przechwycenie: stracono ${interceptorsLost} myśliwców, zniszczono ${bombersLost} bombowców`, { id: `game-air-intercept-${e.flight_id}` });
         } else if (e.target_player_id === myUserId) {
-          toast.warning(`Wróg przechwycił nalot: stracono ${escortsLost} eskort, ${bombersLost} bombowców`);
+          toast.warning(`Wróg przechwycił nalot: stracono ${escortsLost} eskort, ${bombersLost} bombowców`, { id: `game-air-intercepted-${e.flight_id}` });
         }
       } else if (e.type === "path_damage") {
         const killed = (e.units_killed as number) ?? 0;
@@ -230,7 +230,7 @@ export function useGameAnimations(
         window.dispatchEvent(new CustomEvent("province-bombed", { detail: { regionId: targetId } }));
         window.dispatchEvent(new CustomEvent("path-damage-bomb", { detail: { regionId: targetId, killed } }));
         const regionName = gameStateRef.current?.regions[targetId]?.name ?? targetId;
-        if (killed >= 3) toast.info(`Nalot na ${regionName}: -${killed} jednostek`);
+        if (killed >= 3) toast.info(`Nalot na ${regionName}: -${killed} jednostek`, { id: `game-path-damage-${targetId}` });
       } else if (e.type === "bomber_strike") {
         const targetId = e.target_region_id as string;
         const playerId = e.player_id as string;
@@ -238,8 +238,8 @@ export function useGameAnimations(
         const groundKilled = (e.ground_units_destroyed as number) ?? 0;
         const neutralized = e.province_neutralized as boolean;
         const regionName = gameStateRef.current?.regions[targetId]?.name ?? targetId;
-        if (groundKilled > 0) toast.info(`Bombardowanie ${regionName}: -${groundKilled} jednostek`);
-        if (neutralized) toast.info(`${regionName} zneutralizowana przez bombardowanie!`);
+        if (groundKilled > 0) toast.info(`Bombardowanie ${regionName}: -${groundKilled} jednostek`, { id: `game-bomber-strike-${targetId}` });
+        if (neutralized) toast.info(`${regionName} zneutralizowana przez bombardowanie!`, { id: `game-bomber-neutralized-${targetId}` });
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const completedFlight = gameStateRef.current?.air_transit_queue?.find(
@@ -268,11 +268,11 @@ export function useGameAnimations(
         const previousOwner = e.previous_owner_id as string;
         if (previousOwner === myUserId) {
           const regionName = gameStateRef.current?.regions[regionId]?.name ?? regionId;
-          toast.error(`Stracono prowincję ${regionName} — zneutralizowana!`);
+          toast.error(`Stracono prowincję ${regionName} — zneutralizowana!`, { id: `game-province-neutralized-${regionId}` });
         }
       } else if (e.type === "air_intercept_dispatched") {
         if ((e.interceptor_player_id as string) === myUserId) {
-          toast.info("Myśliwce wysłane na przechwycenie!");
+          toast.info("Myśliwce wysłane na przechwycenie!", { id: "game-intercept-dispatched" });
         }
       }
     }

@@ -40,12 +40,11 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # Docker-internal hostnames — must override .env
       DB_HOST: db
       DB_PORT: "5432"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      DEBUG: "False"
-      ALLOWED_HOSTS: ${DOMAIN:-localhost},backend
     volumes:
       - static_data:/app/staticfiles
       - media_data:/app/media
@@ -56,27 +55,22 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health/\")'"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 60s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
 
   gateway:
     image: ghcr.io/qwizi/maplord-gateway:${TAG:-latest}
     restart: unless-stopped
+    env_file: .env
     environment:
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
-      INTERNAL_SECRET: ${INTERNAL_SECRET:?INTERNAL_SECRET is required}
+      # Docker-internal hostnames — must override .env
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      REDIS_GAME_DB: ${REDIS_GAME_DB:-1}
       DJANGO_INTERNAL_URL: http://backend:8000
       GATEWAY_PORT: "8080"
-      RUST_LOG: info,maplord_gateway=info
       LIVEKIT_URL: ws://livekit:7880
-      LIVEKIT_PUBLIC_URL: wss://${DOMAIN:?DOMAIN is required}/livekit
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
     depends_on:
       redis:
         condition: service_healthy
@@ -88,11 +82,11 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # Docker-internal hostnames — must override .env
       DB_HOST: db
       DB_PORT: "5432"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      DEBUG: "False"
     mem_limit: 192m
     depends_on:
       backend:
@@ -104,11 +98,11 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # Docker-internal hostnames — must override .env
       DB_HOST: db
       DB_PORT: "5432"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      DEBUG: "False"
     volumes:
       - celerybeat_data:/app/celerybeat
     depends_on:
@@ -119,6 +113,7 @@ services:
   frontend:
     image: ghcr.io/qwizi/maplord-frontend:${TAG:-latest}
     restart: unless-stopped
+    env_file: .env
     environment:
       API_URL: http://backend:8000/api/v1
       NODE_OPTIONS: --max-old-space-size=256

@@ -17,7 +17,7 @@ import { loadAssetOverrides } from "@/lib/assetOverrides";
 import { getSeaTravelRange, getTravelDistance } from "@/lib/gameTravel.js";
 import dynamic from "next/dynamic";
 import type { TroopAnimation, PlannedMove } from "@/lib/gameTypes";
-import { MAX_PLANNED_MOVES, PLAN_EXPIRY_S, AP_COSTS } from "@/lib/gameTypes";
+import { MAX_PLANNED_MOVES, PLAN_EXPIRY_S, AP_COSTS, getAttackApCost } from "@/lib/gameTypes";
 import { getEliminationVfx, getVictoryVfx } from "@/lib/animationConfig";
 import { useShapesData } from "@/hooks/useShapesData";
 const ANIMATION_DURATION_MS = 2200;
@@ -185,11 +185,14 @@ export default function GamePage({
     setSelectedRegion(null);
     setSelectedActionUnitType(null);
   }, []);
+  const unitManpowerMap = useMemo(() => {
+    return Object.fromEntries(unitsConfig.map((u) => [u.slug, u.manpower_cost ?? 1]));
+  }, [unitsConfig]);
   const {
     plannedMoves, setPlannedMoves,
     planningMode, setPlanningMode,
     executePlannedMoves, clearPlannedMoves, undoLastPlannedMove,
-  } = usePlannedMoves(myUserId, gameStateRef, attack, move, bombard, onPlanClear);
+  } = usePlannedMoves(myUserId, gameStateRef, attack, move, bombard, onPlanClear, unitManpowerMap);
 
   // processedAnimKeysRef / processedAudioKeysRef moved into useGameAnimations / useGameEventSounds
   const localDispatchKeysRef = useRef(new Map<string, number>());
@@ -348,10 +351,6 @@ export default function GamePage({
 
   const unitConfigBySlug = useMemo(() => {
     return Object.fromEntries(unitsConfig.map((unit) => [unit.slug, unit] as const));
-  }, [unitsConfig]);
-
-  const unitManpowerMap = useMemo(() => {
-    return Object.fromEntries(unitsConfig.map((u) => [u.slug, u.manpower_cost ?? 1]));
   }, [unitsConfig]);
 
   // Guard against double capital selection while waiting for server confirmation
@@ -760,7 +759,10 @@ export default function GamePage({
       // If action_points is undefined (server hasn't sent it yet), allow the action
       // and let the server validate. This prevents blocking on stale/missing data.
       const isAttackAction = target.owner_id !== myUserId;
-      const apCost = isAttackAction ? AP_COSTS.attack : AP_COSTS.move;
+      const sourceRegion = gameState.regions[sourceId];
+      const available = sourceRegion ? getAvailableUnits(sourceRegion.units, unitType, unitConfigBySlug) : unitCount;
+      const unitPct = available > 0 ? (unitCount / available) * 100 : 100;
+      const apCost = isAttackAction ? getAttackApCost(unitPct) : AP_COSTS.move;
       const playerData = gameState.players[myUserId];
       const currentAP = playerData?.action_points;
       if (currentAP != null && currentAP < apCost) {
@@ -769,7 +771,6 @@ export default function GamePage({
       }
 
       // Cooldown check — only block if we have cooldown data and a valid tick
-      const sourceRegion = gameState.regions[sourceId];
       const tick = parseInt(gameState.meta?.current_tick || "0", 10);
       if (sourceRegion && tick > 0) {
         const attackCd = sourceRegion.action_cooldowns?.attack ?? 0;
@@ -873,7 +874,7 @@ export default function GamePage({
         // Too close to an existing capital
         if (dimmedRegions.includes(regionId)) {
           const minDist = parseInt(gameState?.meta?.min_capital_distance || "3", 10);
-          toast.error(`Stolica musi być co najmniej ${minDist} regiony od stolicy innego gracza`);
+          toast.error(`Stolica musi być co najmniej ${minDist} regiony od stolicy innego gracza`, { id: "game-capital-too-close" });
           return;
         }
         selectCapital(regionId);
@@ -897,7 +898,8 @@ export default function GamePage({
             toast.error(
               abilityDef.target_type === "enemy"
                 ? "Zdolnosc wymaga wrogiego celu"
-                : "Zdolnosc wymaga wlasnego regionu"
+                : "Zdolnosc wymaga wlasnego regionu",
+              { id: "game-ability-invalid-target" }
             );
             return;
           }
@@ -948,7 +950,7 @@ export default function GamePage({
           const alreadyQueued = plannedMoves
             .filter(pm => pm.sourceId === selectedRegion && pm.unitType === unitType)
             .reduce((sum, pm) => sum + pm.unitCount, 0);
-          const avail = (gameState?.regions[selectedRegion!]?.units?.[unitType] ?? 0) - alreadyQueued;
+          const avail = getAvailableUnits(gameState?.regions[selectedRegion!]?.units, unitType, unitConfigBySlug) - alreadyQueued;
           if (avail <= 0) return;
           const clampedUnits = Math.min(unitsToSend, avail);
           const isAttackTarget = gameState?.regions[regionId]?.owner_id !== myUserId;
@@ -1349,7 +1351,7 @@ export default function GamePage({
               if (!window.confirm("Na pewno chcesz opuscic mecz calkowicie?")) return;
               const confirmed = await leaveMatch();
               if (!confirmed) {
-                toast.error("Nie udalo sie potwierdzic opuszczenia meczu");
+                toast.error("Nie udalo sie potwierdzic opuszczenia meczu", { id: "game-leave-error" });
                 return;
               }
               playJingle("defeat");
@@ -1376,7 +1378,7 @@ export default function GamePage({
               if (!window.confirm("Na pewno chcesz opuscic mecz calkowicie?")) return;
               const confirmed = await leaveMatch();
               if (!confirmed) {
-                toast.error("Nie udalo sie potwierdzic opuszczenia meczu");
+                toast.error("Nie udalo sie potwierdzic opuszczenia meczu", { id: "game-leave-error" });
                 return;
               }
               playJingle("defeat");
@@ -1575,7 +1577,7 @@ export default function GamePage({
             const ownRegionsWithFighters = Object.entries(gameState.regions)
               .filter(([, r]) => r.owner_id === myUserId && (r.units?.fighter ?? 0) > 0);
             if (ownRegionsWithFighters.length === 0) {
-              toast.warning("Brak myśliwców do przechwycenia!");
+              toast.warning("Brak myśliwców do przechwycenia!", { id: "game-intercept-no-fighters" });
               return;
             }
             // Use selected region if it has fighters, otherwise first available
@@ -1584,7 +1586,7 @@ export default function GamePage({
               : ownRegionsWithFighters[0][0];
             const fighterCount = gameState.regions[sourceId]?.units?.fighter ?? 0;
             interceptFlight(sourceId, flightId, fighterCount);
-            toast.info(`Wysłano ${fighterCount} myśliwców na przechwycenie!`);
+            toast.info(`Wysłano ${fighterCount} myśliwców na przechwycenie!`, { id: "game-intercept-sent" });
           }}
         />
 
@@ -1609,14 +1611,14 @@ export default function GamePage({
                     const sourceId = selectedRegion && myFighterRegions.some(([id]) => id === selectedRegion)
                       ? selectedRegion
                       : myFighterRegions[0]?.[0];
-                    if (!sourceId) { toast.error("Brak prowincji z myśliwcami!"); return; }
+                    if (!sourceId) { toast.error("Brak prowincji z myśliwcami!", { id: "game-intercept-no-source" }); return; }
                     const available = gameState?.regions[sourceId]?.units?.fighter ?? 0;
-                    if (available <= 0) { toast.error("Brak myśliwców w prowincji!"); return; }
+                    if (available <= 0) { toast.error("Brak myśliwców w prowincji!", { id: "game-intercept-no-available" }); return; }
                     // Calculate how many fighters needed: enough to beat escorts + bombers.
                     const needed = flight.escort_fighters + flight.units + 1; // +1 for advantage
                     const toSend = Math.min(available, Math.max(needed, 1));
                     interceptFlight(sourceId, flight.id, toSend);
-                    toast.info(`Wysłano ${toSend} myśliwców na przechwycenie! (potrzeba ~${needed})`);
+                    toast.info(`Wysłano ${toSend} myśliwców na przechwycenie! (potrzeba ~${needed})`, { id: "game-intercept-sent-button" });
                   }}
                   className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-950/80 px-3 py-2 text-sm font-semibold text-red-300 shadow-lg backdrop-blur-sm transition-colors hover:bg-red-900/80 hover:text-red-200"
                 >

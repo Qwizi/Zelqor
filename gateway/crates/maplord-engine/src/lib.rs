@@ -452,7 +452,7 @@ impl GameEngine {
 
         for action in actions {
             // Check AP cost for this action type. Free actions (diplomacy, boost) cost 0.
-            let ap_cost = self.get_ap_cost(&action.action_type);
+            let ap_cost = self.get_ap_cost(action, regions);
             if ap_cost > 0 {
                 if let Some(pid) = action.player_id.as_deref() {
                     let has_ap = players.get(pid).map(|p| p.action_points >= ap_cost).unwrap_or(false);
@@ -597,9 +597,25 @@ impl GameEngine {
 
     // --- Action Points ---
 
-    fn get_ap_cost(&self, action_type: &str) -> i64 {
-        match action_type {
-            "attack" | "bombard" | "intercept" => self.settings.ap_cost_attack,
+    fn get_ap_cost(&self, action: &Action, regions: &HashMap<String, Region>) -> i64 {
+        match action.action_type.as_str() {
+            "attack" | "bombard" | "intercept" => {
+                // Dynamic AP cost based on % of units sent
+                let max_cost = self.settings.ap_cost_attack;
+                if max_cost <= 1 {
+                    return max_cost;
+                }
+                let pct = self.get_attack_unit_percent(action, regions);
+                if pct <= 0.25 {
+                    1
+                } else if pct <= 0.50 {
+                    (max_cost / 2).max(2)
+                } else if pct <= 0.75 {
+                    (max_cost * 3 / 4).max(3)
+                } else {
+                    max_cost
+                }
+            }
             "move" => self.settings.ap_cost_move,
             "build" | "upgrade_building" => self.settings.ap_cost_build,
             "produce_unit" => self.settings.ap_cost_produce,
@@ -607,6 +623,27 @@ impl GameEngine {
             // Diplomacy, boosts are free
             _ => 0,
         }
+    }
+
+    fn get_attack_unit_percent(&self, action: &Action, regions: &HashMap<String, Region>) -> f64 {
+        let units_sent = action.units.unwrap_or(0);
+        if units_sent <= 0 {
+            return 1.0;
+        }
+        let source_id = match &action.source_region_id {
+            Some(id) => id,
+            None => return 1.0,
+        };
+        let source = match regions.get(source_id) {
+            Some(r) => r,
+            None => return 1.0,
+        };
+        let unit_type = action.unit_type.clone().unwrap_or_else(|| self.default_unit_type_slug());
+        let available = get_available_units(source, &unit_type, self);
+        if available <= 0 {
+            return 1.0;
+        }
+        (units_sent as f64 / available as f64).min(1.0)
     }
 
     fn regenerate_action_points(
@@ -1668,6 +1705,15 @@ impl GameEngine {
                     Some(p) if p.is_alive => {}
                     _ => return vec![reject_action(player_id, "Gracz nie istnieje lub jest wyeliminowany", action)],
                 }
+                // Teammates are permanently allied — war between them is not allowed.
+                if let (Some(at), Some(tt)) = (
+                    players.get(player_id).and_then(|p| p.team.as_deref()),
+                    players.get(target).and_then(|p| p.team.as_deref()),
+                ) {
+                    if at == tt {
+                        return vec![reject_action(player_id, "Nie mozesz wypowiedziec wojny sojusznikowi", action)];
+                    }
+                }
                 if diplomacy.are_at_war(player_id, target) {
                     return vec![reject_action(player_id, "Juz jestescie w stanie wojny", action)];
                 }
@@ -1685,6 +1731,15 @@ impl GameEngine {
                 match players.get(target) {
                     Some(p) if p.is_alive => {}
                     _ => return vec![reject_action(player_id, "Gracz nie istnieje lub jest wyeliminowany", action)],
+                }
+                // Teammates are already allied — no pact proposal needed.
+                if let (Some(at), Some(tt)) = (
+                    players.get(player_id).and_then(|p| p.team.as_deref()),
+                    players.get(target).and_then(|p| p.team.as_deref()),
+                ) {
+                    if at == tt {
+                        return vec![reject_action(player_id, "Jestescie juz sojusznikami w tej samej druzynie", action)];
+                    }
                 }
                 // Can't propose NAP while at war.
                 if diplomacy.are_at_war(player_id, target) {
@@ -1951,7 +2006,7 @@ impl GameEngine {
     fn process_attack(
         &self,
         action: &Action,
-        _players: &mut HashMap<String, Player>,
+        players: &mut HashMap<String, Player>,
         regions: &mut HashMap<String, Region>,
         transit_queue: &mut Vec<TransitQueueItem>,
         air_transit_queue: &mut Vec<AirTransitItem>,
@@ -2013,6 +2068,20 @@ impl GameEngine {
                 "Nie mozesz atakowac wlasnego regionu",
                 action,
             )];
+        }
+
+        // Block attacks on teammates in team mode.
+        if let Some(attacker_team) = players.get(player_id.as_str()).and_then(|p| p.team.as_deref()) {
+            if let Some(target_team) = target
+                .owner_id
+                .as_deref()
+                .and_then(|oid| players.get(oid))
+                .and_then(|p| p.team.as_deref())
+            {
+                if attacker_team == target_team {
+                    return vec![reject_action(player_id, "Nie mozesz atakowac sojusznika", action)];
+                }
+            }
         }
 
         // Capital protection — reject attacks on capitals during protection period.
@@ -2640,7 +2709,7 @@ impl GameEngine {
     fn process_bombard(
         &self,
         action: &Action,
-        _players: &mut HashMap<String, Player>,
+        players: &mut HashMap<String, Player>,
         regions: &mut HashMap<String, Region>,
     ) -> Vec<Event> {
         let player_id = match &action.player_id {
@@ -2718,6 +2787,19 @@ impl GameEngine {
             let is_enemy = target.owner_id.as_ref().map(|oid| oid != player_id).unwrap_or(true);
             if !is_enemy {
                 return vec![reject_action(player_id, "Nie mozna bombardowac wlasnych prowincji", action)];
+            }
+            // Block bombarding teammates in team mode.
+            if let Some(attacker_team) = players.get(player_id.as_str()).and_then(|p| p.team.as_deref()) {
+                if let Some(target_team) = target
+                    .owner_id
+                    .as_deref()
+                    .and_then(|oid| players.get(oid))
+                    .and_then(|p| p.team.as_deref())
+                {
+                    if attacker_team == target_team {
+                        return vec![reject_action(player_id, "Nie mozesz bombardowac sojusznika", action)];
+                    }
+                }
             }
         }
 
@@ -4145,7 +4227,20 @@ impl GameEngine {
             .map(|(id, _)| id)
             .collect();
 
-        if alive.len() <= 1 {
+        // Team-based win condition: game over when all alive players are on the same team.
+        let alive_teams: std::collections::HashSet<&str> = alive
+            .iter()
+            .filter_map(|id| players.get(*id).and_then(|p| p.team.as_deref()))
+            .collect();
+
+        let all_teamed = alive.iter().all(|id| players.get(*id).and_then(|p| p.team.as_deref()).is_some());
+
+        if alive_teams.len() == 1 && all_teamed {
+            // All remaining players are on the same team — that team wins.
+            events.push(Event::GameOver {
+                winner_id: alive.first().map(|id| (*id).clone()),
+            });
+        } else if alive.len() <= 1 {
             events.push(Event::GameOver {
                 winner_id: alive.first().map(|id| (*id).clone()),
             });
@@ -4976,7 +5071,7 @@ mod tests {
             energy: 200,
             energy_accum: 0.0,
             capital_region_id: None,
-            action_points: 10,
+            action_points: 15,
             ap_regen_accum: 0.0,
             ..Default::default()
         }

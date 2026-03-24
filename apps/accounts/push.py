@@ -44,7 +44,14 @@ def send_push(user_id: str, title: str, body: str, url: str = "/dashboard", tag:
                 vapid_claims={"sub": settings.VAPID_MAILTO},
             )
         except WebPushException as e:
-            if e.response and e.response.status_code in (404, 410):
+            resp = getattr(e, "response", None)
+            status = getattr(resp, "status_code", None) if resp is not None else None
+            # Fallback: parse status from exception string (e.g. "Push failed: 410 Gone")
+            if status is None:
+                msg = str(e)
+                if "410" in msg or "404" in msg:
+                    status = 410
+            if status in (404, 410):
                 stale_ids.append(sub.id)
             else:
                 logger.warning(f"Push failed for user {user_id}: {e}")

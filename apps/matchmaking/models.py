@@ -63,6 +63,10 @@ class MatchPlayer(models.Model):
         default=dict, blank=True,
         help_text='Frozen cosmetic overrides: {asset_key: asset_url}',
     )
+    team_label = models.CharField(
+        max_length=32, blank=True, null=True,
+        help_text='Team identifier for team-based modes (e.g. "challenger", "defender"). Null for free-for-all.',
+    )
 
     class Meta:
         unique_together = ('match', 'user')
@@ -132,6 +136,10 @@ class LobbyPlayer(models.Model):
     is_ready = models.BooleanField(default=False)
     is_bot = models.BooleanField(default=False)
     joined_at = models.DateTimeField(auto_now_add=True)
+    team_label = models.CharField(
+        max_length=32, blank=True, null=True,
+        help_text='Team identifier for team-based modes (e.g. "challenger", "defender"). Null for free-for-all.',
+    )
 
     class Meta:
         unique_together = ('lobby', 'user')

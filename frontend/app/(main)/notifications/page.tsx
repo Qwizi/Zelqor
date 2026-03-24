@@ -74,6 +74,17 @@ function notifHref(n: NotificationOut): string | null {
     case "match_lost":
     case "player_eliminated":
       return n.data.match_id ? `/match/${n.data.match_id}` : null;
+    case "clan_war_declared":
+    case "clan_war_result":
+      return n.data.war_id ? `/clans/wars/${n.data.war_id}` : null;
+    case "clan_invitation_received":
+      return "/clans";
+    case "clan_join_request_accepted":
+    case "clan_member_joined":
+    case "clan_promoted":
+    case "clan_demoted":
+    case "clan_kicked":
+      return n.data.clan_id ? `/clans/${n.data.clan_id}` : "/clans";
     default:
       return null;
   }
@@ -134,12 +145,12 @@ export default function NotificationsPage() {
 
   async function handleMarkRead(id: string) {
     await markReadMutation.mutateAsync(id);
-    toast.success("Oznaczono jako przeczytane");
+    toast.success("Oznaczono jako przeczytane", { id: "notifications-mark-read" });
   }
 
   async function handleMarkAllRead() {
     await markAllReadMutation.mutateAsync();
-    toast.success("Wszystkie oznaczone jako przeczytane");
+    toast.success("Wszystkie oznaczone jako przeczytane", { id: "notifications-mark-all-read" });
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

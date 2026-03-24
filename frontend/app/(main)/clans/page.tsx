@@ -40,6 +40,7 @@ import {
   useDeclineInvitation,
   useClanLeaderboard,
 } from "@/hooks/queries";
+import { APIError } from "@/lib/api";
 
 const ROLE_LABELS: Record<string, string> = {
   leader: "Lider",
@@ -363,8 +364,8 @@ export default function ClansPage() {
                         <button
                           disabled={actionPending}
                           onClick={() => acceptMut.mutate(inv.id, {
-                            onSuccess: () => toast.success("Dołączono do klanu!"),
-                            onError: () => toast.error("Nie udało się dołączyć"),
+                            onSuccess: () => toast.success("Dołączono do klanu!", { id: "clan-accept-invite" }),
+                            onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się dołączyć", { id: "clan-accept-invite-error" }),
                           })}
                           className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors"
                         >
@@ -373,8 +374,8 @@ export default function ClansPage() {
                         <button
                           disabled={actionPending}
                           onClick={() => declineMut.mutate(inv.id, {
-                            onSuccess: () => toast.success("Odrzucono zaproszenie"),
-                            onError: () => toast.error("Błąd"),
+                            onSuccess: () => toast.success("Odrzucono zaproszenie", { id: "clan-decline-invite" }),
+                            onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić", { id: "clan-decline-invite-error" }),
                           })}
                           className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors"
                         >
@@ -409,8 +410,8 @@ export default function ClansPage() {
                             variant="ghost"
                             disabled={actionPending}
                             onClick={() => acceptMut.mutate(inv.id, {
-                              onSuccess: () => toast.success("Dołączono do klanu!"),
-                              onError: () => toast.error("Nie udało się dołączyć"),
+                              onSuccess: () => toast.success("Dołączono do klanu!", { id: "clan-accept-invite" }),
+                              onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się dołączyć", { id: "clan-accept-invite-error" }),
                             })}
                             className="gap-2 text-base text-green-400 hover:text-green-400 hover:bg-green-400/10"
                           >
@@ -421,8 +422,8 @@ export default function ClansPage() {
                             variant="ghost"
                             disabled={actionPending}
                             onClick={() => declineMut.mutate(inv.id, {
-                              onSuccess: () => toast.success("Odrzucono"),
-                              onError: () => toast.error("Błąd"),
+                              onSuccess: () => toast.success("Odrzucono", { id: "clan-decline-invite" }),
+                              onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić", { id: "clan-decline-invite-error" }),
                             })}
                             className="gap-2 text-base text-destructive hover:text-destructive hover:bg-destructive/10"
                           >
@@ -507,86 +508,90 @@ export default function ClansPage() {
                 </div>
               )}
 
-              {/* Mobile list */}
-              <div className="animate-list-in md:hidden space-y-0.5">
-                {leaderboard.slice(3).map((clan, idx) => (
-                  <button
-                    key={clan.id}
-                    onClick={() => router.push(`/clans/${clan.id}`)}
-                    className="flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 hover-lift"
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-bold text-muted-foreground">
-                      {idx + 4}
-                    </div>
-                    <div
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-display text-[9px] font-bold text-white"
-                      style={{ backgroundColor: clan.color }}
-                    >
-                      {clan.tag}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">{clan.name}</p>
-                      <span className="text-xs text-muted-foreground">Lv.{clan.level} &middot; {clan.member_count} członków</span>
-                    </div>
-                    <span className="font-display text-lg tabular-nums text-accent shrink-0">{clan.elo_rating}</span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                  </button>
-                ))}
-              </div>
-
-              {/* Desktop table */}
-              <Card className="hidden md:block rounded-2xl overflow-hidden">
-                <Table className="text-base">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="h-12 pl-6 w-16 text-sm font-semibold">#</TableHead>
-                      <TableHead className="h-12 text-sm font-semibold">Klan</TableHead>
-                      <TableHead className="h-12 text-sm font-semibold text-center">
-                        <div className="flex items-center gap-1 justify-center"><Users className="h-3.5 w-3.5" />Członkowie</div>
-                      </TableHead>
-                      <TableHead className="h-12 text-sm font-semibold text-center">Poziom</TableHead>
-                      <TableHead className="h-12 pr-6 text-sm font-semibold text-right">
-                        <div className="flex items-center gap-1 justify-end"><Trophy className="h-3.5 w-3.5 text-accent" />ELO</div>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="animate-list-in">
+              {leaderboard.length > 3 && (
+                <>
+                  {/* Mobile list */}
+                  <div className="animate-list-in md:hidden space-y-0.5">
                     {leaderboard.slice(3).map((clan, idx) => (
-                      <TableRow
+                      <button
                         key={clan.id}
                         onClick={() => router.push(`/clans/${clan.id}`)}
-                        className="cursor-pointer hover:bg-muted/50 hover-lift"
+                        className="flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 hover-lift"
                       >
-                        <TableCell className="pl-6 py-3.5">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-sm font-bold text-muted-foreground font-display">
-                            {idx + 4}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3.5">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white"
-                              style={{ backgroundColor: clan.color }}
-                            >
-                              {clan.tag}
-                            </div>
-                            <span className="text-base font-semibold text-foreground">{clan.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3.5 text-center">
-                          <span className="text-base tabular-nums text-foreground">{clan.member_count}</span>
-                        </TableCell>
-                        <TableCell className="py-3.5 text-center">
-                          <span className="text-base tabular-nums text-foreground">{clan.level}</span>
-                        </TableCell>
-                        <TableCell className="py-3.5 pr-6 text-right">
-                          <span className="font-display text-xl tabular-nums text-accent">{clan.elo_rating}</span>
-                        </TableCell>
-                      </TableRow>
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-bold text-muted-foreground">
+                          {idx + 4}
+                        </div>
+                        <div
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-display text-[9px] font-bold text-white"
+                          style={{ backgroundColor: clan.color }}
+                        >
+                          {clan.tag}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{clan.name}</p>
+                          <span className="text-xs text-muted-foreground">Lv.{clan.level} &middot; {clan.member_count} członków</span>
+                        </div>
+                        <span className="font-display text-lg tabular-nums text-accent shrink-0">{clan.elo_rating}</span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                      </button>
                     ))}
-                  </TableBody>
-                </Table>
-              </Card>
+                  </div>
+
+                  {/* Desktop table */}
+                  <Card className="hidden md:block rounded-2xl overflow-hidden">
+                    <Table className="text-base">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="h-12 pl-6 w-16 text-sm font-semibold">#</TableHead>
+                          <TableHead className="h-12 text-sm font-semibold">Klan</TableHead>
+                          <TableHead className="h-12 text-sm font-semibold text-center">
+                            <div className="flex items-center gap-1 justify-center"><Users className="h-3.5 w-3.5" />Członkowie</div>
+                          </TableHead>
+                          <TableHead className="h-12 text-sm font-semibold text-center">Poziom</TableHead>
+                          <TableHead className="h-12 pr-6 text-sm font-semibold text-right">
+                            <div className="flex items-center gap-1 justify-end"><Trophy className="h-3.5 w-3.5 text-accent" />ELO</div>
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody className="animate-list-in">
+                        {leaderboard.slice(3).map((clan, idx) => (
+                          <TableRow
+                            key={clan.id}
+                            onClick={() => router.push(`/clans/${clan.id}`)}
+                            className="cursor-pointer hover:bg-muted/50 hover-lift"
+                          >
+                            <TableCell className="pl-6 py-3.5">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-sm font-bold text-muted-foreground font-display">
+                                {idx + 4}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3.5">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-xs font-bold text-white"
+                                  style={{ backgroundColor: clan.color }}
+                                >
+                                  {clan.tag}
+                                </div>
+                                <span className="text-base font-semibold text-foreground">{clan.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3.5 text-center">
+                              <span className="text-base tabular-nums text-foreground">{clan.member_count}</span>
+                            </TableCell>
+                            <TableCell className="py-3.5 text-center">
+                              <span className="text-base tabular-nums text-foreground">{clan.level}</span>
+                            </TableCell>
+                            <TableCell className="py-3.5 pr-6 text-right">
+                              <span className="font-display text-xl tabular-nums text-accent">{clan.elo_rating}</span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Card>
+                </>
+              )}
             </>
           )}
         </div>
