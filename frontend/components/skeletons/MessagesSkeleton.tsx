@@ -1,7 +1,7 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function ConversationRowSkeleton() {
   return (
@@ -39,7 +39,6 @@ function ChatBubbleSkeleton({ mine }: { mine: boolean }) {
 export function MessagesSkeleton() {
   return (
     <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* Header */}
       <div className="flex items-center justify-between gap-4 px-4 md:px-0">
         <div className="space-y-1.5">
@@ -52,7 +51,6 @@ export function MessagesSkeleton() {
 
       {/* Body */}
       <div className="px-4 md:px-0">
-
         {/* Mobile: conversation list */}
         <div className="md:hidden space-y-1">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -62,7 +60,6 @@ export function MessagesSkeleton() {
 
         {/* Desktop: two-panel layout */}
         <div className="hidden md:flex gap-6 h-[calc(100vh-16rem)]">
-
           {/* Left sidebar — conversation list */}
           <Card className="w-80 lg:w-96 shrink-0 flex flex-col overflow-hidden rounded-2xl">
             {/* Sidebar header */}
@@ -108,7 +105,6 @@ export function MessagesSkeleton() {
             </div>
           </Card>
         </div>
-
       </div>
     </div>
   );

@@ -4,20 +4,29 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('matchmaking', '0008_add_performance_indexes'),
+        ("matchmaking", "0008_add_performance_indexes"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='lobbyplayer',
-            name='team_label',
-            field=models.CharField(blank=True, help_text='Team identifier for team-based modes (e.g. "challenger", "defender"). Null for free-for-all.', max_length=32, null=True),
+            model_name="lobbyplayer",
+            name="team_label",
+            field=models.CharField(
+                blank=True,
+                help_text='Team identifier for team-based modes (e.g. "challenger", "defender"). Null for free-for-all.',
+                max_length=32,
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='matchplayer',
-            name='team_label',
-            field=models.CharField(blank=True, help_text='Team identifier for team-based modes (e.g. "challenger", "defender"). Null for free-for-all.', max_length=32, null=True),
+            model_name="matchplayer",
+            name="team_label",
+            field=models.CharField(
+                blank=True,
+                help_text='Team identifier for team-based modes (e.g. "challenger", "defender"). Null for free-for-all.',
+                max_length=32,
+                null=True,
+            ),
         ),
     ]

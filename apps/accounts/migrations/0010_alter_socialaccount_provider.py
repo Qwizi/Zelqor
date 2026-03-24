@@ -4,15 +4,16 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('accounts', '0009_directmessage'),
+        ("accounts", "0009_directmessage"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='socialaccount',
-            name='provider',
-            field=models.CharField(choices=[('google', 'Google'), ('discord', 'Discord'), ('steam', 'Steam')], max_length=20),
+            model_name="socialaccount",
+            name="provider",
+            field=models.CharField(
+                choices=[("google", "Google"), ("discord", "Discord"), ("steam", "Steam")], max_length=20
+            ),
         ),
     ]

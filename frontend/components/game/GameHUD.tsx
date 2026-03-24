@@ -1,14 +1,14 @@
 "use client";
 
-import { memo, useMemo, useState, useCallback, type ReactNode } from "react";
+import { BoltIcon, Handshake, Shield, Swords, Zap } from "lucide-react";
 import Image from "next/image";
-import { Zap, Swords, Handshake, Shield, BoltIcon } from "lucide-react";
-import type { GamePlayer } from "@/hooks/useGameSocket";
+import { memo, type ReactNode, useCallback, useMemo, useState } from "react";
+import ActiveBoosts from "@/components/game/ActiveBoosts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { GamePlayer } from "@/hooks/useGameSocket";
 import type { CosmeticValue } from "@/lib/animationConfig";
 import type { DiplomacyState } from "@/lib/gameTypes";
-import ActiveBoosts from "@/components/game/ActiveBoosts";
 
 /**
  * Resolve the `emblem` cosmetic slot to a URL string, or return null if absent.
@@ -21,7 +21,6 @@ function resolveEmblemUrl(cosmetics?: Record<string, unknown>): string | null {
   if (typeof raw === "string") return raw;
   return raw.url ?? null;
 }
-
 
 interface GameHUDProps {
   tick: number;
@@ -80,59 +79,41 @@ function statusLabel(status: string) {
 
 type PlayerRelation = "war" | "nap" | "neutral";
 
-function getPlayerRelation(
-  diplomacy: DiplomacyState | undefined,
-  myId: string,
-  otherId: string,
-): PlayerRelation {
+function getPlayerRelation(diplomacy: DiplomacyState | undefined, myId: string, otherId: string): PlayerRelation {
   if (!diplomacy) return "neutral";
   const isWar = diplomacy.wars.some(
-    (w) =>
-      (w.player_a === myId && w.player_b === otherId) ||
-      (w.player_b === myId && w.player_a === otherId),
+    (w) => (w.player_a === myId && w.player_b === otherId) || (w.player_b === myId && w.player_a === otherId),
   );
   if (isWar) return "war";
   const isNap = diplomacy.pacts.some(
-    (p) =>
-      (p.player_a === myId && p.player_b === otherId) ||
-      (p.player_b === myId && p.player_a === otherId),
+    (p) => (p.player_a === myId && p.player_b === otherId) || (p.player_b === myId && p.player_a === otherId),
   );
   if (isNap) return "nap";
   return "neutral";
 }
 
-function findPactId(
-  diplomacy: DiplomacyState | undefined,
-  myId: string,
-  otherId: string,
-): string | null {
+function findPactId(diplomacy: DiplomacyState | undefined, myId: string, otherId: string): string | null {
   if (!diplomacy) return null;
   const pact = diplomacy.pacts.find(
-    (p) =>
-      (p.player_a === myId && p.player_b === otherId) ||
-      (p.player_b === myId && p.player_a === otherId),
+    (p) => (p.player_a === myId && p.player_b === otherId) || (p.player_b === myId && p.player_a === otherId),
   );
   return pact?.id ?? null;
 }
 
-function hasOutgoingProposal(
-  diplomacy: DiplomacyState | undefined,
-  myId: string,
-  otherId: string,
-): boolean {
+function hasOutgoingProposal(diplomacy: DiplomacyState | undefined, myId: string, otherId: string): boolean {
   if (!diplomacy) return false;
   return diplomacy.proposals.some(
-    (p) =>
-      p.from_player_id === myId &&
-      p.to_player_id === otherId &&
-      p.status === "pending",
+    (p) => p.from_player_id === myId && p.to_player_id === otherId && p.status === "pending",
   );
 }
 
 // Teammate badge shown inline in ranking
 function TeammateBadge() {
   return (
-    <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-medium text-blue-400" title="Sojusznik">
+    <span
+      className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-medium text-blue-400"
+      title="Sojusznik"
+    >
       SOJUSZNIK
     </span>
   );
@@ -142,14 +123,20 @@ function TeammateBadge() {
 function RelationBadge({ relation }: { relation: PlayerRelation }) {
   if (relation === "war") {
     return (
-      <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[9px] font-medium text-red-400" title="W wojnie">
+      <span
+        className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[9px] font-medium text-red-400"
+        title="W wojnie"
+      >
         <Swords className="h-2.5 w-2.5" />
       </span>
     );
   }
   if (relation === "nap") {
     return (
-      <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400" title="Pakt o nieagresji">
+      <span
+        className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400"
+        title="Pakt o nieagresji"
+      >
         <Handshake className="h-2.5 w-2.5" />
       </span>
     );
@@ -180,10 +167,7 @@ export default memo(function GameHUD({
   onProposePeace,
   onRespondPeace,
 }: GameHUDProps) {
-  const aliveCount = useMemo(
-    () => Object.values(players).filter((player) => player.is_alive).length,
-    [players],
-  );
+  const aliveCount = useMemo(() => Object.values(players).filter((player) => player.is_alive).length, [players]);
   const formattedClock = useMemo(() => formatClock(tick, tickIntervalMs), [tick, tickIntervalMs]);
 
   // Capital protection
@@ -194,10 +178,7 @@ export default memo(function GameHUD({
 
   // Incoming proposals
   const incomingProposals = useMemo(
-    () =>
-      diplomacy?.proposals.filter(
-        (p) => p.to_player_id === myUserId && p.status === "pending",
-      ) ?? [],
+    () => diplomacy?.proposals.filter((p) => p.to_player_id === myUserId && p.status === "pending") ?? [],
     [diplomacy?.proposals, myUserId],
   );
 
@@ -213,7 +194,10 @@ export default memo(function GameHUD({
   );
 
   return (
-    <div data-tutorial="hud" className="absolute left-2 top-2 z-10 flex max-w-[calc(100vw-5rem)] flex-col gap-2 sm:left-3 sm:top-3 sm:max-w-[260px]">
+    <div
+      data-tutorial="hud"
+      className="absolute left-2 top-2 z-10 flex max-w-[calc(100vw-5rem)] flex-col gap-2 sm:left-3 sm:top-3 sm:max-w-[260px]"
+    >
       {/* Clock + status bar */}
       <div className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-border bg-card sm:bg-card/85 px-2.5 py-1.5 text-[10px] text-foreground shadow-lg sm:backdrop-blur-xl">
         <span className="font-display text-xs font-bold text-primary sm:text-base">{formattedClock}</span>
@@ -274,9 +258,7 @@ export default memo(function GameHUD({
       {/* Incoming diplomacy proposals */}
       {incomingProposals.length > 0 && (
         <div className="military-frame hidden rounded-xl border border-amber-500/30 bg-card/80 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:block">
-          <div className="mb-1.5 px-1 text-[10px] uppercase tracking-[0.14em] text-amber-400">
-            Propozycje
-          </div>
+          <div className="mb-1.5 px-1 text-[10px] uppercase tracking-[0.14em] text-amber-400">Propozycje</div>
           <div className="space-y-1.5">
             {incomingProposals.map((proposal) => {
               const fromPlayer = players[proposal.from_player_id];
@@ -295,7 +277,9 @@ export default memo(function GameHUD({
                       proponuje {label}
                     </p>
                     {expireSeconds != null && (
-                      <span className={`ml-2 shrink-0 font-display text-[10px] tabular-nums ${expireSeconds <= 10 ? "text-red-400 animate-pulse" : "text-muted-foreground"}`}>
+                      <span
+                        className={`ml-2 shrink-0 font-display text-[10px] tabular-nums ${expireSeconds <= 10 ? "text-red-400 animate-pulse" : "text-muted-foreground"}`}
+                      >
                         {expireSeconds}s
                       </span>
                     )}
@@ -357,8 +341,13 @@ export default memo(function GameHUD({
                 >
                   <div className="font-display text-muted-foreground">{index + 1}</div>
                   <div className="min-w-0">
-                    <div className={`flex items-center gap-1 truncate ${player.isAlive ? "text-foreground" : "text-muted-foreground line-through"}`}>
-                      <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: player.color }} />
+                    <div
+                      className={`flex items-center gap-1 truncate ${player.isAlive ? "text-foreground" : "text-muted-foreground line-through"}`}
+                    >
+                      <span
+                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: player.color }}
+                      />
                       {emblemUrl && (
                         <Image
                           src={emblemUrl}
@@ -370,11 +359,22 @@ export default memo(function GameHUD({
                         />
                       )}
                       <span className="truncate">
-                        {player.clan_tag && <span className="text-muted-foreground">[{player.clan_tag}]{"\u00A0"}</span>}
+                        {player.clan_tag && (
+                          <span className="text-muted-foreground">
+                            [{player.clan_tag}]{"\u00A0"}
+                          </span>
+                        )}
                         {player.username}
                         {isMe ? " (Ty)" : ""}
                       </span>
-                      {player.isBot && <span className="ml-1 shrink-0 text-[10px] font-medium uppercase tracking-widest text-muted-foreground" title="Bot AI">BOT</span>}
+                      {player.isBot && (
+                        <span
+                          className="ml-1 shrink-0 text-[10px] font-medium uppercase tracking-widest text-muted-foreground"
+                          title="Bot AI"
+                        >
+                          BOT
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 text-right">
@@ -453,19 +453,32 @@ export default memo(function GameHUD({
   );
 });
 
-
 const CompactStat = memo(function CompactStat({
-  icon, label, value, suffix, valueColor,
-}: { icon: string | ReactNode; label: string; value: number; suffix?: string; valueColor?: string }) {
+  icon,
+  label,
+  value,
+  suffix,
+  valueColor,
+}: {
+  icon: string | ReactNode;
+  label: string;
+  value: number;
+  suffix?: string;
+  valueColor?: string;
+}) {
   return (
     <div className="min-w-0 rounded-2xl border border-border bg-card sm:bg-card/80 px-2 py-1.5 shadow-lg sm:backdrop-blur-xl">
       <div className="flex items-center gap-1.5 text-[10px] sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
         {typeof icon === "string" ? (
           <Image src={icon} alt="" width={14} height={14} className="h-3.5 w-3.5 object-contain" />
-        ) : icon}
+        ) : (
+          icon
+        )}
         <span className="truncate">{label}</span>
       </div>
-      <div className={`mt-1 flex items-baseline gap-0.5 truncate font-display text-base font-bold leading-none sm:text-xl ${valueColor ?? "text-foreground"}`}>
+      <div
+        className={`mt-1 flex items-baseline gap-0.5 truncate font-display text-base font-bold leading-none sm:text-xl ${valueColor ?? "text-foreground"}`}
+      >
         <span>{value}</span>
         {suffix && <span className="text-[10px] font-normal text-muted-foreground sm:text-xs">{suffix}</span>}
       </div>
@@ -475,17 +488,31 @@ const CompactStat = memo(function CompactStat({
 
 /** Large prominent stat tile — used for Energy and AP */
 const LargeStat = memo(function LargeStat({
-  icon, label, value, valueColor, lowPulse,
-}: { icon: ReactNode; label: string; value: number; valueColor?: string; lowPulse?: boolean }) {
+  icon,
+  label,
+  value,
+  valueColor,
+  lowPulse,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: number;
+  valueColor?: string;
+  lowPulse?: boolean;
+}) {
   return (
-    <div className={`min-w-0 rounded-2xl border bg-card sm:bg-card/80 px-3 py-2 shadow-lg sm:backdrop-blur-xl transition-colors ${
-      lowPulse ? "border-primary/60 animate-pulse" : "border-border"
-    }`}>
+    <div
+      className={`min-w-0 rounded-2xl border bg-card sm:bg-card/80 px-3 py-2 shadow-lg sm:backdrop-blur-xl transition-colors ${
+        lowPulse ? "border-primary/60 animate-pulse" : "border-border"
+      }`}
+    >
       <div className="flex items-center gap-1.5 text-[10px] sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
         {icon}
         <span className="truncate">{label}</span>
       </div>
-      <div className={`mt-1 font-display text-2xl font-bold leading-none sm:text-3xl tabular-nums ${valueColor ?? "text-foreground"}`}>
+      <div
+        className={`mt-1 font-display text-2xl font-bold leading-none sm:text-3xl tabular-nums ${valueColor ?? "text-foreground"}`}
+      >
         {value}
       </div>
     </div>
@@ -503,9 +530,11 @@ const APStat = memo(function APStat({ actionPoints }: { actionPoints: number }) 
   const barColor = isLow ? "bg-red-500" : isMid ? "bg-amber-500" : "bg-green-500";
 
   return (
-    <div className={`min-w-0 rounded-2xl border bg-card sm:bg-card/80 px-3 py-2 shadow-lg sm:backdrop-blur-xl transition-colors ${
-      isLow ? "border-red-500/60 animate-pulse" : "border-border"
-    }`}>
+    <div
+      className={`min-w-0 rounded-2xl border bg-card sm:bg-card/80 px-3 py-2 shadow-lg sm:backdrop-blur-xl transition-colors ${
+        isLow ? "border-red-500/60 animate-pulse" : "border-border"
+      }`}
+    >
       <div className="flex items-center justify-between gap-1 text-[10px] sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <BoltIcon className="h-4 w-4 text-amber-400" />
@@ -519,10 +548,7 @@ const APStat = memo(function APStat({ actionPoints }: { actionPoints: number }) 
       </div>
       {/* Progress bar */}
       <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted/40">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

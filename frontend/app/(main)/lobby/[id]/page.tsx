@@ -1,31 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { ArrowLeft, Bot, Check, Clock, Crown, Loader2, MessageSquare, Search, Users, X } from "lucide-react";
 import Link from "next/link";
-import { useMatchmaking, type LobbyPlayer } from "@/hooks/useMatchmaking";
-import { useAuth } from "@/hooks/useAuth";
-import { useVoiceChat } from "@/hooks/useVoiceChat";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChatInput } from "@/components/chat/ChatInput";
+import { MessageList } from "@/components/chat/MessageList";
+import VoicePanel from "@/components/chat/VoicePanel";
+import { BannedBadge } from "@/components/ui/banned-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MessageList } from "@/components/chat/MessageList";
-import { ChatInput } from "@/components/chat/ChatInput";
-import VoicePanel from "@/components/chat/VoicePanel";
+import { useAuth } from "@/hooks/useAuth";
+import { type LobbyPlayer, useMatchmaking } from "@/hooks/useMatchmaking";
+import { useVoiceChat } from "@/hooks/useVoiceChat";
 import { cn } from "@/lib/utils";
-import {
-  ArrowLeft,
-  Bot,
-  Check,
-  Clock,
-  Crown,
-  Loader2,
-  MessageSquare,
-  Search,
-  Swords,
-  Users,
-  X,
-} from "lucide-react";
-import { BannedBadge } from "@/components/ui/banned-badge";
 
 // ---------------------------------------------------------------------------
 // Player slot — mobile: compact row, desktop: card-style
@@ -36,18 +24,14 @@ function PlayerSlot({ player, isHost }: { player: LobbyPlayer; isHost: boolean }
     <div
       className={cn(
         "hover-lift flex items-center gap-3 md:gap-4 rounded-xl md:rounded-2xl border md:border-2 px-3 py-3 md:px-5 md:py-4 transition-all",
-        player.is_ready
-          ? "border-green-500/40 bg-green-500/5"
-          : "border-border bg-card/60 md:bg-card"
+        player.is_ready ? "border-green-500/40 bg-green-500/5" : "border-border bg-card/60 md:bg-card",
       )}
     >
       {/* Avatar */}
       <div
         className={cn(
           "flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-lg md:rounded-xl text-base md:text-lg font-bold uppercase",
-          player.is_ready
-            ? "bg-green-500/20 text-green-400"
-            : "bg-secondary text-muted-foreground"
+          player.is_ready ? "bg-green-500/20 text-green-400" : "bg-secondary text-muted-foreground",
         )}
       >
         {player.username.charAt(0)}
@@ -56,9 +40,7 @@ function PlayerSlot({ player, isHost }: { player: LobbyPlayer; isHost: boolean }
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 md:gap-2">
-          <span className="text-sm md:text-base font-semibold text-foreground truncate">
-            {player.username}
-          </span>
+          <span className="text-sm md:text-base font-semibold text-foreground truncate">{player.username}</span>
           {isHost && <Crown size={12} className="text-accent shrink-0 md:size-[14px]" />}
           {player.is_bot && <Bot size={12} className="text-muted-foreground shrink-0 md:size-[14px]" />}
           {player.is_banned && <BannedBadge />}
@@ -72,12 +54,14 @@ function PlayerSlot({ player, isHost }: { player: LobbyPlayer; isHost: boolean }
       <div
         className={cn(
           "flex h-7 w-7 md:h-9 md:w-9 shrink-0 items-center justify-center rounded-full",
-          player.is_ready
-            ? "bg-green-500/20 text-green-400"
-            : "bg-secondary text-muted-foreground"
+          player.is_ready ? "bg-green-500/20 text-green-400" : "bg-secondary text-muted-foreground",
         )}
       >
-        {player.is_ready ? <Check size={14} className="md:size-[18px]" /> : <Clock size={14} className="md:size-[18px]" />}
+        {player.is_ready ? (
+          <Check size={14} className="md:size-[18px]" />
+        ) : (
+          <Clock size={14} className="md:size-[18px]" />
+        )}
       </div>
     </div>
   );
@@ -85,9 +69,7 @@ function PlayerSlot({ player, isHost }: { player: LobbyPlayer; isHost: boolean }
 
 function EmptySlot() {
   return (
-    <div
-      className="flex items-center gap-3 md:gap-4 rounded-xl md:rounded-2xl border md:border-2 border-dashed border-border/60 px-3 py-3 md:px-5 md:py-4"
-    >
+    <div className="flex items-center gap-3 md:gap-4 rounded-xl md:rounded-2xl border md:border-2 border-dashed border-border/60 px-3 py-3 md:px-5 md:py-4">
       <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-lg md:rounded-xl bg-secondary/50 text-muted-foreground/40">
         <Search size={16} className="md:size-[20px]" />
       </div>
@@ -125,12 +107,15 @@ export default function LobbyPage() {
   const voice = useVoiceChat();
   const router = useRouter();
 
-  const effectiveVoiceUrl =
-    (typeof process !== "undefined" && process.env.NEXT_PUBLIC_LIVEKIT_URL) || voiceUrl;
+  const effectiveVoiceUrl = (typeof process !== "undefined" && process.env.NEXT_PUBLIC_LIVEKIT_URL) || voiceUrl;
 
   const handleVoiceJoin = useCallback(async () => {
     if (!effectiveVoiceUrl || !voiceToken) return;
-    try { await voice.join(effectiveVoiceUrl, voiceToken); } catch (e) { console.error("Voice join failed:", e); }
+    try {
+      await voice.join(effectiveVoiceUrl, voiceToken);
+    } catch (e) {
+      console.error("Voice join failed:", e);
+    }
   }, [voice, effectiveVoiceUrl, voiceToken]);
 
   // Leave voice when leaving lobby
@@ -205,11 +190,10 @@ export default function LobbyPage() {
   const emptySlots = lobbyFull ? 0 : Math.max(0, maxPlayers - lobbyPlayers.length);
   const hostUserId = lobbyPlayers.length > 0 ? lobbyPlayers[0].user_id : null;
   const readyCount = lobbyPlayers.filter((p) => p.is_ready).length;
-  const myReady = lobbyPlayers.some(p => p.user_id === myUserId && p.is_ready);
+  const myReady = lobbyPlayers.some((p) => p.user_id === myUserId && p.is_ready);
 
   return (
     <div className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* ═══ HEADER ═══ */}
       <div className="px-4 md:px-0">
         <div className="flex items-center gap-2 mb-1 md:mb-2">
@@ -223,11 +207,7 @@ export default function LobbyPage() {
           <h1 className="font-display text-lg md:hidden text-foreground">Lobby</h1>
         </div>
         <h1 className="hidden md:block font-display text-5xl text-foreground">
-          {lobbyFull && !allReady
-            ? "Mecz znaleziony!"
-            : allReady
-              ? "Uruchamianie meczu..."
-              : "Szukanie graczy"}
+          {lobbyFull && !allReady ? "Mecz znaleziony!" : allReady ? "Uruchamianie meczu..." : "Szukanie graczy"}
         </h1>
         <p className="hidden md:block mt-1 text-base text-muted-foreground">
           {lobbyFull && !allReady
@@ -242,8 +222,20 @@ export default function LobbyPage() {
       <div className="flex gap-3 overflow-x-auto px-4 pb-1 md:px-0 md:grid md:grid-cols-3 md:gap-3 md:overflow-visible scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
         {[
           { icon: Clock, label: "Czas", value: `${mins}:${secs}`, color: "text-primary", key: "time" },
-          { icon: Users, label: "Gracze", value: `${lobbyPlayers.length}/${maxPlayers}`, color: "text-foreground", key: "players" },
-          { icon: Check, label: "Gotowi", value: `${readyCount}/${lobbyPlayers.length}`, color: readyCount === lobbyPlayers.length && lobbyPlayers.length > 0 ? "text-green-400" : "text-foreground", key: "ready" },
+          {
+            icon: Users,
+            label: "Gracze",
+            value: `${lobbyPlayers.length}/${maxPlayers}`,
+            color: "text-foreground",
+            key: "players",
+          },
+          {
+            icon: Check,
+            label: "Gotowi",
+            value: `${readyCount}/${lobbyPlayers.length}`,
+            color: readyCount === lobbyPlayers.length && lobbyPlayers.length > 0 ? "text-green-400" : "text-foreground",
+            key: "ready",
+          },
         ].map((s) => (
           <div
             key={s.key}
@@ -251,7 +243,9 @@ export default function LobbyPage() {
           >
             <div className="flex items-center gap-2">
               <s.icon className="h-4 w-4 text-muted-foreground" />
-              <span className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-medium">{s.label}</span>
+              <span className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-medium">
+                {s.label}
+              </span>
             </div>
             <div className={`font-display text-xl md:text-3xl tabular-nums ${s.color} ml-auto md:ml-0`}>{s.value}</div>
           </div>
@@ -260,29 +254,25 @@ export default function LobbyPage() {
 
       {/* ═══ STATUS BANNER — mobile ═══ */}
       <div className="px-4 md:hidden">
-        <div className={cn(
-          "flex items-center gap-3 rounded-xl p-3 transition-all",
-          lobbyFull && !allReady
-            ? "bg-green-500/10 border border-green-500/20"
-            : allReady
-              ? "bg-green-500/10 border border-green-500/30"
-              : "bg-primary/10 border border-primary/20"
-        )}>
-          <div className={cn(
-            "h-3 w-3 rounded-full animate-pulse shrink-0",
-            lobbyFull ? "bg-green-500" : "bg-primary"
-          )} />
-          <span className={cn(
-            "text-sm font-semibold",
-            lobbyFull ? "text-green-400" : "text-primary"
-          )}>
-            {lobbyFull && !allReady
-              ? "Mecz znaleziony!"
+        <div
+          className={cn(
+            "flex items-center gap-3 rounded-xl p-3 transition-all",
+            lobbyFull && !allReady
+              ? "bg-green-500/10 border border-green-500/20"
               : allReady
-                ? "Start..."
-                : "Szukanie graczy..."}
+                ? "bg-green-500/10 border border-green-500/30"
+                : "bg-primary/10 border border-primary/20",
+          )}
+        >
+          <div
+            className={cn("h-3 w-3 rounded-full animate-pulse shrink-0", lobbyFull ? "bg-green-500" : "bg-primary")}
+          />
+          <span className={cn("text-sm font-semibold", lobbyFull ? "text-green-400" : "text-primary")}>
+            {lobbyFull && !allReady ? "Mecz znaleziony!" : allReady ? "Start..." : "Szukanie graczy..."}
           </span>
-          <span className="text-xs text-muted-foreground ml-auto tabular-nums">{mins}:{secs}</span>
+          <span className="text-xs text-muted-foreground ml-auto tabular-nums">
+            {mins}:{secs}
+          </span>
         </div>
       </div>
 
@@ -295,10 +285,7 @@ export default function LobbyPage() {
             {lobbyPlayers.map((player) => (
               <PlayerSlot key={player.user_id} player={player} isHost={player.user_id === hostUserId} />
             ))}
-            {!lobbyFull &&
-              Array.from({ length: emptySlots }).map((_, i) => (
-                <EmptySlot key={`empty-${i}`} />
-              ))}
+            {!lobbyFull && Array.from({ length: emptySlots }).map((_, i) => <EmptySlot key={`empty-${i}`} />)}
           </CardContent>
         </Card>
 
@@ -308,10 +295,7 @@ export default function LobbyPage() {
           {lobbyPlayers.map((player) => (
             <PlayerSlot key={player.user_id} player={player} isHost={player.user_id === hostUserId} />
           ))}
-          {!lobbyFull &&
-            Array.from({ length: emptySlots }).map((_, i) => (
-              <EmptySlot key={`empty-${i}`} />
-            ))}
+          {!lobbyFull && Array.from({ length: emptySlots }).map((_, i) => <EmptySlot key={`empty-${i}`} />)}
         </div>
       </div>
 
@@ -359,7 +343,9 @@ export default function LobbyPage() {
         <div className="md:hidden space-y-3">
           {/* Voice */}
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground font-medium mb-2">Czat głosowy</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground font-medium mb-2">
+              Czat głosowy
+            </p>
             <VoicePanel
               token={voiceToken}
               url={effectiveVoiceUrl}
@@ -392,7 +378,6 @@ export default function LobbyPage() {
 
       {/* ═══ ACTIONS ═══ */}
       <div className="px-4 md:px-0 space-y-3">
-
         {/* Desktop — Card wrapper */}
         <Card className="hidden md:block rounded-2xl">
           <CardContent className="p-5 space-y-4">

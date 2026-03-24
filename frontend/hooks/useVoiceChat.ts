@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 
 // LiveKit types — imported dynamically to avoid ~500KB in the initial bundle.
 // Only loaded when the user actually joins voice chat.
@@ -30,7 +30,7 @@ function attachAudioTrack(
   publication: LKRemoteTrackPublication,
   participant: LKRemoteParticipant,
   audioElements: Map<string, HTMLAudioElement>,
-  AudioKind: unknown
+  AudioKind: unknown,
 ) {
   const track = publication.track;
   if (!track || publication.kind !== AudioKind) return;
@@ -51,7 +51,7 @@ function attachAudioTrack(
 function detachAudioTrack(
   publication: LKRemoteTrackPublication,
   participant: LKRemoteParticipant,
-  audioElements: Map<string, HTMLAudioElement>
+  audioElements: Map<string, HTMLAudioElement>,
 ) {
   const key = `${participant.identity}:${publication.trackSid}`;
   const el = audioElements.get(key);
@@ -139,11 +139,11 @@ export function useVoiceChat(): UseVoiceChatReturn {
               publication as LKRemoteTrackPublication,
               participant as LKRemoteParticipant,
               audioElementsRef.current,
-              Track.Kind.Audio
+              Track.Kind.Audio,
             );
           }
           updatePeers();
-        }
+        },
       );
 
       room.on(
@@ -153,11 +153,11 @@ export function useVoiceChat(): UseVoiceChatReturn {
             detachAudioTrack(
               publication as LKRemoteTrackPublication,
               participant as LKRemoteParticipant,
-              audioElementsRef.current
+              audioElementsRef.current,
             );
           }
           updatePeers();
-        }
+        },
       );
 
       room.on(RoomEvent.ParticipantConnected, () => updatePeers());
@@ -165,7 +165,7 @@ export function useVoiceChat(): UseVoiceChatReturn {
       room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Array<{ identity: string }>) => {
         updatePeers();
         const localSpeaking = speakers.some(
-          (s: { identity: string }) => s.identity === room.localParticipant?.identity
+          (s: { identity: string }) => s.identity === room.localParticipant?.identity,
         );
         setIsSpeaking(localSpeaking);
       });
@@ -177,7 +177,7 @@ export function useVoiceChat(): UseVoiceChatReturn {
       await room.localParticipant.setMicrophoneEnabled(true);
       setMicEnabled(true);
     },
-    [updatePeers]
+    [updatePeers],
   );
 
   const leave = useCallback(() => {

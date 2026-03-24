@@ -1,6 +1,5 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
-from django.db.models import Count
 
 from apps.inventory.models import Deck
 
@@ -23,7 +22,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"  {user.username}: removed {stale_count} stale non-editable deck(s)")
 
             # If there are multiple is_default=True decks, keep only the newest
-            default_decks = Deck.objects.filter(user=user, is_default=True).order_by('-created_at')
+            default_decks = Deck.objects.filter(user=user, is_default=True).order_by("-created_at")
             if default_decks.count() > 1:
                 keep = default_decks.first()
                 to_delete = default_decks.exclude(pk=keep.pk)

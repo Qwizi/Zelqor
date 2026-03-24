@@ -1,11 +1,8 @@
 "use client";
 
 import { type ReactNode, useMemo } from "react";
-import {
-  SystemModulesContext,
-  buildSystemModulesValue,
-} from "@/hooks/useSystemModules";
 import { useConfig } from "@/hooks/queries";
+import { buildSystemModulesValue, SystemModulesContext } from "@/hooks/useSystemModules";
 
 /**
  * Global provider for system module states.
@@ -15,14 +12,7 @@ import { useConfig } from "@/hooks/queries";
 export function SystemModulesProvider({ children }: { children: ReactNode }) {
   const { data: config } = useConfig();
 
-  const contextValue = useMemo(
-    () => buildSystemModulesValue(config?.system_modules ?? []),
-    [config?.system_modules]
-  );
+  const contextValue = useMemo(() => buildSystemModulesValue(config?.system_modules ?? []), [config?.system_modules]);
 
-  return (
-    <SystemModulesContext.Provider value={contextValue}>
-      {children}
-    </SystemModulesContext.Provider>
-  );
+  return <SystemModulesContext.Provider value={contextValue}>{children}</SystemModulesContext.Provider>;
 }

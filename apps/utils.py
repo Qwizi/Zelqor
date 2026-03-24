@@ -1,7 +1,8 @@
 from io import BytesIO
-from PIL import Image as PILImage
+
 from django.core.files.base import ContentFile
 from django.db.models.fields.files import FieldFile
+from PIL import Image as PILImage
 
 
 def resize_image(image_field: FieldFile, max_size: int = 300, quality: int = 85) -> None:
@@ -14,11 +15,12 @@ def resize_image(image_field: FieldFile, max_size: int = 300, quality: int = 85)
 
     # Only process in-memory uploads, not already-saved files
     file = image_field.file
-    if not hasattr(file, 'read'):
+    if not hasattr(file, "read"):
         return
 
     # Check if it's actually an in-memory upload (InMemoryUploadedFile or TemporaryUploadedFile)
     from django.core.files.uploadedfile import UploadedFile
+
     if not isinstance(file, UploadedFile):
         return
 
@@ -30,16 +32,13 @@ def resize_image(image_field: FieldFile, max_size: int = 300, quality: int = 85)
 
     img.thumbnail((max_size, max_size), PILImage.LANCZOS)
 
-    if img.mode in ('RGBA', 'LA', 'P'):
-        img = img.convert('RGBA')
-    else:
-        img = img.convert('RGB')
+    img = img.convert("RGBA") if img.mode in ("RGBA", "LA", "P") else img.convert("RGB")
 
     buffer = BytesIO()
-    img.save(buffer, format='WEBP', quality=quality)
+    img.save(buffer, format="WEBP", quality=quality)
     buffer.seek(0)
 
     # Replace file with resized version, keeping the stem but changing extension
-    original_name = image_field.name.rsplit('/', 1)[-1]
-    stem = original_name.rsplit('.', 1)[0]
-    image_field.save(f'{stem}.webp', ContentFile(buffer.read()), save=False)
+    original_name = image_field.name.rsplit("/", 1)[-1]
+    stem = original_name.rsplit(".", 1)[0]
+    image_field.save(f"{stem}.webp", ContentFile(buffer.read()), save=False)

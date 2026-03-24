@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { CheckCircle2, Loader2, Swords } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,12 +35,7 @@ interface LoadingStep {
   done: boolean;
 }
 
-function getSteps(
-  connected: boolean,
-  gameStateLoaded: boolean,
-  mapReady: boolean,
-  allReady: boolean,
-): LoadingStep[] {
+function getSteps(connected: boolean, gameStateLoaded: boolean, mapReady: boolean, allReady: boolean): LoadingStep[] {
   return [
     { label: "Łączenie z serwerem...", done: connected },
     { label: "Ładowanie danych gry...", done: gameStateLoaded },
@@ -49,11 +44,7 @@ function getSteps(
   ];
 }
 
-function computeProgress(
-  connected: boolean,
-  gameStateLoaded: boolean,
-  mapReady: boolean,
-): number {
+function computeProgress(connected: boolean, gameStateLoaded: boolean, mapReady: boolean): number {
   let p = 0;
   if (connected) p += 33;
   if (gameStateLoaded) p += 33;
@@ -63,23 +54,11 @@ function computeProgress(
 
 // ─── Player Card ──────────────────────────────────────────────────────────────
 
-function PlayerCard({
-  player,
-  isMe,
-  side,
-}: {
-  player: PlayerInfo;
-  isMe: boolean;
-  side?: "left" | "right" | "center";
-}) {
+function PlayerCard({ player, isMe, side }: { player: PlayerInfo; isMe: boolean; side?: "left" | "right" | "center" }) {
   const initial = player.username.charAt(0).toUpperCase();
 
   const alignClass =
-    side === "left"
-      ? "items-end text-right"
-      : side === "right"
-        ? "items-start text-left"
-        : "items-center text-center";
+    side === "left" ? "items-end text-right" : side === "right" ? "items-start text-left" : "items-center text-center";
 
   return (
     <div className={`flex flex-col gap-3 ${alignClass}`}>
@@ -102,13 +81,13 @@ function PlayerCard({
       {/* Name + badges */}
       <div className={`flex flex-col gap-1 ${alignClass}`}>
         <span className="font-display text-lg font-bold uppercase tracking-wide text-zinc-50 sm:text-xl">
-          {player.clan_tag && <span className="text-zinc-400">[{player.clan_tag}]{"\u00A0"}</span>}
-          {player.username}
-          {isMe && (
-            <span className="ml-2 text-sm font-normal normal-case tracking-normal text-cyan-400">
-              (Ty)
+          {player.clan_tag && (
+            <span className="text-zinc-400">
+              [{player.clan_tag}]{"\u00A0"}
             </span>
           )}
+          {player.username}
+          {isMe && <span className="ml-2 text-sm font-normal normal-case tracking-normal text-cyan-400">(Ty)</span>}
         </span>
 
         <div className="flex flex-wrap items-center gap-1.5">
@@ -119,10 +98,7 @@ function PlayerCard({
           )}
           {/* Color swatch label */}
           <span className="flex items-center gap-1 text-xs text-zinc-500">
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: player.color }}
-            />
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: player.color }} />
             {player.color}
           </span>
         </div>
@@ -171,15 +147,16 @@ function DuelLayout({
 function FFALayout({ players, myUserId }: { players: PlayerInfo[]; myUserId: string }) {
   return (
     <div className="flex flex-col items-center gap-6">
-      <p className="font-display text-sm uppercase tracking-[0.25em] text-zinc-400">
-        Wszyscy Przeciw Wszystkim
-      </p>
+      <p className="font-display text-sm uppercase tracking-[0.25em] text-zinc-400">Wszyscy Przeciw Wszystkim</p>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {players.map((player, i) => (
           <div
             key={player.user_id}
             className="ffa-player-card rounded-2xl border border-white/10 bg-zinc-900 p-3 shadow-lg sm:p-4"
-            style={{ boxShadow: `0 0 0 1px ${player.color}30, 0 8px 24px rgba(0,0,0,0.4)`, animationDelay: `${i * 80}ms` }}
+            style={{
+              boxShadow: `0 0 0 1px ${player.color}30, 0 8px 24px rgba(0,0,0,0.4)`,
+              animationDelay: `${i * 80}ms`,
+            }}
           >
             <PlayerCard player={player} isMe={player.user_id === myUserId} side="center" />
           </div>
@@ -227,7 +204,9 @@ function ProgressSteps({ steps, progress }: { steps: LoadingStep[]; progress: nu
               }`}
             />
             {i < steps.length - 1 && (
-              <span className={`inline-block h-px w-4 transition-colors duration-300 ${step.done ? "bg-cyan-400/50" : "bg-zinc-700"}`} />
+              <span
+                className={`inline-block h-px w-4 transition-colors duration-300 ${step.done ? "bg-cyan-400/50" : "bg-zinc-700"}`}
+              />
             )}
           </div>
         ))}
@@ -256,12 +235,8 @@ export default function MatchIntroOverlay({
   const playerList = Object.values(players);
   const isDuel = playerList.length === 2;
 
-  const playerLeft = isDuel
-    ? (playerList.find((p) => p.user_id === myUserId) ?? playerList[0])
-    : playerList[0];
-  const playerRight = isDuel
-    ? (playerList.find((p) => p.user_id !== myUserId) ?? playerList[1])
-    : playerList[1];
+  const playerLeft = isDuel ? (playerList.find((p) => p.user_id === myUserId) ?? playerList[0]) : playerList[0];
+  const playerRight = isDuel ? (playerList.find((p) => p.user_id !== myUserId) ?? playerList[1]) : playerList[1];
 
   const allReady = connected && gameStateLoaded && mapReady;
   const progress = allReady ? 100 : computeProgress(connected, gameStateLoaded, mapReady);
@@ -308,18 +283,35 @@ export default function MatchIntroOverlay({
       if (isDuel && playerLeft && playerRight) {
         tl.fromTo(".player-card-left", { x: -80, opacity: 0 }, { x: 0, opacity: 1, duration: 0.55 }, "-=0.25");
         tl.fromTo(".player-card-right", { x: 80, opacity: 0 }, { x: 0, opacity: 1, duration: 0.55 }, "<");
-        tl.fromTo(".vs-center", { scale: 0.5, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(1.7)" }, "-=0.3");
-        tl.to(".vs-center span", {
-          textShadow: "0 0 40px rgba(251,191,36,1), 0 0 80px rgba(251,191,36,0.5)",
-          repeat: -1, yoyo: true, duration: 1.2, ease: "sine.inOut",
-        }, "+=0.1");
+        tl.fromTo(
+          ".vs-center",
+          { scale: 0.5, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(1.7)" },
+          "-=0.3",
+        );
+        tl.to(
+          ".vs-center span",
+          {
+            textShadow: "0 0 40px rgba(251,191,36,1), 0 0 80px rgba(251,191,36,0.5)",
+            repeat: -1,
+            yoyo: true,
+            duration: 1.2,
+            ease: "sine.inOut",
+          },
+          "+=0.1",
+        );
       } else if (!isDuel && playerList.length > 0) {
-        tl.fromTo(".ffa-player-card", { y: 30, opacity: 0, scale: 0.9 }, { y: 0, opacity: 1, scale: 1, duration: 0.45, stagger: 0.08 }, "-=0.2");
+        tl.fromTo(
+          ".ffa-player-card",
+          { y: 30, opacity: 0, scale: 0.9 },
+          { y: 0, opacity: 1, scale: 1, duration: 0.45, stagger: 0.08 },
+          "-=0.2",
+        );
       }
 
       tl.fromTo(".intro-loading", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4 }, "-=0.15");
     },
-    { scope: containerRef, dependencies: [isDuel, playerList.length] }
+    { scope: containerRef, dependencies: [isDuel, playerList.length] },
   );
 
   return (
@@ -337,7 +329,6 @@ export default function MatchIntroOverlay({
 
       {/* Card container */}
       <div className="relative z-10 flex w-full max-w-3xl flex-col items-center gap-8 px-4 py-8 sm:px-6">
-
         {/* Title */}
         <div className="intro-title flex flex-col items-center gap-3">
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-zinc-500">MapLord</p>

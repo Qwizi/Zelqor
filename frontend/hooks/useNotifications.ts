@@ -1,10 +1,10 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  getUnreadNotificationCount,
   getNotifications,
-  markNotificationRead,
+  getUnreadNotificationCount,
   markAllNotificationsRead,
+  markNotificationRead,
   type NotificationOut,
 } from "@/lib/api";
 
@@ -36,14 +36,15 @@ export function useNotifications(token: string | null) {
     }
   }, [token]);
 
-  const markRead = useCallback(async (id: string) => {
-    if (!token) return;
-    await markNotificationRead(token, id);
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
-    );
-    setUnreadCount((prev) => Math.max(0, prev - 1));
-  }, [token]);
+  const markRead = useCallback(
+    async (id: string) => {
+      if (!token) return;
+      await markNotificationRead(token, id);
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    },
+    [token],
+  );
 
   const markAllRead = useCallback(async () => {
     if (!token) return;

@@ -1,12 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  getConfig,
-  getGameModes,
-  getGameMode,
-  type FullConfig,
-  type GameModeListItem,
-  type GameMode,
-} from "@/lib/api";
+import { type FullConfig, type GameMode, type GameModeListItem, getConfig, getGameMode, getGameModes } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 
 export function useConfig() {

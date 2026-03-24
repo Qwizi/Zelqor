@@ -1,30 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { createSocket, type WSMessage } from "@/lib/ws";
-import { getAccessToken } from "@/lib/auth";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getWsTicket } from "@/lib/api";
-import { solveChallenge } from "@/lib/pow";
+import { getAccessToken } from "@/lib/auth";
 import type { DiplomacyState } from "@/lib/gameTypes";
+import { solveChallenge } from "@/lib/pow";
 import { queryKeys } from "@/lib/queryKeys";
+import { createSocket, type WSMessage } from "@/lib/ws";
 
 /** Fast shallow comparison for active_effects — avoids re-renders when data is identical. */
-function shallowEqualEffects(
-  prev: ActiveEffect[] | undefined,
-  next: ActiveEffect[] | undefined
-): boolean {
+function shallowEqualEffects(prev: ActiveEffect[] | undefined, next: ActiveEffect[] | undefined): boolean {
   if (prev === next) return true;
   if (!prev || !next) return false;
   if (prev.length !== next.length) return false;
   for (let i = 0; i < prev.length; i++) {
-    const a = prev[i], b = next[i];
+    const a = prev[i],
+      b = next[i];
     if (
       a.effect_type !== b.effect_type ||
       a.target_region_id !== b.target_region_id ||
       a.ticks_remaining !== b.ticks_remaining ||
       a.source_player_id !== b.source_player_id
-    ) return false;
+    )
+      return false;
   }
   return true;
 }
@@ -196,7 +195,13 @@ interface UseGameSocketReturn {
   ping: number | undefined;
   diplomacy: DiplomacyState;
   selectCapital: (regionId: string) => void;
-  attack: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null, escortFighters?: number) => void;
+  attack: (
+    sourceRegionId: string,
+    targetRegionId: string,
+    units: number,
+    unitType?: string | null,
+    escortFighters?: number,
+  ) => void;
   move: (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null) => void;
   bombard: (sourceRegionId: string, targetRegionIds: string[], units?: number) => void;
   interceptFlight: (sourceRegionId: string, flightId: string, units: number) => void;
@@ -231,148 +236,149 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
   const leaveResolverRef = useRef<((value: boolean) => void) | null>(null);
   const pingTimestampRef = useRef<number | null>(null);
 
-  const handleMessage = useCallback((msg: WSMessage) => {
-    switch (msg.type) {
-      case "game_state": {
-        const initialState = msg.state as GameState;
-        if (msg.weather) {
-          initialState.weather = msg.weather as WeatherState;
-        }
-        setGameState(initialState);
-        if (msg.diplomacy) {
-          setDiplomacy(msg.diplomacy as DiplomacyState);
-        } else if (initialState.diplomacy) {
-          setDiplomacy(initialState.diplomacy);
-        }
-        break;
-      }
-      case "game_tick": {
-        const tickBase = String(msg.tick ?? "0");
-        const rawTickEvents = (msg.events as GameEvent[]) || [];
-        const tickEvents = rawTickEvents.map((event, index) => ({
-          ...event,
-          __eventKey:
-            typeof event.__eventKey === "string"
-              ? event.__eventKey
-              : [
-                  tickBase,
-                  index,
-                  event.type,
-                  String(event.player_id ?? ""),
-                  String(event.source_region_id ?? event.region_id ?? ""),
-                  String(event.target_region_id ?? ""),
-                  String(event.unit_type ?? event.building_type ?? ""),
-                  String(event.units ?? event.quantity ?? ""),
-                ].join(":"),
-        }));
-        const isGameOver = tickEvents.some((e) => e.type === "game_over");
-        if (isGameOver) {
-          queryClient.invalidateQueries({ queryKey: queryKeys.matches.all });
-          queryClient.invalidateQueries({ queryKey: queryKeys.auth.me() });
-          queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
-        }
-        setGameState((prev) => {
-          if (!prev) return prev;
-          const regionUpdates = msg.regions as Record<string, Partial<GameRegion>> | undefined;
-          let nextRegions = prev.regions;
-          if (regionUpdates) {
-            // Mutate a shallow copy — only copy the top-level object once,
-            // then patch individual region entries in-place.
-            nextRegions = { ...prev.regions };
-            for (const regionId in regionUpdates) {
-              nextRegions[regionId] = { ...nextRegions[regionId], ...regionUpdates[regionId] };
-            }
+  const handleMessage = useCallback(
+    (msg: WSMessage) => {
+      switch (msg.type) {
+        case "game_state": {
+          const initialState = msg.state as GameState;
+          if (msg.weather) {
+            initialState.weather = msg.weather as WeatherState;
           }
-          return {
-            ...prev,
-            meta: {
-              ...prev.meta,
-              current_tick: String(msg.tick),
-              ...(isGameOver ? { status: "finished" } : {}),
-            },
-            players: (msg.players as Record<string, GamePlayer>) || prev.players,
-            regions: nextRegions,
-            buildings_queue: (msg.buildings_queue as BuildingQueueItem[]) ?? prev.buildings_queue,
-            unit_queue: (msg.unit_queue as UnitQueueItem[]) ?? prev.unit_queue,
-            transit_queue: (msg.transit_queue as Array<Record<string, unknown>>) ?? prev.transit_queue,
-            air_transit_queue: (msg.air_transit_queue as AirTransitItem[]) ?? prev.air_transit_queue,
-            active_effects: shallowEqualEffects(prev.active_effects, msg.active_effects as ActiveEffect[] | undefined)
-              ? prev.active_effects
-              : (msg.active_effects as ActiveEffect[]) ?? prev.active_effects,
-            weather: msg.weather !== undefined
-              ? (msg.weather as WeatherState)
-              : prev.weather,
-          };
-        });
-        if (msg.diplomacy) {
-          setDiplomacy(msg.diplomacy as DiplomacyState);
+          setGameState(initialState);
+          if (msg.diplomacy) {
+            setDiplomacy(msg.diplomacy as DiplomacyState);
+          } else if (initialState.diplomacy) {
+            setDiplomacy(initialState.diplomacy);
+          }
+          break;
         }
-        if (tickEvents.length > 0) {
-          setEvents((prev) => [...prev.slice(-50), ...tickEvents]);
-        }
-        break;
-      }
-      case "capital_selected":
-        // No state change needed — next game_tick will contain the updated region
-        break;
-      case "game_starting":
-        setGameState((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            meta: { ...prev.meta, status: "in_progress" },
-          };
-        });
-        break;
-      case "error":
-        console.error("Game error:", msg.message);
-        setEvents((prev) => [
-          ...prev.slice(-50),
-          { type: "server_error", message: msg.message as string, fatal: msg.fatal as boolean | undefined },
-        ]);
-        // Fatal error = match cancelled/unrecoverable — update status
-        if (msg.fatal) {
+        case "game_tick": {
+          const tickBase = String(msg.tick ?? "0");
+          const rawTickEvents = (msg.events as GameEvent[]) || [];
+          const tickEvents = rawTickEvents.map((event, index) => ({
+            ...event,
+            __eventKey:
+              typeof event.__eventKey === "string"
+                ? event.__eventKey
+                : [
+                    tickBase,
+                    index,
+                    event.type,
+                    String(event.player_id ?? ""),
+                    String(event.source_region_id ?? event.region_id ?? ""),
+                    String(event.target_region_id ?? ""),
+                    String(event.unit_type ?? event.building_type ?? ""),
+                    String(event.units ?? event.quantity ?? ""),
+                  ].join(":"),
+          }));
+          const isGameOver = tickEvents.some((e) => e.type === "game_over");
+          if (isGameOver) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.matches.all });
+            queryClient.invalidateQueries({ queryKey: queryKeys.auth.me() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+          }
           setGameState((prev) => {
             if (!prev) return prev;
-            return { ...prev, meta: { ...prev.meta, status: "cancelled" } };
+            const regionUpdates = msg.regions as Record<string, Partial<GameRegion>> | undefined;
+            let nextRegions = prev.regions;
+            if (regionUpdates) {
+              // Mutate a shallow copy — only copy the top-level object once,
+              // then patch individual region entries in-place.
+              nextRegions = { ...prev.regions };
+              for (const regionId in regionUpdates) {
+                nextRegions[regionId] = { ...nextRegions[regionId], ...regionUpdates[regionId] };
+              }
+            }
+            return {
+              ...prev,
+              meta: {
+                ...prev.meta,
+                current_tick: String(msg.tick),
+                ...(isGameOver ? { status: "finished" } : {}),
+              },
+              players: (msg.players as Record<string, GamePlayer>) || prev.players,
+              regions: nextRegions,
+              buildings_queue: (msg.buildings_queue as BuildingQueueItem[]) ?? prev.buildings_queue,
+              unit_queue: (msg.unit_queue as UnitQueueItem[]) ?? prev.unit_queue,
+              transit_queue: (msg.transit_queue as Array<Record<string, unknown>>) ?? prev.transit_queue,
+              air_transit_queue: (msg.air_transit_queue as AirTransitItem[]) ?? prev.air_transit_queue,
+              active_effects: shallowEqualEffects(prev.active_effects, msg.active_effects as ActiveEffect[] | undefined)
+                ? prev.active_effects
+                : ((msg.active_effects as ActiveEffect[]) ?? prev.active_effects),
+              weather: msg.weather !== undefined ? (msg.weather as WeatherState) : prev.weather,
+            };
           });
+          if (msg.diplomacy) {
+            setDiplomacy(msg.diplomacy as DiplomacyState);
+          }
+          if (tickEvents.length > 0) {
+            setEvents((prev) => [...prev.slice(-50), ...tickEvents]);
+          }
+          break;
         }
-        break;
-      case "match_left":
-        queryClient.invalidateQueries({ queryKey: queryKeys.matches.all });
-        if (leaveResolverRef.current) {
-          leaveResolverRef.current(true);
-          leaveResolverRef.current = null;
+        case "capital_selected":
+          // No state change needed — next game_tick will contain the updated region
+          break;
+        case "game_starting":
+          setGameState((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              meta: { ...prev.meta, status: "in_progress" },
+            };
+          });
+          break;
+        case "error":
+          console.error("Game error:", msg.message);
+          setEvents((prev) => [
+            ...prev.slice(-50),
+            { type: "server_error", message: msg.message as string, fatal: msg.fatal as boolean | undefined },
+          ]);
+          // Fatal error = match cancelled/unrecoverable — update status
+          if (msg.fatal) {
+            setGameState((prev) => {
+              if (!prev) return prev;
+              return { ...prev, meta: { ...prev.meta, status: "cancelled" } };
+            });
+          }
+          break;
+        case "match_left":
+          queryClient.invalidateQueries({ queryKey: queryKeys.matches.all });
+          if (leaveResolverRef.current) {
+            leaveResolverRef.current(true);
+            leaveResolverRef.current = null;
+          }
+          break;
+        case "chat_message":
+          setMatchChatMessages((prev) => [
+            ...prev.slice(-199),
+            {
+              user_id: msg.user_id as string,
+              username: msg.username as string,
+              content: msg.content as string,
+              timestamp: msg.timestamp as number,
+            },
+          ]);
+          break;
+        case "chat_history": {
+          const historyMsgs = (msg.messages as MatchChatMessage[]) || [];
+          setMatchChatMessages(historyMsgs);
+          break;
         }
-        break;
-      case "chat_message":
-        setMatchChatMessages((prev) => [
-          ...prev.slice(-199),
-          {
-            user_id: msg.user_id as string,
-            username: msg.username as string,
-            content: msg.content as string,
-            timestamp: msg.timestamp as number,
-          },
-        ]);
-        break;
-      case "chat_history": {
-        const historyMsgs = (msg.messages as MatchChatMessage[]) || [];
-        setMatchChatMessages(historyMsgs);
-        break;
+        case "voice_token":
+          setVoiceToken(msg.token as string);
+          setVoiceUrl(msg.url as string);
+          break;
+        case "pong":
+          if (pingTimestampRef.current !== null) {
+            setPing(Date.now() - pingTimestampRef.current);
+            pingTimestampRef.current = null;
+          }
+          break;
       }
-      case "voice_token":
-        setVoiceToken(msg.token as string);
-        setVoiceUrl(msg.url as string);
-        break;
-      case "pong":
-        if (pingTimestampRef.current !== null) {
-          setPing(Date.now() - pingTimestampRef.current);
-          pingTimestampRef.current = null;
-        }
-        break;
-    }
-  }, []);
+    },
+    [queryClient.invalidateQueries],
+  );
 
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffDelayRef = useRef<number>(1000);
@@ -417,12 +423,10 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
           }
 
           // Determine whether this close was intentional — skip reconnect if so.
-          const isIntentionalClose =
-            event.code === 1000 && event.reason === "component_disposed";
+          const isIntentionalClose = event.code === 1000 && event.reason === "component_disposed";
 
           // Server rejected reconnect (player left match, timed out, or match cancelled)
-          const isServerRejection =
-            event.code === 4000 || event.code === 4001 || event.code === 4002;
+          const isServerRejection = event.code === 4000 || event.code === 4001 || event.code === 4002;
 
           // Account banned — do not reconnect, surface the ban reason
           const isBanClose = event.code === 4003;
@@ -494,7 +498,7 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
         ws.close(1000, "component_disposed");
       }
     };
-  }, [matchId, handleMessage]);
+  }, [matchId, handleMessage, isSpectator]);
 
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -504,11 +508,17 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
 
   const selectCapital = useCallback(
     (regionId: string) => send({ action: "select_capital", region_id: regionId }),
-    [send]
+    [send],
   );
 
   const attack = useCallback(
-    (sourceRegionId: string, targetRegionId: string, units: number, unitType?: string | null, escortFighters?: number) =>
+    (
+      sourceRegionId: string,
+      targetRegionId: string,
+      units: number,
+      unitType?: string | null,
+      escortFighters?: number,
+    ) =>
       send({
         action: "attack",
         source_region_id: sourceRegionId,
@@ -517,7 +527,7 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
         unit_type: unitType,
         ...(escortFighters && escortFighters > 0 ? { escort_fighters: escortFighters } : {}),
       }),
-    [send]
+    [send],
   );
 
   const move = useCallback(
@@ -529,7 +539,7 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
         units,
         unit_type: unitType,
       }),
-    [send]
+    [send],
   );
 
   const bombard = useCallback(
@@ -541,7 +551,7 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
         unit_type: "artillery",
         ...(units != null ? { units } : {}),
       }),
-    [send]
+    [send],
   );
 
   const interceptFlight = useCallback(
@@ -552,31 +562,30 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
         target_flight_id: flightId,
         units,
       }),
-    [send]
+    [send],
   );
 
   const build = useCallback(
     (regionId: string, buildingType: string) =>
       send({ action: "build", region_id: regionId, building_type: buildingType }),
-    [send]
+    [send],
   );
 
   const upgradeBuilding = useCallback(
     (regionId: string, buildingType: string) =>
       send({ action: "upgrade_building", region_id: regionId, building_type: buildingType }),
-    [send]
+    [send],
   );
 
   const produceUnit = useCallback(
-    (regionId: string, unitType: string) =>
-      send({ action: "produce_unit", region_id: regionId, unit_type: unitType }),
-    [send]
+    (regionId: string, unitType: string) => send({ action: "produce_unit", region_id: regionId, unit_type: unitType }),
+    [send],
   );
 
   const useAbility = useCallback(
     (targetRegionId: string, abilityType: string) =>
       send({ action: "use_ability", target_region_id: targetRegionId, ability_type: abilityType }),
-    [send]
+    [send],
   );
 
   const sendChat = useCallback(
@@ -585,41 +594,41 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
       if (!trimmed || trimmed.length > 500) return;
       send({ action: "chat", content: trimmed });
     },
-    [send]
+    [send],
   );
 
   const proposePact = useCallback(
     (targetPlayerId: string, pactType: string = "nap") =>
       send({ action: "propose_pact", target_player_id: targetPlayerId, pact_type: pactType }),
-    [send]
+    [send],
   );
 
   const respondPact = useCallback(
-    (proposalId: string, accept: boolean) =>
-      send({ action: "respond_pact", proposal_id: proposalId, accept }),
-    [send]
+    (proposalId: string, accept: boolean) => send({ action: "respond_pact", proposal_id: proposalId, accept }),
+    [send],
   );
 
   const proposePeace = useCallback(
     (targetPlayerId: string, conditionType: string = "status_quo", provincesToReturn?: string[]) =>
-      send({ action: "propose_peace", target_player_id: targetPlayerId, condition_type: conditionType, provinces_to_return: provincesToReturn }),
-    [send]
+      send({
+        action: "propose_peace",
+        target_player_id: targetPlayerId,
+        condition_type: conditionType,
+        provinces_to_return: provincesToReturn,
+      }),
+    [send],
   );
 
   const respondPeace = useCallback(
-    (proposalId: string, accept: boolean) =>
-      send({ action: "respond_peace", proposal_id: proposalId, accept }),
-    [send]
+    (proposalId: string, accept: boolean) => send({ action: "respond_peace", proposal_id: proposalId, accept }),
+    [send],
   );
 
-  const breakPact = useCallback(
-    (pactId: string) => send({ action: "break_pact", pact_id: pactId }),
-    [send]
-  );
+  const breakPact = useCallback((pactId: string) => send({ action: "break_pact", pact_id: pactId }), [send]);
 
   const declareWar = useCallback(
     (targetPlayerId: string) => send({ action: "declare_war", target_player_id: targetPlayerId }),
-    [send]
+    [send],
   );
 
   const leaveMatch = useCallback(() => {

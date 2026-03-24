@@ -4,13 +4,12 @@ from datetime import timedelta
 from django.db.models import Count, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
-
 from unfold.components import BaseComponent, register_component
-
 
 # ---------------------------------------------------------------------------
 # Helper: last-7-days date range + label list
 # ---------------------------------------------------------------------------
+
 
 def _last_7_days():
     """Return a list of (date, label) tuples for the last 7 days (oldest first)."""
@@ -22,6 +21,7 @@ def _last_7_days():
 # Dashboard callback — injects KPI values into the admin index context
 # ---------------------------------------------------------------------------
 
+
 def dashboard_callback(request, context):
     from apps.accounts.models import User
     from apps.inventory.models import Wallet
@@ -29,7 +29,7 @@ def dashboard_callback(request, context):
     from apps.matchmaking.models import Match, MatchQueue
 
     today = timezone.now().date()
-    tomorrow = today + timedelta(days=1)
+    today + timedelta(days=1)
 
     # KPI: total users (exclude bots so the number is meaningful)
     kpi_users = User.objects.filter(is_bot=False).count()
@@ -49,9 +49,7 @@ def dashboard_callback(request, context):
     kpi_total_gold = Wallet.objects.aggregate(total=Sum("gold"))["total"] or 0
 
     # KPI: active marketplace listings
-    kpi_active_listings = MarketListing.objects.filter(
-        status=MarketListing.Status.ACTIVE
-    ).count()
+    kpi_active_listings = MarketListing.objects.filter(status=MarketListing.Status.ACTIVE).count()
 
     context.update(
         {
@@ -70,6 +68,7 @@ def dashboard_callback(request, context):
 # ---------------------------------------------------------------------------
 # Chart components
 # ---------------------------------------------------------------------------
+
 
 @register_component
 class MatchesChartComponent(BaseComponent):

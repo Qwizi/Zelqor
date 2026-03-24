@@ -18,9 +18,18 @@ tsconfig.tsbuildinfo
 # Documentation
 *.md
 
+# Tests
+e2e/
+components/__tests__/
+hooks/__tests__/
+lib/__tests__/
+vitest.setup.ts
+playwright.config.ts
+
 # Dev tools
 .claude/
 .agents/
+biome.json
 
 # Desktop/mobile wrappers
 src-tauri/

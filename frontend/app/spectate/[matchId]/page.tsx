@@ -1,33 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, use } from "react";
+import { ArrowLeft, Eye, Loader2, Users } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { use, useEffect, useMemo } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useConfig, useRegionsGraph } from "@/hooks/queries";
 import { useAuth } from "@/hooks/useAuth";
 import { useGameSocket } from "@/hooks/useGameSocket";
 import { useShapesData } from "@/hooks/useShapesData";
 import { loadAssetOverrides } from "@/lib/assetOverrides";
-import { useRegionsGraph, useConfig } from "@/hooks/queries";
-import dynamic from "next/dynamic";
-import { Eye, ArrowLeft, Loader2, Users, Trophy } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 const GameCanvas = dynamic(() => import("@/components/map/GameCanvas"), { ssr: false });
 
-export default function SpectatePage({
-  params,
-}: {
-  params: Promise<{ matchId: string }>;
-}) {
+export default function SpectatePage({ params }: { params: Promise<{ matchId: string }> }) {
   const { matchId } = use(params);
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const {
-    connected,
-    gameState,
-    bannedReason,
-  } = useGameSocket(matchId, { spectator: true });
+  const { connected, gameState, bannedReason } = useGameSocket(matchId, { spectator: true });
 
   // Map data
   const { shapesData: shapes } = useShapesData();
@@ -36,7 +28,7 @@ export default function SpectatePage({
 
   const regionGraph = regionGraphData ?? [];
   const buildings = configData?.buildings ?? [];
-  const units = configData?.units ?? [];
+  const _units = configData?.units ?? [];
 
   const buildingIcons = useMemo<Record<string, string>>(() => {
     const icons: Record<string, string> = {};
@@ -66,7 +58,7 @@ export default function SpectatePage({
         // Sum all unit types in the region
         const totalUnits = region.units
           ? Object.values(region.units).reduce((s, n) => s + n, 0)
-          : region.unit_count ?? 0;
+          : (region.unit_count ?? 0);
         unitCounts[region.owner_id] = (unitCounts[region.owner_id] ?? 0) + totalUnits;
       }
     }
@@ -82,7 +74,7 @@ export default function SpectatePage({
   }, [gameState?.players, gameState?.regions]);
 
   // Neighbor map for GameCanvas
-  const neighborMap = useMemo(() => {
+  const _neighborMap = useMemo(() => {
     const map: Record<string, string[]> = {};
     for (const entry of regionGraph) {
       map[entry.id] = entry.neighbor_ids;
@@ -136,7 +128,12 @@ export default function SpectatePage({
       <div className="absolute inset-x-0 top-0 z-30 pointer-events-none">
         {/* Top bar */}
         <div className="flex items-center gap-3 px-4 h-12 bg-gradient-to-b from-black/60 to-transparent pointer-events-auto">
-          <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-2 text-white/80 hover:text-white hover:bg-white/10">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.back()}
+            className="gap-2 text-white/80 hover:text-white hover:bg-white/10"
+          >
             <ArrowLeft size={16} />
             Wróć
           </Button>
@@ -188,9 +185,7 @@ export default function SpectatePage({
               .map((p) => (
                 <div
                   key={p.user_id}
-                  className={`flex items-center gap-2 px-4 py-2 text-sm ${
-                    p.is_alive ? "" : "opacity-40"
-                  }`}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm ${p.is_alive ? "" : "opacity-40"}`}
                 >
                   <div className="h-3 w-3 rounded-sm shrink-0" style={{ backgroundColor: p.color }} />
                   <span className="flex-1 font-medium text-foreground truncate">

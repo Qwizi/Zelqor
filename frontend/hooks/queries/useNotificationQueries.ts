@@ -1,14 +1,14 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getNotifications,
   getUnreadNotificationCount,
-  markNotificationRead,
   markAllNotificationsRead,
+  markNotificationRead,
   type NotificationOut,
   type PaginatedResponse,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useNotifications(limit?: number, offset?: number) {
   return useQuery<PaginatedResponse<NotificationOut>>({

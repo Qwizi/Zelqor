@@ -1,11 +1,10 @@
 // ── Canvas types, constants, and helpers ──────────────────────────────────────
 // Extracted from GameCanvas.tsx for reuse across hooks and components.
 
-import { Graphics, TextStyle } from "pixi.js";
 import type { Text } from "pixi.js";
-import type { GameRegion, ActiveEffect, AirTransitItem } from "@/hooks/useGameSocket";
-import type { TroopAnimation, PlannedMove, DiplomacyState } from "@/lib/gameTypes";
-import type { CosmeticValue } from "@/lib/animationConfig";
+import { type Graphics, TextStyle } from "pixi.js";
+import type { ActiveEffect, AirTransitItem, GameRegion } from "@/hooks/useGameSocket";
+import type { DiplomacyState, PlannedMove, TroopAnimation } from "@/lib/gameTypes";
 
 // ── Shape data types ──────────────────────────────────────────
 
@@ -89,12 +88,27 @@ export interface ProvinceRenderState {
 // ── Effect config ─────────────────────────────────────────────
 
 export const EFFECT_CONFIG: Record<string, { color: string; borderColor: string; icon: string; symbol: string }> = {
-  ab_virus:              { color: "#22c55e", borderColor: "#16a34a", icon: "/assets/abilities/ab_virus.webp",              symbol: "☣" },
-  ab_shield:             { color: "#3b82f6", borderColor: "#60a5fa", icon: "/assets/abilities/ab_shield.webp",             symbol: "🛡" },
-  ab_pr_submarine:       { color: "#a855f7", borderColor: "#c084fc", icon: "/assets/abilities/ab_pr_submarine.webp",       symbol: "⚓" },
-  ab_province_nuke:      { color: "#ef4444", borderColor: "#f87171", icon: "/assets/abilities/ab_province_nuke.webp",      symbol: "☢" },
-  ab_conscription_point: { color: "#f59e0b", borderColor: "#fbbf24", icon: "/assets/abilities/ab_conscription_point.webp", symbol: "⚔" },
-  ab_flash:              { color: "#fbbf24", borderColor: "#f59e0b", icon: "⚡", symbol: "💡" },
+  ab_virus: { color: "#22c55e", borderColor: "#16a34a", icon: "/assets/abilities/ab_virus.webp", symbol: "☣" },
+  ab_shield: { color: "#3b82f6", borderColor: "#60a5fa", icon: "/assets/abilities/ab_shield.webp", symbol: "🛡" },
+  ab_pr_submarine: {
+    color: "#a855f7",
+    borderColor: "#c084fc",
+    icon: "/assets/abilities/ab_pr_submarine.webp",
+    symbol: "⚓",
+  },
+  ab_province_nuke: {
+    color: "#ef4444",
+    borderColor: "#f87171",
+    icon: "/assets/abilities/ab_province_nuke.webp",
+    symbol: "☢",
+  },
+  ab_conscription_point: {
+    color: "#f59e0b",
+    borderColor: "#fbbf24",
+    icon: "/assets/abilities/ab_conscription_point.webp",
+    symbol: "⚔",
+  },
+  ab_flash: { color: "#fbbf24", borderColor: "#f59e0b", icon: "⚡", symbol: "💡" },
 };
 
 // ── Color constants ───────────────────────────────────────────
@@ -107,7 +121,7 @@ export const TARGET_STROKE = 0xef4444;
 export const NEIGHBOR_TINT = 0x2a4060;
 export const CAPITAL_FILL = 0xfbbf24;
 export const DIMMED_ALPHA = 0.25;
-export const NORMAL_ALPHA = 0.60;
+export const NORMAL_ALPHA = 0.6;
 export const UNCLAIMED_FILL_ALPHA = 0.0;
 export const STROKE_WIDTH_DEFAULT = 2;
 export const STROKE_WIDTH_SELECTED = 3;
@@ -172,7 +186,7 @@ export function drawPolygon(
   fillColor: number,
   strokeColor: number,
   strokeWidth: number,
-  fillAlpha = 1.0
+  fillAlpha = 1.0,
 ): void {
   if (outerRing.length < 3) return;
 

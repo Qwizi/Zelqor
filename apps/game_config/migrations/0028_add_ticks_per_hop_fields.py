@@ -4,20 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0027_unittype_aoe_damage_unittype_blockade_port_and_more'),
+        ("game_config", "0027_unittype_aoe_damage_unittype_blockade_port_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='unittype',
-            name='air_speed_ticks_per_hop',
-            field=models.PositiveIntegerField(default=0, help_text='Ticks per province hop for air transit (0 = use legacy speed formula)'),
+            model_name="unittype",
+            name="air_speed_ticks_per_hop",
+            field=models.PositiveIntegerField(
+                default=0, help_text="Ticks per province hop for air transit (0 = use legacy speed formula)"
+            ),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='ticks_per_hop',
-            field=models.PositiveIntegerField(default=0, help_text='Ticks per province hop for ground/sea units (0 = use legacy speed formula)'),
+            model_name="unittype",
+            name="ticks_per_hop",
+            field=models.PositiveIntegerField(
+                default=0, help_text="Ticks per province hop for ground/sea units (0 = use legacy speed formula)"
+            ),
         ),
     ]

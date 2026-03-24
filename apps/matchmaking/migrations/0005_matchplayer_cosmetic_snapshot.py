@@ -4,15 +4,16 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('matchmaking', '0004_matchplayer_deck_snapshot'),
+        ("matchmaking", "0004_matchplayer_deck_snapshot"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='matchplayer',
-            name='cosmetic_snapshot',
-            field=models.JSONField(blank=True, default=dict, help_text='Frozen cosmetic overrides: {asset_key: asset_url}'),
+            model_name="matchplayer",
+            name="cosmetic_snapshot",
+            field=models.JSONField(
+                blank=True, default=dict, help_text="Frozen cosmetic overrides: {asset_key: asset_url}"
+            ),
         ),
     ]

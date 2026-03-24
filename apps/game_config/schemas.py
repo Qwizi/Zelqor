@@ -1,13 +1,14 @@
 import uuid
-from typing import Optional, List
+
 from ninja import Schema
 
 
-def _resolve_game_asset_url(asset_key: str) -> Optional[str]:
+def _resolve_game_asset_url(asset_key: str) -> str | None:
     """Look up a GameAsset by key and return its file URL, or None."""
     if not asset_key:
         return None
     from apps.assets.models import GameAsset
+
     try:
         asset = GameAsset.objects.get(key=asset_key, is_active=True)
         return asset.file.url if asset.file else None
@@ -15,7 +16,7 @@ def _resolve_game_asset_url(asset_key: str) -> Optional[str]:
         return None
 
 
-def _resolve_asset(obj) -> Optional[str]:
+def _resolve_asset(obj) -> str | None:
     """Resolve asset URL via GameAsset lookup by asset_key."""
     return _resolve_game_asset_url(obj.asset_key)
 
@@ -95,16 +96,17 @@ class BuildingTypeOutSchema(Schema):
 
     @staticmethod
     def resolve_cost(obj):
-        return (obj.level_stats or {}).get('1', {}).get('cost', 0)
+        return (obj.level_stats or {}).get("1", {}).get("cost", 0)
 
     @staticmethod
     def resolve_energy_cost(obj):
-        return (obj.level_stats or {}).get('1', {}).get('energy_cost', 0)
+        return (obj.level_stats or {}).get("1", {}).get("energy_cost", 0)
 
     @staticmethod
     def resolve_build_time_ticks(obj):
-        return (obj.level_stats or {}).get('1', {}).get('build_time_ticks', 1)
-    asset_url: Optional[str] = None
+        return (obj.level_stats or {}).get("1", {}).get("build_time_ticks", 1)
+
+    asset_url: str | None = None
 
     @staticmethod
     def resolve_asset_url(obj):
@@ -127,8 +129,8 @@ class UnitTypeOutSchema(Schema):
     attack_range: int
     sea_range: int
     sea_hop_distance_km: int
-    produced_by_id: Optional[uuid.UUID] = None
-    produced_by_slug: Optional[str] = None
+    produced_by_id: uuid.UUID | None = None
+    produced_by_slug: str | None = None
     production_cost: int = 0
     production_time_ticks: int = 0
     manpower_cost: int = 1
@@ -139,15 +141,16 @@ class UnitTypeOutSchema(Schema):
 
     @staticmethod
     def resolve_production_cost(obj):
-        return (obj.level_stats or {}).get('1', {}).get('production_cost', 0)
+        return (obj.level_stats or {}).get("1", {}).get("production_cost", 0)
 
     @staticmethod
     def resolve_production_time_ticks(obj):
-        return (obj.level_stats or {}).get('1', {}).get('production_time_ticks', 0)
+        return (obj.level_stats or {}).get("1", {}).get("production_time_ticks", 0)
 
     @staticmethod
     def resolve_manpower_cost(obj):
-        return (obj.level_stats or {}).get('1', {}).get('manpower_cost', 1)
+        return (obj.level_stats or {}).get("1", {}).get("manpower_cost", 1)
+
     path_damage: float
     aoe_damage: float
     blockade_port: bool
@@ -158,7 +161,7 @@ class UnitTypeOutSchema(Schema):
     ticks_per_hop: int
     air_speed_ticks_per_hop: int
     order: int
-    asset_url: Optional[str] = None
+    asset_url: str | None = None
 
     @staticmethod
     def resolve_asset_url(obj):
@@ -172,7 +175,7 @@ class MapConfigOutSchema(Schema):
     id: uuid.UUID
     name: str
     description: str
-    country_codes: List[str]
+    country_codes: list[str]
     is_active: bool
 
     class Config:
@@ -233,7 +236,7 @@ class GameModeOutSchema(Schema):
     fatigue_defense_modifier: float
     fatigue_attack_ticks: int
     fatigue_defense_ticks: int
-    map_config_id: Optional[uuid.UUID] = None
+    map_config_id: uuid.UUID | None = None
     is_active: bool
     is_default: bool
     order: int
@@ -274,8 +277,8 @@ class AbilityTypeOutSchema(Schema):
     max_level: int
     level_stats: dict
     order: int
-    asset_url: Optional[str] = None
-    sound_url: Optional[str] = None
+    asset_url: str | None = None
+    sound_url: str | None = None
 
     @staticmethod
     def resolve_asset_url(obj):
@@ -315,6 +318,7 @@ class SystemModuleOutSchema(Schema):
 
 class GameModuleOutSchema(Schema):
     """Backward-compatible schema for game-type modules."""
+
     id: uuid.UUID
     slug: str
     name: str
@@ -331,10 +335,10 @@ class GameModuleOutSchema(Schema):
 
 class FullConfigOutSchema(Schema):
     settings: GameSettingsOutSchema
-    buildings: List[BuildingTypeOutSchema]
-    units: List[UnitTypeOutSchema]
-    abilities: List[AbilityTypeOutSchema]
-    maps: List[MapConfigOutSchema]
-    game_modes: List[GameModeListSchema]
-    modules: List[GameModuleOutSchema]
-    system_modules: List[SystemModuleOutSchema]
+    buildings: list[BuildingTypeOutSchema]
+    units: list[UnitTypeOutSchema]
+    abilities: list[AbilityTypeOutSchema]
+    maps: list[MapConfigOutSchema]
+    game_modes: list[GameModeListSchema]
+    modules: list[GameModuleOutSchema]
+    system_modules: list[SystemModuleOutSchema]

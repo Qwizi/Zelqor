@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('inventory', '0007_cosmetic_slot'),
+        ("inventory", "0007_cosmetic_slot"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='deck',
-            name='is_editable',
+            model_name="deck",
+            name="is_editable",
             field=models.BooleanField(default=True),
         ),
     ]

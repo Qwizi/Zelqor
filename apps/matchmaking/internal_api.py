@@ -1,7 +1,7 @@
 import logging
 
-from ninja_extra import ControllerBase, api_controller, route
 from ninja import Schema
+from ninja_extra import ControllerBase, api_controller, route
 
 from apps.internal_auth import check_internal_secret
 
@@ -24,16 +24,18 @@ def _consume_default_deck(user) -> dict:
     Tarcza (Shield) Lvl 1 is always available as a free ability regardless of deck.
     Returns at minimum the free ability even if the user has no default deck.
     """
-    from apps.inventory.models import Deck, Item, ItemInstance, UserInventory
     from django.db import transaction
 
+    from apps.inventory.models import Deck, Item, ItemInstance, UserInventory
+
     # Free ability — always available
-    ability_scrolls: dict[str, int] = {'ab_shield': 999}
-    ability_levels: dict[str, int] = {'ab_shield': 1}
+    ability_scrolls: dict[str, int] = {"ab_shield": 999}
+    ability_levels: dict[str, int] = {"ab_shield": 1}
 
     # Default: all active buildings unlocked at level 1
     from apps.game_config.models import BuildingType as BuildingTypeModel
-    all_building_slugs = list(BuildingTypeModel.objects.filter(is_active=True).values_list('slug', flat=True))
+
+    all_building_slugs = list(BuildingTypeModel.objects.filter(is_active=True).values_list("slug", flat=True))
     unlocked_buildings: list[str] = list(all_building_slugs)
     building_levels: dict[str, int] = {slug: 1 for slug in all_building_slugs}
     unlocked_units: list[str] = []
@@ -42,26 +44,29 @@ def _consume_default_deck(user) -> dict:
     instance_ids: list[str] = []
 
     try:
-        deck = Deck.objects.prefetch_related(
-            'items__item'
-        ).filter(user=user, is_default=True).order_by('-created_at').first()
+        deck = (
+            Deck.objects.prefetch_related("items__item")
+            .filter(user=user, is_default=True)
+            .order_by("-created_at")
+            .first()
+        )
         if deck is None:
             raise Deck.DoesNotExist
     except Deck.DoesNotExist:
         return {
-            'unlocked_buildings': unlocked_buildings,
-            'building_levels': building_levels,
-            'unlocked_units': unlocked_units,
-            'unit_levels': unit_levels,
-            'ability_scrolls': ability_scrolls,
-            'ability_levels': ability_levels,
-            'active_boosts': active_boosts,
-            'instance_ids': instance_ids,
+            "unlocked_buildings": unlocked_buildings,
+            "building_levels": building_levels,
+            "unlocked_units": unlocked_units,
+            "unit_levels": unit_levels,
+            "ability_scrolls": ability_scrolls,
+            "ability_levels": ability_levels,
+            "active_boosts": active_boosts,
+            "instance_ids": instance_ids,
         }
 
     with transaction.atomic():
         # Use list() so we can safely delete deck items during iteration
-        for deck_item in list(deck.items.select_related('item').all()):
+        for deck_item in list(deck.items.select_related("item").all()):
             item = deck_item.item
             qty = deck_item.quantity
 
@@ -70,7 +75,9 @@ def _consume_default_deck(user) -> dict:
             if not item.is_consumable:
                 if item.is_stackable:
                     owns = UserInventory.objects.filter(
-                        user=user, item=item, quantity__gte=1,
+                        user=user,
+                        item=item,
+                        quantity__gte=1,
                     ).exists()
                 else:
                     owns = ItemInstance.objects.filter(owner=user, item=item).exists()
@@ -81,9 +88,7 @@ def _consume_default_deck(user) -> dict:
                 if item.item_type == Item.ItemType.TACTICAL_PACKAGE:
                     ability_slug = item.blueprint_ref or item.slug
                     ability_scrolls[ability_slug] = 999
-                    ability_levels[ability_slug] = max(
-                        ability_levels.get(ability_slug, 0), item.level
-                    )
+                    ability_levels[ability_slug] = max(ability_levels.get(ability_slug, 0), item.level)
                 elif item.item_type == Item.ItemType.BLUEPRINT_BUILDING:
                     if item.blueprint_ref:
                         if item.blueprint_ref not in unlocked_buildings:
@@ -95,9 +100,7 @@ def _consume_default_deck(user) -> dict:
                     if item.blueprint_ref:
                         if item.blueprint_ref not in unlocked_units:
                             unlocked_units.append(item.blueprint_ref)
-                        unit_levels[item.blueprint_ref] = max(
-                            unit_levels.get(item.blueprint_ref, 0), item.level
-                        )
+                        unit_levels[item.blueprint_ref] = max(unit_levels.get(item.blueprint_ref, 0), item.level)
 
                 # Track instance IDs for post-match StatTrak updates
                 if not item.is_stackable and deck_item.instance_id:
@@ -108,24 +111,20 @@ def _consume_default_deck(user) -> dict:
             consumed = 0
             if item.is_stackable:
                 try:
-                    inv = UserInventory.objects.select_for_update().get(
-                        user=user, item=item
-                    )
+                    inv = UserInventory.objects.select_for_update().get(user=user, item=item)
                     consumed = min(inv.quantity, qty)
                     inv.quantity -= consumed
                     if inv.quantity == 0:
                         inv.delete()
                     else:
-                        inv.save(update_fields=['quantity'])
+                        inv.save(update_fields=["quantity"])
                 except UserInventory.DoesNotExist:
                     consumed = 0
             else:
                 # Non-stackable consumable: delete the specific ItemInstance
                 if deck_item.instance_id:
                     try:
-                        inst = ItemInstance.objects.get(
-                            id=deck_item.instance_id, owner=user
-                        )
+                        inst = ItemInstance.objects.get(id=deck_item.instance_id, owner=user)
                         inst.delete()
                         consumed = 1
                     except ItemInstance.DoesNotExist:
@@ -141,20 +140,22 @@ def _consume_default_deck(user) -> dict:
 
             # Classify consumed items into snapshot buckets
             if item.item_type == Item.ItemType.BOOST:
-                active_boosts.append({
-                    'slug': item.slug,
-                    'params': {**(item.boost_params or {}), 'level': item.level},
-                })
+                active_boosts.append(
+                    {
+                        "slug": item.slug,
+                        "params": {**(item.boost_params or {}), "level": item.level},
+                    }
+                )
 
     return {
-        'unlocked_buildings': unlocked_buildings,
-        'building_levels': building_levels,
-        'unlocked_units': unlocked_units,
-        'unit_levels': unit_levels,
-        'ability_scrolls': ability_scrolls,
-        'ability_levels': ability_levels,
-        'active_boosts': active_boosts,
-        'instance_ids': instance_ids,
+        "unlocked_buildings": unlocked_buildings,
+        "building_levels": building_levels,
+        "unlocked_units": unlocked_units,
+        "unit_levels": unit_levels,
+        "ability_scrolls": ability_scrolls,
+        "ability_levels": ability_levels,
+        "active_boosts": active_boosts,
+        "instance_ids": instance_ids,
     }
 
 
@@ -162,27 +163,28 @@ def _build_cosmetic_snapshot(user) -> dict:
     """Build cosmetic snapshot. Static skins are {slot: url_string}.
     VFX cosmetics are {slot: {url: str|None, params: dict}}."""
     from apps.inventory.models import EquippedCosmetic
+
     snapshot = {}
-    for ec in EquippedCosmetic.objects.filter(user=user).select_related('item__cosmetic_asset'):
+    for ec in EquippedCosmetic.objects.filter(user=user).select_related("item__cosmetic_asset"):
         url = None
         if ec.item.cosmetic_asset and ec.item.cosmetic_asset.file:
             url = ec.item.cosmetic_asset.file.url
 
-        if ec.slot.startswith('vfx_'):
+        if ec.slot.startswith("vfx_"):
             # VFX slot: include params alongside URL
             entry = {
-                'url': url,
-                'params': ec.item.cosmetic_params or {},
+                "url": url,
+                "params": ec.item.cosmetic_params or {},
             }
             if ec.instance_id:
-                entry['instance_id'] = str(ec.instance_id)
+                entry["instance_id"] = str(ec.instance_id)
             snapshot[ec.slot] = entry
         else:
             # Static skin slot: URL string when no instance, dict when instance exists
             if ec.instance_id:
                 snapshot[ec.slot] = {
-                    'url': url,
-                    'instance_id': str(ec.instance_id),
+                    "url": url,
+                    "instance_id": str(ec.instance_id),
                 }
             elif url:
                 snapshot[ec.slot] = url
@@ -212,14 +214,14 @@ class FillWithBotsRequest(Schema):
 # --- Controller ---
 
 
-@api_controller('/internal/matchmaking', tags=['internal'])
+@api_controller("/internal/matchmaking", tags=["internal"])
 class MatchmakingInternalController(ControllerBase):
     """Internal API for the Rust gateway — matchmaking endpoints."""
 
-    @route.post('/queue/add/')
+    @route.post("/queue/add/")
     def add_to_queue(self, request, body: QueueAddRequest):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.accounts.models import User
         from apps.game_config.models import GameMode
@@ -228,7 +230,7 @@ class MatchmakingInternalController(ControllerBase):
         try:
             user = User.objects.get(id=body.user_id)
         except User.DoesNotExist:
-            return self.create_response({'error': 'User not found'}, status_code=404)
+            return self.create_response({"error": "User not found"}, status_code=404)
 
         game_mode = None
         if body.game_mode:
@@ -238,23 +240,24 @@ class MatchmakingInternalController(ControllerBase):
 
         MatchQueue.objects.update_or_create(
             user=user,
-            defaults={'game_mode': game_mode},
+            defaults={"game_mode": game_mode},
         )
-        return {'ok': True}
+        return {"ok": True}
 
-    @route.post('/queue/remove/')
+    @route.post("/queue/remove/")
     def remove_from_queue(self, request, body: QueueRemoveRequest):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.matchmaking.models import MatchQueue
-        MatchQueue.objects.filter(user_id=body.user_id).delete()
-        return {'ok': True}
 
-    @route.get('/queue/count/')
+        MatchQueue.objects.filter(user_id=body.user_id).delete()
+        return {"ok": True}
+
+    @route.get("/queue/count/")
     def get_queue_count(self, request, game_mode: str | None = None):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.game_config.models import GameMode
         from apps.matchmaking.models import MatchQueue
@@ -265,17 +268,14 @@ class MatchmakingInternalController(ControllerBase):
         else:
             gm = GameMode.objects.filter(is_default=True, is_active=True).first()
 
-        if gm:
-            count = MatchQueue.objects.filter(game_mode=gm).count()
-        else:
-            count = MatchQueue.objects.count()
+        count = MatchQueue.objects.filter(game_mode=gm).count() if gm else MatchQueue.objects.count()
 
-        return {'count': count}
+        return {"count": count}
 
-    @route.get('/active-match/{user_id}/')
+    @route.get("/active-match/{user_id}/")
     def get_active_match(self, request, user_id: str):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.matchmaking.models import Match
 
@@ -285,24 +285,23 @@ class MatchmakingInternalController(ControllerBase):
                 players__is_alive=True,
                 status__in=[Match.Status.SELECTING, Match.Status.IN_PROGRESS],
             )
-            .order_by('-created_at')
-            .values_list('id', flat=True)
+            .order_by("-created_at")
+            .values_list("id", flat=True)
             .first()
         )
 
-        return {'match_id': str(match_id) if match_id else None}
+        return {"match_id": str(match_id) if match_id else None}
 
-    @route.post('/fill-with-bots/')
+    @route.post("/fill-with-bots/")
     def fill_with_bots(self, request, body: FillWithBotsRequest):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
-        import logging
         import random
 
         from apps.accounts.models import User
         from apps.game_config.models import GameMode, GameSettings
-        from apps.matchmaking.models import Match, MatchQueue
+        from apps.matchmaking.models import MatchQueue
 
         # Resolve game mode
         if body.game_mode:
@@ -318,43 +317,40 @@ class MatchmakingInternalController(ControllerBase):
         else:
             min_players = game_mode.min_players
 
-        queue_qs = MatchQueue.objects.select_related('user').order_by('joined_at')
+        queue_qs = MatchQueue.objects.select_related("user").order_by("joined_at")
         if game_mode:
             queue_qs = queue_qs.filter(game_mode=game_mode)
 
         human_count = queue_qs.count()
         logger.info(f"fill_with_bots: human_count={human_count}, min_players={min_players}")
         if human_count == 0:
-            return {'match_id': None, 'user_ids': None, 'bot_ids': None}
+            return {"match_id": None, "user_ids": None, "bot_ids": None}
 
         needed = min_players - human_count
         if needed <= 0:
-            return {'match_id': None, 'user_ids': None, 'bot_ids': None}
+            return {"match_id": None, "user_ids": None, "bot_ids": None}
 
-        available_bots = list(
-            User.objects.filter(is_bot=True)
-            .values_list('id', flat=True)
-        )
+        available_bots = list(User.objects.filter(is_bot=True).values_list("id", flat=True))
         random.shuffle(available_bots)
         chosen_bots = available_bots[:needed]
 
         if len(chosen_bots) < needed:
-            return {'match_id': None, 'user_ids': None, 'bot_ids': None}
+            return {"match_id": None, "user_ids": None, "bot_ids": None}
 
         # Add bots to queue
         for bot_id in chosen_bots:
             MatchQueue.objects.update_or_create(
                 user_id=bot_id,
-                defaults={'game_mode': game_mode},
+                defaults={"game_mode": game_mode},
             )
 
         # Now call try_match logic inline
         return self._do_try_match(request, game_mode)
 
-    @route.post('/try-match/')
+    @route.post("/try-match/")
     def try_match(self, request, body: TryMatchRequest):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.game_config.models import GameMode
 
@@ -367,6 +363,7 @@ class MatchmakingInternalController(ControllerBase):
 
     def _do_try_match(self, request, game_mode):
         from django.utils import timezone
+
         from apps.game_config.models import AbilityType, BuildingType, GameSettings, MapConfig, UnitType
         from apps.matchmaking.models import Match, MatchPlayer, MatchQueue
 
@@ -378,13 +375,13 @@ class MatchmakingInternalController(ControllerBase):
             min_players = game_mode.min_players
             max_players = game_mode.max_players
 
-        queue_qs = MatchQueue.objects.select_related('user').order_by('joined_at')
+        queue_qs = MatchQueue.objects.select_related("user").order_by("joined_at")
         if game_mode:
             queue_qs = queue_qs.filter(game_mode=game_mode)
 
         queue_entries = list(queue_qs[:min_players])
         if len(queue_entries) < min_players:
-            return {'match_id': None, 'user_ids': None}
+            return {"match_id": None, "user_ids": None}
 
         # Map config
         if game_mode and game_mode.map_config:
@@ -395,87 +392,90 @@ class MatchmakingInternalController(ControllerBase):
         # Snapshot building types
         building_types = {
             bt.slug: {
-                'cost': (bt.level_stats or {}).get('1', {}).get('cost', 0),
-                'energy_cost': (bt.level_stats or {}).get('1', {}).get('energy_cost', 0),
-                'build_time_ticks': (bt.level_stats or {}).get('1', {}).get('build_time_ticks', 1),
-                'max_per_region': bt.max_per_region,
-                'defense_bonus': bt.defense_bonus,
-                'vision_range': bt.vision_range,
-                'unit_generation_bonus': bt.unit_generation_bonus,
-                'energy_generation_bonus': bt.energy_generation_bonus,
-                'requires_coastal': bt.requires_coastal,
-                'icon': bt.icon,
-                'name': bt.name,
-                'asset_key': bt.asset_key,
-                'order': bt.order,
-                'max_level': bt.max_level,
-                'level_stats': bt.level_stats or {},
-                'produced_unit_slug': next(
-                    (ut.slug for ut in sorted(
-                        (u for u in bt.unit_types.all() if u.is_active),
-                        key=lambda u: u.order,
-                    )),
+                "cost": (bt.level_stats or {}).get("1", {}).get("cost", 0),
+                "energy_cost": (bt.level_stats or {}).get("1", {}).get("energy_cost", 0),
+                "build_time_ticks": (bt.level_stats or {}).get("1", {}).get("build_time_ticks", 1),
+                "max_per_region": bt.max_per_region,
+                "defense_bonus": bt.defense_bonus,
+                "vision_range": bt.vision_range,
+                "unit_generation_bonus": bt.unit_generation_bonus,
+                "energy_generation_bonus": bt.energy_generation_bonus,
+                "requires_coastal": bt.requires_coastal,
+                "icon": bt.icon,
+                "name": bt.name,
+                "asset_key": bt.asset_key,
+                "order": bt.order,
+                "max_level": bt.max_level,
+                "level_stats": bt.level_stats or {},
+                "produced_unit_slug": next(
+                    (
+                        ut.slug
+                        for ut in sorted(
+                            (u for u in bt.unit_types.all() if u.is_active),
+                            key=lambda u: u.order,
+                        )
+                    ),
                     None,
                 ),
             }
-            for bt in BuildingType.objects.filter(is_active=True).prefetch_related('unit_types')
+            for bt in BuildingType.objects.filter(is_active=True).prefetch_related("unit_types")
         }
 
         unit_types = {
             ut.slug: {
-                'name': ut.name,
-                'asset_key': ut.asset_key,
-                'attack': float(ut.attack),
-                'defense': float(ut.defense),
-                'speed': int(ut.speed),
-                'attack_range': int(ut.attack_range),
-                'sea_range': int(ut.sea_range),
-                'sea_hop_distance_km': int(ut.sea_hop_distance_km),
-                'movement_type': ut.movement_type,
-                'produced_by_slug': ut.produced_by.slug if ut.produced_by_id else None,
-                'production_cost': (ut.level_stats or {}).get('1', {}).get('production_cost', 0),
-                'production_time_ticks': (ut.level_stats or {}).get('1', {}).get('production_time_ticks', 0),
-                'manpower_cost': (ut.level_stats or {}).get('1', {}).get('manpower_cost', 1),
-                'max_level': ut.max_level,
-                'level_stats': ut.level_stats or {},
-                'is_stealth': ut.is_stealth,
-                'path_damage': ut.path_damage,
-                'aoe_damage': ut.aoe_damage,
-                'blockade_port': ut.blockade_port,
-                'intercept_air': ut.intercept_air,
-                'can_station_anywhere': ut.can_station_anywhere,
-                'lifetime_ticks': ut.lifetime_ticks,
-                'combat_target': ut.combat_target,
-                'ticks_per_hop': ut.ticks_per_hop,
-                'air_speed_ticks_per_hop': ut.air_speed_ticks_per_hop,
+                "name": ut.name,
+                "asset_key": ut.asset_key,
+                "attack": float(ut.attack),
+                "defense": float(ut.defense),
+                "speed": int(ut.speed),
+                "attack_range": int(ut.attack_range),
+                "sea_range": int(ut.sea_range),
+                "sea_hop_distance_km": int(ut.sea_hop_distance_km),
+                "movement_type": ut.movement_type,
+                "produced_by_slug": ut.produced_by.slug if ut.produced_by_id else None,
+                "production_cost": (ut.level_stats or {}).get("1", {}).get("production_cost", 0),
+                "production_time_ticks": (ut.level_stats or {}).get("1", {}).get("production_time_ticks", 0),
+                "manpower_cost": (ut.level_stats or {}).get("1", {}).get("manpower_cost", 1),
+                "max_level": ut.max_level,
+                "level_stats": ut.level_stats or {},
+                "is_stealth": ut.is_stealth,
+                "path_damage": ut.path_damage,
+                "aoe_damage": ut.aoe_damage,
+                "blockade_port": ut.blockade_port,
+                "intercept_air": ut.intercept_air,
+                "can_station_anywhere": ut.can_station_anywhere,
+                "lifetime_ticks": ut.lifetime_ticks,
+                "combat_target": ut.combat_target,
+                "ticks_per_hop": ut.ticks_per_hop,
+                "air_speed_ticks_per_hop": ut.air_speed_ticks_per_hop,
             }
-            for ut in UnitType.objects.select_related('produced_by').filter(is_active=True)
+            for ut in UnitType.objects.select_related("produced_by").filter(is_active=True)
         }
 
         ability_types = {
             at.slug: {
-                'name': at.name,
-                'asset_key': at.asset_key,
-                'sound_key': at.sound_key,
-                'target_type': at.target_type,
-                'range': int(at.range),
-                'energy_cost': int(at.energy_cost),
-                'cooldown_ticks': int(at.cooldown_ticks),
-                'damage': int(at.damage),
-                'effect_duration_ticks': int(at.effect_duration_ticks),
-                'effect_params': at.effect_params or {},
-                'max_level': at.max_level,
-                'level_stats': at.level_stats or {},
+                "name": at.name,
+                "asset_key": at.asset_key,
+                "sound_key": at.sound_key,
+                "target_type": at.target_type,
+                "range": int(at.range),
+                "energy_cost": int(at.energy_cost),
+                "cooldown_ticks": int(at.cooldown_ticks),
+                "damage": int(at.damage),
+                "effect_duration_ticks": int(at.effect_duration_ticks),
+                "effect_params": at.effect_params or {},
+                "max_level": at.max_level,
+                "level_stats": at.level_stats or {},
             }
             for at in AbilityType.objects.filter(is_active=True)
         }
 
         default_unit_type_slug = (
             UnitType.objects.filter(is_active=True, produced_by__isnull=True)
-            .order_by('order')
-            .values_list('slug', flat=True)
+            .order_by("order")
+            .values_list("slug", flat=True)
             .first()
-            or 'infantry'
+            or "infantry"
         )
 
         src = game_mode if game_mode else GameSettings.get()
@@ -487,61 +487,62 @@ class MatchmakingInternalController(ControllerBase):
             max_players=max_players,
             started_at=timezone.now(),
             settings_snapshot={
-                'tick_interval_ms': src.tick_interval_ms,
-                'capital_selection_time_seconds': src.capital_selection_time_seconds,
-                'base_unit_generation_rate': src.base_unit_generation_rate,
-                'capital_generation_bonus': src.capital_generation_bonus,
-                'starting_energy': src.starting_energy,
-                'base_energy_per_tick': src.base_energy_per_tick,
-                'region_energy_per_tick': src.region_energy_per_tick,
-                'attacker_advantage': src.attacker_advantage,
-                'defender_advantage': src.defender_advantage,
-                'combat_randomness': src.combat_randomness,
-                'starting_units': src.starting_units,
-                'neutral_region_units': src.neutral_region_units,
-                'building_types': building_types,
-                'unit_types': unit_types,
-                'ability_types': ability_types,
-                'default_unit_type_slug': default_unit_type_slug,
-                'min_capital_distance': map_config.min_capital_distance if map_config else 3,
-                'elo_k_factor': src.elo_k_factor,
-                'match_duration_limit_minutes': src.match_duration_limit_minutes,
-                'weather_enabled': src.weather_enabled,
-                'day_night_enabled': src.day_night_enabled,
-                'night_defense_modifier': src.night_defense_modifier,
-                'dawn_dusk_defense_modifier': src.dawn_dusk_defense_modifier,
-                'storm_randomness_modifier': src.storm_randomness_modifier,
-                'fog_randomness_modifier': src.fog_randomness_modifier,
-                'rain_randomness_modifier': src.rain_randomness_modifier,
-                'storm_energy_modifier': src.storm_energy_modifier,
-                'rain_energy_modifier': src.rain_energy_modifier,
-                'storm_unit_gen_modifier': src.storm_unit_gen_modifier,
-                'rain_unit_gen_modifier': src.rain_unit_gen_modifier,
-                'disconnect_grace_seconds': src.disconnect_grace_seconds,
-                'max_build_queue_per_region': src.max_build_queue_per_region,
-                'max_unit_queue_per_region': src.max_unit_queue_per_region,
-                'casualty_factor': src.casualty_factor,
-                'snapshot_interval_ticks': src.snapshot_interval_ticks,
-                'capital_protection_ticks': src.capital_protection_ticks,
-                'nap_minimum_duration_ticks': src.nap_minimum_duration_ticks,
-                'peace_cooldown_ticks': src.peace_cooldown_ticks,
-                'proposal_timeout_ticks': src.proposal_timeout_ticks,
-                'diplomacy_enabled': src.diplomacy_enabled,
+                "tick_interval_ms": src.tick_interval_ms,
+                "capital_selection_time_seconds": src.capital_selection_time_seconds,
+                "base_unit_generation_rate": src.base_unit_generation_rate,
+                "capital_generation_bonus": src.capital_generation_bonus,
+                "starting_energy": src.starting_energy,
+                "base_energy_per_tick": src.base_energy_per_tick,
+                "region_energy_per_tick": src.region_energy_per_tick,
+                "attacker_advantage": src.attacker_advantage,
+                "defender_advantage": src.defender_advantage,
+                "combat_randomness": src.combat_randomness,
+                "starting_units": src.starting_units,
+                "neutral_region_units": src.neutral_region_units,
+                "building_types": building_types,
+                "unit_types": unit_types,
+                "ability_types": ability_types,
+                "default_unit_type_slug": default_unit_type_slug,
+                "min_capital_distance": map_config.min_capital_distance if map_config else 3,
+                "elo_k_factor": src.elo_k_factor,
+                "match_duration_limit_minutes": src.match_duration_limit_minutes,
+                "weather_enabled": src.weather_enabled,
+                "day_night_enabled": src.day_night_enabled,
+                "night_defense_modifier": src.night_defense_modifier,
+                "dawn_dusk_defense_modifier": src.dawn_dusk_defense_modifier,
+                "storm_randomness_modifier": src.storm_randomness_modifier,
+                "fog_randomness_modifier": src.fog_randomness_modifier,
+                "rain_randomness_modifier": src.rain_randomness_modifier,
+                "storm_energy_modifier": src.storm_energy_modifier,
+                "rain_energy_modifier": src.rain_energy_modifier,
+                "storm_unit_gen_modifier": src.storm_unit_gen_modifier,
+                "rain_unit_gen_modifier": src.rain_unit_gen_modifier,
+                "disconnect_grace_seconds": src.disconnect_grace_seconds,
+                "max_build_queue_per_region": src.max_build_queue_per_region,
+                "max_unit_queue_per_region": src.max_unit_queue_per_region,
+                "casualty_factor": src.casualty_factor,
+                "snapshot_interval_ticks": src.snapshot_interval_ticks,
+                "capital_protection_ticks": src.capital_protection_ticks,
+                "nap_minimum_duration_ticks": src.nap_minimum_duration_ticks,
+                "peace_cooldown_ticks": src.peace_cooldown_ticks,
+                "proposal_timeout_ticks": src.proposal_timeout_ticks,
+                "diplomacy_enabled": src.diplomacy_enabled,
             },
         )
 
         # Apply game module overrides to settings_snapshot
-        from apps.game_config.modules import get_modules_snapshot, get_all_module_configs
+        from apps.game_config.modules import get_all_module_configs, get_modules_snapshot
+
         modules_dict, flat_overrides = get_modules_snapshot(src)
         snapshot = match.settings_snapshot
         snapshot.update(flat_overrides)
-        snapshot['modules'] = modules_dict
+        snapshot["modules"] = modules_dict
         # Include system module configs so gateway has access to anticheat/chat/etc settings
-        snapshot['system_modules'] = get_all_module_configs()
+        snapshot["system_modules"] = get_all_module_configs()
         match.settings_snapshot = snapshot
-        match.save(update_fields=['settings_snapshot'])
+        match.save(update_fields=["settings_snapshot"])
 
-        colors = ['#FF4444', '#4444FF', '#44FF44', '#FFFF44', '#FF44FF', '#44FFFF', '#FF8844', '#8844FF']
+        colors = ["#FF4444", "#4444FF", "#44FF44", "#FFFF44", "#FF44FF", "#44FFFF", "#FF8844", "#8844FF"]
 
         users = []
         bot_ids = []
@@ -568,9 +569,9 @@ class MatchmakingInternalController(ControllerBase):
         MatchQueue.objects.filter(id__in=entry_ids).delete()
 
         return {
-            'match_id': str(match.id),
-            'user_ids': users,
-            'bot_ids': bot_ids,
+            "match_id": str(match.id),
+            "user_ids": users,
+            "bot_ids": bot_ids,
         }
 
 
@@ -585,6 +586,7 @@ def _create_match_from_users(users, game_mode, *, team_labels: dict | None = Non
         {'match_id': str, 'user_ids': [...], 'bot_ids': [...]}
     """
     from django.utils import timezone
+
     from apps.game_config.models import AbilityType, BuildingType, GameSettings, MapConfig, UnitType
     from apps.matchmaking.models import Match, MatchPlayer
 
@@ -603,87 +605,90 @@ def _create_match_from_users(users, game_mode, *, team_labels: dict | None = Non
     # Snapshot building types
     building_types = {
         bt.slug: {
-            'cost': (bt.level_stats or {}).get('1', {}).get('cost', 0),
-            'energy_cost': (bt.level_stats or {}).get('1', {}).get('energy_cost', 0),
-            'build_time_ticks': (bt.level_stats or {}).get('1', {}).get('build_time_ticks', 1),
-            'max_per_region': bt.max_per_region,
-            'defense_bonus': bt.defense_bonus,
-            'vision_range': bt.vision_range,
-            'unit_generation_bonus': bt.unit_generation_bonus,
-            'energy_generation_bonus': bt.energy_generation_bonus,
-            'requires_coastal': bt.requires_coastal,
-            'icon': bt.icon,
-            'name': bt.name,
-            'asset_key': bt.asset_key,
-            'order': bt.order,
-            'max_level': bt.max_level,
-            'level_stats': bt.level_stats or {},
-            'produced_unit_slug': next(
-                (ut.slug for ut in sorted(
-                    (u for u in bt.unit_types.all() if u.is_active),
-                    key=lambda u: u.order,
-                )),
+            "cost": (bt.level_stats or {}).get("1", {}).get("cost", 0),
+            "energy_cost": (bt.level_stats or {}).get("1", {}).get("energy_cost", 0),
+            "build_time_ticks": (bt.level_stats or {}).get("1", {}).get("build_time_ticks", 1),
+            "max_per_region": bt.max_per_region,
+            "defense_bonus": bt.defense_bonus,
+            "vision_range": bt.vision_range,
+            "unit_generation_bonus": bt.unit_generation_bonus,
+            "energy_generation_bonus": bt.energy_generation_bonus,
+            "requires_coastal": bt.requires_coastal,
+            "icon": bt.icon,
+            "name": bt.name,
+            "asset_key": bt.asset_key,
+            "order": bt.order,
+            "max_level": bt.max_level,
+            "level_stats": bt.level_stats or {},
+            "produced_unit_slug": next(
+                (
+                    ut.slug
+                    for ut in sorted(
+                        (u for u in bt.unit_types.all() if u.is_active),
+                        key=lambda u: u.order,
+                    )
+                ),
                 None,
             ),
         }
-        for bt in BuildingType.objects.filter(is_active=True).prefetch_related('unit_types')
+        for bt in BuildingType.objects.filter(is_active=True).prefetch_related("unit_types")
     }
 
     unit_types = {
         ut.slug: {
-            'name': ut.name,
-            'asset_key': ut.asset_key,
-            'attack': float(ut.attack),
-            'defense': float(ut.defense),
-            'speed': int(ut.speed),
-            'attack_range': int(ut.attack_range),
-            'sea_range': int(ut.sea_range),
-            'sea_hop_distance_km': int(ut.sea_hop_distance_km),
-            'movement_type': ut.movement_type,
-            'produced_by_slug': ut.produced_by.slug if ut.produced_by_id else None,
-            'production_cost': (ut.level_stats or {}).get('1', {}).get('production_cost', 0),
-            'production_time_ticks': (ut.level_stats or {}).get('1', {}).get('production_time_ticks', 0),
-            'manpower_cost': (ut.level_stats or {}).get('1', {}).get('manpower_cost', 1),
-            'max_level': ut.max_level,
-            'level_stats': ut.level_stats or {},
-            'is_stealth': ut.is_stealth,
-            'path_damage': ut.path_damage,
-            'aoe_damage': ut.aoe_damage,
-            'blockade_port': ut.blockade_port,
-            'intercept_air': ut.intercept_air,
-            'can_station_anywhere': ut.can_station_anywhere,
-            'lifetime_ticks': ut.lifetime_ticks,
-            'combat_target': ut.combat_target,
-            'ticks_per_hop': ut.ticks_per_hop,
-            'air_speed_ticks_per_hop': ut.air_speed_ticks_per_hop,
+            "name": ut.name,
+            "asset_key": ut.asset_key,
+            "attack": float(ut.attack),
+            "defense": float(ut.defense),
+            "speed": int(ut.speed),
+            "attack_range": int(ut.attack_range),
+            "sea_range": int(ut.sea_range),
+            "sea_hop_distance_km": int(ut.sea_hop_distance_km),
+            "movement_type": ut.movement_type,
+            "produced_by_slug": ut.produced_by.slug if ut.produced_by_id else None,
+            "production_cost": (ut.level_stats or {}).get("1", {}).get("production_cost", 0),
+            "production_time_ticks": (ut.level_stats or {}).get("1", {}).get("production_time_ticks", 0),
+            "manpower_cost": (ut.level_stats or {}).get("1", {}).get("manpower_cost", 1),
+            "max_level": ut.max_level,
+            "level_stats": ut.level_stats or {},
+            "is_stealth": ut.is_stealth,
+            "path_damage": ut.path_damage,
+            "aoe_damage": ut.aoe_damage,
+            "blockade_port": ut.blockade_port,
+            "intercept_air": ut.intercept_air,
+            "can_station_anywhere": ut.can_station_anywhere,
+            "lifetime_ticks": ut.lifetime_ticks,
+            "combat_target": ut.combat_target,
+            "ticks_per_hop": ut.ticks_per_hop,
+            "air_speed_ticks_per_hop": ut.air_speed_ticks_per_hop,
         }
-        for ut in UnitType.objects.select_related('produced_by').filter(is_active=True)
+        for ut in UnitType.objects.select_related("produced_by").filter(is_active=True)
     }
 
     ability_types = {
         at.slug: {
-            'name': at.name,
-            'asset_key': at.asset_key,
-            'sound_key': at.sound_key,
-            'target_type': at.target_type,
-            'range': int(at.range),
-            'energy_cost': int(at.energy_cost),
-            'cooldown_ticks': int(at.cooldown_ticks),
-            'damage': int(at.damage),
-            'effect_duration_ticks': int(at.effect_duration_ticks),
-            'effect_params': at.effect_params or {},
-            'max_level': at.max_level,
-            'level_stats': at.level_stats or {},
+            "name": at.name,
+            "asset_key": at.asset_key,
+            "sound_key": at.sound_key,
+            "target_type": at.target_type,
+            "range": int(at.range),
+            "energy_cost": int(at.energy_cost),
+            "cooldown_ticks": int(at.cooldown_ticks),
+            "damage": int(at.damage),
+            "effect_duration_ticks": int(at.effect_duration_ticks),
+            "effect_params": at.effect_params or {},
+            "max_level": at.max_level,
+            "level_stats": at.level_stats or {},
         }
         for at in AbilityType.objects.filter(is_active=True)
     }
 
     default_unit_type_slug = (
         UnitType.objects.filter(is_active=True, produced_by__isnull=True)
-        .order_by('order')
-        .values_list('slug', flat=True)
+        .order_by("order")
+        .values_list("slug", flat=True)
         .first()
-        or 'infantry'
+        or "infantry"
     )
 
     src = game_mode if game_mode else GameSettings.get()
@@ -695,60 +700,61 @@ def _create_match_from_users(users, game_mode, *, team_labels: dict | None = Non
         max_players=max_players,
         started_at=timezone.now(),
         settings_snapshot={
-            'tick_interval_ms': src.tick_interval_ms,
-            'capital_selection_time_seconds': src.capital_selection_time_seconds,
-            'base_unit_generation_rate': src.base_unit_generation_rate,
-            'capital_generation_bonus': src.capital_generation_bonus,
-            'starting_energy': src.starting_energy,
-            'base_energy_per_tick': src.base_energy_per_tick,
-            'region_energy_per_tick': src.region_energy_per_tick,
-            'attacker_advantage': src.attacker_advantage,
-            'defender_advantage': src.defender_advantage,
-            'combat_randomness': src.combat_randomness,
-            'starting_units': src.starting_units,
-            'neutral_region_units': src.neutral_region_units,
-            'building_types': building_types,
-            'unit_types': unit_types,
-            'ability_types': ability_types,
-            'default_unit_type_slug': default_unit_type_slug,
-            'min_capital_distance': map_config.min_capital_distance if map_config else 3,
-            'elo_k_factor': src.elo_k_factor,
-            'match_duration_limit_minutes': src.match_duration_limit_minutes,
-            'weather_enabled': src.weather_enabled,
-            'day_night_enabled': src.day_night_enabled,
-            'night_defense_modifier': src.night_defense_modifier,
-            'dawn_dusk_defense_modifier': src.dawn_dusk_defense_modifier,
-            'storm_randomness_modifier': src.storm_randomness_modifier,
-            'fog_randomness_modifier': src.fog_randomness_modifier,
-            'rain_randomness_modifier': src.rain_randomness_modifier,
-            'storm_energy_modifier': src.storm_energy_modifier,
-            'rain_energy_modifier': src.rain_energy_modifier,
-            'storm_unit_gen_modifier': src.storm_unit_gen_modifier,
-            'rain_unit_gen_modifier': src.rain_unit_gen_modifier,
-            'disconnect_grace_seconds': src.disconnect_grace_seconds,
-            'max_build_queue_per_region': src.max_build_queue_per_region,
-            'max_unit_queue_per_region': src.max_unit_queue_per_region,
-            'casualty_factor': src.casualty_factor,
-            'snapshot_interval_ticks': src.snapshot_interval_ticks,
-            'capital_protection_ticks': src.capital_protection_ticks,
-            'nap_minimum_duration_ticks': src.nap_minimum_duration_ticks,
-            'peace_cooldown_ticks': src.peace_cooldown_ticks,
-            'proposal_timeout_ticks': src.proposal_timeout_ticks,
-            'diplomacy_enabled': src.diplomacy_enabled,
+            "tick_interval_ms": src.tick_interval_ms,
+            "capital_selection_time_seconds": src.capital_selection_time_seconds,
+            "base_unit_generation_rate": src.base_unit_generation_rate,
+            "capital_generation_bonus": src.capital_generation_bonus,
+            "starting_energy": src.starting_energy,
+            "base_energy_per_tick": src.base_energy_per_tick,
+            "region_energy_per_tick": src.region_energy_per_tick,
+            "attacker_advantage": src.attacker_advantage,
+            "defender_advantage": src.defender_advantage,
+            "combat_randomness": src.combat_randomness,
+            "starting_units": src.starting_units,
+            "neutral_region_units": src.neutral_region_units,
+            "building_types": building_types,
+            "unit_types": unit_types,
+            "ability_types": ability_types,
+            "default_unit_type_slug": default_unit_type_slug,
+            "min_capital_distance": map_config.min_capital_distance if map_config else 3,
+            "elo_k_factor": src.elo_k_factor,
+            "match_duration_limit_minutes": src.match_duration_limit_minutes,
+            "weather_enabled": src.weather_enabled,
+            "day_night_enabled": src.day_night_enabled,
+            "night_defense_modifier": src.night_defense_modifier,
+            "dawn_dusk_defense_modifier": src.dawn_dusk_defense_modifier,
+            "storm_randomness_modifier": src.storm_randomness_modifier,
+            "fog_randomness_modifier": src.fog_randomness_modifier,
+            "rain_randomness_modifier": src.rain_randomness_modifier,
+            "storm_energy_modifier": src.storm_energy_modifier,
+            "rain_energy_modifier": src.rain_energy_modifier,
+            "storm_unit_gen_modifier": src.storm_unit_gen_modifier,
+            "rain_unit_gen_modifier": src.rain_unit_gen_modifier,
+            "disconnect_grace_seconds": src.disconnect_grace_seconds,
+            "max_build_queue_per_region": src.max_build_queue_per_region,
+            "max_unit_queue_per_region": src.max_unit_queue_per_region,
+            "casualty_factor": src.casualty_factor,
+            "snapshot_interval_ticks": src.snapshot_interval_ticks,
+            "capital_protection_ticks": src.capital_protection_ticks,
+            "nap_minimum_duration_ticks": src.nap_minimum_duration_ticks,
+            "peace_cooldown_ticks": src.peace_cooldown_ticks,
+            "proposal_timeout_ticks": src.proposal_timeout_ticks,
+            "diplomacy_enabled": src.diplomacy_enabled,
         },
     )
 
     # Apply game module overrides to settings_snapshot
-    from apps.game_config.modules import get_modules_snapshot, get_all_module_configs
+    from apps.game_config.modules import get_all_module_configs, get_modules_snapshot
+
     modules_dict, flat_overrides = get_modules_snapshot(src)
     snapshot = match.settings_snapshot
     snapshot.update(flat_overrides)
-    snapshot['modules'] = modules_dict
-    snapshot['system_modules'] = get_all_module_configs()
+    snapshot["modules"] = modules_dict
+    snapshot["system_modules"] = get_all_module_configs()
     match.settings_snapshot = snapshot
-    match.save(update_fields=['settings_snapshot'])
+    match.save(update_fields=["settings_snapshot"])
 
-    colors = ['#FF4444', '#4444FF', '#44FF44', '#FFFF44', '#FF44FF', '#44FFFF', '#FF8844', '#8844FF']
+    colors = ["#FF4444", "#4444FF", "#44FF44", "#FFFF44", "#FF44FF", "#44FFFF", "#FF8844", "#8844FF"]
 
     user_ids = []
     bot_ids = []
@@ -772,9 +778,9 @@ def _create_match_from_users(users, game_mode, *, team_labels: dict | None = Non
             bot_ids.append(str(user.id))
 
     return {
-        'match_id': str(match.id),
-        'user_ids': user_ids,
-        'bot_ids': bot_ids,
+        "match_id": str(match.id),
+        "user_ids": user_ids,
+        "bot_ids": bot_ids,
     }
 
 
@@ -816,22 +822,22 @@ class StartMatchFromLobbyRequest(Schema):
 
 def _lobby_player_dict(p) -> dict:
     return {
-        'user_id': str(p.user_id),
-        'username': p.user.username,
-        'is_bot': p.is_bot,
-        'is_ready': p.is_ready,
-        'team_label': p.team_label,
+        "user_id": str(p.user_id),
+        "username": p.user.username,
+        "is_bot": p.is_bot,
+        "is_ready": p.is_ready,
+        "team_label": p.team_label,
     }
 
 
-@api_controller('/internal/lobby', tags=['internal'])
+@api_controller("/internal/lobby", tags=["internal"])
 class LobbyInternalController(ControllerBase):
     """Internal API for the Rust gateway — lobby endpoints."""
 
-    @route.post('/create/')
+    @route.post("/create/")
     def create_lobby(self, request, body: CreateLobbyRequest):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.accounts.models import User
         from apps.game_config.models import GameMode, GameSettings
@@ -840,7 +846,7 @@ class LobbyInternalController(ControllerBase):
         try:
             user = User.objects.get(id=body.user_id)
         except User.DoesNotExist:
-            return self.create_response({'error': 'User not found'}, status_code=404)
+            return self.create_response({"error": "User not found"}, status_code=404)
 
         game_mode = None
         if body.game_mode:
@@ -848,10 +854,7 @@ class LobbyInternalController(ControllerBase):
         else:
             game_mode = GameMode.objects.filter(is_default=True, is_active=True).first()
 
-        if game_mode:
-            max_players = game_mode.max_players
-        else:
-            max_players = GameSettings.get().max_players
+        max_players = game_mode.max_players if game_mode else GameSettings.get().max_players
 
         lobby = Lobby.objects.create(
             host_user=user,
@@ -860,20 +863,18 @@ class LobbyInternalController(ControllerBase):
         )
         LobbyPlayer.objects.create(lobby=lobby, user=user, is_bot=user.is_bot)
 
-        players = list(
-            lobby.players.select_related('user').all()
-        )
+        players = list(lobby.players.select_related("user").all())
 
         return {
-            'lobby_id': str(lobby.id),
-            'max_players': lobby.max_players,
-            'players': [_lobby_player_dict(p) for p in players],
+            "lobby_id": str(lobby.id),
+            "max_players": lobby.max_players,
+            "players": [_lobby_player_dict(p) for p in players],
         }
 
-    @route.post('/join/')
+    @route.post("/join/")
     def join_lobby(self, request, body: JoinLobbyRequest):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.accounts.models import User
         from apps.matchmaking.models import Lobby, LobbyPlayer
@@ -881,47 +882,48 @@ class LobbyInternalController(ControllerBase):
         try:
             lobby = Lobby.objects.get(id=body.lobby_id)
         except Lobby.DoesNotExist:
-            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+            return self.create_response({"error": "Lobby not found"}, status_code=404)
 
         if lobby.status not in (Lobby.Status.WAITING,):
-            return self.create_response({'error': 'Lobby is not open'}, status_code=400)
+            return self.create_response({"error": "Lobby is not open"}, status_code=400)
 
         try:
             user = User.objects.get(id=body.user_id)
         except User.DoesNotExist:
-            return self.create_response({'error': 'User not found'}, status_code=404)
+            return self.create_response({"error": "User not found"}, status_code=404)
 
         LobbyPlayer.objects.get_or_create(
             lobby=lobby,
             user=user,
-            defaults={'is_bot': body.is_bot},
+            defaults={"is_bot": body.is_bot},
         )
 
         from django.utils import timezone as tz
+
         player_count = lobby.players.count()
         if player_count >= lobby.max_players:
             lobby.status = Lobby.Status.FULL
             lobby.full_at = tz.now()
-            lobby.save(update_fields=['status', 'full_at'])
+            lobby.save(update_fields=["status", "full_at"])
 
-        players = list(lobby.players.select_related('user').all())
+        players = list(lobby.players.select_related("user").all())
 
         return {
-            'players': [_lobby_player_dict(p) for p in players],
-            'status': lobby.status,
+            "players": [_lobby_player_dict(p) for p in players],
+            "status": lobby.status,
         }
 
-    @route.post('/leave/')
+    @route.post("/leave/")
     def leave_lobby(self, request, body: LeaveLobbyRequest):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.matchmaking.models import Lobby, LobbyPlayer
 
         try:
-            lobby = Lobby.objects.select_related('host_user').get(id=body.lobby_id)
+            lobby = Lobby.objects.select_related("host_user").get(id=body.lobby_id)
         except Lobby.DoesNotExist:
-            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+            return self.create_response({"error": "Lobby not found"}, status_code=404)
 
         LobbyPlayer.objects.filter(lobby=lobby, user_id=body.user_id).delete()
 
@@ -930,84 +932,79 @@ class LobbyInternalController(ControllerBase):
         if str(lobby.host_user_id) == body.user_id:
             # Host left — cancel the lobby
             lobby.status = Lobby.Status.CANCELLED
-            lobby.save(update_fields=['status'])
+            lobby.save(update_fields=["status"])
         elif remaining == 0:
             lobby.status = Lobby.Status.CANCELLED
-            lobby.save(update_fields=['status'])
+            lobby.save(update_fields=["status"])
         else:
             # Non-host left — revert to waiting so new players can join
             # Reset human ready states (bots stay ready)
             lobby.status = Lobby.Status.WAITING
             lobby.full_at = None
-            lobby.save(update_fields=['status', 'full_at'])
+            lobby.save(update_fields=["status", "full_at"])
             lobby.players.filter(is_bot=False).update(is_ready=False)
 
         return {
-            'status': lobby.status,
-            'cancelled': lobby.status == Lobby.Status.CANCELLED,
+            "status": lobby.status,
+            "cancelled": lobby.status == Lobby.Status.CANCELLED,
         }
 
-    @route.post('/set-ready/')
+    @route.post("/set-ready/")
     def set_ready(self, request, body: SetReadyRequest):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.matchmaking.models import Lobby, LobbyPlayer
 
         try:
             lobby = Lobby.objects.get(id=body.lobby_id)
         except Lobby.DoesNotExist:
-            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+            return self.create_response({"error": "Lobby not found"}, status_code=404)
 
-        updated = LobbyPlayer.objects.filter(
-            lobby=lobby, user_id=body.user_id
-        ).update(is_ready=body.is_ready)
+        updated = LobbyPlayer.objects.filter(lobby=lobby, user_id=body.user_id).update(is_ready=body.is_ready)
 
         if updated == 0:
-            return self.create_response({'error': 'Player not in lobby'}, status_code=404)
+            return self.create_response({"error": "Player not in lobby"}, status_code=404)
 
         # When a human readies up, auto-ready all bots in the lobby
         if body.is_ready:
             lobby.players.filter(is_bot=True).update(is_ready=True)
 
-        players = list(lobby.players.select_related('user').all())
+        players = list(lobby.players.select_related("user").all())
 
         if lobby.status == Lobby.Status.FULL and all(p.is_ready for p in players):
             lobby.status = Lobby.Status.READY
-            lobby.save(update_fields=['status'])
+            lobby.save(update_fields=["status"])
 
         return {
-            'all_ready': lobby.status == Lobby.Status.READY,
-            'players': [_lobby_player_dict(p) for p in players],
+            "all_ready": lobby.status == Lobby.Status.READY,
+            "players": [_lobby_player_dict(p) for p in players],
         }
 
-    @route.post('/fill-bots/')
+    @route.post("/fill-bots/")
     def fill_lobby_bots(self, request, body: FillLobbyBotsRequest):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         import random
+
         from apps.accounts.models import User
         from apps.matchmaking.models import Lobby, LobbyPlayer
 
         try:
             lobby = Lobby.objects.get(id=body.lobby_id)
         except Lobby.DoesNotExist:
-            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+            return self.create_response({"error": "Lobby not found"}, status_code=404)
 
         current_count = lobby.players.count()
         needed = lobby.max_players - current_count
         if needed <= 0:
-            players = list(lobby.players.select_related('user').all())
-            return {'bot_ids': [], 'players': [_lobby_player_dict(p) for p in players]}
+            players = list(lobby.players.select_related("user").all())
+            return {"bot_ids": [], "players": [_lobby_player_dict(p) for p in players]}
 
-        existing_user_ids = list(
-            lobby.players.values_list('user_id', flat=True)
-        )
+        existing_user_ids = list(lobby.players.values_list("user_id", flat=True))
         available_bots = list(
-            User.objects.filter(is_bot=True)
-            .exclude(id__in=existing_user_ids)
-            .values_list('id', flat=True)
+            User.objects.filter(is_bot=True).exclude(id__in=existing_user_ids).values_list("id", flat=True)
         )
         random.shuffle(available_bots)
         chosen_bot_ids = available_bots[:needed]
@@ -1016,46 +1013,47 @@ class LobbyInternalController(ControllerBase):
             LobbyPlayer.objects.get_or_create(
                 lobby=lobby,
                 user_id=bot_id,
-                defaults={'is_bot': True, 'is_ready': True},
+                defaults={"is_bot": True, "is_ready": True},
             )
 
-        players = list(lobby.players.select_related('user').all())
+        players = list(lobby.players.select_related("user").all())
         player_count = len(players)
 
         if player_count >= lobby.max_players:
             from django.utils import timezone as tz
+
             if all(p.is_ready for p in players):
                 lobby.status = Lobby.Status.READY
             else:
                 lobby.status = Lobby.Status.FULL
             if not lobby.full_at:
                 lobby.full_at = tz.now()
-            lobby.save(update_fields=['status', 'full_at'])
+            lobby.save(update_fields=["status", "full_at"])
 
         return {
-            'bot_ids': [str(bid) for bid in chosen_bot_ids],
-            'players': [_lobby_player_dict(p) for p in players],
+            "bot_ids": [str(bid) for bid in chosen_bot_ids],
+            "players": [_lobby_player_dict(p) for p in players],
         }
 
-    @route.post('/start-match/')
+    @route.post("/start-match/")
     def start_match(self, request, body: StartMatchFromLobbyRequest):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.matchmaking.models import Lobby, MatchQueue
 
         try:
-            lobby = Lobby.objects.select_related('game_mode').get(id=body.lobby_id)
+            lobby = Lobby.objects.select_related("game_mode").get(id=body.lobby_id)
         except Lobby.DoesNotExist:
-            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+            return self.create_response({"error": "Lobby not found"}, status_code=404)
 
         if lobby.status != Lobby.Status.READY:
-            return self.create_response({'error': 'Lobby is not ready'}, status_code=400)
+            return self.create_response({"error": "Lobby is not ready"}, status_code=400)
 
         lobby.status = Lobby.Status.STARTING
-        lobby.save(update_fields=['status'])
+        lobby.save(update_fields=["status"])
 
-        lobby_players = list(lobby.players.select_related('user').all())
+        lobby_players = list(lobby.players.select_related("user").all())
         users = [lp.user for lp in lobby_players]
         # Build user_id -> team_label mapping for team-based modes (None values ignored later)
         team_labels = {str(lp.user_id): lp.team_label for lp in lobby_players if lp.team_label}
@@ -1064,9 +1062,10 @@ class LobbyInternalController(ControllerBase):
 
         # Link match back to the lobby
         from apps.matchmaking.models import Match
-        match = Match.objects.get(id=result['match_id'])
+
+        match = Match.objects.get(id=result["match_id"])
         lobby.match = match
-        lobby.save(update_fields=['match'])
+        lobby.save(update_fields=["match"])
 
         # Clean up any MatchQueue entries for these users
         user_ids = [u.id for u in users]
@@ -1074,35 +1073,35 @@ class LobbyInternalController(ControllerBase):
 
         return result
 
-    @route.get('/get/{lobby_id}/')
+    @route.get("/get/{lobby_id}/")
     def get_lobby(self, request, lobby_id: str):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.matchmaking.models import Lobby
 
         try:
-            lobby = Lobby.objects.select_related('game_mode', 'host_user').get(id=lobby_id)
+            lobby = Lobby.objects.select_related("game_mode", "host_user").get(id=lobby_id)
         except Lobby.DoesNotExist:
-            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+            return self.create_response({"error": "Lobby not found"}, status_code=404)
 
-        players = list(lobby.players.select_related('user').all())
+        players = list(lobby.players.select_related("user").all())
 
         return {
-            'lobby_id': str(lobby.id),
-            'status': lobby.status,
-            'max_players': lobby.max_players,
-            'game_mode': lobby.game_mode.slug if lobby.game_mode else None,
-            'host_user_id': str(lobby.host_user_id),
-            'players': [_lobby_player_dict(p) for p in players],
-            'full_at': lobby.full_at.timestamp() if lobby.full_at else None,
-            'created_at': lobby.created_at.timestamp(),
+            "lobby_id": str(lobby.id),
+            "status": lobby.status,
+            "max_players": lobby.max_players,
+            "game_mode": lobby.game_mode.slug if lobby.game_mode else None,
+            "host_user_id": str(lobby.host_user_id),
+            "players": [_lobby_player_dict(p) for p in players],
+            "full_at": lobby.full_at.timestamp() if lobby.full_at else None,
+            "created_at": lobby.created_at.timestamp(),
         }
 
-    @route.get('/active/{user_id}/')
+    @route.get("/active/{user_id}/")
     def get_active_lobby(self, request, user_id: str):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from apps.matchmaking.models import Lobby, LobbyPlayer
 
@@ -1115,18 +1114,19 @@ class LobbyInternalController(ControllerBase):
                     Lobby.Status.READY,
                 ),
             )
-            .select_related('lobby')
+            .select_related("lobby")
             .first()
         )
 
-        return {'lobby_id': str(lp.lobby_id) if lp else None}
+        return {"lobby_id": str(lp.lobby_id) if lp else None}
 
-    @route.get('/find-waiting/')
+    @route.get("/find-waiting/")
     def find_waiting_lobby(self, request, game_mode: str | None = None):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from django.db.models import Count, F
+
         from apps.game_config.models import GameMode
         from apps.matchmaking.models import Lobby
 
@@ -1137,24 +1137,24 @@ class LobbyInternalController(ControllerBase):
             gm = GameMode.objects.filter(is_default=True, is_active=True).first()
 
         lobby = (
-            Lobby.objects
-            .filter(status=Lobby.Status.WAITING, game_mode=gm)
-            .annotate(player_count=Count('players'))
-            .filter(player_count__lt=F('max_players'))
-            .order_by('created_at')
+            Lobby.objects.filter(status=Lobby.Status.WAITING, game_mode=gm)
+            .annotate(player_count=Count("players"))
+            .filter(player_count__lt=F("max_players"))
+            .order_by("created_at")
             .first()
         )
 
-        return {'lobby_id': str(lobby.id) if lobby else None}
+        return {"lobby_id": str(lobby.id) if lobby else None}
 
-    @route.post('/find-or-create/')
+    @route.post("/find-or-create/")
     def find_or_create_lobby(self, request, body: CreateLobbyRequest):
         """Atomically find a waiting lobby and join it, or create a new one."""
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         from django.db import transaction
         from django.db.models import Count, F, Subquery
+
         from apps.accounts.models import User
         from apps.game_config.models import GameMode, GameSettings
         from apps.matchmaking.models import Lobby, LobbyPlayer
@@ -1162,7 +1162,7 @@ class LobbyInternalController(ControllerBase):
         try:
             user = User.objects.get(id=body.user_id)
         except User.DoesNotExist:
-            return self.create_response({'error': 'User not found'}, status_code=404)
+            return self.create_response({"error": "User not found"}, status_code=404)
 
         gm = None
         if body.game_mode:
@@ -1173,53 +1173,45 @@ class LobbyInternalController(ControllerBase):
         with transaction.atomic():
             # Find candidate IDs first (with GROUP BY), then lock the row
             candidate_ids = (
-                Lobby.objects
-                .filter(status=Lobby.Status.WAITING, game_mode=gm)
-                .annotate(player_count=Count('players'))
-                .filter(player_count__lt=F('max_players'))
-                .order_by('created_at')
-                .values_list('id', flat=True)[:1]
+                Lobby.objects.filter(status=Lobby.Status.WAITING, game_mode=gm)
+                .annotate(player_count=Count("players"))
+                .filter(player_count__lt=F("max_players"))
+                .order_by("created_at")
+                .values_list("id", flat=True)[:1]
             )
 
             # Lock the specific row (no GROUP BY here)
-            lobby = (
-                Lobby.objects
-                .select_for_update(skip_locked=True)
-                .filter(id__in=Subquery(candidate_ids))
-                .first()
-            )
+            lobby = Lobby.objects.select_for_update(skip_locked=True).filter(id__in=Subquery(candidate_ids)).first()
 
-            if lobby:
-                # Verify it still has space (another concurrent request might have filled it)
-                if lobby.players.count() >= lobby.max_players:
-                    lobby = None
+            # Verify it still has space (another concurrent request might have filled it)
+            if lobby and lobby.players.count() >= lobby.max_players:
+                lobby = None
 
             if lobby:
                 LobbyPlayer.objects.get_or_create(
-                    lobby=lobby, user=user,
-                    defaults={'is_bot': user.is_bot},
+                    lobby=lobby,
+                    user=user,
+                    defaults={"is_bot": user.is_bot},
                 )
                 player_count = lobby.players.count()
                 if player_count >= lobby.max_players:
                     from django.utils import timezone as tz
+
                     lobby.status = Lobby.Status.FULL
                     lobby.full_at = tz.now()
-                    lobby.save(update_fields=['status', 'full_at'])
+                    lobby.save(update_fields=["status", "full_at"])
 
-                players = list(lobby.players.select_related('user').all())
+                players = list(lobby.players.select_related("user").all())
                 return {
-                    'lobby_id': str(lobby.id),
-                    'max_players': lobby.max_players,
-                    'status': lobby.status,
-                    'created': False,
-                    'players': [_lobby_player_dict(p) for p in players],
-                    'full_at': lobby.full_at.timestamp() if lobby.full_at else None,
+                    "lobby_id": str(lobby.id),
+                    "max_players": lobby.max_players,
+                    "status": lobby.status,
+                    "created": False,
+                    "players": [_lobby_player_dict(p) for p in players],
+                    "full_at": lobby.full_at.timestamp() if lobby.full_at else None,
                 }
             else:
-                if gm:
-                    max_players = gm.max_players
-                else:
-                    max_players = GameSettings.get().max_players
+                max_players = gm.max_players if gm else GameSettings.get().max_players
 
                 lobby = Lobby.objects.create(
                     host_user=user,
@@ -1228,42 +1220,40 @@ class LobbyInternalController(ControllerBase):
                 )
                 LobbyPlayer.objects.create(lobby=lobby, user=user, is_bot=user.is_bot)
 
-                players = list(lobby.players.select_related('user').all())
+                players = list(lobby.players.select_related("user").all())
                 return {
-                    'lobby_id': str(lobby.id),
-                    'max_players': lobby.max_players,
-                    'status': lobby.status,
-                    'created': True,
-                    'players': [_lobby_player_dict(p) for p in players],
-                    'full_at': None,
+                    "lobby_id": str(lobby.id),
+                    "max_players": lobby.max_players,
+                    "status": lobby.status,
+                    "created": True,
+                    "players": [_lobby_player_dict(p) for p in players],
+                    "full_at": None,
                 }
 
-    @route.post('/notify-lobby-full/')
+    @route.post("/notify-lobby-full/")
     def notify_lobby_full(self, request):
         if not check_internal_secret(request):
-            return self.create_response({'error': 'Unauthorized'}, status_code=403)
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
 
         import json as _json
+
         body = _json.loads(request.body)
-        lobby_id = body.get('lobby_id')
+        lobby_id = body.get("lobby_id")
         if not lobby_id:
-            return self.create_response({'error': 'lobby_id required'}, status_code=400)
+            return self.create_response({"error": "lobby_id required"}, status_code=400)
 
         from apps.matchmaking.models import Lobby
 
         try:
-            lobby = Lobby.objects.prefetch_related('players__user').get(id=lobby_id)
+            lobby = Lobby.objects.prefetch_related("players__user").get(id=lobby_id)
         except Lobby.DoesNotExist:
-            return self.create_response({'error': 'Lobby not found'}, status_code=404)
+            return self.create_response({"error": "Lobby not found"}, status_code=404)
 
-        human_ids = [
-            str(lp.user_id)
-            for lp in lobby.players.all()
-            if not lp.is_bot
-        ]
+        human_ids = [str(lp.user_id) for lp in lobby.players.all() if not lp.is_bot]
 
         if human_ids:
             from apps.accounts.push import send_push_to_users
+
             send_push_to_users(
                 human_ids,
                 title="Lobby pełne!",
@@ -1272,4 +1262,4 @@ class LobbyInternalController(ControllerBase):
                 tag=f"lobby-full-{lobby_id}",
             )
 
-        return {'ok': True, 'notified': len(human_ids)}
+        return {"ok": True, "notified": len(human_ids)}

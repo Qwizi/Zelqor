@@ -7,6 +7,7 @@ Usage:
     python3 scripts/generate_vapid_keys.py          # writes to .env
     python3 scripts/generate_vapid_keys.py /path/.env  # writes to custom path
 """
+
 import base64
 import subprocess
 import sys

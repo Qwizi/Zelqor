@@ -1,58 +1,58 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  getClans,
-  getMyClan,
-  getClan,
-  createClan,
-  updateClan,
-  dissolveClan,
-  getClanMembers,
-  leaveClan,
-  kickMember,
-  promoteMember,
-  demoteMember,
-  transferLeadership,
-  invitePlayer,
-  getMyInvitations,
   acceptInvitation,
-  declineInvitation,
-  joinClan,
-  getClanJoinRequests,
   acceptJoinRequest,
-  declineJoinRequest,
-  getClanTreasury,
-  donateGold,
-  withdrawGold,
-  declareWar,
   acceptWar,
-  declineWar,
-  joinWar,
-  leaveWar,
-  cancelWar,
-  getWar,
-  getClanWars,
-  getWarParticipants,
-  getClanLeaderboard,
-  getClanStats,
-  getClanActivityLog,
-  getClanChat,
-  sendClanChatMessage,
-  type ClanOut,
-  type ClanDetailOut,
-  type MyClanResponse,
-  type ClanMembershipOut,
-  type ClanInvitationOut,
-  type ClanJoinRequestOut,
-  type ClanWarOut,
-  type ClanWarParticipantOut,
-  type ClanLeaderboardEntry,
-  type ClanStats,
   type ClanActivityLogOut,
   type ClanChatMessageOut,
+  type ClanDetailOut,
+  type ClanInvitationOut,
+  type ClanJoinRequestOut,
+  type ClanLeaderboardEntry,
+  type ClanMembershipOut,
+  type ClanOut,
+  type ClanStats,
+  type ClanWarOut,
+  type ClanWarParticipantOut,
+  cancelWar,
+  createClan,
+  declareWar,
+  declineInvitation,
+  declineJoinRequest,
+  declineWar,
+  demoteMember,
+  dissolveClan,
+  donateGold,
+  getClan,
+  getClanActivityLog,
+  getClanChat,
+  getClanJoinRequests,
+  getClanLeaderboard,
+  getClanMembers,
+  getClanStats,
+  getClans,
+  getClanTreasury,
+  getClanWars,
+  getMyClan,
+  getMyInvitations,
+  getWar,
+  getWarParticipants,
+  invitePlayer,
+  joinClan,
+  joinWar,
+  kickMember,
+  leaveClan,
+  leaveWar,
+  type MyClanResponse,
   type PaginatedResponse,
+  promoteMember,
+  sendClanChatMessage,
+  transferLeadership,
+  updateClan,
+  withdrawGold,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 // ── Queries ──
 
@@ -225,8 +225,7 @@ export function useLeaveClan() {
 export function useKickMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ clanId, userId }: { clanId: string; userId: string }) =>
-      kickMember(requireToken(), clanId, userId),
+    mutationFn: ({ clanId, userId }: { clanId: string; userId: string }) => kickMember(requireToken(), clanId, userId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.clans.all });
     },
@@ -331,8 +330,7 @@ export function useDeclineJoinRequest() {
 export function useDonateGold() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ clanId, amount }: { clanId: string; amount: number }) =>
-      donateGold(requireToken(), clanId, amount),
+    mutationFn: ({ clanId, amount }: { clanId: string; amount: number }) => donateGold(requireToken(), clanId, amount),
     onSuccess: (_data, { clanId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.clans.treasury(clanId) });
       qc.invalidateQueries({ queryKey: queryKeys.clans.detail(clanId) });
@@ -357,8 +355,15 @@ export function useWithdrawGold() {
 export function useDeclareWar() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ clanId, targetId, data }: { clanId: string; targetId: string; data: { players_per_side?: number; wager_gold?: number } }) =>
-      declareWar(requireToken(), clanId, targetId, data),
+    mutationFn: ({
+      clanId,
+      targetId,
+      data,
+    }: {
+      clanId: string;
+      targetId: string;
+      data: { players_per_side?: number; wager_gold?: number };
+    }) => declareWar(requireToken(), clanId, targetId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.clans.all });
     },

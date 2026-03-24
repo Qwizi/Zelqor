@@ -1,65 +1,54 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
-import { useAuth } from "@/hooks/useAuth";
 import {
-  useDeveloperApp,
-  useUpdateDeveloperApp,
-  useDeleteDeveloperApp,
-  useAPIKeys,
-  useCreateAPIKey,
-  useDeleteAPIKey,
-  useWebhooks,
-  useCreateWebhook,
-  useUpdateWebhook,
-  useDeleteWebhook,
-  useTestWebhook,
-  useWebhookDeliveries,
-  useAppUsage,
-  useAvailableScopes,
-  useAvailableEvents,
-} from "@/hooks/queries";
-import {
-  type DeveloperApp,
-  type APIKeyOut,
-  type APIKeyCreated,
-  type WebhookOut,
-} from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { toast } from "sonner";
-import {
-  Key,
-  Webhook,
-  BarChart3,
-  Plus,
-  Trash2,
-  Send,
-  Copy,
-  Check,
+  Activity,
+  AlertTriangle,
   ArrowLeft,
-  RefreshCw,
-  Edit,
+  BarChart3,
+  Check,
   ChevronDown,
   ChevronRight,
-  AlertTriangle,
-  Activity,
   Clock,
+  Copy,
+  Edit,
+  Key,
+  Plus,
+  RefreshCw,
+  Send,
   Shield,
+  Trash2,
+  Webhook,
 } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  useAPIKeys,
+  useAppUsage,
+  useAvailableEvents,
+  useAvailableScopes,
+  useCreateAPIKey,
+  useCreateWebhook,
+  useDeleteAPIKey,
+  useDeleteDeveloperApp,
+  useDeleteWebhook,
+  useDeveloperApp,
+  useTestWebhook,
+  useUpdateDeveloperApp,
+  useUpdateWebhook,
+  useWebhookDeliveries,
+  useWebhooks,
+} from "@/hooks/queries";
+import { useAuth } from "@/hooks/useAuth";
+import type { APIKeyCreated, APIKeyOut, DeveloperApp, WebhookOut } from "@/lib/api";
 
 // --- Helpers ---
 
@@ -92,11 +81,7 @@ function CopyButton({ text }: { text: string }) {
       className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-slate-400 transition-colors hover:border-white/30 hover:bg-white/[0.10] hover:text-zinc-100"
       title="Kopiuj do schowka"
     >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-emerald-400" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
-      )}
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
     </button>
   );
 }
@@ -111,21 +96,13 @@ interface CreateKeyDialogProps {
   appId: string;
 }
 
-function CreateKeyDialog({
-  open,
-  onOpenChange,
-  availableScopes,
-  onCreated,
-  appId,
-}: CreateKeyDialogProps) {
+function CreateKeyDialog({ open, onOpenChange, availableScopes, onCreated, appId }: CreateKeyDialogProps) {
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   const [rateLimit, setRateLimit] = useState(1000);
   const createAPIKey = useCreateAPIKey();
 
   const toggleScope = (scope: string) => {
-    setSelectedScopes((prev) =>
-      prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]
-    );
+    setSelectedScopes((prev) => (prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]));
   };
 
   const handleSubmit = async () => {
@@ -151,9 +128,7 @@ function CreateKeyDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md border-white/10 bg-zinc-900 text-zinc-50 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl text-zinc-50">
-            Utworz klucz API
-          </DialogTitle>
+          <DialogTitle className="font-display text-xl text-zinc-50">Utworz klucz API</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
@@ -184,9 +159,7 @@ function CreateKeyDialog({
 
           {/* Rate limit */}
           <div className="space-y-2">
-            <Label className="text-sm text-slate-400">
-              Limit zapytan (na godzine)
-            </Label>
+            <Label className="text-sm text-slate-400">Limit zapytan (na godzine)</Label>
             <Input
               type="number"
               min={1}
@@ -253,18 +226,12 @@ function NewKeyAlert({ keyData, onDismiss }: NewKeyAlertProps) {
         </p>
       </div>
       <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-4 py-3">
-        <code className="flex-1 truncate font-mono text-sm text-zinc-100">
-          {keyData.key}
-        </code>
+        <code className="flex-1 truncate font-mono text-sm text-zinc-100">{keyData.key}</code>
         <button
           onClick={handleCopy}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-slate-400 transition-colors hover:border-white/25 hover:bg-white/[0.10] hover:text-zinc-100"
         >
-          {copied ? (
-            <Check className="h-4 w-4 text-emerald-400" />
-          ) : (
-            <Copy className="h-4 w-4" />
-          )}
+          {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
         </button>
       </div>
       <button
@@ -334,9 +301,7 @@ function APIKeysTab({ appId }: APIKeysTabProps) {
         </Button>
       </div>
 
-      {newKey && (
-        <NewKeyAlert keyData={newKey} onDismiss={() => setNewKey(null)} />
-      )}
+      {newKey && <NewKeyAlert keyData={newKey} onDismiss={() => setNewKey(null)} />}
 
       {keys.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-10 text-center">
@@ -348,21 +313,14 @@ function APIKeysTab({ appId }: APIKeysTabProps) {
       ) : (
         <div className="space-y-2">
           {keys.map((key) => (
-            <div
-              key={key.id}
-              className="hover-lift rounded-2xl border border-white/10 bg-white/[0.05] p-4"
-            >
+            <div key={key.id} className="hover-lift rounded-2xl border border-white/10 bg-white/[0.05] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <code className="font-mono text-sm text-zinc-100">
-                      {key.prefix}...
-                    </code>
+                    <code className="font-mono text-sm text-zinc-100">{key.prefix}...</code>
                     <Badge
                       className={`border-0 text-[10px] hover:bg-transparent ${
-                        key.is_active
-                          ? "bg-emerald-400/15 text-emerald-300"
-                          : "bg-red-400/15 text-red-400"
+                        key.is_active ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-400"
                       }`}
                     >
                       {key.is_active ? "Aktywny" : "Nieaktywny"}
@@ -388,9 +346,7 @@ function APIKeysTab({ appId }: APIKeysTabProps) {
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {key.last_used
-                        ? `Ostatnie uzycie: ${formatDate(key.last_used)}`
-                        : "Nigdy"}
+                      {key.last_used ? `Ostatnie uzycie: ${formatDate(key.last_used)}` : "Nigdy"}
                     </span>
                     <span>Utworzono: {formatDate(key.created_at)}</span>
                   </div>
@@ -434,22 +390,13 @@ interface CreateWebhookDialogProps {
   appId: string;
 }
 
-function CreateWebhookDialog({
-  open,
-  onOpenChange,
-  availableEvents,
-  appId,
-}: CreateWebhookDialogProps) {
+function CreateWebhookDialog({ open, onOpenChange, availableEvents, appId }: CreateWebhookDialogProps) {
   const [url, setUrl] = useState("");
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const createWebhook = useCreateWebhook();
 
   const toggleEvent = (event: string) => {
-    setSelectedEvents((prev) =>
-      prev.includes(event)
-        ? prev.filter((e) => e !== event)
-        : [...prev, event]
-    );
+    setSelectedEvents((prev) => (prev.includes(event) ? prev.filter((e) => e !== event) : [...prev, event]));
   };
 
   const handleSubmit = async () => {
@@ -479,9 +426,7 @@ function CreateWebhookDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md border-white/10 bg-zinc-900 text-zinc-50 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl text-zinc-50">
-            Utworz webhook
-          </DialogTitle>
+          <DialogTitle className="font-display text-xl text-zinc-50">Utworz webhook</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
@@ -557,13 +502,7 @@ interface EditWebhookDialogProps {
   appId: string;
 }
 
-function EditWebhookDialog({
-  open,
-  onOpenChange,
-  webhook,
-  availableEvents,
-  appId,
-}: EditWebhookDialogProps) {
+function EditWebhookDialog({ open, onOpenChange, webhook, availableEvents, appId }: EditWebhookDialogProps) {
   const [url, setUrl] = useState(webhook.url);
   const [selectedEvents, setSelectedEvents] = useState<string[]>(webhook.events);
   const [isActive, setIsActive] = useState(webhook.is_active);
@@ -576,11 +515,7 @@ function EditWebhookDialog({
   }, [webhook]);
 
   const toggleEvent = (event: string) => {
-    setSelectedEvents((prev) =>
-      prev.includes(event)
-        ? prev.filter((e) => e !== event)
-        : [...prev, event]
-    );
+    setSelectedEvents((prev) => (prev.includes(event) ? prev.filter((e) => e !== event) : [...prev, event]));
   };
 
   const handleSubmit = async () => {
@@ -605,9 +540,7 @@ function EditWebhookDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md border-white/10 bg-zinc-900 text-zinc-50 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl text-zinc-50">
-            Edytuj webhook
-          </DialogTitle>
+          <DialogTitle className="font-display text-xl text-zinc-50">Edytuj webhook</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
@@ -692,11 +625,7 @@ interface WebhookRowProps {
   availableEvents: string[];
 }
 
-function WebhookRow({
-  webhook,
-  appId,
-  availableEvents,
-}: WebhookRowProps) {
+function WebhookRow({ webhook, appId, availableEvents }: WebhookRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -720,15 +649,13 @@ function WebhookRow({
     try {
       const result = await testWebhookMutation.mutateAsync({ appId, webhookId: webhook.id });
       if (result.success) {
-        toast.success(
-          `Test webhooka wyslany — HTTP ${result.status_code ?? "?"}: ${result.message}`,
-          { id: `developers-webhook-test-success-${webhook.id}` }
-        );
+        toast.success(`Test webhooka wyslany — HTTP ${result.status_code ?? "?"}: ${result.message}`, {
+          id: `developers-webhook-test-success-${webhook.id}`,
+        });
       } else {
-        toast.error(
-          `Test webhooka nie powiodl sie — HTTP ${result.status_code ?? "?"}: ${result.message}`,
-          { id: `developers-webhook-test-fail-${webhook.id}` }
-        );
+        toast.error(`Test webhooka nie powiodl sie — HTTP ${result.status_code ?? "?"}: ${result.message}`, {
+          id: `developers-webhook-test-fail-${webhook.id}`,
+        });
       }
     } catch {
       toast.error("Nie udalo sie przetestowac webhooka.", { id: `developers-webhook-test-error-${webhook.id}` });
@@ -754,23 +681,15 @@ function WebhookRow({
             onClick={handleExpand}
             className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-slate-400 transition-colors hover:border-white/25 hover:bg-white/[0.10] hover:text-zinc-100"
           >
-            {expanded ? (
-              <ChevronDown className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5" />
-            )}
+            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="truncate font-mono text-sm text-zinc-100">
-                {webhook.url}
-              </span>
+              <span className="truncate font-mono text-sm text-zinc-100">{webhook.url}</span>
               <Badge
                 className={`border-0 text-[10px] hover:bg-transparent ${
-                  webhook.is_active
-                    ? "bg-emerald-400/15 text-emerald-300"
-                    : "bg-red-400/15 text-red-400"
+                  webhook.is_active ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-400"
                 }`}
               >
                 {webhook.is_active ? "Aktywny" : "Nieaktywny"}
@@ -794,9 +713,7 @@ function WebhookRow({
               ))}
             </div>
 
-            <p className="mt-2 text-xs text-slate-400">
-              Utworzono: {formatDate(webhook.created_at)}
-            </p>
+            <p className="mt-2 text-xs text-slate-400">Utworzono: {formatDate(webhook.created_at)}</p>
           </div>
 
           {/* Actions */}
@@ -839,9 +756,7 @@ function WebhookRow({
       {/* Deliveries panel */}
       {expanded && (
         <div className="border-t border-white/10 bg-black/20 p-4">
-          <p className="mb-3 text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
-            Dostarczenia
-          </p>
+          <p className="mb-3 text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">Dostarczenia</p>
           {lazyLoadingDeliveries ? (
             <div className="flex items-center gap-2 text-sm text-slate-400">
               <RefreshCw className="h-4 w-4 animate-spin" />
@@ -854,24 +769,14 @@ function WebhookRow({
                   key={delivery.id}
                   className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2"
                 >
-                  <div
-                    className={`h-2 w-2 rounded-full ${
-                      delivery.success ? "bg-emerald-400" : "bg-red-400"
-                    }`}
-                  />
+                  <div className={`h-2 w-2 rounded-full ${delivery.success ? "bg-emerald-400" : "bg-red-400"}`} />
                   <div className="min-w-0">
-                    <span className="font-mono text-xs text-zinc-100">
-                      {delivery.event}
-                    </span>
-                    <p className="text-[10px] text-slate-400">
-                      {formatDate(delivery.created_at)}
-                    </p>
+                    <span className="font-mono text-xs text-zinc-100">{delivery.event}</span>
+                    <p className="text-[10px] text-slate-400">{formatDate(delivery.created_at)}</p>
                   </div>
                   <Badge
                     className={`border-0 text-[10px] hover:bg-transparent ${
-                      delivery.success
-                        ? "bg-emerald-400/15 text-emerald-300"
-                        : "bg-red-400/15 text-red-400"
+                      delivery.success ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-400"
                     }`}
                   >
                     {delivery.response_status ?? "—"}
@@ -942,12 +847,7 @@ function WebhooksTab({ appId }: WebhooksTabProps) {
       ) : (
         <div className="space-y-2">
           {webhooks.map((webhook) => (
-            <WebhookRow
-              key={webhook.id}
-              webhook={webhook}
-              appId={appId}
-              availableEvents={availableEvents}
-            />
+            <WebhookRow key={webhook.id} webhook={webhook} appId={appId} availableEvents={availableEvents} />
           ))}
         </div>
       )}
@@ -983,9 +883,7 @@ function UsageTab({ appId }: UsageTabProps) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-10 text-center">
         <BarChart3 className="mx-auto h-8 w-8 text-slate-500" />
-        <p className="mt-3 text-sm text-slate-400">
-          Nie udalo sie zaladowac danych.
-        </p>
+        <p className="mt-3 text-sm text-slate-400">Nie udalo sie zaladowac danych.</p>
       </div>
     );
   }
@@ -1035,25 +933,18 @@ function UsageTab({ appId }: UsageTabProps) {
   ];
 
   const successRate =
-    usage.total_deliveries > 0
-      ? Math.round((usage.successful_deliveries / usage.total_deliveries) * 100)
-      : null;
+    usage.total_deliveries > 0 ? Math.round((usage.successful_deliveries / usage.total_deliveries) * 100) : null;
 
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-2xl border border-white/10 bg-white/[0.05] p-4"
-          >
+          <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
             <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-slate-400 font-medium">
               {stat.icon}
               {stat.label}
             </div>
-            <div className={`mt-2 font-display text-3xl ${stat.color}`}>
-              {stat.value}
-            </div>
+            <div className={`mt-2 font-display text-3xl ${stat.color}`}>{stat.value}</div>
           </div>
         ))}
       </div>
@@ -1066,28 +957,19 @@ function UsageTab({ appId }: UsageTabProps) {
           <div className="mt-3 flex items-end gap-3">
             <span
               className={`font-display text-4xl ${
-                successRate >= 90
-                  ? "text-emerald-300"
-                  : successRate >= 70
-                    ? "text-amber-200"
-                    : "text-red-400"
+                successRate >= 90 ? "text-emerald-300" : successRate >= 70 ? "text-amber-200" : "text-red-400"
               }`}
             >
               {successRate}%
             </span>
             <span className="mb-1 text-sm text-slate-400">
-              {usage.successful_deliveries} z {usage.total_deliveries}{" "}
-              dostarczeń
+              {usage.successful_deliveries} z {usage.total_deliveries} dostarczeń
             </span>
           </div>
           <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10">
             <div
               className={`h-full rounded-full transition-all ${
-                successRate >= 90
-                  ? "bg-emerald-400"
-                  : successRate >= 70
-                    ? "bg-amber-400"
-                    : "bg-red-400"
+                successRate >= 90 ? "bg-emerald-400" : successRate >= 70 ? "bg-amber-400" : "bg-red-400"
               }`}
               style={{ width: `${successRate}%` }}
             />
@@ -1106,11 +988,7 @@ interface EditAppDialogProps {
   app: DeveloperApp;
 }
 
-function EditAppDialog({
-  open,
-  onOpenChange,
-  app,
-}: EditAppDialogProps) {
+function EditAppDialog({ open, onOpenChange, app }: EditAppDialogProps) {
   const [name, setName] = useState(app.name);
   const [description, setDescription] = useState(app.description);
   const updateApp = useUpdateDeveloperApp();
@@ -1141,9 +1019,7 @@ function EditAppDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md border-white/10 bg-zinc-900 text-zinc-50">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl text-zinc-50">
-            Edytuj aplikacje
-          </DialogTitle>
+          <DialogTitle className="font-display text-xl text-zinc-50">Edytuj aplikacje</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -1215,12 +1091,7 @@ export default function DeveloperAppDetailPage() {
 
   const handleDelete = async () => {
     if (!app) return;
-    if (
-      !window.confirm(
-        "Czy na pewno chcesz usunac te aplikacje? Ta operacja jest nieodwracalna."
-      )
-    )
-      return;
+    if (!window.confirm("Czy na pewno chcesz usunac te aplikacje? Ta operacja jest nieodwracalna.")) return;
     try {
       await deleteApp.mutateAsync(app.id);
       toast.success("Aplikacja usunieta.", { id: "developers-app-deleted" });
@@ -1264,17 +1135,13 @@ export default function DeveloperAppDetailPage() {
               <h1 className="font-display text-3xl text-zinc-50">{app.name}</h1>
               <Badge
                 className={`border-0 text-xs hover:bg-transparent ${
-                  app.is_active
-                    ? "bg-emerald-400/15 text-emerald-300"
-                    : "bg-red-400/15 text-red-400"
+                  app.is_active ? "bg-emerald-400/15 text-emerald-300" : "bg-red-400/15 text-red-400"
                 }`}
               >
                 {app.is_active ? "Aktywny" : "Nieaktywny"}
               </Badge>
             </div>
-            {app.description && (
-              <p className="mt-2 text-sm text-slate-400">{app.description}</p>
-            )}
+            {app.description && <p className="mt-2 text-sm text-slate-400">{app.description}</p>}
 
             {/* Client ID */}
             <div className="mt-3 flex items-center gap-2">
@@ -1285,9 +1152,7 @@ export default function DeveloperAppDetailPage() {
               </code>
               <CopyButton text={app.client_id} />
             </div>
-            <p className="mt-1 text-xs text-slate-400">
-              Utworzono: {formatDate(app.created_at)}
-            </p>
+            <p className="mt-1 text-xs text-slate-400">Utworzono: {formatDate(app.created_at)}</p>
           </div>
 
           {/* Action buttons */}
@@ -1304,11 +1169,7 @@ export default function DeveloperAppDetailPage() {
               disabled={deleteApp.isPending}
               className="inline-flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2 text-sm text-red-300 hover:bg-red-500/20 transition-colors disabled:opacity-50"
             >
-              {deleteApp.isPending ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
+              {deleteApp.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               Usun
             </button>
           </div>
@@ -1357,11 +1218,7 @@ export default function DeveloperAppDetailPage() {
       </div>
 
       {/* Edit app dialog */}
-      <EditAppDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        app={app}
-      />
+      <EditAppDialog open={editOpen} onOpenChange={setEditOpen} app={app} />
     </div>
   );
 }

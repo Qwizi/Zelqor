@@ -1,19 +1,19 @@
 "use client";
 
-import { useState, useEffect, Suspense, useCallback } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowLeft, Plus, Save, SkipForward, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
+import AuthScreen from "@/components/auth/AuthScreen";
+import SocialLoginButtons from "@/components/auth/SocialLoginButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import AuthScreen from "@/components/auth/AuthScreen";
-import SocialLoginButtons from "@/components/auth/SocialLoginButtons";
-import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import { APIError, BannedError, type User } from "@/lib/api";
-import { Plus, X, ArrowLeft, Save, SkipForward } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Saved profiles — stored in localStorage, no passwords
@@ -47,10 +47,7 @@ function saveProfile(user: User) {
   } else {
     profiles.unshift(profile);
   }
-  localStorage.setItem(
-    "maplord_profiles",
-    JSON.stringify(profiles.slice(0, 5))
-  );
+  localStorage.setItem("maplord_profiles", JSON.stringify(profiles.slice(0, 5)));
 }
 
 function isProfileSaved(username: string): boolean {
@@ -103,9 +100,7 @@ function ProfileCard({
         {profile.username[0].toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-base md:text-xl font-semibold text-foreground">
-          {profile.username}
-        </div>
+        <div className="truncate text-base md:text-xl font-semibold text-foreground">{profile.username}</div>
       </div>
       <button
         onClick={(e) => {
@@ -175,7 +170,7 @@ function LoginForm() {
       setValue("identifier", profile.username);
       setGeneralError(null);
     },
-    [setValue]
+    [setValue],
   );
 
   const handleRemoveProfile = useCallback((username: string) => {
@@ -226,11 +221,7 @@ function LoginForm() {
           err.message.toLowerCase().includes("no active account")
         ) {
           setGeneralError("Nieprawidłowy login lub hasło");
-        } else if (
-          err.status === 400 &&
-          err.body &&
-          typeof err.body === "object"
-        ) {
+        } else if (err.status === 400 && err.body && typeof err.body === "object") {
           const body = err.body as Record<string, unknown>;
           let hasFieldError = false;
           if (body.email || body.identifier) {
@@ -242,9 +233,7 @@ function LoginForm() {
           }
           if (body.password) {
             setError("password", {
-              message: Array.isArray(body.password)
-                ? body.password[0]
-                : String(body.password),
+              message: Array.isArray(body.password) ? body.password[0] : String(body.password),
             });
             hasFieldError = true;
           }
@@ -296,19 +285,13 @@ function LoginForm() {
                 {user.username[0].toUpperCase()}
               </div>
               <div className="min-w-0">
-                <div className="truncate text-lg font-medium text-foreground">
-                  {user.username}
-                </div>
+                <div className="truncate text-lg font-medium text-foreground">{user.username}</div>
               </div>
             </div>
           )}
 
           <div className="flex gap-3">
-            <Button
-              onClick={handleSkipSave}
-              variant="outline"
-              className="h-11 flex-1 gap-2 rounded-xl"
-            >
+            <Button onClick={handleSkipSave} variant="outline" className="h-11 flex-1 gap-2 rounded-xl">
               <SkipForward className="h-4 w-4" />
               Nie, dziękuję
             </Button>
@@ -321,9 +304,7 @@ function LoginForm() {
             </Button>
           </div>
 
-          <p className="text-center text-xs text-muted-foreground">
-            Zapisywane są tylko nazwa i ELO — nigdy hasło.
-          </p>
+          <p className="text-center text-xs text-muted-foreground">Zapisywane są tylko nazwa i ELO — nigdy hasło.</p>
         </div>
       </AuthScreen>
     );
@@ -434,16 +415,16 @@ function LoginForm() {
                 {...rhfRegister("identifier")}
               />
               {errors.identifier && (
-                <p className="text-xs md:text-base text-destructive">
-                  {errors.identifier.message}
-                </p>
+                <p className="text-xs md:text-base text-destructive">{errors.identifier.message}</p>
               )}
             </div>
           )}
 
           {/* Password field */}
           <div className="space-y-2 md:space-y-3">
-            <Label htmlFor="password" className="text-sm md:text-sm">Hasło</Label>
+            <Label htmlFor="password" className="text-sm md:text-sm">
+              Hasło
+            </Label>
             <Input
               id="password"
               type="password"
@@ -453,11 +434,7 @@ function LoginForm() {
               className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.password ? "border-destructive" : ""}`}
               {...rhfRegister("password")}
             />
-            {errors.password && (
-              <p className="text-xs md:text-base text-destructive">
-                {errors.password.message}
-              </p>
-            )}
+            {errors.password && <p className="text-xs md:text-base text-destructive">{errors.password.message}</p>}
           </div>
 
           <Button

@@ -1,7 +1,7 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function MobileDeckRow() {
   return (
@@ -58,7 +58,6 @@ function DesktopDeckCard() {
 export function DecksSkeleton() {
   return (
     <div className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* Header */}
       <div className="flex items-center justify-between px-4 md:px-0">
         <div className="space-y-1.5">

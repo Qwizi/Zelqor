@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NotificationOut } from "@/lib/api";
 
 interface SocialMessage {
@@ -34,7 +34,9 @@ export function useSocialSocket(token: string | null) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Keep a ref to the latest token so the reconnect closure always uses it
   const tokenRef = useRef(token);
-  useEffect(() => { tokenRef.current = token; }, [token]);
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
 
   const connect = useCallback(() => {
     const currentToken = tokenRef.current;

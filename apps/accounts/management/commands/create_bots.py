@@ -66,6 +66,4 @@ class Command(BaseCommand):
         if tutorial_created:
             created += 1
 
-        self.stdout.write(
-            self.style.SUCCESS(f"Done: {created} created, {count + 1 - created} already existed")
-        )
+        self.stdout.write(self.style.SUCCESS(f"Done: {created} created, {count + 1 - created} already existed"))

@@ -1,45 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Check, ChevronRight, Crown, Loader2, Plus, Search, Swords, Trophy, Users, X } from "lucide-react";
 import Link from "next/link";
-import {
-  Check,
-  ChevronRight,
-  Crown,
-  Loader2,
-  Medal,
-  Plus,
-  Search,
-  Shield,
-  Swords,
-  Trophy,
-  Users,
-  X,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/hooks/useAuth";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  useAcceptInvitation,
+  useClanLeaderboard,
   useClans,
+  useDeclineInvitation,
   useMyClan,
   useMyInvitations,
-  useAcceptInvitation,
-  useDeclineInvitation,
-  useClanLeaderboard,
 } from "@/hooks/queries";
+import { useAuth } from "@/hooks/useAuth";
 import { APIError } from "@/lib/api";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -94,15 +74,14 @@ export default function ClansPage() {
 
   return (
     <div className="animate-page-in space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 px-4 md:px-0">
         <div>
-          <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">SPOŁECZNOŚĆ</p>
-          <h1 className="font-display text-2xl md:text-5xl text-foreground">Klany</h1>
-          <p className="hidden md:block mt-1 text-sm text-muted-foreground">
-            Dołącz do klanu lub utwórz własny.
+          <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">
+            SPOŁECZNOŚĆ
           </p>
+          <h1 className="font-display text-2xl md:text-5xl text-foreground">Klany</h1>
+          <p className="hidden md:block mt-1 text-sm text-muted-foreground">Dołącz do klanu lub utwórz własny.</p>
         </div>
         <div className="flex items-center gap-2">
           {clans.length > 0 && (
@@ -140,7 +119,8 @@ export default function ClansPage() {
               <div>
                 <p className="text-base md:text-lg font-semibold text-foreground">{myClan.name}</p>
                 <p className="text-xs md:text-sm text-muted-foreground">
-                  {ROLE_LABELS[myMembership.role] || myMembership.role} &middot; {myClan.member_count}/{myClan.max_members} członków
+                  {ROLE_LABELS[myMembership.role] || myMembership.role} &middot; {myClan.member_count}/
+                  {myClan.max_members} członków
                 </p>
               </div>
             </div>
@@ -157,11 +137,15 @@ export default function ClansPage() {
         {/* Mobile: horizontal scroll pills */}
         <div className="md:hidden overflow-x-auto pb-1 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="inline-flex w-auto gap-1">
-            {([
+            {[
               { key: "browse" as Tab, label: "Przeglądaj", icon: <Search size={14} /> },
-              { key: "invitations" as Tab, label: `Zaproszenia${invitations.length > 0 ? ` (${invitations.length})` : ""}`, icon: <Users size={14} /> },
+              {
+                key: "invitations" as Tab,
+                label: `Zaproszenia${invitations.length > 0 ? ` (${invitations.length})` : ""}`,
+                icon: <Users size={14} />,
+              },
               { key: "leaderboard" as Tab, label: "Ranking", icon: <Trophy size={14} /> },
-            ]).map((t) => (
+            ].map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
@@ -180,11 +164,11 @@ export default function ClansPage() {
 
         {/* Desktop: larger pills */}
         <div className="hidden md:flex gap-1.5">
-          {([
+          {[
             { key: "browse" as Tab, label: "Przeglądaj", icon: <Search size={15} /> },
             { key: "invitations" as Tab, label: "Zaproszenia", count: invitations.length, icon: <Users size={15} /> },
             { key: "leaderboard" as Tab, label: "Ranking", icon: <Trophy size={15} /> },
-          ]).map((t) => (
+          ].map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -197,9 +181,7 @@ export default function ClansPage() {
               {t.icon}
               {t.label}
               {t.count !== undefined && t.count > 0 && (
-                <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-sm text-primary">
-                  {t.count}
-                </span>
+                <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.5 text-sm text-primary">{t.count}</span>
               )}
             </button>
           ))}
@@ -254,7 +236,12 @@ export default function ClansPage() {
                       </span>
                     </div>
                     {!clan.is_recruiting && (
-                      <Badge variant="outline" className="shrink-0 rounded-full px-2 py-px text-[10px] border-0 bg-destructive/15 text-destructive">Zamknięty</Badge>
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 rounded-full px-2 py-px text-[10px] border-0 bg-destructive/15 text-destructive"
+                      >
+                        Zamknięty
+                      </Badge>
                     )}
                     <span className="font-display text-lg tabular-nums text-accent shrink-0">{clan.elo_rating}</span>
                     <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
@@ -269,12 +256,18 @@ export default function ClansPage() {
                     <TableRow>
                       <TableHead className="h-14 pl-6 text-sm font-semibold">Klan</TableHead>
                       <TableHead className="h-14 text-sm font-semibold text-center">
-                        <div className="flex items-center gap-1 justify-center"><Users className="h-3.5 w-3.5" />Członkowie</div>
+                        <div className="flex items-center gap-1 justify-center">
+                          <Users className="h-3.5 w-3.5" />
+                          Członkowie
+                        </div>
                       </TableHead>
                       <TableHead className="h-14 text-sm font-semibold text-center">Poziom</TableHead>
                       <TableHead className="h-14 text-sm font-semibold text-center">Status</TableHead>
                       <TableHead className="h-14 pr-6 text-sm font-semibold text-right">
-                        <div className="flex items-center gap-1 justify-end"><Trophy className="h-3.5 w-3.5 text-accent" />ELO</div>
+                        <div className="flex items-center gap-1 justify-end">
+                          <Trophy className="h-3.5 w-3.5 text-accent" />
+                          ELO
+                        </div>
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -302,16 +295,28 @@ export default function ClansPage() {
                           </div>
                         </TableCell>
                         <TableCell className="py-3.5 text-center">
-                          <span className="text-base tabular-nums text-foreground">{clan.member_count}/{clan.max_members}</span>
+                          <span className="text-base tabular-nums text-foreground">
+                            {clan.member_count}/{clan.max_members}
+                          </span>
                         </TableCell>
                         <TableCell className="py-3.5 text-center">
                           <span className="text-base tabular-nums text-foreground">{clan.level}</span>
                         </TableCell>
                         <TableCell className="py-3.5 text-center">
                           {clan.is_public ? (
-                            <Badge variant="outline" className="rounded-full border-0 px-3 py-1 text-sm bg-green-500/15 text-green-400 hover:bg-green-500/15">Publiczny</Badge>
+                            <Badge
+                              variant="outline"
+                              className="rounded-full border-0 px-3 py-1 text-sm bg-green-500/15 text-green-400 hover:bg-green-500/15"
+                            >
+                              Publiczny
+                            </Badge>
                           ) : (
-                            <Badge variant="outline" className="rounded-full border-0 px-3 py-1 text-sm bg-muted text-muted-foreground hover:bg-muted">Prywatny</Badge>
+                            <Badge
+                              variant="outline"
+                              className="rounded-full border-0 px-3 py-1 text-sm bg-muted text-muted-foreground hover:bg-muted"
+                            >
+                              Prywatny
+                            </Badge>
                           )}
                         </TableCell>
                         <TableCell className="py-3.5 pr-6 text-right">
@@ -346,7 +351,8 @@ export default function ClansPage() {
               {/* Mobile */}
               <div className="animate-list-in md:hidden space-y-0.5">
                 {invitations.map((inv) => {
-                  const busy = (acceptMut.isPending && acceptMut.variables === inv.id) ||
+                  const busy =
+                    (acceptMut.isPending && acceptMut.variables === inv.id) ||
                     (declineMut.isPending && declineMut.variables === inv.id);
                   return (
                     <div key={inv.id} className="flex items-center gap-3 rounded-xl py-3 px-1 hover-lift">
@@ -357,29 +363,49 @@ export default function ClansPage() {
                         {inv.clan.tag}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">[{inv.clan.tag}] {inv.clan.name}</p>
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          [{inv.clan.tag}] {inv.clan.name}
+                        </p>
                         <p className="text-xs text-muted-foreground">od {inv.invited_by.username}</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           disabled={actionPending}
-                          onClick={() => acceptMut.mutate(inv.id, {
-                            onSuccess: () => toast.success("Dołączono do klanu!", { id: "clan-accept-invite" }),
-                            onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się dołączyć", { id: "clan-accept-invite-error" }),
-                          })}
+                          onClick={() =>
+                            acceptMut.mutate(inv.id, {
+                              onSuccess: () => toast.success("Dołączono do klanu!", { id: "clan-accept-invite" }),
+                              onError: (err) =>
+                                toast.error(err instanceof APIError ? err.message : "Nie udało się dołączyć", {
+                                  id: "clan-accept-invite-error",
+                                }),
+                            })
+                          }
                           className="flex items-center justify-center h-8 w-8 rounded-lg text-green-400 hover:bg-green-400/10 disabled:opacity-40 transition-colors"
                         >
-                          {busy && acceptMut.variables === inv.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                          {busy && acceptMut.variables === inv.id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Check size={14} />
+                          )}
                         </button>
                         <button
                           disabled={actionPending}
-                          onClick={() => declineMut.mutate(inv.id, {
-                            onSuccess: () => toast.success("Odrzucono zaproszenie", { id: "clan-decline-invite" }),
-                            onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić", { id: "clan-decline-invite-error" }),
-                          })}
+                          onClick={() =>
+                            declineMut.mutate(inv.id, {
+                              onSuccess: () => toast.success("Odrzucono zaproszenie", { id: "clan-decline-invite" }),
+                              onError: (err) =>
+                                toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić", {
+                                  id: "clan-decline-invite-error",
+                                }),
+                            })
+                          }
                           className="flex items-center justify-center h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 disabled:opacity-40 transition-colors"
                         >
-                          {busy && declineMut.variables === inv.id ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                          {busy && declineMut.variables === inv.id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <X size={14} />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -391,7 +417,8 @@ export default function ClansPage() {
               <Card className="hidden md:block rounded-2xl overflow-hidden">
                 <div className="animate-list-in divide-y divide-border">
                   {invitations.map((inv) => {
-                    const busy = (acceptMut.isPending && acceptMut.variables === inv.id) ||
+                    const busy =
+                      (acceptMut.isPending && acceptMut.variables === inv.id) ||
                       (declineMut.isPending && declineMut.variables === inv.id);
                     return (
                       <div key={inv.id} className="flex items-center gap-4 px-6 py-4 hover-lift">
@@ -402,32 +429,52 @@ export default function ClansPage() {
                           {inv.clan.tag}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-base font-semibold text-foreground truncate">[{inv.clan.tag}] {inv.clan.name}</p>
+                          <p className="text-base font-semibold text-foreground truncate">
+                            [{inv.clan.tag}] {inv.clan.name}
+                          </p>
                           <p className="text-sm text-muted-foreground">Zaproszenie od {inv.invited_by.username}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <Button
                             variant="ghost"
                             disabled={actionPending}
-                            onClick={() => acceptMut.mutate(inv.id, {
-                              onSuccess: () => toast.success("Dołączono do klanu!", { id: "clan-accept-invite" }),
-                              onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się dołączyć", { id: "clan-accept-invite-error" }),
-                            })}
+                            onClick={() =>
+                              acceptMut.mutate(inv.id, {
+                                onSuccess: () => toast.success("Dołączono do klanu!", { id: "clan-accept-invite" }),
+                                onError: (err) =>
+                                  toast.error(err instanceof APIError ? err.message : "Nie udało się dołączyć", {
+                                    id: "clan-accept-invite-error",
+                                  }),
+                              })
+                            }
                             className="gap-2 text-base text-green-400 hover:text-green-400 hover:bg-green-400/10"
                           >
-                            {busy && acceptMut.variables === inv.id ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                            {busy && acceptMut.variables === inv.id ? (
+                              <Loader2 size={18} className="animate-spin" />
+                            ) : (
+                              <Check size={18} />
+                            )}
                             Przyjmij
                           </Button>
                           <Button
                             variant="ghost"
                             disabled={actionPending}
-                            onClick={() => declineMut.mutate(inv.id, {
-                              onSuccess: () => toast.success("Odrzucono", { id: "clan-decline-invite" }),
-                              onError: (err) => toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić", { id: "clan-decline-invite-error" }),
-                            })}
+                            onClick={() =>
+                              declineMut.mutate(inv.id, {
+                                onSuccess: () => toast.success("Odrzucono", { id: "clan-decline-invite" }),
+                                onError: (err) =>
+                                  toast.error(err instanceof APIError ? err.message : "Nie udało się odrzucić", {
+                                    id: "clan-decline-invite-error",
+                                  }),
+                              })
+                            }
                             className="gap-2 text-base text-destructive hover:text-destructive hover:bg-destructive/10"
                           >
-                            {busy && declineMut.variables === inv.id ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}
+                            {busy && declineMut.variables === inv.id ? (
+                              <Loader2 size={18} className="animate-spin" />
+                            ) : (
+                              <X size={18} />
+                            )}
                             Odrzuć
                           </Button>
                         </div>
@@ -468,11 +515,18 @@ export default function ClansPage() {
                         className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-border bg-card px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-48 min-h-[132px] md:min-h-0 transition-all hover-lift"
                       >
                         <span className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-widest">#2</span>
-                        <div className="flex h-11 w-11 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-full border-2 border-[#C0C0C0] bg-[#C0C0C0]/10 font-display text-xs md:text-sm font-bold" style={{ color: leaderboard[1].color }}>
+                        <div
+                          className="flex h-11 w-11 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-full border-2 border-[#C0C0C0] bg-[#C0C0C0]/10 font-display text-xs md:text-sm font-bold"
+                          style={{ color: leaderboard[1].color }}
+                        >
                           {leaderboard[1].tag}
                         </div>
-                        <p className="text-xs md:text-sm font-bold text-foreground truncate w-full text-center">{leaderboard[1].name}</p>
-                        <p className="font-display text-sm md:text-lg text-[#C0C0C0] tabular-nums">{leaderboard[1].elo_rating}</p>
+                        <p className="text-xs md:text-sm font-bold text-foreground truncate w-full text-center">
+                          {leaderboard[1].name}
+                        </p>
+                        <p className="font-display text-sm md:text-lg text-[#C0C0C0] tabular-nums">
+                          {leaderboard[1].elo_rating}
+                        </p>
                       </button>
                     )}
                     {/* 1st */}
@@ -487,8 +541,12 @@ export default function ClansPage() {
                       >
                         {leaderboard[0].tag}
                       </div>
-                      <p className="text-xs md:text-sm font-bold text-foreground truncate w-full text-center">{leaderboard[0].name}</p>
-                      <p className="font-display text-base md:text-xl text-[#FFD700] tabular-nums">{leaderboard[0].elo_rating}</p>
+                      <p className="text-xs md:text-sm font-bold text-foreground truncate w-full text-center">
+                        {leaderboard[0].name}
+                      </p>
+                      <p className="font-display text-base md:text-xl text-[#FFD700] tabular-nums">
+                        {leaderboard[0].elo_rating}
+                      </p>
                     </button>
                     {/* 3rd */}
                     {leaderboard[2] && (
@@ -497,11 +555,18 @@ export default function ClansPage() {
                         className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-border bg-card px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-48 min-h-[116px] md:min-h-0 transition-all hover-lift"
                       >
                         <span className="text-[10px] font-bold text-[#CD7F32] uppercase tracking-widest">#3</span>
-                        <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-full border-2 border-[#CD7F32] bg-[#CD7F32]/10 font-display text-xs font-bold" style={{ color: leaderboard[2].color }}>
+                        <div
+                          className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-full border-2 border-[#CD7F32] bg-[#CD7F32]/10 font-display text-xs font-bold"
+                          style={{ color: leaderboard[2].color }}
+                        >
                           {leaderboard[2].tag}
                         </div>
-                        <p className="text-xs md:text-sm font-bold text-foreground truncate w-full text-center">{leaderboard[2].name}</p>
-                        <p className="font-display text-xs md:text-base text-[#CD7F32] tabular-nums">{leaderboard[2].elo_rating}</p>
+                        <p className="text-xs md:text-sm font-bold text-foreground truncate w-full text-center">
+                          {leaderboard[2].name}
+                        </p>
+                        <p className="font-display text-xs md:text-base text-[#CD7F32] tabular-nums">
+                          {leaderboard[2].elo_rating}
+                        </p>
                       </button>
                     )}
                   </div>
@@ -529,9 +594,13 @@ export default function ClansPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-foreground truncate">{clan.name}</p>
-                          <span className="text-xs text-muted-foreground">Lv.{clan.level} &middot; {clan.member_count} członków</span>
+                          <span className="text-xs text-muted-foreground">
+                            Lv.{clan.level} &middot; {clan.member_count} członków
+                          </span>
                         </div>
-                        <span className="font-display text-lg tabular-nums text-accent shrink-0">{clan.elo_rating}</span>
+                        <span className="font-display text-lg tabular-nums text-accent shrink-0">
+                          {clan.elo_rating}
+                        </span>
                         <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
                       </button>
                     ))}
@@ -545,11 +614,17 @@ export default function ClansPage() {
                           <TableHead className="h-12 pl-6 w-16 text-sm font-semibold">#</TableHead>
                           <TableHead className="h-12 text-sm font-semibold">Klan</TableHead>
                           <TableHead className="h-12 text-sm font-semibold text-center">
-                            <div className="flex items-center gap-1 justify-center"><Users className="h-3.5 w-3.5" />Członkowie</div>
+                            <div className="flex items-center gap-1 justify-center">
+                              <Users className="h-3.5 w-3.5" />
+                              Członkowie
+                            </div>
                           </TableHead>
                           <TableHead className="h-12 text-sm font-semibold text-center">Poziom</TableHead>
                           <TableHead className="h-12 pr-6 text-sm font-semibold text-right">
-                            <div className="flex items-center gap-1 justify-end"><Trophy className="h-3.5 w-3.5 text-accent" />ELO</div>
+                            <div className="flex items-center gap-1 justify-end">
+                              <Trophy className="h-3.5 w-3.5 text-accent" />
+                              ELO
+                            </div>
                           </TableHead>
                         </TableRow>
                       </TableHeader>

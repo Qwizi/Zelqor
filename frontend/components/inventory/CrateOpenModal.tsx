@@ -1,14 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
 import { gsap } from "gsap";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ItemIcon from "@/components/ui/ItemIcon";
 import type { ItemOut } from "@/lib/api";
 
@@ -153,9 +148,7 @@ function StripCard({ item, highlighted }: { item: StripItem; highlighted: boolea
         height: ITEM_HEIGHT,
         flexShrink: 0,
         borderRadius: "10px",
-        border: highlighted
-          ? `2px solid ${color}`
-          : "1px solid rgba(255,255,255,0.07)",
+        border: highlighted ? `2px solid ${color}` : "1px solid rgba(255,255,255,0.07)",
         borderTop: `3px solid ${color}`,
         background: highlighted
           ? `linear-gradient(180deg, rgba(${rgb},0.18) 0%, rgba(${rgb},0.04) 100%)`
@@ -166,9 +159,7 @@ function StripCard({ item, highlighted }: { item: StripItem; highlighted: boolea
         justifyContent: "center",
         padding: "8px 6px",
         gap: "6px",
-        boxShadow: highlighted
-          ? `0 0 30px 8px rgba(${rgb},0.5), inset 0 0 20px rgba(${rgb},0.15)`
-          : "none",
+        boxShadow: highlighted ? `0 0 30px 8px rgba(${rgb},0.5), inset 0 0 20px rgba(${rgb},0.15)` : "none",
         position: "relative",
         overflow: "hidden",
         transition: "border-color 0.3s, box-shadow 0.5s",
@@ -200,7 +191,9 @@ function StripCard({ item, highlighted }: { item: StripItem; highlighted: boolea
           />
         </>
       )}
-      <div style={{ filter: highlighted ? `drop-shadow(0 0 12px ${color})` : "none", lineHeight: 1, userSelect: "none" }}>
+      <div
+        style={{ filter: highlighted ? `drop-shadow(0 0 12px ${color})` : "none", lineHeight: 1, userSelect: "none" }}
+      >
         <ItemIcon slug={item.item_slug} icon={item.icon} size={40} />
       </div>
       <span
@@ -294,17 +287,22 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
             tlRef.current = tl;
 
             // 1. Indicator flash
-            tl.to(indicatorRef.current, {
-              backgroundColor: wonColor,
-              boxShadow: `0 0 20px 6px rgba(${wonRgb},0.7)`,
-              duration: 0.4,
-            }, 0);
+            tl.to(
+              indicatorRef.current,
+              {
+                backgroundColor: wonColor,
+                boxShadow: `0 0 20px 6px rgba(${wonRgb},0.7)`,
+                duration: 0.4,
+              },
+              0,
+            );
             tl.to(topArrowRef.current, { borderTopColor: wonColor, duration: 0.4 }, 0);
             tl.to(bottomArrowRef.current, { borderBottomColor: wonColor, duration: 0.4 }, 0);
 
             // 2. Background glow burst
             if (glowBgRef.current) {
-              tl.fromTo(glowBgRef.current,
+              tl.fromTo(
+                glowBgRef.current,
                 { opacity: 0, scale: 0.5 },
                 { opacity: 1, scale: 1, duration: 0.8, ease: "power2.out" },
                 0,
@@ -314,23 +312,32 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
             // 3. Won card — big pop with bounce
             const wonCard = stripEl.children[WIN_INDEX] as HTMLElement | undefined;
             if (wonCard) {
-              tl.to(wonCard, {
-                scale: 1.15,
-                duration: 0.4,
-                ease: "back.out(3)",
-              }, 0.1);
-              tl.to(wonCard, {
-                scale: 1.05,
-                duration: 0.6,
-                ease: "power2.inOut",
-                yoyo: true,
-                repeat: -1,
-              }, 0.5);
+              tl.to(
+                wonCard,
+                {
+                  scale: 1.15,
+                  duration: 0.4,
+                  ease: "back.out(3)",
+                },
+                0.1,
+              );
+              tl.to(
+                wonCard,
+                {
+                  scale: 1.05,
+                  duration: 0.6,
+                  ease: "power2.inOut",
+                  yoyo: true,
+                  repeat: -1,
+                },
+                0.5,
+              );
             }
 
             // 4. Reveal section slides up
             if (revealRef.current) {
-              tl.fromTo(revealRef.current,
+              tl.fromTo(
+                revealRef.current,
                 { opacity: 0, y: 30, scale: 0.95 },
                 { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "back.out(1.4)" },
                 0.3,
@@ -340,11 +347,7 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
             // 5. Subtle shake on the whole dialog for impact
             const dialogEl = containerEl.closest('[role="dialog"]');
             if (dialogEl) {
-              tl.fromTo(dialogEl,
-                { x: 0 },
-                { x: 3, duration: 0.05, repeat: 5, yoyo: true, ease: "none" },
-                0,
-              );
+              tl.fromTo(dialogEl, { x: 0 }, { x: 3, duration: 0.05, repeat: 5, yoyo: true, ease: "none" }, 0);
             }
           },
         });
@@ -383,15 +386,21 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
   const wonRgb = wonDrop ? (RARITY_COLOR_RGB[wonDrop.rarity] ?? RARITY_COLOR_RGB.common) : RARITY_COLOR_RGB.common;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && phase === "reveal") handleClose(); }}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && phase === "reveal") handleClose();
+      }}
+    >
       <DialogContent
         showCloseButton={phase === "reveal"}
         className="sm:max-w-5xl w-[95vw] p-0 gap-0 overflow-hidden border-white/10"
         style={{
           background: "linear-gradient(180deg, #0c1526 0%, #020617 100%)",
-          boxShadow: phase === "reveal"
-            ? `0 0 80px 20px rgba(${wonRgb},0.15), 0 32px 80px rgba(0,0,0,0.6)`
-            : "0 32px 80px rgba(0,0,0,0.6)",
+          boxShadow:
+            phase === "reveal"
+              ? `0 0 80px 20px rgba(${wonRgb},0.15), 0 32px 80px rgba(0,0,0,0.6)`
+              : "0 32px 80px rgba(0,0,0,0.6)",
           transition: "box-shadow 0.8s ease",
         }}
       >
@@ -401,9 +410,10 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
             className="text-center font-display text-3xl font-black uppercase tracking-[0.2em]"
             style={{
               color: phase === "reveal" ? wonColor : "#22d3ee",
-              textShadow: phase === "reveal"
-                ? `0 0 30px rgba(${wonRgb},0.5), 0 0 60px rgba(${wonRgb},0.2)`
-                : "0 0 30px rgba(34,211,238,0.3)",
+              textShadow:
+                phase === "reveal"
+                  ? `0 0 30px rgba(${wonRgb},0.5), 0 0 60px rgba(${wonRgb},0.2)`
+                  : "0 0 30px rgba(34,211,238,0.3)",
               transition: "color 0.5s, text-shadow 0.5s",
             }}
           >
@@ -411,7 +421,7 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
               ? "Zdobyto!"
               : phase === "spinning"
                 ? "Losowanie..."
-                : crateItem?.name ?? "Otwieranie skrzynki"}
+                : (crateItem?.name ?? "Otwieranie skrzynki")}
           </DialogTitle>
         </DialogHeader>
 
@@ -461,11 +471,7 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
             }}
           >
             {strip.map((item, idx) => (
-              <StripCard
-                key={`${item.item_slug}-${idx}`}
-                item={item}
-                highlighted={highlighted && item.isWon}
-              />
+              <StripCard key={`${item.item_slug}-${idx}`} item={item} highlighted={highlighted && item.isWon} />
             ))}
           </div>
 
@@ -529,8 +535,7 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
             style={{
               position: "absolute",
               inset: 0,
-              background:
-                "linear-gradient(to right, #0c1526 0%, transparent 15%, transparent 85%, #0c1526 100%)",
+              background: "linear-gradient(to right, #0c1526 0%, transparent 15%, transparent 85%, #0c1526 100%)",
               pointerEvents: "none",
               zIndex: 5,
             }}
@@ -541,7 +546,8 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
             style={{
               position: "absolute",
               inset: 0,
-              background: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 4px)",
+              background:
+                "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 4px)",
               pointerEvents: "none",
               zIndex: 6,
             }}
@@ -588,10 +594,7 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
                   {wonDrop.item_name}
                 </p>
                 {wonDrop.quantity > 1 && (
-                  <p
-                    className="text-lg font-bold mt-1"
-                    style={{ color: `rgba(${wonRgb},0.7)` }}
-                  >
+                  <p className="text-lg font-bold mt-1" style={{ color: `rgba(${wonRgb},0.7)` }}>
                     x{wonDrop.quantity}
                   </p>
                 )}
@@ -614,7 +617,11 @@ export function CrateOpenModal({ isOpen, onClose, crateItem, drops, allItems }: 
               {/* Additional drops */}
               {drops && drops.length > 1 && (
                 <p className="text-sm text-white/40 text-center mt-1">
-                  + {drops.slice(1).map((d) => `${d.item_name} x${d.quantity}`).join(", ")}
+                  +{" "}
+                  {drops
+                    .slice(1)
+                    .map((d) => `${d.item_name} x${d.quantity}`)
+                    .join(", ")}
                 </p>
               )}
 

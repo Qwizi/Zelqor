@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0032_gamemode_ap_cost_ability_gamemode_ap_cost_attack_and_more'),
+        ("game_config", "0032_gamemode_ap_cost_ability_gamemode_ap_cost_attack_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='gamemode',
-            name='region_attack_cooldown',
-            field=models.IntegerField(default=0, help_text='Ticks before a region can attack again (0 = no cooldown)'),
+            model_name="gamemode",
+            name="region_attack_cooldown",
+            field=models.IntegerField(default=0, help_text="Ticks before a region can attack again (0 = no cooldown)"),
         ),
         migrations.AlterField(
-            model_name='gamesettings',
-            name='region_attack_cooldown',
-            field=models.IntegerField(default=0, help_text='Ticks before a region can attack again (0 = no cooldown)'),
+            model_name="gamesettings",
+            name="region_attack_cooldown",
+            field=models.IntegerField(default=0, help_text="Ticks before a region can attack again (0 = no cooldown)"),
         ),
     ]

@@ -5,7 +5,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function ProfileSkeleton() {
   return (
     <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* ── Header ── */}
       <div className="flex items-center gap-2 px-4 md:px-0">
         <div className="flex-1 min-w-0 space-y-1.5">
@@ -35,12 +34,7 @@ export function ProfileSkeleton() {
 
           {/* Stats grid — horizontal scroll on mobile, grid-cols-4 on desktop */}
           <div className="flex gap-2 mt-3 md:mt-5 overflow-x-auto pb-0.5 md:grid md:grid-cols-4 md:gap-3 md:overflow-visible scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
-            {[
-              { labelW: "w-8" },
-              { labelW: "w-12" },
-              { labelW: "w-14" },
-              { labelW: "w-16" },
-            ].map(({ labelW }, i) => (
+            {[{ labelW: "w-8" }, { labelW: "w-12" }, { labelW: "w-14" }, { labelW: "w-16" }].map(({ labelW }, i) => (
               <div
                 key={i}
                 className="flex shrink-0 items-center gap-2.5 rounded-xl bg-secondary/50 border border-border px-3 py-2 md:p-4 md:flex-col md:items-start md:gap-1.5 min-w-[100px] md:min-w-0"
@@ -131,7 +125,10 @@ export function ProfileSkeleton() {
           </div>
           {/* Deck cards */}
           {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="rounded-xl border border-border bg-secondary/50 p-3 md:p-4 space-y-2.5 md:space-y-3">
+            <div
+              key={i}
+              className="rounded-xl border border-border bg-secondary/50 p-3 md:p-4 space-y-2.5 md:space-y-3"
+            >
               <div className="flex items-center gap-2.5 md:gap-3">
                 <Skeleton className="h-4 w-4 md:h-5 md:w-5 rounded-sm shrink-0" />
                 <Skeleton className="h-4 w-32 md:h-5 md:w-44" />

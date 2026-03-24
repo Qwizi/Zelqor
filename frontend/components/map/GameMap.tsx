@@ -1,12 +1,12 @@
 "use client";
 
-import { memo, useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import maplibregl from "maplibre-gl";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { GameRegion, ActiveEffect } from "@/hooks/useGameSocket";
+import type { ActiveEffect, GameRegion } from "@/hooks/useGameSocket";
+import { type CosmeticValue, resolveAnimConfig } from "@/lib/animationConfig";
 import type { UnitType } from "@/lib/api";
 import { getPlayerBuildingAsset, getPlayerUnitAsset, getUnitAsset } from "@/lib/gameAssets";
-import { resolveAnimConfig, type CosmeticValue } from "@/lib/animationConfig";
 import type { TroopAnimation } from "@/lib/gameTypes";
 
 // ── Types ────────────────────────────────────────────────────
@@ -74,8 +74,8 @@ const SELECTED_COLOR = "#3b82f6";
 const TARGET_ENEMY = "#ef4444";
 const TARGET_FRIENDLY = "#60a5fa";
 export const ANIMATION_DURATION_MS = 2200;
-const NUM_TRAIL_DOTS = 8;
-const DOT_SPACING = 0.055;
+const _NUM_TRAIL_DOTS = 8;
+const _DOT_SPACING = 0.055;
 const AIR_ASSET = "/assets/units/planes/bomber_h300.webp";
 const SHIP_ASSET = "/assets/units/ships/ship1.png";
 const TANK_ASSET = "/assets/units/ground_unit_sphere_h300.png";
@@ -86,7 +86,11 @@ const EFFECT_CONFIG: Record<string, { color: string; borderColor: string; icon: 
   ab_shield: { color: "#3b82f6", borderColor: "#60a5fa", icon: "/assets/abilities/ab_shield.webp" },
   ab_pr_submarine: { color: "#a855f7", borderColor: "#c084fc", icon: "/assets/abilities/ab_pr_submarine.webp" },
   ab_province_nuke: { color: "#ef4444", borderColor: "#f87171", icon: "/assets/abilities/ab_province_nuke.webp" },
-  ab_conscription_point: { color: "#f59e0b", borderColor: "#fbbf24", icon: "/assets/abilities/ab_conscription_point.webp" },
+  ab_conscription_point: {
+    color: "#f59e0b",
+    borderColor: "#fbbf24",
+    icon: "/assets/abilities/ab_conscription_point.webp",
+  },
 };
 const EFFECT_TYPES = Object.keys(EFFECT_CONFIG);
 
@@ -99,9 +103,7 @@ function regionMarkerOffset(kind: "capital" | "buildings", buildingCount = 0): [
 }
 
 function getAnimationIconId(unitType?: string | null, playerId?: string) {
-  const normalized = (unitType || "default")
-    .replace(/[^a-z0-9_-]/gi, "-")
-    .toLowerCase();
+  const normalized = (unitType || "default").replace(/[^a-z0-9_-]/gi, "-").toLowerCase();
   if (playerId) {
     const playerNorm = playerId.replace(/[^a-z0-9_-]/gi, "-").toLowerCase();
     return `anim-unit-${normalized}-${playerNorm}`;
@@ -123,36 +125,32 @@ function resolveAnimationKind(unitType?: string | null) {
  *  the source image resolution. */
 const MAP_ICON_TARGET_SIZE = 300;
 
-function loadMapImage(
-  map: maplibregl.Map,
-  id: string,
-  url: string,
-  options?: { pixelRatio?: number }
-): Promise<void> {
+function loadMapImage(map: maplibregl.Map, id: string, url: string, options?: { pixelRatio?: number }): Promise<void> {
   return new Promise((resolve, reject) => {
     if (map.hasImage(id)) {
       resolve();
       return;
     }
 
-    map.loadImage(url).then(({ data: image }) => {
-      if (!image) {
-        reject(new Error(`Failed to load image: ${url}`));
-        return;
-      }
+    map
+      .loadImage(url)
+      .then(({ data: image }) => {
+        if (!image) {
+          reject(new Error(`Failed to load image: ${url}`));
+          return;
+        }
 
-      if (!map.hasImage(id)) {
-        // Normalise oversized images so icon-size scaling stays consistent.
-        const maxDim = Math.max(image.width, image.height);
-        const ratio = maxDim > MAP_ICON_TARGET_SIZE
-          ? maxDim / MAP_ICON_TARGET_SIZE
-          : options?.pixelRatio ?? 1;
-        map.addImage(id, image, { pixelRatio: ratio });
-      }
-      resolve();
-    }).catch((error) => {
-      reject(error);
-    });
+        if (!map.hasImage(id)) {
+          // Normalise oversized images so icon-size scaling stays consistent.
+          const maxDim = Math.max(image.width, image.height);
+          const ratio = maxDim > MAP_ICON_TARGET_SIZE ? maxDim / MAP_ICON_TARGET_SIZE : (options?.pixelRatio ?? 1);
+          map.addImage(id, image, { pixelRatio: ratio });
+        }
+        resolve();
+      })
+      .catch((error) => {
+        reject(error);
+      });
   });
 }
 
@@ -162,7 +160,7 @@ function computeCurvePath(
   from: [number, number],
   to: [number, number],
   offsetFactor: number,
-  n: number
+  n: number,
 ): [number, number][] {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
@@ -181,19 +179,12 @@ function computeCurvePath(
   for (let i = 0; i <= n; i++) {
     const t = i / n;
     const u = 1 - t;
-    pts.push([
-      u * u * from[0] + 2 * u * t * cpx + t * t * to[0],
-      u * u * from[1] + 2 * u * t * cpy + t * t * to[1],
-    ]);
+    pts.push([u * u * from[0] + 2 * u * t * cpx + t * t * to[0], u * u * from[1] + 2 * u * t * cpy + t * t * to[1]]);
   }
   return pts;
 }
 
-function computeMarchPath(
-  from: [number, number],
-  to: [number, number],
-  n = 28
-): [number, number][] {
+function computeMarchPath(from: [number, number], to: [number, number], n = 28): [number, number][] {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -207,10 +198,7 @@ function computeMarchPath(
   for (let i = 0; i <= n; i++) {
     const t = i / n;
     const wave = Math.sin(t * Math.PI * 3) * wobble * (1 - Math.abs(0.5 - t) * 1.15);
-    pts.push([
-      from[0] + dx * t + nx * wave,
-      from[1] + dy * t + ny * wave,
-    ]);
+    pts.push([from[0] + dx * t + nx * wave, from[1] + dy * t + ny * wave]);
   }
 
   return pts;
@@ -220,7 +208,7 @@ function buildAnimationPath(
   kind: "fighter" | "ship" | "tank" | "infantry",
   from: [number, number],
   to: [number, number],
-  unitType?: string | null
+  unitType?: string | null,
 ): [number, number][] {
   // Nuke: high-arc ballistic trajectory with many points for smoothness
   if (unitType === "nuke_rocket") {
@@ -238,19 +226,16 @@ function buildAnimationPath(
   return computeMarchPath(from, to, 26);
 }
 
-function easeAnimationProgress(
-  kind: "fighter" | "ship" | "tank" | "infantry",
-  linearProgress: number
-): number {
+function easeAnimationProgress(kind: "fighter" | "ship" | "tank" | "infantry", linearProgress: number): number {
   const t = Math.max(0, Math.min(1, linearProgress));
   if (kind === "fighter") {
-    return 1 - Math.pow(1 - t, 2.2);
+    return 1 - (1 - t) ** 2.2;
   }
   if (kind === "ship") {
     return t * t * (3 - 2 * t);
   }
   if (kind === "tank") {
-    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
   }
   return t * t * (3 - 2 * t);
 }
@@ -262,10 +247,7 @@ function lerpPath(path: [number, number][], t: number): [number, number] {
   const f = Math.max(0, Math.min(1, t)) * n;
   const i = Math.min(Math.floor(f), n - 1);
   const frac = f - i;
-  return [
-    path[i][0] + (path[i + 1][0] - path[i][0]) * frac,
-    path[i][1] + (path[i + 1][1] - path[i][1]) * frac,
-  ];
+  return [path[i][0] + (path[i + 1][0] - path[i][0]) * frac, path[i][1] + (path[i + 1][1] - path[i][1]) * frac];
 }
 
 const EMPTY_FC = { type: "FeatureCollection" as const, features: [] as unknown[] };
@@ -319,18 +301,26 @@ export default memo(function GameMap({
   const playersRef = useRef(players);
   const [layersReady, setLayersReady] = useState(false);
 
-  useLayoutEffect(() => { onRegionClickRef.current = onRegionClick; });
-  useLayoutEffect(() => { onMapReadyRef.current = onMapReady; });
-  useLayoutEffect(() => { centroidsRef.current = centroids; });
-  useLayoutEffect(() => { playersRef.current = players; });
+  useLayoutEffect(() => {
+    onRegionClickRef.current = onRegionClick;
+  });
+  useLayoutEffect(() => {
+    onMapReadyRef.current = onMapReady;
+  });
+  useLayoutEffect(() => {
+    centroidsRef.current = centroids;
+  });
+  useLayoutEffect(() => {
+    playersRef.current = players;
+  });
 
-  const getRegionColor = useCallback(
+  const _getRegionColor = useCallback(
     (regionId: string): string => {
       const r = regions[regionId];
       if (!r?.owner_id) return DEFAULT_COLOR;
       return players[r.owner_id]?.color || DEFAULT_COLOR;
     },
-    [regions, players]
+    [regions, players],
   );
 
   // ── Init map (once) ──────────────────────────────────────
@@ -367,7 +357,7 @@ export default memo(function GameMap({
       map.remove();
       mapRef.current = null;
     };
-  }, []);
+  }, [initialZoom]);
 
   // ── Add sources & layers ─────────────────────────────────
   //
@@ -446,11 +436,7 @@ export default memo(function GameMap({
         "source-layer": "regions",
         paint: {
           "fill-color": ["coalesce", ["feature-state", "color"], DEFAULT_COLOR],
-          "fill-opacity": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false], 0.9,
-            0.7,
-          ],
+          "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.9, 0.7],
         },
       });
       addLayerIfMissing({
@@ -469,10 +455,7 @@ export default memo(function GameMap({
         "source-layer": "regions",
         paint: {
           "fill-color": ["coalesce", ["feature-state", "effectColor"], "#ffffff"],
-          "fill-opacity": ["case",
-            ["boolean", ["feature-state", "hasEffect"], false], 0.3,
-            0,
-          ],
+          "fill-opacity": ["case", ["boolean", ["feature-state", "hasEffect"], false], 0.3, 0],
         },
       });
       addLayerIfMissing({
@@ -484,10 +467,7 @@ export default memo(function GameMap({
           "line-color": ["coalesce", ["feature-state", "effectBorderColor"], "#ffffff"],
           "line-width": 2.5,
           "line-dasharray": [3, 2],
-          "line-opacity": ["case",
-            ["boolean", ["feature-state", "hasEffect"], false], 0.8,
-            0,
-          ],
+          "line-opacity": ["case", ["boolean", ["feature-state", "hasEffect"], false], 0.8, 0],
         },
       });
       // Nuke blackout overlay — provinces go very dark after nuke impact
@@ -509,10 +489,7 @@ export default memo(function GameMap({
         "source-layer": "regions",
         paint: {
           "fill-color": ["coalesce", ["feature-state", "speakingColor"], "#ffffff"],
-          "fill-opacity": ["case",
-            ["boolean", ["feature-state", "isSpeaking"], false], 0.18,
-            0,
-          ],
+          "fill-opacity": ["case", ["boolean", ["feature-state", "isSpeaking"], false], 0.18, 0],
         },
       });
       addLayerIfMissing({
@@ -523,10 +500,7 @@ export default memo(function GameMap({
         paint: {
           "line-color": ["coalesce", ["feature-state", "speakingColor"], "#ffffff"],
           "line-width": 2.5,
-          "line-opacity": ["case",
-            ["boolean", ["feature-state", "isSpeaking"], false], 0.85,
-            0,
-          ],
+          "line-opacity": ["case", ["boolean", ["feature-state", "isSpeaking"], false], 0.85, 0],
         },
       });
       // Ability icons at centroids of affected provinces
@@ -712,60 +686,55 @@ export default memo(function GameMap({
           "text-halo-width": 1.2,
         },
       });
-        if (!(map as typeof map & { __maplord_handlers_bound?: boolean }).__maplord_handlers_bound) {
-          map.on("click", "regions-fill", (e) => {
-            const id = e.features?.[0]?.properties?.id;
-            if (id) onRegionClickRef.current(id as string);
-          });
-          map.on("mouseenter", "regions-fill", () => {
-            map.getCanvas().style.cursor = "pointer";
-          });
-          map.on("mouseleave", "regions-fill", () => {
-            map.getCanvas().style.cursor = "";
-          });
-          map.on("mousemove", "regions-fill", (e) => {
-            if (e.features?.[0]) {
-              const id = e.features[0].properties?.id as string;
-              if (hoveredRef.current && hoveredRef.current !== id) {
-                map.setFeatureState(
-                  { source: "regions", sourceLayer: "regions", id: hoveredRef.current },
-                  { hover: false }
-                );
-              }
-              hoveredRef.current = id;
+      if (!(map as typeof map & { __maplord_handlers_bound?: boolean }).__maplord_handlers_bound) {
+        map.on("click", "regions-fill", (e) => {
+          const id = e.features?.[0]?.properties?.id;
+          if (id) onRegionClickRef.current(id as string);
+        });
+        map.on("mouseenter", "regions-fill", () => {
+          map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", "regions-fill", () => {
+          map.getCanvas().style.cursor = "";
+        });
+        map.on("mousemove", "regions-fill", (e) => {
+          if (e.features?.[0]) {
+            const id = e.features[0].properties?.id as string;
+            if (hoveredRef.current && hoveredRef.current !== id) {
               map.setFeatureState(
-                { source: "regions", sourceLayer: "regions", id },
-                { hover: true }
+                { source: "regions", sourceLayer: "regions", id: hoveredRef.current },
+                { hover: false },
               );
             }
-          });
-          map.on("sourcedata", (e) => {
-            if (e.sourceId === "regions" && e.isSourceLoaded) {
-              applyFeatureStatesRef.current?.();
-            }
-          });
-          (map as typeof map & { __maplord_handlers_bound?: boolean }).__maplord_handlers_bound = true;
-        }
+            hoveredRef.current = id;
+            map.setFeatureState({ source: "regions", sourceLayer: "regions", id }, { hover: true });
+          }
+        });
+        map.on("sourcedata", (e) => {
+          if (e.sourceId === "regions" && e.isSourceLoaded) {
+            applyFeatureStatesRef.current?.();
+          }
+        });
+        (map as typeof map & { __maplord_handlers_bound?: boolean }).__maplord_handlers_bound = true;
+      }
 
-        // Load ability effect icons into map sprite
-        for (const effectType of EFFECT_TYPES) {
-          const config = EFFECT_CONFIG[effectType];
-          loadMapImage(map, `effect-${effectType}`, config.icon).catch(() => {
-            // Icon failed to load — effect will still show color overlay
-          });
-        }
+      // Load ability effect icons into map sprite
+      for (const effectType of EFFECT_TYPES) {
+        const config = EFFECT_CONFIG[effectType];
+        loadMapImage(map, `effect-${effectType}`, config.icon).catch(() => {
+          // Icon failed to load — effect will still show color overlay
+        });
+      }
 
-        const baseLayersReady =
-          !!map.getSource("regions") &&
-          !!map.getLayer("regions-fill") &&
-          !!map.getLayer("regions-border");
-        if (baseLayersReady) {
-          setLayersReady(true);
-          onMapReadyRef.current?.();
-        } else {
-          console.error("GameMap setup incomplete: base layers missing");
-          onMapReadyRef.current?.();
-        }
+      const baseLayersReady =
+        !!map.getSource("regions") && !!map.getLayer("regions-fill") && !!map.getLayer("regions-border");
+      if (baseLayersReady) {
+        setLayersReady(true);
+        onMapReadyRef.current?.();
+      } else {
+        console.error("GameMap setup incomplete: base layers missing");
+        onMapReadyRef.current?.();
+      }
     };
 
     const onLoad = () => setup();
@@ -830,7 +799,6 @@ export default memo(function GameMap({
             },
           });
         }
-
       } catch {
         // Marker layers are decorative. Base map should continue to work without them.
       }
@@ -841,7 +809,7 @@ export default memo(function GameMap({
     return () => {
       cancelled = true;
     };
-  }, [buildingIcons, layersReady]);
+  }, [layersReady]);
 
   const loadedAnimIconsRef = useRef(new Set<string>());
 
@@ -869,8 +837,12 @@ export default memo(function GameMap({
           Array.from(combos.values()).map(({ unitType, playerId }) => {
             const unitCfg = unitsConfig?.find((u) => u.slug === unitType);
             const playerCosmetics = playerId ? players[playerId]?.cosmetics : undefined;
-            return loadMapImage(map, getAnimationIconId(unitType, playerId), getPlayerUnitAsset(unitType, playerCosmetics, unitCfg?.asset_url));
-          })
+            return loadMapImage(
+              map,
+              getAnimationIconId(unitType, playerId),
+              getPlayerUnitAsset(unitType, playerCosmetics, unitCfg?.asset_url),
+            );
+          }),
         );
         if (!cancelled) {
           for (const key of combos.keys()) {
@@ -889,7 +861,7 @@ export default memo(function GameMap({
     return () => {
       cancelled = true;
     };
-  }, [animations, layersReady]);
+  }, [animations, layersReady, players, unitsConfig?.find]);
 
   // ── Effect A1: per-region color + label updates ──
   //
@@ -956,10 +928,7 @@ export default memo(function GameMap({
       for (const rid of regionIds) {
         if (!(rid in regions)) continue;
         try {
-          map.setFeatureState(
-            { source: "regions", sourceLayer: "regions", id: rid },
-            { color: getColor(rid) }
-          );
+          map.setFeatureState({ source: "regions", sourceLayer: "regions", id: rid }, { color: getColor(rid) });
         } catch {
           // tile not yet in memory — re-applied via sourcedata listener
         }
@@ -970,7 +939,7 @@ export default memo(function GameMap({
 
     prevRegionsRef.current = regions;
     prevPlayersRef.current = players;
-  }, [regions, players, myUserId, buildingIcons, centroids, layersReady]);
+  }, [regions, players, myUserId, layersReady]);
 
   // ── Effect: Voice speaking glow on regions + mic icon at capital ──
   const prevSpeakingRef = useRef<Set<string>>(new Set());
@@ -994,7 +963,7 @@ export default memo(function GameMap({
           {
             isSpeaking: nowSpeaking,
             speakingColor: nowSpeaking ? (players[region.owner_id]?.color ?? "#ffffff") : "#ffffff",
-          }
+          },
         );
       } catch {
         // tile not loaded yet
@@ -1003,7 +972,7 @@ export default memo(function GameMap({
 
     // Mic icon markers at speaking players' capitals
     const activeSpeakers = new Set<string>();
-    for (const [, player] of Object.entries(players)) {
+    for (const [, _player] of Object.entries(players)) {
       // players is keyed by ID but we need to find which key matches
     }
     // Build map of player_id -> capital centroid for speaking players
@@ -1090,10 +1059,12 @@ export default memo(function GameMap({
           type: "FeatureCollection",
           features: labelFeatures,
         } as unknown as GeoJSON.FeatureCollection);
-      } catch { /* source not ready */ }
+      } catch {
+        /* source not ready */
+      }
     });
     return () => cancelAnimationFrame(rafId);
-  }, [regions, players, myUserId, animations, centroids, activeEffects, layersReady]);
+  }, [regions, players, myUserId, animations, centroids, activeEffects, layersReady, buildingIcons]);
 
   // ── Effect A2: selection + target markers ──
   //
@@ -1124,7 +1095,7 @@ export default memo(function GameMap({
               geometry: { type: "Point", coordinates: centroids[rid] },
               properties: {},
             }
-          : null
+          : null,
       )
       .filter(Boolean);
     try {
@@ -1216,7 +1187,7 @@ export default memo(function GameMap({
               offset: regionMarkerOffset("capital"),
             })
               .setLngLat(centroid)
-              .addTo(map)
+              .addTo(map),
           );
         }
       } else {
@@ -1249,7 +1220,7 @@ export default memo(function GameMap({
                       : ""
                   }
                 </div>
-              `
+              `,
             )
             .join("")}
         </div>
@@ -1273,7 +1244,7 @@ export default memo(function GameMap({
             offset: buildingOffset,
           })
             .setLngLat(centroid)
-            .addTo(map)
+            .addTo(map),
         );
       }
     }
@@ -1302,7 +1273,7 @@ export default memo(function GameMap({
         buildingMarkers.clear();
       }
     };
-  }, [regions, centroids, buildingIcons, layersReady]);
+  }, [regions, centroids, buildingIcons, layersReady, players]);
 
   // ── Effect B: selection & highlight filters/opacity ───────────────────
   //
@@ -1314,13 +1285,9 @@ export default memo(function GameMap({
 
     try {
       // Opacity: hover handled in paint expression; selected / target via case
-      const opacityExpr: unknown[] = [
-        "case",
-        ["boolean", ["feature-state", "hover"], false], 0.9,
-      ];
+      const opacityExpr: unknown[] = ["case", ["boolean", ["feature-state", "hover"], false], 0.9];
       if (selectedRegion) opacityExpr.push(["==", ["get", "id"], selectedRegion], 0.95);
-      if (targetRegions.length > 0)
-        opacityExpr.push(["in", ["get", "id"], ["literal", targetRegions]], 0.92);
+      if (targetRegions.length > 0) opacityExpr.push(["in", ["get", "id"], ["literal", targetRegions]], 0.92);
       opacityExpr.push(0.7);
       map.setPaintProperty("regions-fill", "fill-opacity", opacityExpr);
 
@@ -1330,33 +1297,25 @@ export default memo(function GameMap({
         .map(([id]) => id);
       map.setFilter(
         "regions-capital",
-        capitalIds.length > 0
-          ? ["in", ["get", "id"], ["literal", capitalIds]]
-          : ["==", ["get", "id"], ""]
+        capitalIds.length > 0 ? ["in", ["get", "id"], ["literal", capitalIds]] : ["==", ["get", "id"], ""],
       );
 
       // Selected outline
       map.setFilter(
         "regions-selected",
-        selectedRegion
-          ? ["==", ["get", "id"], selectedRegion]
-          : ["==", ["get", "id"], ""]
+        selectedRegion ? ["==", ["get", "id"], selectedRegion] : ["==", ["get", "id"], ""],
       );
 
       // Selected targets outline (multi-target)
       map.setFilter(
         "regions-targets",
-        targetRegions.length > 0
-          ? ["in", ["get", "id"], ["literal", targetRegions]]
-          : ["==", ["get", "id"], ""]
+        targetRegions.length > 0 ? ["in", ["get", "id"], ["literal", targetRegions]] : ["==", ["get", "id"], ""],
       );
 
       // Dim overlay — invalid regions during capital selection
       map.setFilter(
         "regions-dim",
-        dimmedRegions.length > 0
-          ? ["in", ["get", "id"], ["literal", dimmedRegions]]
-          : ["==", ["get", "id"], ""]
+        dimmedRegions.length > 0 ? ["in", ["get", "id"], ["literal", dimmedRegions]] : ["==", ["get", "id"], ""],
       );
 
       // Tutorial region highlights
@@ -1364,21 +1323,16 @@ export default memo(function GameMap({
         "regions-tutorial-highlight",
         tutorialHighlightRegions.length > 0
           ? ["in", ["get", "id"], ["literal", tutorialHighlightRegions]]
-          : ["==", ["get", "id"], ""]
+          : ["==", ["get", "id"], ""],
       );
 
       // Neighbor highlights
       if (highlightedNeighbors.length > 0) {
-        map.setFilter("regions-neighbor-glow", [
-          "in", ["get", "id"], ["literal", highlightedNeighbors],
-        ]);
+        map.setFilter("regions-neighbor-glow", ["in", ["get", "id"], ["literal", highlightedNeighbors]]);
         // Max 2 colors → simple match is fine here (small, infrequent)
         const nColorExpr: unknown[] = ["match", ["get", "id"]];
         for (const nid of highlightedNeighbors) {
-          nColorExpr.push(
-            nid,
-            regions[nid]?.owner_id === myUserId ? TARGET_FRIENDLY : TARGET_ENEMY
-          );
+          nColorExpr.push(nid, regions[nid]?.owner_id === myUserId ? TARGET_FRIENDLY : TARGET_ENEMY);
         }
         nColorExpr.push(TARGET_ENEMY);
         map.setPaintProperty("regions-neighbor-glow", "line-color", nColorExpr);
@@ -1388,7 +1342,16 @@ export default memo(function GameMap({
     } catch {
       // map not ready
     }
-  }, [selectedRegion, targetRegions, highlightedNeighbors, dimmedRegions, tutorialHighlightRegions, myUserId, regions, layersReady]);
+  }, [
+    selectedRegion,
+    targetRegions,
+    highlightedNeighbors,
+    dimmedRegions,
+    tutorialHighlightRegions,
+    myUserId,
+    regions,
+    layersReady,
+  ]);
 
   // ── Nuke blackout — darken provinces after nuke impact ──────
   //
@@ -1396,7 +1359,9 @@ export default memo(function GameMap({
   // Uses rAF-driven feature-state updates for smooth fade.
 
   const nukeBlackoutRef = useRef(nukeBlackout);
-  useLayoutEffect(() => { nukeBlackoutRef.current = nukeBlackout; });
+  useLayoutEffect(() => {
+    nukeBlackoutRef.current = nukeBlackout;
+  });
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1416,24 +1381,22 @@ export default memo(function GameMap({
         if (elapsed >= NUKE_FADE_MS) continue;
         activeRids.add(b.rid);
         const t = elapsed / NUKE_FADE_MS;
-        const opacity = 0.85 * Math.pow(1 - t, 2);
+        const opacity = 0.85 * (1 - t) ** 2;
         try {
-          map.setFeatureState(
-            { source: "regions", sourceLayer: "regions", id: b.rid },
-            { nukeOpacity: opacity }
-          );
-        } catch { /* tile not loaded */ }
+          map.setFeatureState({ source: "regions", sourceLayer: "regions", id: b.rid }, { nukeOpacity: opacity });
+        } catch {
+          /* tile not loaded */
+        }
       }
 
       // Clear expired
       for (const rid of prevRids) {
         if (!activeRids.has(rid)) {
           try {
-            map.setFeatureState(
-              { source: "regions", sourceLayer: "regions", id: rid },
-              { nukeOpacity: 0 }
-            );
-          } catch { /* */ }
+            map.setFeatureState({ source: "regions", sourceLayer: "regions", id: rid }, { nukeOpacity: 0 });
+          } catch {
+            /* */
+          }
         }
       }
       prevRids.clear();
@@ -1472,9 +1435,8 @@ export default memo(function GameMap({
       }
 
       // Build cache key to skip redundant updates
-      const key = affected.size > 0
-        ? [...affected.entries()].map(([rid, e]) => `${rid}:${e.effectType}`).join(",")
-        : "";
+      const key =
+        affected.size > 0 ? [...affected.entries()].map(([rid, e]) => `${rid}:${e.effectType}`).join(",") : "";
       if (prevEffectFiltersRef.current.__all === key) return;
       prevEffectFiltersRef.current.__all = key;
 
@@ -1483,11 +1445,10 @@ export default memo(function GameMap({
       for (const rid of prevRids) {
         if (!affected.has(rid)) {
           try {
-            map.setFeatureState(
-              { source: "regions", sourceLayer: "regions", id: rid },
-              { hasEffect: false }
-            );
-          } catch { /* tile not loaded */ }
+            map.setFeatureState({ source: "regions", sourceLayer: "regions", id: rid }, { hasEffect: false });
+          } catch {
+            /* tile not loaded */
+          }
         }
       }
       prevEffectFiltersRef.current.__rids = [...affected.keys()].join(",");
@@ -1497,9 +1458,11 @@ export default memo(function GameMap({
         try {
           map.setFeatureState(
             { source: "regions", sourceLayer: "regions", id: rid },
-            { hasEffect: true, effectColor: config.color, effectBorderColor: config.borderColor }
+            { hasEffect: true, effectColor: config.color, effectBorderColor: config.borderColor },
           );
-        } catch { /* tile not loaded */ }
+        } catch {
+          /* tile not loaded */
+        }
       }
 
       // Update icon GeoJSON — one icon per affected province centroid
@@ -1518,7 +1481,9 @@ export default memo(function GameMap({
           type: "FeatureCollection",
           features: iconFeatures,
         } as unknown as GeoJSON.FeatureCollection);
-      } catch { /* source not ready */ }
+      } catch {
+        /* source not ready */
+      }
     } catch {
       // map not ready
     }
@@ -1545,13 +1510,7 @@ export default memo(function GameMap({
         startTime: a.startTime,
         duration:
           a.durationMs ??
-          (animKind === "fighter"
-            ? 1100
-            : animKind === "ship"
-              ? 3200
-              : animKind === "tank"
-                ? 2400
-                : 1900),
+          (animKind === "fighter" ? 1100 : animKind === "ship" ? 3200 : animKind === "tank" ? 2400 : 1900),
         targetCentroid: to,
         sourceCentroid: from,
         playerId: a.playerId,
@@ -1572,10 +1531,10 @@ export default memo(function GameMap({
     const map = mapRef.current;
     if (!map) return;
     // Reusable arrays — cleared each frame to avoid GC pressure
-    let lineFeats: unknown[] = [];
-    let dotFeats: unknown[] = [];
-    let iconFeats: unknown[] = [];
-    let pulseFeats: unknown[] = [];
+    const lineFeats: unknown[] = [];
+    const dotFeats: unknown[] = [];
+    const iconFeats: unknown[] = [];
+    const pulseFeats: unknown[] = [];
     // Reusable GeoJSON wrappers
     const lineGeoJSON = { type: "FeatureCollection" as const, features: lineFeats };
     const dotGeoJSON = { type: "FeatureCollection" as const, features: dotFeats };
@@ -1601,7 +1560,7 @@ export default memo(function GameMap({
           arrivedAnimsRef.current.add(a.id);
           const isNukeRocket = a.unitType === "nuke_rocket";
           const playerCosmetics = a.playerId
-            ? playersRef.current[a.playerId]?.cosmetics as Record<string, CosmeticValue> | undefined
+            ? (playersRef.current[a.playerId]?.cosmetics as Record<string, CosmeticValue> | undefined)
             : undefined;
           const cfg = resolveAnimConfig(a.animKind, a.actionType, isNukeRocket, playerCosmetics);
           const impactCfg = a.actionType === "attack" ? cfg.impact_attack : cfg.impact_move;
@@ -1622,9 +1581,7 @@ export default memo(function GameMap({
       });
 
       // Clean up old impact flashes and arrived tracking
-      impactFlashesRef.current = impactFlashesRef.current.filter(
-        (f) => now - f.startTime < f.duration
-      );
+      impactFlashesRef.current = impactFlashesRef.current.filter((f) => now - f.startTime < f.duration);
       if (arrivedAnimsRef.current.size > 200) {
         arrivedAnimsRef.current.clear();
       }
@@ -1632,9 +1589,7 @@ export default memo(function GameMap({
       // Early-return when there is nothing to animate — skip the expensive
       // setData() calls on all five GeoJSON sources and reschedule cheaply.
       const hasWork =
-        animsRef.current.length > 0 ||
-        impactFlashesRef.current.length > 0 ||
-        unitPulsesRef.current.size > 0;
+        animsRef.current.length > 0 || impactFlashesRef.current.length > 0 || unitPulsesRef.current.size > 0;
       if (!hasWork) {
         // Stop the loop entirely — it will be restarted by the animations effect
         rafRef.current = 0;
@@ -1653,7 +1608,7 @@ export default memo(function GameMap({
 
         // Resolve animation config from defaults + optional player cosmetic overrides
         const playerCosmetics = a.playerId
-          ? playersRef.current[a.playerId]?.cosmetics as Record<string, CosmeticValue> | undefined
+          ? (playersRef.current[a.playerId]?.cosmetics as Record<string, CosmeticValue> | undefined)
           : undefined;
         const cfg = resolveAnimConfig(animKind, a.actionType, isNukeRocket, playerCosmetics);
 
@@ -1661,15 +1616,17 @@ export default memo(function GameMap({
         const progress = isNukeRocket
           ? rawLinear < 0.5
             ? 2 * rawLinear * rawLinear
-            : 1 - Math.pow(-2 * rawLinear + 2, 2) / 2
+            : 1 - (-2 * rawLinear + 2) ** 2 / 2
           : easeAnimationProgress(animKind, rawLinear);
 
         // Smooth fadeout: gentle from fade_start, accelerating to 0 at 100%
         // Nuke stays fully visible until impact
         const fadeOut = isNukeRocket
-          ? (rawLinear >= 1 ? 0 : 1)
+          ? rawLinear >= 1
+            ? 0
+            : 1
           : rawLinear > cfg.icon.fade_start
-            ? Math.pow(1 - (rawLinear - cfg.icon.fade_start) / (1 - cfg.icon.fade_start), 2)
+            ? (1 - (rawLinear - cfg.icon.fade_start) / (1 - cfg.icon.fade_start)) ** 2
             : 1;
 
         const trailColor = cfg.trail.color ?? a.color;
@@ -1677,10 +1634,7 @@ export default memo(function GameMap({
         const pulseColor = cfg.pulse.color;
 
         // Progressive trail — only show line from trail tail to head, not full path
-        const headIdx = Math.min(
-          Math.floor(progress * (a.path.length - 1)),
-          a.path.length - 1
-        );
+        const headIdx = Math.min(Math.floor(progress * (a.path.length - 1)), a.path.length - 1);
         const trailLength = cfg.trail.length;
         const tailProgress = Math.max(0, progress - trailLength);
         const tailIdx = Math.max(0, Math.floor(tailProgress * (a.path.length - 1)));
@@ -1698,7 +1652,7 @@ export default memo(function GameMap({
               type: "Feature",
               geometry: { type: "LineString", coordinates: trailSlice },
               properties: {
-                color: cfg.trail.glow_color ?? (trailColor + "44"),
+                color: cfg.trail.glow_color ?? `${trailColor}44`,
                 opacity: cfg.trail.opacity * fadeOut * 0.5,
                 width: cfg.trail.glow_width,
                 blur: cfg.trail.blur + 2,
@@ -1732,7 +1686,7 @@ export default memo(function GameMap({
               ? lerpPath(a.path, dp)
               : a.path[Math.min(Math.floor(dp * (a.path.length - 1)), a.path.length - 1)];
             // Smooth fade per dot based on distance from head
-            const dotFade = 1 - (i / trailDots);
+            const dotFade = 1 - i / trailDots;
             const dotScale = 1 - (i / trailDots) * cfg.trail.particle_scale_decay;
             dotFeats.push({
               type: "Feature",
@@ -1741,19 +1695,20 @@ export default memo(function GameMap({
                 color: dotColor,
                 units: i === 0 ? a.units : 0,
                 opacity: dotFade * dotFade * fadeOut,
-                size: (i === 0
-                  ? cfg.trail.particle_head_size
-                  : Math.max(cfg.trail.particle_min_size, cfg.trail.particle_decay_base - i * cfg.trail.particle_decay)
-                ) * dotScale,
+                size:
+                  (i === 0
+                    ? cfg.trail.particle_head_size
+                    : Math.max(
+                        cfg.trail.particle_min_size,
+                        cfg.trail.particle_decay_base - i * cfg.trail.particle_decay,
+                      )) * dotScale,
               },
             });
           }
         }
 
         // Smooth interpolated position for icon (especially important for nuke)
-        const currentPoint = isNukeRocket
-          ? lerpPath(a.path, progress)
-          : a.path[headIdx];
+        const currentPoint = isNukeRocket ? lerpPath(a.path, progress) : a.path[headIdx];
         const lookAhead = isNukeRocket
           ? lerpPath(a.path, Math.min(1, progress + 0.005))
           : a.path[Math.min(headIdx + 1, a.path.length - 1)];
@@ -1768,10 +1723,10 @@ export default memo(function GameMap({
         // Nuke: multi-stage icon scale kept hardcoded (grow on launch, cruise, shrink on approach)
         const nukeScale = isNukeRocket
           ? rawLinear < 0.3
-            ? 0.15 + 0.55 * (rawLinear / 0.3)           // grow: 0.15 → 0.7
+            ? 0.15 + 0.55 * (rawLinear / 0.3) // grow: 0.15 → 0.7
             : rawLinear > 0.75
-              ? 0.7 - 0.4 * ((rawLinear - 0.75) / 0.25)  // shrink: 0.7 → 0.3
-              : 0.7                                        // cruise
+              ? 0.7 - 0.4 * ((rawLinear - 0.75) / 0.25) // shrink: 0.7 → 0.3
+              : 0.7 // cruise
           : 0;
         const finalIconSize = isNukeRocket
           ? nukeScale
@@ -1791,7 +1746,7 @@ export default memo(function GameMap({
         if (cfg.pulse.enabled && a.actionType === "attack" && progress > cfg.pulse.start_at) {
           for (let ring = 0; ring < cfg.pulse.rings; ring++) {
             const phase = ((progress - cfg.pulse.start_at) * 4 + ring / cfg.pulse.rings) % 1;
-            const ringFade = (1 - phase);
+            const ringFade = 1 - phase;
             pulseFeats.push({
               type: "Feature",
               geometry: { type: "Point", coordinates: a.targetCentroid },
@@ -1808,13 +1763,13 @@ export default memo(function GameMap({
       // Impact flash effects — config-driven layered burst at arrival centroid
       for (const flash of impactFlashesRef.current) {
         const flashCosmetics = flash.playerId
-          ? playersRef.current[flash.playerId]?.cosmetics as Record<string, CosmeticValue> | undefined
+          ? (playersRef.current[flash.playerId]?.cosmetics as Record<string, CosmeticValue> | undefined)
           : undefined;
         const flashCfg = resolveAnimConfig(
           flash.animKind ?? "infantry",
           flash.actionType ?? (flash.isAttack ? "attack" : "move"),
           flash.isNuke ?? false,
-          flashCosmetics
+          flashCosmetics,
         );
         const impactCfg = flash.isAttack || flash.isNuke ? flashCfg.impact_attack : flashCfg.impact_move;
         const flashProgress = (now - flash.startTime) / impactCfg.duration;
@@ -1822,7 +1777,7 @@ export default memo(function GameMap({
         for (const layer of impactCfg.layers) {
           if (flashProgress > layer.duration_pct) continue;
           const layerProgress = flashProgress / layer.duration_pct;
-          const fade = Math.pow(1 - layerProgress, layer.opacity_curve);
+          const fade = (1 - layerProgress) ** layer.opacity_curve;
           const radius = layer.radius[0] + layerProgress * (layer.radius[1] - layer.radius[0]);
 
           // All layers render through the stroke-based "defend-pulse" MapLibre layer.
@@ -1853,7 +1808,7 @@ export default memo(function GameMap({
         if (!centroid) return;
         const t = elapsed / UNIT_CHANGE_DURATION;
         // Ease out — fast start, slow finish
-        const easedT = 1 - Math.pow(1 - t, 3);
+        const easedT = 1 - (1 - t) ** 3;
         const opacity = 1 - easedT;
         // Drift upward by offsetting latitude directly in the coordinates
         const driftLat = 0.15 + easedT * 0.45;
@@ -1875,10 +1830,18 @@ export default memo(function GameMap({
         dotGeoJSON.features = dotFeats;
         iconGeoJSON.features = iconFeats;
         pulseGeoJSON.features = pulseFeats;
-        (map.getSource("anim-lines") as maplibregl.GeoJSONSource).setData(lineGeoJSON as unknown as GeoJSON.FeatureCollection);
-        (map.getSource("anim-dots") as maplibregl.GeoJSONSource).setData(dotGeoJSON as unknown as GeoJSON.FeatureCollection);
-        (map.getSource("anim-icons") as maplibregl.GeoJSONSource).setData(iconGeoJSON as unknown as GeoJSON.FeatureCollection);
-        (map.getSource("defend-pulses") as maplibregl.GeoJSONSource).setData(pulseGeoJSON as unknown as GeoJSON.FeatureCollection);
+        (map.getSource("anim-lines") as maplibregl.GeoJSONSource).setData(
+          lineGeoJSON as unknown as GeoJSON.FeatureCollection,
+        );
+        (map.getSource("anim-dots") as maplibregl.GeoJSONSource).setData(
+          dotGeoJSON as unknown as GeoJSON.FeatureCollection,
+        );
+        (map.getSource("anim-icons") as maplibregl.GeoJSONSource).setData(
+          iconGeoJSON as unknown as GeoJSON.FeatureCollection,
+        );
+        (map.getSource("defend-pulses") as maplibregl.GeoJSONSource).setData(
+          pulseGeoJSON as unknown as GeoJSON.FeatureCollection,
+        );
         const changeSource = map.getSource("unit-change-labels") as maplibregl.GeoJSONSource | undefined;
         if (changeSource) {
           changeSource.setData({

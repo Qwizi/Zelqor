@@ -11,9 +11,7 @@ from apps.geo.models import Country, Region
 # ---------------------------------------------------------------------------
 
 DEFAULT_SOURCE_PATH = (
-    Path(__file__).resolve().parent.parent.parent.parent.parent
-    / "fixtures"
-    / "provinces_source_v2.json"
+    Path(__file__).resolve().parent.parent.parent.parent.parent / "fixtures" / "provinces_source_v2.json"
 )
 
 GAME_COUNTRY_CODE = "GAM"
@@ -117,9 +115,7 @@ class Command(BaseCommand):
         source_path = Path(options["file"]) if options["file"] else DEFAULT_SOURCE_PATH
 
         if not source_path.exists():
-            self.stderr.write(
-                self.style.ERROR(f"Source file not found: {source_path}")
-            )
+            self.stderr.write(self.style.ERROR(f"Source file not found: {source_path}"))
             return
 
         if options["clear"]:
@@ -153,9 +149,7 @@ class Command(BaseCommand):
                 region, was_created = self._import_province(province, country)
             except Exception as exc:
                 s_id = province.get("s_id", province.get("id", "?"))
-                self.stderr.write(
-                    self.style.WARNING(f"  Skipped province {s_id}: {exc}")
-                )
+                self.stderr.write(self.style.WARNING(f"  Skipped province {s_id}: {exc}"))
                 skipped_count += 1
                 continue
 
@@ -169,10 +163,7 @@ class Command(BaseCommand):
             else:
                 updated_count += 1
 
-        self.stdout.write(
-            f"Regions: {created_count} created, {updated_count} updated, "
-            f"{skipped_count} skipped"
-        )
+        self.stdout.write(f"Regions: {created_count} created, {updated_count} updated, {skipped_count} skipped")
 
         self._set_neighbors(province_id_to_region, province_id_to_neighbor_ids)
         self._set_sea_distances(province_id_to_region, province_id_to_sea_distances)
@@ -195,9 +186,7 @@ class Command(BaseCommand):
         except Country.DoesNotExist:
             self.stdout.write("  Nothing to clear.")
 
-    def _import_province(
-        self, province: dict, country: Country
-    ) -> tuple[Region, bool]:
+    def _import_province(self, province: dict, country: Country) -> tuple[Region, bool]:
         """Create or update a single Region from a province dict."""
         province_id: int = province["id"]
         s_id: str = province["s_id"]
@@ -299,9 +288,7 @@ class Command(BaseCommand):
                         target = None
                     if target is not None:
                         province_uuids.append(str(target.id))
-                normalized_bands.append(
-                    {"r": int(band.get("r", 0)), "provinces": province_uuids}
-                )
+                normalized_bands.append({"r": int(band.get("r", 0)), "provinces": province_uuids})
             region.sea_distances = normalized_bands
             region.save(update_fields=["sea_distances"])
             updated += 1

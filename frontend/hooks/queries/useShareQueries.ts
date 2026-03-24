@@ -1,10 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  getSharedResource,
-  getSharedSnapshot,
-  type SharedMatchData,
-  type SnapshotDetail,
-} from "@/lib/api";
+import { getSharedResource, getSharedSnapshot, type SharedMatchData, type SnapshotDetail } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 
 export function useSharedResource(shareToken: string) {

@@ -1,12 +1,15 @@
 """Publish lobby events to Redis pub/sub for the Rust gateway to consume."""
+
 import json
 import logging
-import redis
+
 from django.conf import settings
+
+import redis
 
 logger = logging.getLogger(__name__)
 
-LOBBY_EVENTS_CHANNEL = 'lobby:events'
+LOBBY_EVENTS_CHANNEL = "lobby:events"
 
 
 def _get_redis():
@@ -24,8 +27,8 @@ def publish_lobby_event(event_type: str, lobby_id: str, **kwargs):
     (e.g., broadcasting WS messages, closing connections).
     """
     payload = {
-        'type': event_type,
-        'lobby_id': lobby_id,
+        "type": event_type,
+        "lobby_id": lobby_id,
         **kwargs,
     }
     try:

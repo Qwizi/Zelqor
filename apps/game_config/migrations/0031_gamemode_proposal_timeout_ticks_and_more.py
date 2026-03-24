@@ -4,20 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0030_gamemode_capital_protection_ticks_and_more'),
+        ("game_config", "0030_gamemode_capital_protection_ticks_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='gamemode',
-            name='proposal_timeout_ticks',
-            field=models.PositiveIntegerField(default=60, help_text='Ticks before a diplomacy proposal auto-expires (0=no timeout)'),
+            model_name="gamemode",
+            name="proposal_timeout_ticks",
+            field=models.PositiveIntegerField(
+                default=60, help_text="Ticks before a diplomacy proposal auto-expires (0=no timeout)"
+            ),
         ),
         migrations.AddField(
-            model_name='gamesettings',
-            name='proposal_timeout_ticks',
-            field=models.PositiveIntegerField(default=60, help_text='Ticks before a diplomacy proposal auto-expires (0=no timeout)'),
+            model_name="gamesettings",
+            name="proposal_timeout_ticks",
+            field=models.PositiveIntegerField(
+                default=60, help_text="Ticks before a diplomacy proposal auto-expires (0=no timeout)"
+            ),
         ),
     ]

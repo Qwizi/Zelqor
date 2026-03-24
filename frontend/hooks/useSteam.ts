@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  type SteamAchievement,
-  type SteamUser,
   getSteamAchievements,
   getSteamUser,
   isSteamRunning,
   isTauri,
+  type SteamAchievement,
+  type SteamUser,
   setSteamAchievement,
   setSteamRichPresence,
 } from "@/lib/steam";
@@ -40,10 +40,7 @@ export function useSteam(): UseSteamResult {
       const running = await isSteamRunning();
       setSteamConnected(running);
       if (running) {
-        const [steamUser, steamAchievements] = await Promise.all([
-          getSteamUser(),
-          getSteamAchievements(),
-        ]);
+        const [steamUser, steamAchievements] = await Promise.all([getSteamUser(), getSteamAchievements()]);
         setUser(steamUser);
         setAchievements(steamAchievements);
       }
@@ -56,9 +53,7 @@ export function useSteam(): UseSteamResult {
     async (id: string) => {
       if (!steamConnected) return;
       await setSteamAchievement(id);
-      setAchievements((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, achieved: true } : a)),
-      );
+      setAchievements((prev) => prev.map((a) => (a.id === id ? { ...a, achieved: true } : a)));
     },
     [steamConnected],
   );

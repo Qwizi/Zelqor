@@ -1,30 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
-import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  getRegionTilesUrl,
-  type SharedMatchData,
-  type RegionGraphEntry,
-  type BuildingType,
-  type SnapshotTick,
-} from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
-import { useSharedResource, useSharedSnapshot, useRegionsGraph, useConfig } from "@/hooks/queries";
-import { loadAssetOverrides } from "@/lib/assetOverrides";
-import type { GameState, GameRegion, GamePlayer } from "@/hooks/useGameSocket";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { useConfig, useRegionsGraph, useSharedResource } from "@/hooks/queries";
+import type { GamePlayer, GameRegion, GameState } from "@/hooks/useGameSocket";
+import { type BuildingType, getRegionTilesUrl, type SnapshotTick } from "@/lib/api";
+import { loadAssetOverrides } from "@/lib/assetOverrides";
+import { queryKeys } from "@/lib/queryKeys";
 
 const MatchCharts = dynamic(() => import("@/components/match/MatchCharts"), { ssr: false });
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 import {
   Award,
-  ChevronRight,
   Clock,
   Crown,
   Globe,
@@ -40,8 +31,10 @@ import {
   TrendingUp,
   UserPlus,
   Users,
-  Zap,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const GameMap = dynamic(() => import("@/components/map/GameMap"), { ssr: false });
 
@@ -55,7 +48,11 @@ function formatDuration(seconds: number): string {
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("pl-PL", {
-    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -65,7 +62,11 @@ export default function SharePage() {
 
   const { data: sharedData, isLoading: sharedLoading, isError: sharedError } = useSharedResource(token);
   const { data: config, isLoading: configLoading, isError: configError } = useConfig();
-  const { data: regionGraph = [], isLoading: graphLoading, isError: graphError } = useRegionsGraph(sharedData?.match.id);
+  const {
+    data: regionGraph = [],
+    isLoading: graphLoading,
+    isError: graphError,
+  } = useRegionsGraph(sharedData?.match.id);
 
   const loading = sharedLoading || configLoading || (!!sharedData && graphLoading);
   const error = sharedError || configError || graphError;
@@ -89,25 +90,32 @@ export default function SharePage() {
   speedRef.current = speed;
   currentIndexRef.current = currentIndex;
 
-  const loadSnapshot = useCallback(async (tick: number, index: number) => {
-    const queryKey = [...queryKeys.share.snapshot(token), tick];
-    const cached = queryClient.getQueryData<{ state_data: Record<string, unknown> }>(queryKey);
-    if (cached) {
-      setGameState(cached.state_data as unknown as GameState);
-      setCurrentIndex(index);
-      return;
-    }
-    setSnapshotLoading(true);
-    try {
-      const snap = await queryClient.fetchQuery({
-        queryKey,
-        queryFn: () => import("@/lib/api").then((m) => m.getSharedSnapshot(token, tick)),
-        staleTime: Infinity,
-      });
-      setGameState(snap.state_data as unknown as GameState);
-      setCurrentIndex(index);
-    } catch { /* ignore */ } finally { setSnapshotLoading(false); }
-  }, [token, queryClient]);
+  const loadSnapshot = useCallback(
+    async (tick: number, index: number) => {
+      const queryKey = [...queryKeys.share.snapshot(token), tick];
+      const cached = queryClient.getQueryData<{ state_data: Record<string, unknown> }>(queryKey);
+      if (cached) {
+        setGameState(cached.state_data as unknown as GameState);
+        setCurrentIndex(index);
+        return;
+      }
+      setSnapshotLoading(true);
+      try {
+        const snap = await queryClient.fetchQuery({
+          queryKey,
+          queryFn: () => import("@/lib/api").then((m) => m.getSharedSnapshot(token, tick)),
+          staleTime: Infinity,
+        });
+        setGameState(snap.state_data as unknown as GameState);
+        setCurrentIndex(index);
+      } catch {
+        /* ignore */
+      } finally {
+        setSnapshotLoading(false);
+      }
+    },
+    [token, queryClient],
+  );
 
   useEffect(() => {
     loadAssetOverrides();
@@ -142,14 +150,29 @@ export default function SharePage() {
     const interval = setInterval(() => {
       if (!playingRef.current) return;
       const nextIdx = currentIndexRef.current + 1;
-      if (nextIdx >= snapshots.length) { setPlaying(false); return; }
+      if (nextIdx >= snapshots.length) {
+        setPlaying(false);
+        return;
+      }
       loadSnapshot(snapshots[nextIdx].tick, nextIdx);
     }, 1000 / speedRef.current);
     return () => clearInterval(interval);
   }, [playing, snapshots, loadSnapshot]);
 
-  const centroids = useMemo(() => { const c: Record<string, [number, number]> = {}; for (const e of regionGraph) { if (e.centroid) c[e.id] = e.centroid; } return c; }, [regionGraph]);
-  const buildingIcons = useMemo(() => { const m: Record<string, string> = {}; for (const b of buildingTypes) { m[b.slug] = b.asset_key || b.slug; } return m; }, [buildingTypes]);
+  const centroids = useMemo(() => {
+    const c: Record<string, [number, number]> = {};
+    for (const e of regionGraph) {
+      if (e.centroid) c[e.id] = e.centroid;
+    }
+    return c;
+  }, [regionGraph]);
+  const buildingIcons = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const b of buildingTypes) {
+      m[b.slug] = b.asset_key || b.slug;
+    }
+    return m;
+  }, [buildingTypes]);
   const regions = useMemo(() => gameState?.regions ?? {}, [gameState?.regions]);
   const players = useMemo(() => gameState?.players ?? {}, [gameState?.players]);
   const currentTick = snapshots[currentIndex]?.tick ?? 0;
@@ -158,23 +181,44 @@ export default function SharePage() {
   const playerList = useMemo(() => {
     const entries = Object.entries(players) as [string, GamePlayer][];
     const regionEntries = Object.values(regions) as GameRegion[];
-    return entries.map(([id, p]) => ({
-      id, ...p,
-      ownedRegions: regionEntries.filter((r) => r.owner_id === id).length,
-      totalUnits: regionEntries.filter((r) => r.owner_id === id).reduce((sum, r) => sum + (r.unit_count || 0), 0),
-    })).sort((a, b) => b.ownedRegions - a.ownedRegions);
+    return entries
+      .map(([id, p]) => ({
+        id,
+        ...p,
+        ownedRegions: regionEntries.filter((r) => r.owner_id === id).length,
+        totalUnits: regionEntries.filter((r) => r.owner_id === id).reduce((sum, r) => sum + (r.unit_count || 0), 0),
+      }))
+      .sort((a, b) => b.ownedRegions - a.ownedRegions);
   }, [players, regions]);
 
   const playersForMap = useMemo(() => {
     const m: Record<string, { color: string; username: string; cosmetics?: Record<string, unknown> }> = {};
-    for (const [id, p] of Object.entries(players)) { const gp = p as GamePlayer; m[id] = { color: gp.color, username: gp.username, cosmetics: gp.cosmetics }; }
+    for (const [id, p] of Object.entries(players)) {
+      const gp = p as GamePlayer;
+      m[id] = { color: gp.color, username: gp.username, cosmetics: gp.cosmetics };
+    }
     return m;
   }, [players]);
 
-  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => { setPlaying(false); loadSnapshot(snapshots[Number(e.target.value)].tick, Number(e.target.value)); };
-  const stepForward = () => { if (currentIndex < snapshots.length - 1) { setPlaying(false); loadSnapshot(snapshots[currentIndex + 1].tick, currentIndex + 1); } };
-  const stepBackward = () => { if (currentIndex > 0) { setPlaying(false); loadSnapshot(snapshots[currentIndex - 1].tick, currentIndex - 1); } };
-  const cycleSpeed = () => { setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]); };
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPlaying(false);
+    loadSnapshot(snapshots[Number(e.target.value)].tick, Number(e.target.value));
+  };
+  const stepForward = () => {
+    if (currentIndex < snapshots.length - 1) {
+      setPlaying(false);
+      loadSnapshot(snapshots[currentIndex + 1].tick, currentIndex + 1);
+    }
+  };
+  const stepBackward = () => {
+    if (currentIndex > 0) {
+      setPlaying(false);
+      loadSnapshot(snapshots[currentIndex - 1].tick, currentIndex - 1);
+    }
+  };
+  const cycleSpeed = () => {
+    setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]);
+  };
 
   if (loading) {
     return (
@@ -199,15 +243,16 @@ export default function SharePage() {
   const { match, result } = sharedData;
   const winner = match.players.find((p) => p.user_id === match.winner_id);
   const hasReplay = snapshots.length > 0;
-  const durationMin = result ? result.duration_seconds / 60 : 0;
+  const _durationMin = result ? result.duration_seconds / 60 : 0;
 
-  const mvp = result && result.player_results.length > 0
-    ? [...result.player_results].sort((a, b) => {
-        const sa = a.regions_conquered * 3 + a.units_produced + a.buildings_built * 2 - a.units_lost;
-        const sb = b.regions_conquered * 3 + b.units_produced + b.buildings_built * 2 - b.units_lost;
-        return sb - sa;
-      })[0]
-    : null;
+  const mvp =
+    result && result.player_results.length > 0
+      ? [...result.player_results].sort((a, b) => {
+          const sa = a.regions_conquered * 3 + a.units_produced + a.buildings_built * 2 - a.units_lost;
+          const sb = b.regions_conquered * 3 + b.units_produced + b.buildings_built * 2 - b.units_lost;
+          return sb - sa;
+        })[0]
+      : null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -218,11 +263,21 @@ export default function SharePage() {
             <div className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-secondary">
               <Globe size={15} className="text-muted-foreground" />
             </div>
-            <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-foreground">MAPLORD</span>
+            <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-foreground">
+              MAPLORD
+            </span>
           </Link>
           <div className="flex-1" />
-          <Link href="/login" className="text-xs md:text-sm text-muted-foreground hover:text-foreground transition-colors">Zaloguj</Link>
-          <Link href="/register" className="rounded-full bg-primary px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-all">
+          <Link
+            href="/login"
+            className="text-xs md:text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Zaloguj
+          </Link>
+          <Link
+            href="/register"
+            className="rounded-full bg-primary px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-all"
+          >
             Graj
           </Link>
         </div>
@@ -231,7 +286,6 @@ export default function SharePage() {
       {/* Content */}
       <main className="pt-12">
         <div className="space-y-3 md:space-y-6 px-4 py-4 md:py-8 sm:px-6 lg:px-8">
-
           {/* Title */}
           <div>
             <h1 className="font-display text-2xl md:text-4xl text-foreground">Wyniki meczu</h1>
@@ -241,14 +295,34 @@ export default function SharePage() {
           {/* Stats — horizontal scroll on mobile */}
           <div className="flex gap-2.5 overflow-x-auto pb-1 md:grid md:grid-cols-4 md:gap-3 md:overflow-visible scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
             {[
-              { icon: Swords, label: "Status", value: match.status === "finished" ? "Zakończony" : match.status, color: "text-muted-foreground" },
-              { icon: Users, label: "Gracze", value: `${match.players.length}/${match.max_players}`, color: "text-foreground" },
-              { icon: Clock, label: "Czas", value: result ? formatDuration(result.duration_seconds) : "—", color: "text-foreground" },
+              {
+                icon: Swords,
+                label: "Status",
+                value: match.status === "finished" ? "Zakończony" : match.status,
+                color: "text-muted-foreground",
+              },
+              {
+                icon: Users,
+                label: "Gracze",
+                value: `${match.players.length}/${match.max_players}`,
+                color: "text-foreground",
+              },
+              {
+                icon: Clock,
+                label: "Czas",
+                value: result ? formatDuration(result.duration_seconds) : "—",
+                color: "text-foreground",
+              },
               ...(winner ? [{ icon: Crown, label: "Zwycięzca", value: winner.username, color: "text-accent" }] : []),
             ].map((s) => (
-              <div key={s.label} className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-card border border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[110px] md:min-w-0">
+              <div
+                key={s.label}
+                className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-card border border-border px-3.5 py-3 md:p-5 md:flex-col md:items-start md:gap-2 min-w-[110px] md:min-w-0"
+              >
                 <s.icon className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground md:text-primary" />
-                <span className="text-[10px] md:text-xs uppercase tracking-[0.15em] md:tracking-[0.2em] text-muted-foreground font-medium">{s.label}</span>
+                <span className="text-[10px] md:text-xs uppercase tracking-[0.15em] md:tracking-[0.2em] text-muted-foreground font-medium">
+                  {s.label}
+                </span>
                 <span className={`font-display text-base md:text-3xl ml-auto md:ml-0 ${s.color}`}>{s.value}</span>
               </div>
             ))}
@@ -257,8 +331,16 @@ export default function SharePage() {
           {/* Timestamps */}
           {(match.started_at || match.finished_at) && (
             <div className="flex flex-wrap gap-3 text-xs md:text-sm text-muted-foreground">
-              {match.started_at && <span>Start: <span className="text-foreground">{formatDate(match.started_at)}</span></span>}
-              {match.finished_at && <span>Koniec: <span className="text-foreground">{formatDate(match.finished_at)}</span></span>}
+              {match.started_at && (
+                <span>
+                  Start: <span className="text-foreground">{formatDate(match.started_at)}</span>
+                </span>
+              )}
+              {match.finished_at && (
+                <span>
+                  Koniec: <span className="text-foreground">{formatDate(match.finished_at)}</span>
+                </span>
+              )}
             </div>
           )}
 
@@ -271,16 +353,22 @@ export default function SharePage() {
                   <Award className="h-5 w-5 md:h-6 md:w-6 text-accent" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-accent/70 font-medium">MVP meczu</p>
+                  <p className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-accent/70 font-medium">
+                    MVP meczu
+                  </p>
                   <span className="font-display text-lg md:text-xl text-foreground">{mvp.username}</span>
                 </div>
                 <div className="flex gap-3 md:gap-4 text-center shrink-0">
                   <div>
-                    <div className="font-display text-sm md:text-lg text-primary tabular-nums">{mvp.regions_conquered}</div>
+                    <div className="font-display text-sm md:text-lg text-primary tabular-nums">
+                      {mvp.regions_conquered}
+                    </div>
                     <div className="text-[8px] md:text-[10px] text-muted-foreground uppercase">Regiony</div>
                   </div>
                   <div>
-                    <div className="font-display text-sm md:text-lg text-foreground tabular-nums">{mvp.units_produced}</div>
+                    <div className="font-display text-sm md:text-lg text-foreground tabular-nums">
+                      {mvp.units_produced}
+                    </div>
                     <div className="text-[8px] md:text-[10px] text-muted-foreground uppercase">Jednostki</div>
                   </div>
                   <div className="hidden md:block">
@@ -292,17 +380,31 @@ export default function SharePage() {
 
               {/* ELO changes */}
               <div className="rounded-2xl border border-border bg-card p-3 md:p-5">
-                <p className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-muted-foreground font-medium mb-2 md:mb-3">Zmiana ELO</p>
+                <p className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-muted-foreground font-medium mb-2 md:mb-3">
+                  Zmiana ELO
+                </p>
                 <div className="space-y-1.5 md:space-y-2">
                   {result.player_results.map((pr) => {
                     const player = match.players.find((p) => p.user_id === pr.user_id);
                     return (
                       <div key={pr.user_id} className="flex items-center gap-2 md:gap-3">
-                        {player && <div className="h-3.5 w-3.5 md:h-4 md:w-4 rounded border border-border" style={{ backgroundColor: player.color }} />}
+                        {player && (
+                          <div
+                            className="h-3.5 w-3.5 md:h-4 md:w-4 rounded border border-border"
+                            style={{ backgroundColor: player.color }}
+                          />
+                        )}
                         <span className="text-xs md:text-sm text-foreground flex-1 truncate">{pr.username}</span>
-                        <span className={`font-display text-sm md:text-base tabular-nums flex items-center gap-1 ${pr.elo_change > 0 ? "text-green-400" : pr.elo_change < 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                          {pr.elo_change > 0 ? <TrendingUp className="h-3.5 w-3.5" /> : pr.elo_change < 0 ? <TrendingDown className="h-3.5 w-3.5" /> : null}
-                          {pr.elo_change > 0 ? "+" : ""}{pr.elo_change}
+                        <span
+                          className={`font-display text-sm md:text-base tabular-nums flex items-center gap-1 ${pr.elo_change > 0 ? "text-green-400" : pr.elo_change < 0 ? "text-destructive" : "text-muted-foreground"}`}
+                        >
+                          {pr.elo_change > 0 ? (
+                            <TrendingUp className="h-3.5 w-3.5" />
+                          ) : pr.elo_change < 0 ? (
+                            <TrendingDown className="h-3.5 w-3.5" />
+                          ) : null}
+                          {pr.elo_change > 0 ? "+" : ""}
+                          {pr.elo_change}
                         </span>
                       </div>
                     );
@@ -314,7 +416,9 @@ export default function SharePage() {
 
           {/* Players — mobile: compact cards, desktop: full table */}
           <div>
-            <p className="text-[11px] md:hidden uppercase tracking-[0.18em] text-muted-foreground font-medium mb-2">Gracze</p>
+            <p className="text-[11px] md:hidden uppercase tracking-[0.18em] text-muted-foreground font-medium mb-2">
+              Gracze
+            </p>
 
             {/* Mobile cards */}
             <div className="md:hidden space-y-1.5">
@@ -322,8 +426,14 @@ export default function SharePage() {
                 const isWinner = player.user_id === match.winner_id;
                 const pr = result?.player_results.find((r) => r.user_id === player.user_id);
                 return (
-                  <div key={player.id} className={`flex items-center gap-3 rounded-xl p-3 border ${isWinner ? "border-accent/20 bg-accent/5" : "border-border bg-card"}`}>
-                    <div className="h-6 w-6 rounded-lg border border-border shrink-0" style={{ backgroundColor: player.color }} />
+                  <div
+                    key={player.id}
+                    className={`flex items-center gap-3 rounded-xl p-3 border ${isWinner ? "border-accent/20 bg-accent/5" : "border-border bg-card"}`}
+                  >
+                    <div
+                      className="h-6 w-6 rounded-lg border border-border shrink-0"
+                      style={{ backgroundColor: player.color }}
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-semibold text-foreground truncate">{player.username}</span>
@@ -332,8 +442,11 @@ export default function SharePage() {
                       </div>
                     </div>
                     {pr && (
-                      <span className={`font-display text-sm tabular-nums ${pr.elo_change > 0 ? "text-green-400" : pr.elo_change < 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                        {pr.elo_change > 0 ? "+" : ""}{pr.elo_change}
+                      <span
+                        className={`font-display text-sm tabular-nums ${pr.elo_change > 0 ? "text-green-400" : pr.elo_change < 0 ? "text-destructive" : "text-muted-foreground"}`}
+                      >
+                        {pr.elo_change > 0 ? "+" : ""}
+                        {pr.elo_change}
                       </span>
                     )}
                   </div>
@@ -367,7 +480,10 @@ export default function SharePage() {
                       <TableRow key={player.id} className={isWinner ? "bg-accent/5" : ""}>
                         <TableCell className="pl-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="h-7 w-7 rounded-lg border border-border" style={{ backgroundColor: player.color }} />
+                            <div
+                              className="h-7 w-7 rounded-lg border border-border"
+                              style={{ backgroundColor: player.color }}
+                            />
                             <span className="text-base font-semibold text-foreground">{player.username}</span>
                             {isWinner && <Crown className="h-4 w-4 text-accent" />}
                           </div>
@@ -376,20 +492,40 @@ export default function SharePage() {
                           {player.is_alive ? (
                             <Badge className="border-0 bg-green-500/15 text-xs text-green-400">Żywy</Badge>
                           ) : (
-                            <Badge className="border-0 bg-destructive/15 text-xs text-destructive"><Skull className="mr-1 h-3 w-3" />Wyeliminowany</Badge>
+                            <Badge className="border-0 bg-destructive/15 text-xs text-destructive">
+                              <Skull className="mr-1 h-3 w-3" />
+                              Wyeliminowany
+                            </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="py-4 text-center text-base tabular-nums text-primary">{pr?.regions_conquered ?? "—"}</TableCell>
-                        <TableCell className="py-4 text-center text-base tabular-nums text-foreground">{pr?.units_produced ?? "—"}</TableCell>
-                        <TableCell className="py-4 text-center text-base tabular-nums text-destructive">{pr?.units_lost ?? "—"}</TableCell>
-                        <TableCell className="py-4 text-center text-base tabular-nums text-accent">{pr?.buildings_built ?? "—"}</TableCell>
+                        <TableCell className="py-4 text-center text-base tabular-nums text-primary">
+                          {pr?.regions_conquered ?? "—"}
+                        </TableCell>
+                        <TableCell className="py-4 text-center text-base tabular-nums text-foreground">
+                          {pr?.units_produced ?? "—"}
+                        </TableCell>
+                        <TableCell className="py-4 text-center text-base tabular-nums text-destructive">
+                          {pr?.units_lost ?? "—"}
+                        </TableCell>
+                        <TableCell className="py-4 text-center text-base tabular-nums text-accent">
+                          {pr?.buildings_built ?? "—"}
+                        </TableCell>
                         <TableCell className="py-4 pr-6 text-right">
                           {pr ? (
-                            <span className={`flex items-center justify-end gap-1 font-display text-lg ${pr.elo_change > 0 ? "text-green-400" : pr.elo_change < 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                              {pr.elo_change > 0 ? <TrendingUp className="h-4 w-4" /> : pr.elo_change < 0 ? <TrendingDown className="h-4 w-4" /> : null}
-                              {pr.elo_change > 0 ? "+" : ""}{pr.elo_change}
+                            <span
+                              className={`flex items-center justify-end gap-1 font-display text-lg ${pr.elo_change > 0 ? "text-green-400" : pr.elo_change < 0 ? "text-destructive" : "text-muted-foreground"}`}
+                            >
+                              {pr.elo_change > 0 ? (
+                                <TrendingUp className="h-4 w-4" />
+                              ) : pr.elo_change < 0 ? (
+                                <TrendingDown className="h-4 w-4" />
+                              ) : null}
+                              {pr.elo_change > 0 ? "+" : ""}
+                              {pr.elo_change}
                             </span>
-                          ) : "—"}
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                       </TableRow>
                     );
@@ -400,9 +536,7 @@ export default function SharePage() {
           </div>
 
           {/* Charts */}
-          {result && result.player_results.length > 0 && (
-            <MatchCharts match={match} result={result} />
-          )}
+          {result && result.player_results.length > 0 && <MatchCharts match={match} result={result} />}
 
           {/* Replay */}
           {hasReplay && (
@@ -418,19 +552,48 @@ export default function SharePage() {
               <div className="rounded-none md:rounded-2xl border-y md:border border-border bg-card/80 md:bg-card px-3 py-2.5 md:p-4 -mx-4 md:mx-0">
                 <div className="flex items-center gap-2 md:gap-4">
                   <div className="flex items-center gap-0.5 md:gap-1.5">
-                    <Button variant="ghost" onClick={stepBackward} disabled={currentIndex === 0} className="h-8 w-8 md:h-10 md:w-10 rounded-full p-0 text-muted-foreground hover:bg-muted disabled:opacity-30">
+                    <Button
+                      variant="ghost"
+                      onClick={stepBackward}
+                      disabled={currentIndex === 0}
+                      className="h-8 w-8 md:h-10 md:w-10 rounded-full p-0 text-muted-foreground hover:bg-muted disabled:opacity-30"
+                    >
                       <SkipBack className="h-4 w-4 md:h-5 md:w-5" />
                     </Button>
-                    <Button variant="ghost" onClick={() => setPlaying(!playing)} className="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 text-primary hover:bg-primary/10">
-                      {playing ? <Pause className="h-5 w-5 md:h-6 md:w-6" /> : <Play className="h-5 w-5 md:h-6 md:w-6" />}
+                    <Button
+                      variant="ghost"
+                      onClick={() => setPlaying(!playing)}
+                      className="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 text-primary hover:bg-primary/10"
+                    >
+                      {playing ? (
+                        <Pause className="h-5 w-5 md:h-6 md:w-6" />
+                      ) : (
+                        <Play className="h-5 w-5 md:h-6 md:w-6" />
+                      )}
                     </Button>
-                    <Button variant="ghost" onClick={stepForward} disabled={currentIndex >= snapshots.length - 1} className="h-8 w-8 md:h-10 md:w-10 rounded-full p-0 text-muted-foreground hover:bg-muted disabled:opacity-30">
+                    <Button
+                      variant="ghost"
+                      onClick={stepForward}
+                      disabled={currentIndex >= snapshots.length - 1}
+                      className="h-8 w-8 md:h-10 md:w-10 rounded-full p-0 text-muted-foreground hover:bg-muted disabled:opacity-30"
+                    >
                       <SkipForward className="h-4 w-4 md:h-5 md:w-5" />
                     </Button>
                   </div>
-                  <input type="range" min={0} max={snapshots.length - 1} value={currentIndex} onChange={handleSliderChange}
-                    className="h-1.5 md:h-2 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-primary [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 md:[&::-webkit-slider-thumb]:h-5 md:[&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary" />
-                  <button onClick={cycleSpeed} className="rounded-full border border-border px-3 py-1 text-sm font-semibold text-foreground hover:bg-muted active:scale-[0.95]">{speed}x</button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={snapshots.length - 1}
+                    value={currentIndex}
+                    onChange={handleSliderChange}
+                    className="h-1.5 md:h-2 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-primary [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 md:[&::-webkit-slider-thumb]:h-5 md:[&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+                  />
+                  <button
+                    onClick={cycleSpeed}
+                    className="rounded-full border border-border px-3 py-1 text-sm font-semibold text-foreground hover:bg-muted active:scale-[0.95]"
+                  >
+                    {speed}x
+                  </button>
                 </div>
               </div>
 
@@ -439,11 +602,22 @@ export default function SharePage() {
                 <div className="relative overflow-hidden rounded-2xl border border-border bg-card h-[50vh] md:h-full">
                   <div className="h-full w-full">
                     {gameState && (
-                      <GameMap tilesUrl={getRegionTilesUrl(match.id)} centroids={centroids}
-                        regions={regions as Record<string, GameRegion>} players={playersForMap}
-                        selectedRegion={null} targetRegions={[]} highlightedNeighbors={[]} dimmedRegions={[]}
-                        onRegionClick={() => {}} myUserId="" animations={[]} buildingIcons={buildingIcons}
-                        activeEffects={gameState.active_effects} initialZoom={2.5} />
+                      <GameMap
+                        tilesUrl={getRegionTilesUrl(match.id)}
+                        centroids={centroids}
+                        regions={regions as Record<string, GameRegion>}
+                        players={playersForMap}
+                        selectedRegion={null}
+                        targetRegions={[]}
+                        highlightedNeighbors={[]}
+                        dimmedRegions={[]}
+                        onRegionClick={() => {}}
+                        myUserId=""
+                        animations={[]}
+                        buildingIcons={buildingIcons}
+                        activeEffects={gameState.active_effects}
+                        initialZoom={2.5}
+                      />
                     )}
                   </div>
                   {snapshotLoading && (
@@ -459,18 +633,39 @@ export default function SharePage() {
                     {playerList.map((p) => {
                       const isWinner = p.id === match.winner_id;
                       return (
-                        <div key={p.id} className={`shrink-0 rounded-xl border p-3 w-32 md:w-auto ${
-                          !p.is_alive ? "border-border/30 opacity-40" : isWinner ? "border-accent/25 bg-accent/5" : "border-border bg-secondary/50"
-                        }`}>
+                        <div
+                          key={p.id}
+                          className={`shrink-0 rounded-xl border p-3 w-32 md:w-auto ${
+                            !p.is_alive
+                              ? "border-border/30 opacity-40"
+                              : isWinner
+                                ? "border-accent/25 bg-accent/5"
+                                : "border-border bg-secondary/50"
+                          }`}
+                        >
                           <div className="flex items-center gap-2 mb-1.5 md:mb-2">
-                            <div className="h-4 w-4 md:h-5 md:w-5 rounded-md border border-border" style={{ backgroundColor: p.color }} />
-                            <span className="flex-1 truncate text-xs md:text-sm font-semibold text-foreground">{p.username}</span>
+                            <div
+                              className="h-4 w-4 md:h-5 md:w-5 rounded-md border border-border"
+                              style={{ backgroundColor: p.color }}
+                            />
+                            <span className="flex-1 truncate text-xs md:text-sm font-semibold text-foreground">
+                              {p.username}
+                            </span>
                             {isWinner && <Crown className="h-3 w-3 md:h-4 md:w-4 text-accent shrink-0" />}
                           </div>
                           <div className="grid grid-cols-3 gap-1 text-center">
-                            <div><div className="text-[9px] text-muted-foreground">Reg</div><div className="font-display text-xs md:text-sm text-primary">{p.ownedRegions}</div></div>
-                            <div><div className="text-[9px] text-muted-foreground">Jedn</div><div className="font-display text-xs md:text-sm text-foreground">{p.totalUnits}</div></div>
-                            <div><div className="text-[9px] text-muted-foreground">Ener</div><div className="font-display text-xs md:text-sm text-primary">{p.energy}</div></div>
+                            <div>
+                              <div className="text-[9px] text-muted-foreground">Reg</div>
+                              <div className="font-display text-xs md:text-sm text-primary">{p.ownedRegions}</div>
+                            </div>
+                            <div>
+                              <div className="text-[9px] text-muted-foreground">Jedn</div>
+                              <div className="font-display text-xs md:text-sm text-foreground">{p.totalUnits}</div>
+                            </div>
+                            <div>
+                              <div className="text-[9px] text-muted-foreground">Ener</div>
+                              <div className="font-display text-xs md:text-sm text-primary">{p.energy}</div>
+                            </div>
                           </div>
                         </div>
                       );
@@ -491,12 +686,14 @@ export default function SharePage() {
               <Link href="/register" className={buttonVariants({ className: "h-11 gap-2 rounded-full px-6 text-sm" })}>
                 <UserPlus className="h-4 w-4" /> Dołącz
               </Link>
-              <Link href="/login" className={buttonVariants({ variant: "outline", className: "h-11 rounded-full px-6 text-sm" })}>
+              <Link
+                href="/login"
+                className={buttonVariants({ variant: "outline", className: "h-11 rounded-full px-6 text-sm" })}
+              >
                 Zaloguj się
               </Link>
             </div>
           </div>
-
         </div>
       </main>
     </div>

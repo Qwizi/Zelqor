@@ -1,16 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.API_URL ||
-  "http://backend:8000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || "http://backend:8000/api/v1";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ token: string }>;
-}): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
   const { token } = await params;
 
   try {
@@ -28,17 +21,11 @@ export async function generateMetadata({
     const data = await res.json();
     const match = data.match;
     const result = data.result;
-    const winner = match?.players?.find(
-      (p: { user_id: string }) => p.user_id === match.winner_id
-    );
+    const winner = match?.players?.find((p: { user_id: string }) => p.user_id === match.winner_id);
 
-    const title = winner
-      ? `MapLord — ${winner.username} wygrał!`
-      : "MapLord — Wyniki meczu";
+    const title = winner ? `MapLord — ${winner.username} wygrał!` : "MapLord — Wyniki meczu";
 
-    const playerNames = match?.players
-      ?.map((p: { username: string }) => p.username)
-      .join(" vs ");
+    const playerNames = match?.players?.map((p: { username: string }) => p.username).join(" vs ");
 
     const description = result
       ? `${playerNames} · ${Math.floor(result.duration_seconds / 60)} min · ${match.players.length} graczy`

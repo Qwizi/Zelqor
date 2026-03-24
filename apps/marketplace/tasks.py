@@ -21,11 +21,11 @@ def bot_restock_marketplace():
     from apps.accounts.models import User
 
     bot_user, _ = User.objects.get_or_create(
-        username='MarketBot',
+        username="MarketBot",
         defaults={
-            'email': 'marketbot@maplord.internal',
-            'is_bot': True,
-            'is_active': True,
+            "email": "marketbot@maplord.internal",
+            "is_bot": True,
+            "is_active": True,
         },
     )
 
@@ -57,11 +57,11 @@ def bot_restock_marketplace():
             price = max(1, int(item.base_value * price_modifier))
 
             # Randomize quantity based on rarity
-            if item.rarity in ('epic', 'legendary'):
+            if item.rarity in ("epic", "legendary"):
                 qty = 1
-            elif item.rarity == 'rare':
+            elif item.rarity == "rare":
                 qty = random.randint(1, 3)
-            elif item.rarity == 'uncommon':
+            elif item.rarity == "uncommon":
                 qty = random.randint(2, 5)
             else:
                 qty = random.randint(3, 10)
@@ -89,13 +89,13 @@ def expire_old_listings():
     expired = MarketListing.objects.filter(
         status=MarketListing.Status.ACTIVE,
         expires_at__lte=now,
-    ).select_related('seller', 'item')
+    ).select_related("seller", "item")
 
     count = 0
     for listing in expired:
         with transaction.atomic():
             listing.status = MarketListing.Status.EXPIRED
-            listing.save(update_fields=['status'])
+            listing.save(update_fields=["status"])
 
             if listing.is_bot_listing:
                 # Bot listings just disappear
@@ -109,7 +109,7 @@ def expire_old_listings():
                 refund = listing.price_per_unit * listing.quantity_remaining
                 wallet = get_or_create_wallet(listing.seller)
                 wallet.gold += refund
-                wallet.save(update_fields=['gold'])
+                wallet.save(update_fields=["gold"])
 
             count += 1
 

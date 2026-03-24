@@ -1,11 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  getRecipes,
-  craftItem,
-  type RecipeOut,
-} from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { craftItem, getRecipes, type RecipeOut } from "@/lib/api";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useRecipes() {
   return useQuery<RecipeOut[]>({

@@ -7,10 +7,10 @@ class RateLimitHeadersMiddleware:
     def __call__(self, request):
         response = self.get_response(request)
 
-        rate_info = getattr(request, 'rate_limit_info', None)
+        rate_info = getattr(request, "rate_limit_info", None)
         if rate_info:
-            response['X-RateLimit-Limit'] = str(rate_info['limit'])
-            response['X-RateLimit-Remaining'] = str(rate_info['remaining'])
-            response['X-RateLimit-Reset'] = str(rate_info['reset'])
+            response["X-RateLimit-Limit"] = str(rate_info["limit"])
+            response["X-RateLimit-Remaining"] = str(rate_info["remaining"])
+            response["X-RateLimit-Reset"] = str(rate_info["reset"])
 
         return response

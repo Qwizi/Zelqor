@@ -1,11 +1,11 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { AlertTriangle, BoltIcon, ChevronUp, Lock, Timer, X, Zap } from "lucide-react";
 import Image from "next/image";
-import { X, Lock, ChevronUp, BoltIcon, Timer, AlertTriangle, Zap } from "lucide-react";
-import type { GameRegion, GamePlayer, BuildingQueueItem } from "@/hooks/useGameSocket";
+import { memo, useMemo, useState } from "react";
+import type { BuildingQueueItem, GamePlayer, GameRegion } from "@/hooks/useGameSocket";
 import type { BuildingType, UnitType } from "@/lib/api";
-import { getUnitAsset, getPlayerBuildingAsset, getPlayerUnitAsset } from "@/lib/gameAssets";
+import { getPlayerBuildingAsset, getPlayerUnitAsset, getUnitAsset } from "@/lib/gameAssets";
 import { AP_COSTS, AP_MAX } from "@/lib/gameTypes";
 
 const PERCENT_PRESETS = [25, 50, 75, 100] as const;
@@ -60,7 +60,13 @@ function StatRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function Badge({ children, color = "default" }: { children: React.ReactNode; color?: "green" | "blue" | "amber" | "default" }) {
+function Badge({
+  children,
+  color = "default",
+}: {
+  children: React.ReactNode;
+  color?: "green" | "blue" | "amber" | "default";
+}) {
   const colors = {
     green: "bg-green-900/60 text-green-300 border-green-700/40",
     blue: "bg-blue-900/60 text-blue-300 border-blue-700/40",
@@ -99,12 +105,12 @@ function UnitTooltip({ unit, level }: { unit: UnitType; level?: number }) {
 
       {/* name + movement */}
       <div className="flex items-start justify-between gap-2">
-        <p className="font-semibold text-foreground">{unit.name} {lvl > 1 && <span className="text-amber-400 text-[10px]">Lv{lvl}</span>}</p>
+        <p className="font-semibold text-foreground">
+          {unit.name} {lvl > 1 && <span className="text-amber-400 text-[10px]">Lv{lvl}</span>}
+        </p>
         <Badge color="blue">{movementLabel(unit.movement_type)}</Badge>
       </div>
-      {unit.description && (
-        <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{unit.description}</p>
-      )}
+      {unit.description && <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{unit.description}</p>}
 
       {/* core stats */}
       <div className="mt-2.5 space-y-1 text-xs border-t border-border/40 pt-2">
@@ -128,7 +134,9 @@ function UnitTooltip({ unit, level }: { unit: UnitType; level?: number }) {
       {abilities.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1 border-t border-border/40 pt-2">
           {abilities.map((a) => (
-            <Badge key={a} color="amber">{a}</Badge>
+            <Badge key={a} color="amber">
+              {a}
+            </Badge>
           ))}
         </div>
       )}
@@ -138,14 +146,19 @@ function UnitTooltip({ unit, level }: { unit: UnitType; level?: number }) {
         <div className="mt-2 border-t border-border/40 pt-2">
           <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Poziomy</p>
           <div className="space-y-0.5 text-xs">
-            {Object.entries(unit.level_stats).slice(0, 4).map(([lvl, stats]) => (
-              <div key={lvl} className="flex items-center gap-1.5">
-                <span className="w-8 text-amber-400 font-medium">Lv{lvl}</span>
-                <span className="text-muted-foreground text-[10px]">
-                  {Object.entries(stats).slice(0, 2).map(([k, v]) => `${k}:${v}`).join(" ")}
-                </span>
-              </div>
-            ))}
+            {Object.entries(unit.level_stats)
+              .slice(0, 4)
+              .map(([lvl, stats]) => (
+                <div key={lvl} className="flex items-center gap-1.5">
+                  <span className="w-8 text-amber-400 font-medium">Lv{lvl}</span>
+                  <span className="text-muted-foreground text-[10px]">
+                    {Object.entries(stats)
+                      .slice(0, 2)
+                      .map(([k, v]) => `${k}:${v}`)
+                      .join(" ")}
+                  </span>
+                </div>
+              ))}
           </div>
         </div>
       )}
@@ -194,9 +207,7 @@ function BuildingTooltip({
         <span className="text-muted-foreground">Poziom</span>
         <span className="font-semibold">
           <span className="text-amber-400">{currentLevel ?? 0}</span>
-          {playerMaxLevel != null && (
-            <span className="text-muted-foreground"> / {playerMaxLevel}</span>
-          )}
+          {playerMaxLevel != null && <span className="text-muted-foreground"> / {playerMaxLevel}</span>}
         </span>
       </div>
 
@@ -210,7 +221,9 @@ function BuildingTooltip({
       {bonuses.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1 border-t border-border/40 pt-2">
           {bonuses.map((b) => (
-            <Badge key={b} color="green">{b}</Badge>
+            <Badge key={b} color="green">
+              {b}
+            </Badge>
           ))}
         </div>
       )}
@@ -224,7 +237,10 @@ function BuildingTooltip({
               <div key={lvl} className="flex items-center gap-1.5">
                 <span className="w-8 text-amber-400 font-medium">Lv{lvl}</span>
                 <span className="text-muted-foreground text-[10px]">
-                  {Object.entries(stats).slice(0, 3).map(([k, v]) => `${k}:${v}`).join(" ")}
+                  {Object.entries(stats)
+                    .slice(0, 3)
+                    .map(([k, v]) => `${k}:${v}`)
+                    .join(" ")}
                 </span>
               </div>
             ))}
@@ -254,8 +270,8 @@ function UnitSelectorTooltip({
   const mp = Math.max(1, unit.manpower_cost);
   const isInfantry = unitType === "infantry";
   const sendCount = isInfantry
-    ? Math.max(1, Math.floor(displayCount * percent / 100))
-    : Math.max(1, Math.floor(count * percent / 100));
+    ? Math.max(1, Math.floor((displayCount * percent) / 100))
+    : Math.max(1, Math.floor((count * percent) / 100));
   const totalAttack = sendCount * unit.attack;
   const totalDmg = isInfantry ? totalAttack : sendCount * mp * unit.attack;
 
@@ -267,24 +283,18 @@ function UnitSelectorTooltip({
         <StatRow label="Atak / szt." value={unit.attack} />
         <StatRow label="Obrona" value={unit.defense} />
         <StatRow label="Dostepne" value={isInfantry ? displayCount : count} />
-        <StatRow
-          label={`Wysylasz (${percent}%)`}
-          value={<span className="text-primary font-bold">{sendCount}</span>}
-        />
+        <StatRow label={`Wysylasz (${percent}%)`} value={<span className="text-primary font-bold">{sendCount}</span>} />
         <StatRow
           label="Calkowity DMG"
           value={
             <span className="text-red-400 font-bold">
               {isInfantry
                 ? `${unit.attack} × ${sendCount} = ${Math.round(totalAttack)}`
-                : `${mp} × ${unit.attack} × ${sendCount} = ${Math.round(totalDmg)}`
-              }
+                : `${mp} × ${unit.attack} × ${sendCount} = ${Math.round(totalDmg)}`}
             </span>
           }
         />
-        {!isInfantry && (
-          <StatRow label="Sila zarezerwowana" value={`${count * mp}♟`} />
-        )}
+        {!isInfantry && <StatRow label="Sila zarezerwowana" value={`${count * mp}♟`} />}
       </div>
     </div>
   );
@@ -321,10 +331,7 @@ export default memo(function QuickActionBar({
   const hasBuildingLocks = unlockedBuildings != null && unlockedBuildings.length > 0;
   const hasUnitLocks = unlockedUnits != null && unlockedUnits.length > 0;
 
-  const unitConfigMap = useMemo(
-    () => new Map(units.map((u) => [u.slug, u])),
-    [units]
-  );
+  const unitConfigMap = useMemo(() => new Map(units.map((u) => [u.slug, u])), [units]);
 
   const buildingCounts = useMemo(() => {
     if (region.building_instances && region.building_instances.length > 0) {
@@ -354,17 +361,13 @@ export default memo(function QuickActionBar({
           acc[item.building_type] = (acc[item.building_type] ?? 0) + 1;
           return acc;
         }, {}),
-    [buildingQueue, regionId]
+    [buildingQueue, regionId],
   );
 
   const { buildOptions, producedUnits } = useMemo(() => {
     const buildOpts = [...buildings]
       .filter((b) => !b.requires_coastal || region.is_coastal)
-      .filter(
-        (b) =>
-          (buildingCounts[b.slug] ?? 0) + (queuedBuildingCounts[b.slug] ?? 0) <
-          b.max_per_region
-      )
+      .filter((b) => (buildingCounts[b.slug] ?? 0) + (queuedBuildingCounts[b.slug] ?? 0) < b.max_per_region)
       .sort((a, b) => a.order - b.order || a.energy_cost - b.energy_cost);
     const produced = [...units]
       .filter((u) => Boolean(u.produced_by_slug))
@@ -378,7 +381,7 @@ export default memo(function QuickActionBar({
       Object.entries(region.units ?? {})
         .filter(([, count]) => count > 0)
         .sort((a, b) => b[1] - a[1]),
-    [region.units]
+    [region.units],
   );
 
   // Available infantry = raw infantry minus manpower reserved by special units
@@ -393,7 +396,7 @@ export default memo(function QuickActionBar({
   const hasMoveAction = isOwned && visibleUnitTypes.length > 0;
   const hasBuild = isOwned && buildOptions.length > 0;
   const hasProduce = isOwned && producedUnits.length > 0;
-  const buildingCount = Object.values(buildingCounts).reduce((s, c) => s + c, 0);
+  const _buildingCount = Object.values(buildingCounts).reduce((s, c) => s + c, 0);
 
   // AP gating
   const canAffordMove = myActionPoints >= AP_COSTS.move;
@@ -409,18 +412,17 @@ export default memo(function QuickActionBar({
   // Fatigue: active when fatigue_until > currentTick
   const hasFatigue = region.fatigue_until != null && region.fatigue_until > currentTick;
   const fatigueTicks = hasFatigue ? Math.max(0, (region.fatigue_until ?? 0) - currentTick) : 0;
-  const fatiguePercent = hasFatigue
-    ? Math.round((region.fatigue_modifier ?? 0) * 100)
-    : 0;
+  const fatiguePercent = hasFatigue ? Math.round((region.fatigue_modifier ?? 0) * 100) : 0;
 
   const [expanded, setExpanded] = useState(false);
 
   return (
     <div className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 w-[min(95vw,680px)]">
-      <div className={`rounded-2xl border bg-card/90 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-colors ${
-        hasFatigue ? "border-red-500/60" : "border-border"
-      }`}>
-
+      <div
+        className={`rounded-2xl border bg-card/90 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-colors ${
+          hasFatigue ? "border-red-500/60" : "border-border"
+        }`}
+      >
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="px-3 pt-2.5 pb-1">
           {/* Region name row */}
@@ -461,25 +463,33 @@ export default memo(function QuickActionBar({
                 className="flex shrink-0 items-center gap-1 rounded-full border border-red-500/50 bg-red-950/40 px-2 py-1 text-xs font-semibold tabular-nums text-red-400"
                 title={`Zmeczenie bojowe: -${fatiguePercent}% sily przez ${fatigueTicks} tickow`}
               >
-                <AlertTriangle className="h-3 w-3" />
-                -{fatiguePercent}%
+                <AlertTriangle className="h-3 w-3" />-{fatiguePercent}%
               </div>
             )}
 
             {/* Region bonuses */}
-            {isOwned && ((region.defense_bonus ?? 0) > 0 || (region.unit_generation_bonus ?? 0) > 0 || (region.energy_generation_bonus ?? 0) > 0) && (
-              <div className="flex items-center gap-1.5 text-[10px] tabular-nums shrink-0">
-                {(region.defense_bonus ?? 0) > 0 && (
-                  <span className="text-blue-400" title="Bonus obrony">🛡+{+(region.defense_bonus ?? 0).toFixed(2)}</span>
-                )}
-                {(region.unit_generation_bonus ?? 0) > 0 && (
-                  <span className="text-green-400" title="Bonus gen. jednostek">♟+{+(region.unit_generation_bonus ?? 0).toFixed(1)}/t</span>
-                )}
-                {(region.energy_generation_bonus ?? 0) > 0 && (
-                  <span className="text-yellow-400" title="Bonus gen. energii">⚡+{+(region.energy_generation_bonus ?? 0).toFixed(1)}/t</span>
-                )}
-              </div>
-            )}
+            {isOwned &&
+              ((region.defense_bonus ?? 0) > 0 ||
+                (region.unit_generation_bonus ?? 0) > 0 ||
+                (region.energy_generation_bonus ?? 0) > 0) && (
+                <div className="flex items-center gap-1.5 text-[10px] tabular-nums shrink-0">
+                  {(region.defense_bonus ?? 0) > 0 && (
+                    <span className="text-blue-400" title="Bonus obrony">
+                      🛡+{+(region.defense_bonus ?? 0).toFixed(2)}
+                    </span>
+                  )}
+                  {(region.unit_generation_bonus ?? 0) > 0 && (
+                    <span className="text-green-400" title="Bonus gen. jednostek">
+                      ♟+{+(region.unit_generation_bonus ?? 0).toFixed(1)}/t
+                    </span>
+                  )}
+                  {(region.energy_generation_bonus ?? 0) > 0 && (
+                    <span className="text-yellow-400" title="Bonus gen. energii">
+                      ⚡+{+(region.energy_generation_bonus ?? 0).toFixed(1)}/t
+                    </span>
+                  )}
+                </div>
+              )}
 
             <button
               onClick={onCancel}
@@ -495,7 +505,13 @@ export default memo(function QuickActionBar({
             <div className="grid grid-cols-3 gap-1.5">
               {/* Units */}
               <div className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
-                <Image src={getUnitAsset("infantry")} alt="" width={16} height={16} className="h-4 w-4 object-contain opacity-80" />
+                <Image
+                  src={getUnitAsset("infantry")}
+                  alt=""
+                  width={16}
+                  height={16}
+                  className="h-4 w-4 object-contain opacity-80"
+                />
                 <div className="min-w-0">
                   <div className="font-display text-lg font-bold leading-none tabular-nums text-foreground">
                     {availableInfantry}
@@ -504,25 +520,37 @@ export default memo(function QuickActionBar({
                 </div>
                 {visibleUnitTypes.filter(([t]) => t !== "infantry").length > 0 && (
                   <div className="ml-auto flex items-center gap-1">
-                    {visibleUnitTypes.filter(([t]) => t !== "infantry").map(([t, c]) => (
-                      <div key={t} className="flex items-center gap-0.5" title={t}>
-                        <Image src={getUnitAsset(t)} alt="" width={12} height={12} className="h-3 w-3 object-contain opacity-70" />
-                        <span className="text-xs font-semibold tabular-nums text-foreground/70">{c}</span>
-                      </div>
-                    ))}
+                    {visibleUnitTypes
+                      .filter(([t]) => t !== "infantry")
+                      .map(([t, c]) => (
+                        <div key={t} className="flex items-center gap-0.5" title={t}>
+                          <Image
+                            src={getUnitAsset(t)}
+                            alt=""
+                            width={12}
+                            height={12}
+                            className="h-3 w-3 object-contain opacity-70"
+                          />
+                          <span className="text-xs font-semibold tabular-nums text-foreground/70">{c}</span>
+                        </div>
+                      ))}
                   </div>
                 )}
               </div>
 
               {/* Energy */}
-              <div className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 ${
-                myEnergy < 50 ? "border-yellow-500/40 bg-yellow-950/20" : "border-border bg-muted/20"
-              }`}>
+              <div
+                className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 ${
+                  myEnergy < 50 ? "border-yellow-500/40 bg-yellow-950/20" : "border-border bg-muted/20"
+                }`}
+              >
                 <Zap className={`h-4 w-4 shrink-0 ${myEnergy < 50 ? "text-yellow-400" : "text-primary"}`} />
                 <div className="min-w-0">
-                  <div className={`font-display text-lg font-bold leading-none tabular-nums ${
-                    myEnergy < 50 ? "text-yellow-400" : "text-primary"
-                  }`}>
+                  <div
+                    className={`font-display text-lg font-bold leading-none tabular-nums ${
+                      myEnergy < 50 ? "text-yellow-400" : "text-primary"
+                    }`}
+                  >
                     {myEnergy}
                   </div>
                   <div className="text-[9px] text-muted-foreground">Energia</div>
@@ -530,17 +558,28 @@ export default memo(function QuickActionBar({
               </div>
 
               {/* AP */}
-              <div className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 ${
-                myActionPoints < 3 ? "border-red-500/40 bg-red-950/20" : myActionPoints < 6 ? "border-amber-500/30 bg-amber-950/15" : "border-border bg-muted/20"
-              }`}>
-                <BoltIcon className={`h-4 w-4 shrink-0 ${
-                  myActionPoints < 3 ? "text-red-400" : myActionPoints < 6 ? "text-amber-400" : "text-emerald-400"
-                }`} />
-                <div className="min-w-0 flex-1">
-                  <div className={`font-display text-lg font-bold leading-none tabular-nums ${
+              <div
+                className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 ${
+                  myActionPoints < 3
+                    ? "border-red-500/40 bg-red-950/20"
+                    : myActionPoints < 6
+                      ? "border-amber-500/30 bg-amber-950/15"
+                      : "border-border bg-muted/20"
+                }`}
+              >
+                <BoltIcon
+                  className={`h-4 w-4 shrink-0 ${
                     myActionPoints < 3 ? "text-red-400" : myActionPoints < 6 ? "text-amber-400" : "text-emerald-400"
-                  }`}>
-                    {myActionPoints}<span className="text-xs font-normal text-muted-foreground">/{AP_MAX}</span>
+                  }`}
+                />
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={`font-display text-lg font-bold leading-none tabular-nums ${
+                      myActionPoints < 3 ? "text-red-400" : myActionPoints < 6 ? "text-amber-400" : "text-emerald-400"
+                    }`}
+                  >
+                    {myActionPoints}
+                    <span className="text-xs font-normal text-muted-foreground">/{AP_MAX}</span>
                   </div>
                   <div className="mt-0.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
                     <div
@@ -559,7 +598,6 @@ export default memo(function QuickActionBar({
         {/* ── Move actions ────────────────────────────────────────────── */}
         {hasMoveAction && (
           <div className="border-t border-border px-3 py-2.5 space-y-2">
-
             {/* AP / cooldown warning row */}
             {(!canAffordMove || isMoveCoolingDown) && (
               <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-950/20 px-2.5 py-1.5">
@@ -592,7 +630,9 @@ export default memo(function QuickActionBar({
             )}
 
             {/* Percent presets */}
-            <div className={`flex items-center gap-1.5 ${isMoveCoolingDown || !canAffordMove ? "opacity-50 pointer-events-none" : ""}`}>
+            <div
+              className={`flex items-center gap-1.5 ${isMoveCoolingDown || !canAffordMove ? "opacity-50 pointer-events-none" : ""}`}
+            >
               <span className="text-xs font-bold uppercase tracking-widest text-foreground/70 mr-1">Wyslij</span>
               {PERCENT_PRESETS.map((preset) => {
                 const active = unitPercent === preset;
@@ -615,13 +655,17 @@ export default memo(function QuickActionBar({
 
             {/* Unit type pills */}
             {visibleUnitTypes.length > 0 && (
-              <div className={`flex items-center gap-1.5 flex-wrap ${isMoveCoolingDown || !canAffordMove ? "opacity-50 pointer-events-none" : ""}`}>
+              <div
+                className={`flex items-center gap-1.5 flex-wrap ${isMoveCoolingDown || !canAffordMove ? "opacity-50 pointer-events-none" : ""}`}
+              >
                 {visibleUnitTypes.map(([unitType, count]) => {
                   const active = unitType === selectedUnitType;
                   const isInfantry = unitType === "infantry";
                   const mp = Math.max(1, unitConfigMap.get(unitType)?.manpower_cost ?? 1);
                   const reserved = isInfantry
-                    ? visibleUnitTypes.filter(([t]) => t !== "infantry").reduce((s, [t, c]) => s + c * Math.max(1, unitConfigMap.get(t)?.manpower_cost ?? 1), 0)
+                    ? visibleUnitTypes
+                        .filter(([t]) => t !== "infantry")
+                        .reduce((s, [t, c]) => s + c * Math.max(1, unitConfigMap.get(t)?.manpower_cost ?? 1), 0)
                     : 0;
                   const displayCount = isInfantry ? Math.max(0, count - reserved) : count;
                   const label = isInfantry ? `${displayCount}` : `${count}(${count * mp})`;
@@ -674,7 +718,9 @@ export default memo(function QuickActionBar({
                 className="flex w-full items-center justify-center gap-1.5 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/35 hover:text-white/60 transition-colors"
               >
                 <ChevronUp className={`h-3 w-3 transition-transform ${expanded ? "" : "rotate-180"}`} />
-                {hasBuild && "Buduj"}{hasBuild && hasProduce && " · "}{hasProduce && "Produkuj"}
+                {hasBuild && "Buduj"}
+                {hasBuild && hasProduce && " · "}
+                {hasProduce && "Produkuj"}
               </button>
             </div>
 
@@ -692,17 +738,21 @@ export default memo(function QuickActionBar({
                 </div>
                 <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6">
                   {buildOptions.map((building) => {
-                    const isBuildingLocked = hasBuildingLocks && !unlockedBuildings!.includes(building.slug);
+                    const isBuildingLocked = hasBuildingLocks && !unlockedBuildings?.includes(building.slug);
                     const typeInstances = instancesByType[building.slug] ?? [];
-                    const currentRegionLevel = typeInstances.length > 0
-                      ? typeInstances[0].level
-                      : region.building_levels?.[building.slug];
+                    const currentRegionLevel =
+                      typeInstances.length > 0 ? typeInstances[0].level : region.building_levels?.[building.slug];
                     const playerMaxLevel = buildingLevels?.[building.slug];
-                    const isAtMaxLevel = currentRegionLevel != null && playerMaxLevel != null && currentRegionLevel >= playerMaxLevel;
+                    const isAtMaxLevel =
+                      currentRegionLevel != null && playerMaxLevel != null && currentRegionLevel >= playerMaxLevel;
                     const isUpgrade = (currentRegionLevel ?? 0) > 0;
                     const nextLevel = isUpgrade ? (currentRegionLevel ?? 0) + 1 : 1;
                     const nextCost = building.level_stats?.[String(nextLevel)]?.energy_cost ?? building.energy_cost;
-                    const asset = getPlayerBuildingAsset(building.asset_key || building.slug, ownerCosmetics, building.asset_url);
+                    const asset = getPlayerBuildingAsset(
+                      building.asset_key || building.slug,
+                      ownerCosmetics,
+                      building.asset_url,
+                    );
                     const canAffordEnergy = myEnergy >= nextCost;
                     const canAfford = canAffordEnergy && canAffordBuild;
 
@@ -725,23 +775,27 @@ export default memo(function QuickActionBar({
                             {asset && (
                               <Image src={asset} alt="" width={24} height={24} className="h-6 w-6 object-contain" />
                             )}
-                            {isBuildingLocked && (
-                              <Lock className="absolute -right-1 -top-1 h-2.5 w-2.5 text-red-400" />
-                            )}
+                            {isBuildingLocked && <Lock className="absolute -right-1 -top-1 h-2.5 w-2.5 text-red-400" />}
                             {!canAffordBuild && !isBuildingLocked && !isAtMaxLevel && (
                               <BoltIcon className="absolute -right-1 -top-1 h-2.5 w-2.5 text-amber-400" />
                             )}
                           </div>
-                          <span className="w-full text-[10px] font-semibold text-foreground/70 leading-tight truncate text-center">{building.name}</span>
+                          <span className="w-full text-[10px] font-semibold text-foreground/70 leading-tight truncate text-center">
+                            {building.name}
+                          </span>
                           {isAtMaxLevel ? (
                             <span className="text-[11px] font-bold text-amber-400">Max</span>
                           ) : (
                             <div className="flex items-center gap-0.5">
                               <span className="text-[11px] text-yellow-400">⚡</span>
-                              <span className={`text-xs font-bold tabular-nums ${canAffordEnergy ? "text-green-400" : "text-red-400"}`}>
+                              <span
+                                className={`text-xs font-bold tabular-nums ${canAffordEnergy ? "text-green-400" : "text-red-400"}`}
+                              >
                                 {nextCost}
                               </span>
-                              {isUpgrade && <span className="text-[10px] font-semibold text-amber-400 ml-0.5">Lv{nextLevel}</span>}
+                              {isUpgrade && (
+                                <span className="text-[10px] font-semibold text-amber-400 ml-0.5">Lv{nextLevel}</span>
+                              )}
                             </div>
                           )}
                         </button>
@@ -774,16 +828,18 @@ export default memo(function QuickActionBar({
                 </div>
                 <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6">
                   {producedUnits.map((unit) => {
-                    const isUnitLocked = hasUnitLocks && Boolean(unit.produced_by_slug) && !unlockedUnits!.includes(unit.slug);
+                    const isUnitLocked =
+                      hasUnitLocks && Boolean(unit.produced_by_slug) && !unlockedUnits?.includes(unit.slug);
                     // Get stats from level_stats based on producer building level
                     const producerInstances = instancesByType[unit.produced_by_slug ?? ""] ?? [];
-                    const producerLevel = producerInstances.length > 0
-                      ? producerInstances[0].level
-                      : (buildingLevels?.[unit.produced_by_slug ?? ""] ?? 1);
+                    const producerLevel =
+                      producerInstances.length > 0
+                        ? producerInstances[0].level
+                        : (buildingLevels?.[unit.produced_by_slug ?? ""] ?? 1);
                     const lvlStats = unit.level_stats?.[String(producerLevel)] ?? {};
                     const effectiveCost = lvlStats.production_cost ?? unit.production_cost;
                     const effectiveManpower = lvlStats.manpower_cost ?? unit.manpower_cost ?? 1;
-                    const effectiveAttack = lvlStats.attack ?? unit.attack;
+                    const _effectiveAttack = lvlStats.attack ?? unit.attack;
                     const canAffordEnergy = myEnergy >= effectiveCost;
                     const canAffordManpower = availableInfantry >= effectiveManpower;
                     const canAfford = canAffordEnergy && canAffordManpower && canAffordProduce;
@@ -799,29 +855,35 @@ export default memo(function QuickActionBar({
                       <div key={unit.id} className="group relative">
                         <button
                           onClick={() => !isUnitLocked && canAfford && onProduceUnit(unit.slug)}
-                          title={!canAffordProduce ? `Wymaga ${AP_COSTS.produce} AP (masz ${myActionPoints})` : undefined}
+                          title={
+                            !canAffordProduce ? `Wymaga ${AP_COSTS.produce} AP (masz ${myActionPoints})` : undefined
+                          }
                           className={`flex w-full flex-col items-center gap-0.5 rounded-lg border p-1.5 transition-all ${stateClass}`}
                         >
                           <div className="relative">
                             <Image src={asset} alt="" width={24} height={24} className="h-6 w-6 object-contain" />
-                            {isUnitLocked && (
-                              <Lock className="absolute -right-1 -top-1 h-2.5 w-2.5 text-red-400" />
-                            )}
+                            {isUnitLocked && <Lock className="absolute -right-1 -top-1 h-2.5 w-2.5 text-red-400" />}
                             {!canAffordProduce && !isUnitLocked && (
                               <BoltIcon className="absolute -right-1 -top-1 h-2.5 w-2.5 text-amber-400" />
                             )}
                           </div>
-                          <span className="w-full text-[10px] font-semibold text-foreground/70 leading-tight truncate text-center">{unit.name}</span>
+                          <span className="w-full text-[10px] font-semibold text-foreground/70 leading-tight truncate text-center">
+                            {unit.name}
+                          </span>
                           {isUnitLocked ? (
                             <Lock className="h-3 w-3 text-muted-foreground/60" />
                           ) : (
                             <div className="flex items-center gap-0.5">
                               <span className="text-[11px] text-yellow-400">⚡</span>
-                              <span className={`text-xs font-bold tabular-nums ${canAffordEnergy ? "text-green-400" : "text-red-400"}`}>
+                              <span
+                                className={`text-xs font-bold tabular-nums ${canAffordEnergy ? "text-green-400" : "text-red-400"}`}
+                              >
                                 {effectiveCost}
                               </span>
                               {effectiveManpower > 1 && (
-                                <span className={`text-[11px] font-bold tabular-nums ml-0.5 ${canAffordManpower ? "text-foreground/60" : "text-red-400"}`}>
+                                <span
+                                  className={`text-[11px] font-bold tabular-nums ml-0.5 ${canAffordManpower ? "text-foreground/60" : "text-red-400"}`}
+                                >
                                   {effectiveManpower}♟
                                 </span>
                               )}

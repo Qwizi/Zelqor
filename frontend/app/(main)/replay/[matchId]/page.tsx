@@ -1,40 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, Crown, Pause, Play, SkipBack, SkipForward, Skull, Users } from "lucide-react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import dynamic from "next/dynamic";
-import { useAuth } from "@/hooks/useAuth";
-import {
-  getSnapshot,
-  getRegionTilesUrl,
-} from "@/lib/api";
-import { requireToken } from "@/lib/queryClient";
-import {
-  useMatch,
-  useMatchSnapshots,
-  useRegionsGraph,
-  useConfig,
-} from "@/hooks/queries";
-import { loadAssetOverrides } from "@/lib/assetOverrides";
-import type { GameState, GameRegion, GamePlayer } from "@/hooks/useGameSocket";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  ArrowLeft,
-  Pause,
-  Play,
-  SkipBack,
-  SkipForward,
-  Crown,
-  Skull,
-  Users,
-} from "lucide-react";
+import { useConfig, useMatch, useMatchSnapshots, useRegionsGraph } from "@/hooks/queries";
+import { useAuth } from "@/hooks/useAuth";
+import type { GamePlayer, GameRegion, GameState } from "@/hooks/useGameSocket";
+import { getRegionTilesUrl, getSnapshot } from "@/lib/api";
+import { loadAssetOverrides } from "@/lib/assetOverrides";
+import { requireToken } from "@/lib/queryClient";
 
-const GameMap = dynamic(
-  () => import("@/components/map/GameMap"),
-  { ssr: false }
-);
+const GameMap = dynamic(() => import("@/components/map/GameMap"), { ssr: false });
 
 const SPEEDS = [1, 2, 4, 8];
 
@@ -65,30 +45,36 @@ export default function ReplayPage() {
 
   const snapshotCache = useRef<Map<number, GameState>>(new Map());
 
-  const loadSnapshot = useCallback(async (tick: number, index: number) => {
-    const cached = snapshotCache.current.get(tick);
-    if (cached) {
-      setGameState(cached);
-      setCurrentIndex(index);
-      return;
-    }
-    setSnapshotLoading(true);
-    try {
-      const snap = await getSnapshot(requireToken(), matchId, tick);
-      const state = snap.state_data as unknown as GameState;
-      snapshotCache.current.set(tick, state);
-      setGameState(state);
-      setCurrentIndex(index);
-    } catch {
-      // ignore
-    } finally {
-      setSnapshotLoading(false);
-    }
-  }, [matchId]);
+  const loadSnapshot = useCallback(
+    async (tick: number, index: number) => {
+      const cached = snapshotCache.current.get(tick);
+      if (cached) {
+        setGameState(cached);
+        setCurrentIndex(index);
+        return;
+      }
+      setSnapshotLoading(true);
+      try {
+        const snap = await getSnapshot(requireToken(), matchId, tick);
+        const state = snap.state_data as unknown as GameState;
+        snapshotCache.current.set(tick, state);
+        setGameState(state);
+        setCurrentIndex(index);
+      } catch {
+        // ignore
+      } finally {
+        setSnapshotLoading(false);
+      }
+    },
+    [matchId],
+  );
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { router.replace("/login"); return; }
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
   }, [authLoading, user, router]);
 
   useEffect(() => {
@@ -107,7 +93,9 @@ export default function ReplayPage() {
       const tick = snapshots[i].tick;
       if (!snapshotCache.current.has(tick)) {
         getSnapshot(requireToken(), matchId, tick)
-          .then((snap) => { snapshotCache.current.set(tick, snap.state_data as unknown as GameState); })
+          .then((snap) => {
+            snapshotCache.current.set(tick, snap.state_data as unknown as GameState);
+          })
           .catch(() => {});
       }
     }
@@ -118,7 +106,10 @@ export default function ReplayPage() {
     const interval = setInterval(() => {
       if (!playingRef.current) return;
       const nextIdx = currentIndexRef.current + 1;
-      if (nextIdx >= snapshots.length) { setPlaying(false); return; }
+      if (nextIdx >= snapshots.length) {
+        setPlaying(false);
+        return;
+      }
       loadSnapshot(snapshots[nextIdx].tick, nextIdx);
     }, 1000 / speedRef.current);
     return () => clearInterval(interval);
@@ -126,13 +117,17 @@ export default function ReplayPage() {
 
   const centroids = useMemo(() => {
     const c: Record<string, [number, number]> = {};
-    for (const entry of regionGraph) { if (entry.centroid) c[entry.id] = entry.centroid; }
+    for (const entry of regionGraph) {
+      if (entry.centroid) c[entry.id] = entry.centroid;
+    }
     return c;
   }, [regionGraph]);
 
   const buildingIcons = useMemo(() => {
     const m: Record<string, string> = {};
-    for (const b of buildingTypes) { m[b.slug] = b.asset_key || b.slug; }
+    for (const b of buildingTypes) {
+      m[b.slug] = b.asset_key || b.slug;
+    }
     return m;
   }, [buildingTypes]);
 
@@ -144,11 +139,15 @@ export default function ReplayPage() {
   const playerList = useMemo(() => {
     const entries = Object.entries(players) as [string, GamePlayer][];
     const regionEntries = Object.values(regions) as GameRegion[];
-    return entries.map(([id, p]) => {
-      const ownedRegions = regionEntries.filter((r) => r.owner_id === id).length;
-      const totalUnits = regionEntries.filter((r) => r.owner_id === id).reduce((sum, r) => sum + (r.unit_count || 0), 0);
-      return { id, ...p, ownedRegions, totalUnits };
-    }).sort((a, b) => b.ownedRegions - a.ownedRegions);
+    return entries
+      .map(([id, p]) => {
+        const ownedRegions = regionEntries.filter((r) => r.owner_id === id).length;
+        const totalUnits = regionEntries
+          .filter((r) => r.owner_id === id)
+          .reduce((sum, r) => sum + (r.unit_count || 0), 0);
+        return { id, ...p, ownedRegions, totalUnits };
+      })
+      .sort((a, b) => b.ownedRegions - a.ownedRegions);
   }, [players, regions]);
 
   const playersForMap = useMemo(() => {
@@ -165,14 +164,33 @@ export default function ReplayPage() {
     setPlaying(false);
     loadSnapshot(snapshots[idx].tick, idx);
   };
-  const stepForward = () => { if (currentIndex < snapshots.length - 1) { setPlaying(false); loadSnapshot(snapshots[currentIndex + 1].tick, currentIndex + 1); } };
-  const stepBackward = () => { if (currentIndex > 0) { setPlaying(false); loadSnapshot(snapshots[currentIndex - 1].tick, currentIndex - 1); } };
-  const cycleSpeed = () => { const idx = SPEEDS.indexOf(speed); setSpeed(SPEEDS[(idx + 1) % SPEEDS.length]); };
+  const stepForward = () => {
+    if (currentIndex < snapshots.length - 1) {
+      setPlaying(false);
+      loadSnapshot(snapshots[currentIndex + 1].tick, currentIndex + 1);
+    }
+  };
+  const stepBackward = () => {
+    if (currentIndex > 0) {
+      setPlaying(false);
+      loadSnapshot(snapshots[currentIndex - 1].tick, currentIndex - 1);
+    }
+  };
+  const cycleSpeed = () => {
+    const idx = SPEEDS.indexOf(speed);
+    setSpeed(SPEEDS[(idx + 1) % SPEEDS.length]);
+  };
 
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <Image src="/assets/match_making/circle291.webp" alt="" width={48} height={48} className="h-12 w-12 animate-spin object-contain" />
+        <Image
+          src="/assets/match_making/circle291.webp"
+          alt=""
+          width={48}
+          height={48}
+          className="h-12 w-12 animate-spin object-contain"
+        />
       </div>
     );
   }
@@ -180,7 +198,10 @@ export default function ReplayPage() {
   if (!match || snapshots.length === 0) {
     return (
       <div className="space-y-4 px-4 md:px-0">
-        <Link href={`/match/${matchId}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <Link
+          href={`/match/${matchId}`}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft className="h-4 w-4" />
           Powrót do meczu
         </Link>
@@ -215,18 +236,44 @@ export default function ReplayPage() {
       <div className="rounded-none md:rounded-2xl border-y md:border border-border bg-card/80 md:bg-card px-3 py-2.5 md:p-5 mx-0 md:mx-0">
         <div className="flex items-center gap-2 md:gap-4">
           <div className="flex items-center gap-0.5 md:gap-1.5">
-            <Button variant="ghost" onClick={stepBackward} disabled={currentIndex === 0} className="h-8 w-8 md:h-10 md:w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30">
+            <Button
+              variant="ghost"
+              onClick={stepBackward}
+              disabled={currentIndex === 0}
+              className="h-8 w-8 md:h-10 md:w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+            >
               <SkipBack className="h-4 w-4 md:h-5 md:w-5" />
             </Button>
-            <Button variant="ghost" onClick={() => setPlaying(!playing)} className="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 text-primary hover:bg-primary/10">
+            <Button
+              variant="ghost"
+              onClick={() => setPlaying(!playing)}
+              className="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 text-primary hover:bg-primary/10"
+            >
               {playing ? <Pause className="h-5 w-5 md:h-6 md:w-6" /> : <Play className="h-5 w-5 md:h-6 md:w-6" />}
             </Button>
-            <Button variant="ghost" onClick={stepForward} disabled={currentIndex >= snapshots.length - 1} className="h-8 w-8 md:h-10 md:w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30">
+            <Button
+              variant="ghost"
+              onClick={stepForward}
+              disabled={currentIndex >= snapshots.length - 1}
+              className="h-8 w-8 md:h-10 md:w-10 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+            >
               <SkipForward className="h-4 w-4 md:h-5 md:w-5" />
             </Button>
           </div>
-          <input type="range" min={0} max={snapshots.length - 1} value={currentIndex} onChange={handleSliderChange} className="h-1.5 md:h-2 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-primary [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 md:[&::-webkit-slider-thumb]:h-5 md:[&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(34,211,238,0.4)]" />
-          <button onClick={cycleSpeed} className="rounded-full border border-border px-3 py-1 md:px-4 md:py-1.5 text-sm md:text-base font-semibold text-foreground hover:bg-muted active:scale-[0.95]">{speed}x</button>
+          <input
+            type="range"
+            min={0}
+            max={snapshots.length - 1}
+            value={currentIndex}
+            onChange={handleSliderChange}
+            className="h-1.5 md:h-2 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-primary [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 md:[&::-webkit-slider-thumb]:h-5 md:[&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(34,211,238,0.4)]"
+          />
+          <button
+            onClick={cycleSpeed}
+            className="rounded-full border border-border px-3 py-1 md:px-4 md:py-1.5 text-sm md:text-base font-semibold text-foreground hover:bg-muted active:scale-[0.95]"
+          >
+            {speed}x
+          </button>
         </div>
       </div>
 
@@ -256,7 +303,13 @@ export default function ReplayPage() {
           </div>
           {snapshotLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-card/70">
-              <Image src="/assets/match_making/circle291.webp" alt="" width={32} height={32} className="h-8 w-8 animate-spin object-contain" />
+              <Image
+                src="/assets/match_making/circle291.webp"
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8 animate-spin object-contain"
+              />
             </div>
           )}
         </div>
@@ -278,9 +331,11 @@ export default function ReplayPage() {
                 <div
                   key={p.id}
                   className={`shrink-0 rounded-xl border p-3 w-36 ${
-                    !p.is_alive ? "border-border/30 opacity-40"
-                      : isWinner ? "border-accent/25 bg-accent/5"
-                      : "border-border bg-secondary/50"
+                    !p.is_alive
+                      ? "border-border/30 opacity-40"
+                      : isWinner
+                        ? "border-accent/25 bg-accent/5"
+                        : "border-border bg-secondary/50"
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-2">
@@ -316,9 +371,11 @@ export default function ReplayPage() {
                 <div
                   key={p.id}
                   className={`rounded-xl border p-4 ${
-                    !p.is_alive ? "border-border/30 opacity-40"
-                      : isWinner ? "border-accent/25 bg-accent/5"
-                      : "border-border bg-secondary/50"
+                    !p.is_alive
+                      ? "border-border/30 opacity-40"
+                      : isWinner
+                        ? "border-accent/25 bg-accent/5"
+                        : "border-border bg-secondary/50"
                   }`}
                 >
                   <div className="flex items-center gap-3">

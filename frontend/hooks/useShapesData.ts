@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ShapesData } from "@/lib/canvasTypes";
 
-const API_BASE =
-  typeof window !== "undefined"
-    ? "/api/v1"
-    : process.env.API_URL || "http://backend:8000/api/v1";
+const API_BASE = typeof window !== "undefined" ? "/api/v1" : process.env.API_URL || "http://backend:8000/api/v1";
 
 /**
  * Fetch pre-projected province shapes from the backend.
@@ -29,9 +26,7 @@ export function useShapesData(matchId?: string, canvasSize = 4096) {
       if (matchId) params.set("match_id", matchId);
 
       try {
-        const res = await fetch(
-          `${API_BASE}/geo/regions/shapes/?${params.toString()}`
-        );
+        const res = await fetch(`${API_BASE}/geo/regions/shapes/?${params.toString()}`);
         if (!res.ok) {
           throw new Error(`Failed to load shapes: ${res.status}`);
         }

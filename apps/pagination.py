@@ -13,7 +13,7 @@ def paginate_qs(qs: QuerySet, limit: int = DEFAULT_LIMIT, offset: int = 0, schem
     limit = max(1, min(limit, MAX_LIMIT))
     offset = max(0, offset)
     count = qs.count()
-    items = list(qs[offset:offset + limit])
+    items = list(qs[offset : offset + limit])
     if schema is not None:
         items = [schema.from_orm(item).dict() for item in items]
     return {"items": items, "count": count}

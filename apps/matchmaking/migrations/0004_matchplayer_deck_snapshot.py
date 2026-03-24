@@ -4,15 +4,16 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('matchmaking', '0003_match_is_tutorial'),
+        ("matchmaking", "0003_match_is_tutorial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='matchplayer',
-            name='deck_snapshot',
-            field=models.JSONField(blank=True, default=dict, help_text='Snapshot of deck items consumed for this match'),
+            model_name="matchplayer",
+            name="deck_snapshot",
+            field=models.JSONField(
+                blank=True, default=dict, help_text="Snapshot of deck items consumed for this match"
+            ),
         ),
     ]

@@ -1,18 +1,18 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getItemCategories,
+  getMyDrops,
   getMyInventory,
   getMyWallet,
-  getMyDrops,
-  openCrate,
-  type ItemCategoryOut,
   type InventoryItemOut,
-  type WalletOut,
+  type ItemCategoryOut,
   type ItemDropOut,
+  openCrate,
   type PaginatedResponse,
+  type WalletOut,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useItemCategories() {
   return useQuery<ItemCategoryOut[]>({
@@ -49,13 +49,8 @@ export function useMyDrops(limit?: number, offset?: number) {
 export function useOpenCrate() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      crateSlug,
-      keySlug,
-    }: {
-      crateSlug: string;
-      keySlug: string;
-    }) => openCrate(requireToken(), crateSlug, keySlug),
+    mutationFn: ({ crateSlug, keySlug }: { crateSlug: string; keySlug: string }) =>
+      openCrate(requireToken(), crateSlug, keySlug),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
     },

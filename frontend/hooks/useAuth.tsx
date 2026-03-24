@@ -1,29 +1,17 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  type ReactNode,
-} from "react";
-import {
-  getMe,
-  login as apiLogin,
-  register as apiRegister,
-  refreshToken as apiRefresh,
   APIError,
+  login as apiLogin,
+  refreshToken as apiRefresh,
+  register as apiRegister,
   BannedError,
+  getMe,
   type User,
 } from "@/lib/api";
-import {
-  getAccessToken,
-  getRefreshToken,
-  setTokens,
-  clearTokens,
-} from "@/lib/auth";
-import { useQueryClient } from "@tanstack/react-query";
+import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "@/lib/auth";
 
 interface AuthContextType {
   user: User | null;
@@ -31,11 +19,7 @@ interface AuthContextType {
   isBanned: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithTokens: (access: string, refresh: string) => Promise<void>;
-  register: (
-    username: string,
-    email: string,
-    password: string
-  ) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   token: string | null;
@@ -57,50 +41,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsBanned(true);
   }, []);
 
-  const applyUser = useCallback((me: User, accessToken: string) => {
-    if (me.is_banned) {
-      handleBanned();
-      return;
-    }
-    setUser(me);
-    setToken(accessToken);
-    setIsBanned(false);
-  }, [handleBanned]);
-
-  const loadUser = useCallback(async (accessToken: string) => {
-    try {
-      const me = await getMe(accessToken);
-      applyUser(me, accessToken);
-    } catch (err) {
-      // Banned users receive 401/403 from the API
-      if (err instanceof APIError && (err.status === 401 || err.status === 403)) {
+  const applyUser = useCallback(
+    (me: User, accessToken: string) => {
+      if (me.is_banned) {
         handleBanned();
         return;
       }
-      // Token might be expired, try refresh
-      const refresh = getRefreshToken();
-      if (refresh) {
-        try {
-          const newTokens = await apiRefresh(refresh);
-          setTokens(newTokens.access, newTokens.refresh);
-          const me = await getMe(newTokens.access);
-          applyUser(me, newTokens.access);
-        } catch (refreshErr) {
-          if (refreshErr instanceof APIError && (refreshErr.status === 401 || refreshErr.status === 403)) {
-            handleBanned();
-            return;
+      setUser(me);
+      setToken(accessToken);
+      setIsBanned(false);
+    },
+    [handleBanned],
+  );
+
+  const loadUser = useCallback(
+    async (accessToken: string) => {
+      try {
+        const me = await getMe(accessToken);
+        applyUser(me, accessToken);
+      } catch (err) {
+        // Banned users receive 401/403 from the API
+        if (err instanceof APIError && (err.status === 401 || err.status === 403)) {
+          handleBanned();
+          return;
+        }
+        // Token might be expired, try refresh
+        const refresh = getRefreshToken();
+        if (refresh) {
+          try {
+            const newTokens = await apiRefresh(refresh);
+            setTokens(newTokens.access, newTokens.refresh);
+            const me = await getMe(newTokens.access);
+            applyUser(me, newTokens.access);
+          } catch (refreshErr) {
+            if (refreshErr instanceof APIError && (refreshErr.status === 401 || refreshErr.status === 403)) {
+              handleBanned();
+              return;
+            }
+            clearTokens();
+            setUser(null);
+            setToken(null);
           }
+        } else {
           clearTokens();
           setUser(null);
           setToken(null);
         }
-      } else {
-        clearTokens();
-        setUser(null);
-        setToken(null);
       }
-    }
-  }, [applyUser, handleBanned]);
+    },
+    [applyUser, handleBanned],
+  );
 
   useEffect(() => {
     const accessToken = getAccessToken();
@@ -157,11 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsBanned(false);
   };
 
-  const register = async (
-    username: string,
-    email: string,
-    password: string
-  ) => {
+  const register = async (username: string, email: string, password: string) => {
     await apiRegister({ username, email, password });
     await login(email, password);
   };
@@ -181,7 +167,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadUser]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, isBanned, login, loginWithTokens, register, logout, refreshUser, token }}>
+    <AuthContext.Provider
+      value={{ user, loading, isBanned, login, loginWithTokens, register, logout, refreshUser, token }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -10,7 +10,7 @@ class UsernameOrEmailBackend(ModelBackend):
 
     def authenticate(self, request, email=None, password=None, **kwargs):
         # ninja-jwt sends the USERNAME_FIELD value as 'email' kwarg
-        identifier = email or kwargs.get('username', '')
+        identifier = email or kwargs.get("username", "")
         if not identifier:
             return None
 

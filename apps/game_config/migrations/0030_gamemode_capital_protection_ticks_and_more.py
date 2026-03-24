@@ -4,50 +4,57 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0029_remove_deprecated_base_cost_fields'),
+        ("game_config", "0029_remove_deprecated_base_cost_fields"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='gamemode',
-            name='capital_protection_ticks',
-            field=models.PositiveIntegerField(default=300, help_text='Ticks of capital immunity at game start (0=disabled, 300=5min at 1s/tick)'),
+            model_name="gamemode",
+            name="capital_protection_ticks",
+            field=models.PositiveIntegerField(
+                default=300, help_text="Ticks of capital immunity at game start (0=disabled, 300=5min at 1s/tick)"
+            ),
         ),
         migrations.AddField(
-            model_name='gamemode',
-            name='diplomacy_enabled',
-            field=models.BooleanField(default=True, help_text='Enable diplomacy system (wars, pacts, peace treaties)'),
+            model_name="gamemode",
+            name="diplomacy_enabled",
+            field=models.BooleanField(default=True, help_text="Enable diplomacy system (wars, pacts, peace treaties)"),
         ),
         migrations.AddField(
-            model_name='gamemode',
-            name='nap_minimum_duration_ticks',
-            field=models.PositiveIntegerField(default=300, help_text='Minimum non-aggression pact duration in ticks'),
+            model_name="gamemode",
+            name="nap_minimum_duration_ticks",
+            field=models.PositiveIntegerField(default=300, help_text="Minimum non-aggression pact duration in ticks"),
         ),
         migrations.AddField(
-            model_name='gamemode',
-            name='peace_cooldown_ticks',
-            field=models.PositiveIntegerField(default=120, help_text='Cooldown ticks before peace can be re-proposed after rejection'),
+            model_name="gamemode",
+            name="peace_cooldown_ticks",
+            field=models.PositiveIntegerField(
+                default=120, help_text="Cooldown ticks before peace can be re-proposed after rejection"
+            ),
         ),
         migrations.AddField(
-            model_name='gamesettings',
-            name='capital_protection_ticks',
-            field=models.PositiveIntegerField(default=300, help_text='Ticks of capital immunity at game start (0=disabled, 300=5min at 1s/tick)'),
+            model_name="gamesettings",
+            name="capital_protection_ticks",
+            field=models.PositiveIntegerField(
+                default=300, help_text="Ticks of capital immunity at game start (0=disabled, 300=5min at 1s/tick)"
+            ),
         ),
         migrations.AddField(
-            model_name='gamesettings',
-            name='diplomacy_enabled',
-            field=models.BooleanField(default=True, help_text='Enable diplomacy system (wars, pacts, peace treaties)'),
+            model_name="gamesettings",
+            name="diplomacy_enabled",
+            field=models.BooleanField(default=True, help_text="Enable diplomacy system (wars, pacts, peace treaties)"),
         ),
         migrations.AddField(
-            model_name='gamesettings',
-            name='nap_minimum_duration_ticks',
-            field=models.PositiveIntegerField(default=300, help_text='Minimum non-aggression pact duration in ticks'),
+            model_name="gamesettings",
+            name="nap_minimum_duration_ticks",
+            field=models.PositiveIntegerField(default=300, help_text="Minimum non-aggression pact duration in ticks"),
         ),
         migrations.AddField(
-            model_name='gamesettings',
-            name='peace_cooldown_ticks',
-            field=models.PositiveIntegerField(default=120, help_text='Cooldown ticks before peace can be re-proposed after rejection'),
+            model_name="gamesettings",
+            name="peace_cooldown_ticks",
+            field=models.PositiveIntegerField(
+                default=120, help_text="Cooldown ticks before peace can be re-proposed after rejection"
+            ),
         ),
     ]

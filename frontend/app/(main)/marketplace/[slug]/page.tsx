@@ -1,35 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { ArrowLeft, Coins, Store } from "lucide-react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { MarketplaceItemSkeleton } from "@/components/skeletons/MarketplaceItemSkeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useAuth } from "@/hooks/useAuth";
 import ItemIcon from "@/components/ui/ItemIcon";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  type MarketListingOut,
-} from "@/lib/api";
-import {
+  useBuyFromListing,
+  useCreateListing,
+  useMarketConfig,
   useMarketListings,
   useMyInventory,
   useMyWallet,
-  useMarketConfig,
-  useBuyFromListing,
-  useCreateListing,
 } from "@/hooks/queries";
-import { MarketplaceItemSkeleton } from "@/components/skeletons/MarketplaceItemSkeleton";
+import { useAuth } from "@/hooks/useAuth";
+import type { MarketListingOut } from "@/lib/api";
 
 // ─── Rarity / type maps ───────────────────────────────────────────────────
 
@@ -76,11 +67,7 @@ export default function MarketplaceItemPage() {
   const buyMutation = useBuyFromListing();
   const sellMutation = useCreateListing();
 
-  const loading =
-    listingsQuery.isLoading ||
-    inventoryQuery.isLoading ||
-    walletQuery.isLoading ||
-    configQuery.isLoading;
+  const loading = listingsQuery.isLoading || inventoryQuery.isLoading || walletQuery.isLoading || configQuery.isLoading;
 
   const listings = listingsQuery.data?.items ?? [];
   const inventory = inventoryQuery.data?.items ?? [];
@@ -108,34 +95,27 @@ export default function MarketplaceItemPage() {
     .sort((a, b) => b.price_per_unit - a.price_per_unit);
 
   // Representative item from any listing (or first sell listing)
-  const representativeItem =
-    sellListings[0]?.item ?? buyListings[0]?.item ?? null;
+  const representativeItem = sellListings[0]?.item ?? buyListings[0]?.item ?? null;
 
   // Cheapest sell listing available to current user
-  const cheapestAvailable = user
-    ? sellListings.find((l) => l.seller_username !== user.username)
-    : undefined;
+  const cheapestAvailable = user ? sellListings.find((l) => l.seller_username !== user.username) : undefined;
 
   const ownedEntry = representativeItem
-    ? inventory.find(
-        (i) => i.item.slug === representativeItem.slug && i.item.is_tradeable
-      )
+    ? inventory.find((i) => i.item.slug === representativeItem.slug && i.item.is_tradeable)
     : null;
   const ownedQty = ownedEntry?.quantity ?? 0;
 
   const feePercent = config?.transaction_fee_percent ?? 5;
   const feeCost = Math.ceil(sellQty * sellPrice * (feePercent / 100));
   const netReceive = sellQty * sellPrice - feeCost;
-  const buyCost = cheapestAvailable
-    ? buyQty * cheapestAvailable.price_per_unit
-    : 0;
+  const buyCost = cheapestAvailable ? buyQty * cheapestAvailable.price_per_unit : 0;
 
   // Pre-fill sell price from cheapest listing when listings load
   useEffect(() => {
     const cheapest = sellListings[0];
     if (cheapest) setSellPrice(cheapest.price_per_unit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listingsQuery.data]);
+  }, [sellListings[0]]);
 
   const handleBuyDirect = async (listing: MarketListingOut, qty = 1) => {
     try {
@@ -192,25 +172,19 @@ export default function MarketplaceItemPage() {
               <ItemIcon slug={representativeItem.slug} icon={representativeItem.icon} size={48} />
             </div>
             <div className="min-w-0">
-              <h1 className="font-display text-3xl text-foreground">
-                {representativeItem.name}
-              </h1>
+              <h1 className="font-display text-3xl text-foreground">{representativeItem.name}</h1>
               <p className="mt-1 text-base text-muted-foreground">
-                {TYPE_LABELS[representativeItem.item_type] ??
-                  representativeItem.item_type}
+                {TYPE_LABELS[representativeItem.item_type] ?? representativeItem.item_type}
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-sm font-medium ${RARITY_BADGE[representativeItem.rarity] ?? "bg-slate-500/20 text-slate-300"}`}
                 >
-                  {RARITY_LABELS[representativeItem.rarity] ??
-                    representativeItem.rarity}
+                  {RARITY_LABELS[representativeItem.rarity] ?? representativeItem.rarity}
                 </span>
               </div>
               {representativeItem.description && (
-                <p className="mt-3 text-base text-muted-foreground">
-                  {representativeItem.description}
-                </p>
+                <p className="mt-3 text-base text-muted-foreground">{representativeItem.description}</p>
               )}
             </div>
           </CardContent>
@@ -231,16 +205,13 @@ export default function MarketplaceItemPage() {
       <Card className="rounded-xl">
         <CardContent className="flex flex-wrap items-center gap-2 sm:gap-3 px-4 sm:px-5 py-3.5">
           <Coins className="h-5 w-5 text-accent" />
-          <span className="font-mono tabular-nums text-lg font-semibold text-accent">
-            {wallet?.gold ?? "—"}
-          </span>
+          <span className="font-mono tabular-nums text-lg font-semibold text-accent">{wallet?.gold ?? "—"}</span>
           <span className="text-base text-muted-foreground">złota</span>
           {ownedQty > 0 && (
             <>
               <span className="mx-2 text-border">·</span>
               <span className="text-base text-muted-foreground">
-                Posiadasz:{" "}
-                <span className="font-semibold text-foreground">{ownedQty}</span>
+                Posiadasz: <span className="font-semibold text-foreground">{ownedQty}</span>
               </span>
             </>
           )}
@@ -254,9 +225,7 @@ export default function MarketplaceItemPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {/* Sell listings */}
         <div>
-          <h2 className="mb-3 text-base font-semibold text-foreground">
-            Oferty sprzedaży
-          </h2>
+          <h2 className="mb-3 text-base font-semibold text-foreground">Oferty sprzedaży</h2>
           {sellListings.length === 0 ? (
             <p className="rounded-xl border border-border py-10 text-center text-base text-muted-foreground">
               Brak ofert sprzedaży
@@ -266,31 +235,20 @@ export default function MarketplaceItemPage() {
               <Table className="text-base">
                 <TableHeader>
                   <TableRow className="bg-muted/30">
-                    <TableHead className="h-12 pl-4 text-sm font-semibold text-muted-foreground">
-                      Sprzedawca
-                    </TableHead>
-                    <TableHead className="h-12 text-sm font-semibold text-right text-muted-foreground">
-                      Cena
-                    </TableHead>
-                    <TableHead className="h-12 text-sm font-semibold text-right text-muted-foreground">
-                      Ilość
-                    </TableHead>
+                    <TableHead className="h-12 pl-4 text-sm font-semibold text-muted-foreground">Sprzedawca</TableHead>
+                    <TableHead className="h-12 text-sm font-semibold text-right text-muted-foreground">Cena</TableHead>
+                    <TableHead className="h-12 text-sm font-semibold text-right text-muted-foreground">Ilość</TableHead>
                     <TableHead className="h-12 pr-4 text-right text-muted-foreground" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sellListings.map((listing) => (
-                    <TableRow
-                      key={listing.id}
-                      className="hover-lift transition-colors hover:bg-muted/30"
-                    >
+                    <TableRow key={listing.id} className="hover-lift transition-colors hover:bg-muted/30">
                       <TableCell className="pl-4 py-4 text-base text-foreground">
                         <span className="flex items-center gap-2">
                           {listing.seller_username}
                           {listing.is_bot_listing && (
-                            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary">
-                              Bot
-                            </span>
+                            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary">Bot</span>
                           )}
                         </span>
                       </TableCell>
@@ -322,9 +280,7 @@ export default function MarketplaceItemPage() {
 
         {/* Buy listings */}
         <div>
-          <h2 className="mb-3 text-base font-semibold text-foreground">
-            Oferty kupna
-          </h2>
+          <h2 className="mb-3 text-base font-semibold text-foreground">Oferty kupna</h2>
           {buyListings.length === 0 ? (
             <p className="rounded-xl border border-border py-10 text-center text-base text-muted-foreground">
               Brak ofert kupna
@@ -334,12 +290,8 @@ export default function MarketplaceItemPage() {
               <Table className="text-base">
                 <TableHeader>
                   <TableRow className="bg-muted/30">
-                    <TableHead className="h-12 pl-4 text-sm font-semibold text-muted-foreground">
-                      Kupujący
-                    </TableHead>
-                    <TableHead className="h-12 text-sm font-semibold text-right text-muted-foreground">
-                      Cena
-                    </TableHead>
+                    <TableHead className="h-12 pl-4 text-sm font-semibold text-muted-foreground">Kupujący</TableHead>
+                    <TableHead className="h-12 text-sm font-semibold text-right text-muted-foreground">Cena</TableHead>
                     <TableHead className="h-12 pr-4 text-sm font-semibold text-right text-muted-foreground">
                       Ilość
                     </TableHead>
@@ -347,17 +299,12 @@ export default function MarketplaceItemPage() {
                 </TableHeader>
                 <TableBody>
                   {buyListings.map((listing) => (
-                    <TableRow
-                      key={listing.id}
-                      className="hover-lift transition-colors hover:bg-muted/30"
-                    >
+                    <TableRow key={listing.id} className="hover-lift transition-colors hover:bg-muted/30">
                       <TableCell className="pl-4 py-4 text-base text-foreground">
                         <span className="flex items-center gap-2">
                           {listing.seller_username}
                           {listing.is_bot_listing && (
-                            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary">
-                              Bot
-                            </span>
+                            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary">Bot</span>
                           )}
                         </span>
                       </TableCell>
@@ -391,13 +338,7 @@ export default function MarketplaceItemPage() {
                   value={buyQty}
                   onChange={(e) =>
                     setBuyQty(
-                      Math.max(
-                        1,
-                        Math.min(
-                          cheapestAvailable.quantity_remaining,
-                          parseInt(e.target.value) || 1
-                        )
-                      )
+                      Math.max(1, Math.min(cheapestAvailable.quantity_remaining, parseInt(e.target.value, 10) || 1)),
                     )
                   }
                   className="h-12 w-full text-base sm:w-24 text-center"
@@ -408,10 +349,7 @@ export default function MarketplaceItemPage() {
                   className="h-12 w-full rounded-lg bg-primary text-primary-foreground text-base hover:bg-primary/90 sm:flex-1"
                 >
                   <Coins className="mr-2 h-4 w-4" />
-                  Kup za{" "}
-                  <span className="ml-1 font-mono tabular-nums">
-                    {buyCost}g
-                  </span>
+                  Kup za <span className="ml-1 font-mono tabular-nums">{buyCost}g</span>
                 </Button>
               </div>
             </CardContent>
@@ -423,52 +361,39 @@ export default function MarketplaceItemPage() {
           <Card className="rounded-xl">
             <CardContent className="p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-foreground">
-                  Wystaw na sprzedaż
-                </h3>
+                <h3 className="text-base font-semibold text-foreground">Wystaw na sprzedaż</h3>
                 <span className="text-base text-muted-foreground">
-                  Posiadasz:{" "}
-                  <span className="font-semibold text-foreground">{ownedQty}</span>
+                  Posiadasz: <span className="font-semibold text-foreground">{ownedQty}</span>
                 </span>
               </div>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
-                      Ilość
-                    </label>
+                    <label className="mb-1.5 block text-sm font-medium text-muted-foreground">Ilość</label>
                     <Input
                       type="number"
                       min={1}
                       max={ownedQty || undefined}
                       value={sellQty}
-                      onChange={(e) =>
-                        setSellQty(Math.max(1, parseInt(e.target.value) || 1))
-                      }
+                      onChange={(e) => setSellQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
                       className="h-12 text-base"
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
-                      Cena / szt.
-                    </label>
+                    <label className="mb-1.5 block text-sm font-medium text-muted-foreground">Cena / szt.</label>
                     <Input
                       type="number"
                       min={1}
                       value={sellPrice}
-                      onChange={(e) =>
-                        setSellPrice(Math.max(1, parseInt(e.target.value) || 1))
-                      }
+                      onChange={(e) => setSellPrice(Math.max(1, parseInt(e.target.value, 10) || 1))}
                       className="h-12 text-base"
                     />
                   </div>
                 </div>
                 <div className="rounded-lg bg-muted/50 px-4 py-3 text-base text-muted-foreground">
-                  Prowizja: {feePercent}% ={" "}
-                  <span className="text-accent font-medium">{feeCost}g</span>
+                  Prowizja: {feePercent}% = <span className="text-accent font-medium">{feeCost}g</span>
                   <span className="mx-2 text-border">·</span>
-                  Otrzymasz:{" "}
-                  <span className="text-green-400 font-medium">{netReceive}g</span>
+                  Otrzymasz: <span className="text-green-400 font-medium">{netReceive}g</span>
                 </div>
                 <Button
                   onClick={handleSell}

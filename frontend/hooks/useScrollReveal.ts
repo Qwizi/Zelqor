@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
+import { useRef } from "react";
 import { scrollReveal } from "@/lib/animations";
 
 interface UseScrollRevealOptions {
@@ -33,29 +33,18 @@ interface UseScrollRevealOptions {
  * );
  * ```
  */
-export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
-  options?: UseScrollRevealOptions
-) {
+export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(options?: UseScrollRevealOptions) {
   const ref = useRef<T>(null);
-  const {
-    selector,
-    y = 30,
-    stagger = 0.06,
-    duration = 0.5,
-    start = "top 85%",
-    disabled = false,
-  } = options ?? {};
+  const { selector, y = 30, stagger = 0.06, duration = 0.5, start = "top 85%", disabled = false } = options ?? {};
 
   useGSAP(
     () => {
       if (disabled || !ref.current) return;
-      const targets = selector
-        ? ref.current.querySelectorAll(selector)
-        : ref.current.children;
+      const targets = selector ? ref.current.querySelectorAll(selector) : ref.current.children;
       if (targets.length === 0) return;
       scrollReveal(targets, ref.current, { y, stagger, duration, start });
     },
-    { scope: ref, dependencies: [disabled] }
+    { scope: ref, dependencies: [disabled] },
   );
 
   return ref;

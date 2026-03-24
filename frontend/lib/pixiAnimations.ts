@@ -5,21 +5,17 @@
 // GameMap.tsx. Add `manager.container` to your Pixi Viewport and call
 // `manager.update(Date.now())` from your Ticker.
 
-import { Container, Graphics, Text, TextStyle, Assets, Sprite, Texture } from "pixi.js";
-import type { TroopAnimation } from "@/lib/gameTypes";
+import { Assets, Container, Graphics, Sprite, Text, TextStyle, type Texture } from "pixi.js";
 import {
-  resolveAnimConfig,
   ANIMATION_DEFAULTS_KEYS,
   type AnimationConfig,
   type CosmeticValue,
   type ImpactConfig,
   type PulseConfig,
+  resolveAnimConfig,
 } from "@/lib/animationConfig";
-import {
-  ParticleManager as PixiParticleManager,
-  ParticleEmitter,
-  ParticlePresets,
-} from "@/lib/particleSystem";
+import type { TroopAnimation } from "@/lib/gameTypes";
+import { ParticleEmitter, ParticlePresets, ParticleManager as PixiParticleManager } from "@/lib/particleSystem";
 
 // ── Texture cache ────────────────────────────────────────────────────────────
 // Deduplicate concurrent Assets.load() calls for the same URL so that 100
@@ -38,21 +34,21 @@ function loadTextureCached(url: string): Promise<Texture> {
 
 export type { AnimKind } from "./pixiAnimationPaths";
 export {
-  computeCurvePath,
-  computeMarchPath,
-  buildWaypointPath,
-  buildBomberFlightPath,
   buildAnimationPath,
+  buildBomberFlightPath,
+  buildWaypointPath,
+  computeCurvePath,
   computeFighterAttackPath,
+  computeMarchPath,
   easeAnimationProgress,
   lerpPath,
 } from "./pixiAnimationPaths";
 
 import type { AnimKind } from "./pixiAnimationPaths";
 import {
-  buildWaypointPath,
-  buildBomberFlightPath,
   buildAnimationPath,
+  buildBomberFlightPath,
+  buildWaypointPath,
   easeAnimationProgress,
   lerpPath,
 } from "./pixiAnimationPaths";
@@ -161,7 +157,7 @@ function hexToNum(hex: string | null | undefined): number {
           .join("")
       : clean;
   const n = parseInt(expanded, 16);
-  return isNaN(n) || n > 0xffffff ? 0xffffff : n;
+  return Number.isNaN(n) || n > 0xffffff ? 0xffffff : n;
 }
 
 // Path helpers moved to ./pixiAnimationPaths.ts
@@ -198,12 +194,9 @@ function resolveAnimationKindSync(unitType?: string | null): AnimKind {
   if (unitType === "nuke_rocket") return "fighter";
   if (!unitType || unitType === "default") return "infantry";
   const ut = unitType.toLowerCase();
-  if (ut.includes("plane") || ut.includes("fighter") || ut.includes("bomber"))
-    return "fighter";
-  if (ut.includes("ship") || ut.includes("submarine") || ut.includes("naval"))
-    return "ship";
-  if (ut.includes("tank") || ut.includes("armor") || ut.includes("vehicle"))
-    return "tank";
+  if (ut.includes("plane") || ut.includes("fighter") || ut.includes("bomber")) return "fighter";
+  if (ut.includes("ship") || ut.includes("submarine") || ut.includes("naval")) return "ship";
+  if (ut.includes("tank") || ut.includes("armor") || ut.includes("vehicle")) return "tank";
   return "infantry";
 }
 
@@ -213,9 +206,7 @@ function resolveAnimationKindSync(unitType?: string | null): AnimKind {
  * Returns a cached kind immediately via the synchronous fallback while
  * waiting for the async result.
  */
-async function resolveAnimationKindAsync(
-  unitType?: string | null
-): Promise<AnimKind> {
+async function resolveAnimationKindAsync(unitType?: string | null): Promise<AnimKind> {
   if (unitType === "nuke_rocket") return "fighter";
   try {
     const { getUnitAsset } = await import("@/lib/gameAssets");
@@ -306,7 +297,7 @@ export class PixiAnimationManager {
     anim: TroopAnimation,
     sourceCentroid: [number, number],
     targetCentroid: [number, number],
-    playerCosmetics?: Record<string, CosmeticValue>
+    playerCosmetics?: Record<string, CosmeticValue>,
   ): void {
     if (this.anims.has(anim.id)) return;
 
@@ -317,17 +308,12 @@ export class PixiAnimationManager {
     const animKind = resolveAnimationKindSync(anim.unitType);
     // Bombers and their escorts fly through province centroids with dip-dive curves.
     // Other units use standard path logic.
-    let path = (isBomber || isEscort)
-      ? buildBomberFlightPath(anim.bombingWaypoints!)
-      : anim.waypoints && anim.waypoints.length >= 2
-        ? buildWaypointPath(anim.waypoints)
-        : buildAnimationPath(
-            animKind,
-            sourceCentroid,
-            targetCentroid,
-            anim.unitType,
-            anim.type
-          );
+    let path =
+      isBomber || isEscort
+        ? buildBomberFlightPath(anim.bombingWaypoints!)
+        : anim.waypoints && anim.waypoints.length >= 2
+          ? buildWaypointPath(anim.waypoints)
+          : buildAnimationPath(animKind, sourceCentroid, targetCentroid, anim.unitType, anim.type);
     // Apply perpendicular offset for escorts flying beside bomber.
     if (anim.pathOffset && anim.pathOffset !== 0 && path.length >= 2) {
       const offset = anim.pathOffset;
@@ -350,16 +336,8 @@ export class PixiAnimationManager {
       (isNuke ? 8000 : (EXTRA_DURATION_MAP[anim.unitType ?? ""] ?? DURATION_MAP[animKind] ?? DURATION_MAP.infantry));
     // For unit types with their own config entry (e.g. "bomber"), prefer that
     // entry over the generic animKind default so distinct configs take effect.
-    const configKey =
-      anim.unitType && ANIMATION_DEFAULTS_KEYS.has(anim.unitType)
-        ? anim.unitType
-        : animKind;
-    const config = resolveAnimConfig(
-      configKey,
-      anim.type,
-      isNuke,
-      playerCosmetics
-    );
+    const configKey = anim.unitType && ANIMATION_DEFAULTS_KEYS.has(anim.unitType) ? anim.unitType : animKind;
+    const config = resolveAnimConfig(configKey, anim.type, isNuke, playerCosmetics);
 
     // Fire the async kind resolution in the background. The result is not
     // needed for the current animation but warms up the module cache.
@@ -413,15 +391,17 @@ export class PixiAnimationManager {
     if (anim.unitType !== "artillery") {
       const spriteUrl = UNIT_ICON_MAP[anim.unitType ?? ""] ?? UNIT_ICON_MAP[animKind];
       if (spriteUrl) {
-        loadTextureCached(spriteUrl).then((texture: Texture) => {
-          if (!this.anims.has(anim.id)) return;
-          const sprite = new Sprite(texture);
-          sprite.anchor.set(0.5, 0.5);
-          sprite.eventMode = "none";
-          sprite.visible = false;
-          this.container.addChild(sprite);
-          internal.iconSprite = sprite;
-        }).catch(() => {});
+        loadTextureCached(spriteUrl)
+          .then((texture: Texture) => {
+            if (!this.anims.has(anim.id)) return;
+            const sprite = new Sprite(texture);
+            sprite.anchor.set(0.5, 0.5);
+            sprite.eventMode = "none";
+            sprite.visible = false;
+            this.container.addChild(sprite);
+            internal.iconSprite = sprite;
+          })
+          .catch(() => {});
       }
     }
 
@@ -430,7 +410,7 @@ export class PixiAnimationManager {
       const [sx, sy] = sourceCentroid;
       this._particles.addEmitter(
         `art-muzzle-${this._particleIdCounter++}`,
-        new ParticleEmitter(this._particleContainer, ParticlePresets.artilleryMuzzle(sx, sy))
+        new ParticleEmitter(this._particleContainer, ParticlePresets.artilleryMuzzle(sx, sy)),
       );
     }
   }
@@ -439,11 +419,7 @@ export class PixiAnimationManager {
    * Spawn a one-shot particle effect at a world position.
    * Useful for external triggers (shield hit, province capture, etc.).
    */
-  spawnParticleEffect(
-    preset: "explosion" | "sparks" | "smokeTrail" | "nukeMushroom",
-    x: number,
-    y: number
-  ): void {
+  spawnParticleEffect(preset: "explosion" | "sparks" | "smokeTrail" | "nukeMushroom", x: number, y: number): void {
     const id = `fx-${preset}-${this._particleIdCounter++}`;
     const config =
       preset === "explosion"
@@ -460,17 +436,10 @@ export class PixiAnimationManager {
    * Spawn a persistent (infinite) particle effect, like capital glow.
    * Returns the id so the caller can remove it later.
    */
-  spawnPersistentEffect(
-    preset: "capitalGlow" | "shieldShimmer",
-    x: number,
-    y: number,
-    color: number
-  ): string {
+  spawnPersistentEffect(preset: "capitalGlow" | "shieldShimmer", x: number, y: number, color: number): string {
     const id = `persist-${preset}-${this._particleIdCounter++}`;
     const config =
-      preset === "capitalGlow"
-        ? ParticlePresets.capitalGlow(x, y, color)
-        : ParticlePresets.shieldShimmer(x, y, color);
+      preset === "capitalGlow" ? ParticlePresets.capitalGlow(x, y, color) : ParticlePresets.shieldShimmer(x, y, color);
     this._particles.addEmitter(id, new ParticleEmitter(this._particleContainer, config));
     return id;
   }
@@ -510,9 +479,10 @@ export class PixiAnimationManager {
     this._updateBombs(now);
     this._updateImpacts(now);
     // Particle system uses delta-seconds
-    const dt = this._lastUpdateTime > 0
-      ? Math.min((now - this._lastUpdateTime) / 1000, 0.1) // cap at 100ms to avoid burst
-      : 1 / 60;
+    const dt =
+      this._lastUpdateTime > 0
+        ? Math.min((now - this._lastUpdateTime) / 1000, 0.1) // cap at 100ms to avoid burst
+        : 1 / 60;
     this._lastUpdateTime = now;
     this._particles.update(dt);
     // Throttle GC to every 30 frames (~500ms at 60fps) to reduce per-frame overhead
@@ -564,7 +534,7 @@ export class PixiAnimationManager {
       const progress = isNuke
         ? rawLinear < 0.5
           ? 2 * rawLinear * rawLinear
-          : 1 - Math.pow(-2 * rawLinear + 2, 2) / 2
+          : 1 - (-2 * rawLinear + 2) ** 2 / 2
         : easeAnimationProgress(a.animKind, rawLinear);
 
       // ── Fade-out ─────────────────────────────────────────────────────────
@@ -573,12 +543,7 @@ export class PixiAnimationManager {
           ? 0
           : 1
         : rawLinear > a.config.icon.fade_start
-          ? Math.pow(
-              1 -
-                (rawLinear - a.config.icon.fade_start) /
-                  (1 - a.config.icon.fade_start),
-              2
-            )
+          ? (1 - (rawLinear - a.config.icon.fade_start) / (1 - a.config.icon.fade_start)) ** 2
           : 1;
 
       // ── Trail colors ──────────────────────────────────────────────────────
@@ -589,10 +554,7 @@ export class PixiAnimationManager {
 
       // ── Trail indices ─────────────────────────────────────────────────────
       const pathLen = a.path.length;
-      const headIdx = Math.min(
-        Math.floor(progress * (pathLen - 1)),
-        pathLen - 1
-      );
+      const headIdx = Math.min(Math.floor(progress * (pathLen - 1)), pathLen - 1);
       const trailLength = a.config.trail.length;
       const tailProgress = Math.max(0, progress - trailLength);
       const tailIdx = Math.max(0, Math.floor(tailProgress * (pathLen - 1)));
@@ -607,14 +569,7 @@ export class PixiAnimationManager {
 
       // ── Trail particles ───────────────────────────────────────────────────
       if (a.unitType !== "artillery" && a.unitType !== "sam") {
-        this._drawParticles(
-          a,
-          dotColorNum,
-          progress,
-          tailProgress,
-          isNuke,
-          fadeOut
-        );
+        this._drawParticles(a, dotColorNum, progress, tailProgress, isNuke, fadeOut);
       }
 
       // ── Unit icon ─────────────────────────────────────────────────────────
@@ -622,7 +577,7 @@ export class PixiAnimationManager {
       const isSamRocket = a.unitType === "sam";
       const currentPoint = isNuke
         ? lerpPath(a.path, progress)
-        : (isArtillery || isSamRocket)
+        : isArtillery || isSamRocket
           ? lerpPath(a.path, progress)
           : a.path[headIdx];
 
@@ -635,7 +590,8 @@ export class PixiAnimationManager {
 
       // ── Pulse rings (during approach, attack only) ────────────────────────
       if (
-        !isArtillery && !isSamRocket &&
+        !isArtillery &&
+        !isSamRocket &&
         a.config.pulse.enabled &&
         a.actionType === "attack" &&
         progress > a.config.pulse.start_at
@@ -677,7 +633,7 @@ export class PixiAnimationManager {
           const nukeId = `nuke-${this._particleIdCounter++}`;
           this._particles.addEmitter(
             nukeId,
-            new ParticleEmitter(this._particleContainer, ParticlePresets.nukeMushroom(nx, ny))
+            new ParticleEmitter(this._particleContainer, ParticlePresets.nukeMushroom(nx, ny)),
           );
         }
       }
@@ -701,7 +657,7 @@ export class PixiAnimationManager {
     pos: [number, number],
     progress: number,
     rawLinear: number,
-    fadeOut: number
+    fadeOut: number,
   ): void {
     const g = a.iconGfx;
     g.clear();
@@ -754,12 +710,10 @@ export class PixiAnimationManager {
       .fill({ color: 0xffdd44, alpha: fadeOut * 0.7 * flicker });
 
     // Hot core
-    g.circle(0, 9, 2.5)
-      .fill({ color: 0xffffff, alpha: fadeOut * 0.6 * flicker });
+    g.circle(0, 9, 2.5).fill({ color: 0xffffff, alpha: fadeOut * 0.6 * flicker });
 
     // Engine glow halo
-    g.circle(0, 10, 8)
-      .fill({ color: 0xff6600, alpha: fadeOut * 0.15 * flicker });
+    g.circle(0, 10, 8).fill({ color: 0xff6600, alpha: fadeOut * 0.15 * flicker });
 
     // ── Rocket body ─────────────────────────────────────────────
     const rocketLen = 16;
@@ -785,8 +739,7 @@ export class PixiAnimationManager {
       .fill({ color: 0xcc2200, alpha: fadeOut * 0.9 });
 
     // Nose tip glow
-    g.circle(0, -rocketLen * 0.5, 2)
-      .fill({ color: 0xff4400, alpha: fadeOut * 0.8 });
+    g.circle(0, -rocketLen * 0.5, 2).fill({ color: 0xff4400, alpha: fadeOut * 0.8 });
 
     // ── Fins (larger, angled) ───────────────────────────────────
     // Left fin
@@ -805,50 +758,68 @@ export class PixiAnimationManager {
       .fill({ color: 0x993322, alpha: fadeOut * 0.8 });
 
     // ── Body stripe (military marking) ──────────────────────────
-    g.rect(-rocketW + 0.5, rocketLen * 0.0, (rocketW - 0.5) * 2, 2)
-      .fill({ color: 0x445566, alpha: fadeOut * 0.4 });
+    g.rect(-rocketW + 0.5, rocketLen * 0.0, (rocketW - 0.5) * 2, 2).fill({ color: 0x445566, alpha: fadeOut * 0.4 });
   }
 
   /**
    * Cinematic rocket exhaust trail — thick layered smoke with fire core.
    */
-  private _drawArtilleryTrail(
-    a: InternalAnim,
-    tailIdx: number,
-    headIdx: number,
-    fadeOut: number
-  ): void {
+  private _drawArtilleryTrail(a: InternalAnim, tailIdx: number, headIdx: number, fadeOut: number): void {
     const g = a.trailGfx;
     g.clear();
     if (headIdx - tailIdx < 1) return;
 
     // Layer 1: Wide dim smoke envelope
-    this._strokePath(g, a.path, {
-      color: 0x555555,
-      alpha: fadeOut * 0.15,
-      width: 10,
-    }, tailIdx, headIdx);
+    this._strokePath(
+      g,
+      a.path,
+      {
+        color: 0x555555,
+        alpha: fadeOut * 0.15,
+        width: 10,
+      },
+      tailIdx,
+      headIdx,
+    );
 
     // Layer 2: Orange heat glow
-    this._strokePath(g, a.path, {
-      color: 0xff6600,
-      alpha: fadeOut * 0.2,
-      width: 6,
-    }, tailIdx, headIdx);
+    this._strokePath(
+      g,
+      a.path,
+      {
+        color: 0xff6600,
+        alpha: fadeOut * 0.2,
+        width: 6,
+      },
+      tailIdx,
+      headIdx,
+    );
 
     // Layer 3: Bright fire core
-    this._strokePath(g, a.path, {
-      color: 0xffaa33,
-      alpha: fadeOut * 0.45,
-      width: 3,
-    }, tailIdx, headIdx);
+    this._strokePath(
+      g,
+      a.path,
+      {
+        color: 0xffaa33,
+        alpha: fadeOut * 0.45,
+        width: 3,
+      },
+      tailIdx,
+      headIdx,
+    );
 
     // Layer 4: White-hot inner core
-    this._strokePath(g, a.path, {
-      color: 0xffffcc,
-      alpha: fadeOut * 0.6,
-      width: 1.2,
-    }, tailIdx, headIdx);
+    this._strokePath(
+      g,
+      a.path,
+      {
+        color: 0xffffcc,
+        alpha: fadeOut * 0.6,
+        width: 1.2,
+      },
+      tailIdx,
+      headIdx,
+    );
 
     // Smoke puffs — expanding, darkening clouds along the trail
     const dotsGfx = a.dotsGfx;
@@ -865,12 +836,12 @@ export class PixiAnimationManager {
       // Color shifts: near rocket=light gray, far=dark
       const gray = Math.round(100 - age * 60);
       const smokeColor = (gray << 16) | (gray << 8) | gray;
-      dotsGfx.circle(pt[0], pt[1], smokeRadius)
-        .fill({ color: smokeColor, alpha: smokeAlpha });
+      dotsGfx.circle(pt[0], pt[1], smokeRadius).fill({ color: smokeColor, alpha: smokeAlpha });
 
       // Occasional ember sparks near the rocket head
       if (t > 0.7 && i % 6 === 0) {
-        dotsGfx.circle(pt[0] + (Math.random() - 0.5) * 6, pt[1] + (Math.random() - 0.5) * 6, 1)
+        dotsGfx
+          .circle(pt[0] + (Math.random() - 0.5) * 6, pt[1] + (Math.random() - 0.5) * 6, 1)
           .fill({ color: 0xffcc00, alpha: fadeOut * 0.6 });
       }
     }
@@ -878,13 +849,7 @@ export class PixiAnimationManager {
 
   // ── Trail line ────────────────────────────────────────────────────────────
 
-  private _drawTrail(
-    a: InternalAnim,
-    colorNum: number,
-    tailIdx: number,
-    headIdx: number,
-    fadeOut: number
-  ): void {
+  private _drawTrail(a: InternalAnim, colorNum: number, tailIdx: number, headIdx: number, fadeOut: number): void {
     const g = a.trailGfx;
     g.clear();
 
@@ -896,27 +861,24 @@ export class PixiAnimationManager {
 
     // Glow layer (wider, semi-transparent, rendered beneath the main trail)
     if (a.config.trail.glow) {
-      const glowColor = a.config.trail.glow_color
-        ? hexToNum(a.config.trail.glow_color)
-        : colorNum;
-      this._strokePath(g, a.path, {
-        color: glowColor,
-        alpha: opacity * 0.5,
-        width: a.config.trail.glow_width,
-      }, tailIdx, headIdx);
+      const glowColor = a.config.trail.glow_color ? hexToNum(a.config.trail.glow_color) : colorNum;
+      this._strokePath(
+        g,
+        a.path,
+        {
+          color: glowColor,
+          alpha: opacity * 0.5,
+          width: a.config.trail.glow_width,
+        },
+        tailIdx,
+        headIdx,
+      );
     }
 
     // Main trail line
     if (a.config.trail.line_style === "dashed") {
       const trailSlice = a.path.slice(tailIdx, headIdx + 1);
-      this._drawDashedPolyline(
-        g,
-        trailSlice,
-        colorNum,
-        opacity,
-        width,
-        a.config.trail.dash_pattern
-      );
+      this._drawDashedPolyline(g, trailSlice, colorNum, opacity, width, a.config.trail.dash_pattern);
     } else {
       this._strokePath(g, a.path, { color: colorNum, alpha: opacity, width }, tailIdx, headIdx);
     }
@@ -936,10 +898,8 @@ export class PixiAnimationManager {
           const wakeSpread = 8;
           const backX = headPos[0] - (dx / len) * wakeLen;
           const backY = headPos[1] - (dy / len) * wakeLen;
-          g.moveTo(headPos[0], headPos[1])
-            .lineTo(backX + nx * wakeSpread, backY + ny * wakeSpread);
-          g.moveTo(headPos[0], headPos[1])
-            .lineTo(backX - nx * wakeSpread, backY - ny * wakeSpread);
+          g.moveTo(headPos[0], headPos[1]).lineTo(backX + nx * wakeSpread, backY + ny * wakeSpread);
+          g.moveTo(headPos[0], headPos[1]).lineTo(backX - nx * wakeSpread, backY - ny * wakeSpread);
           g.stroke({ color: 0xffffff, width: 1, alpha: fadeOut * 0.25 });
         }
       }
@@ -955,7 +915,7 @@ export class PixiAnimationManager {
     pts: [number, number][],
     style: { color: number; alpha: number; width: number },
     startIdx = 0,
-    endIdx = pts.length - 1
+    endIdx = pts.length - 1,
   ): void {
     if (endIdx - startIdx < 1) return;
     g.moveTo(pts[startIdx][0], pts[startIdx][1]);
@@ -971,7 +931,7 @@ export class PixiAnimationManager {
     colorNum: number,
     alpha: number,
     width: number,
-    dashPattern: [number, number]
+    dashPattern: [number, number],
   ): void {
     const [dashLen, gapLen] = dashPattern;
     const cycleLen = dashLen + gapLen;
@@ -993,9 +953,7 @@ export class PixiAnimationManager {
       while (walked < segDist) {
         const phaseLen = drawing ? dashLen : gapLen;
         const phaseConsumed = segOffset % cycleLen;
-        const phaseUsed = drawing
-          ? phaseConsumed
-          : phaseConsumed - (phaseConsumed >= dashLen ? dashLen : 0);
+        const phaseUsed = drawing ? phaseConsumed : phaseConsumed - (phaseConsumed >= dashLen ? dashLen : 0);
         const remaining = phaseLen - (phaseUsed < 0 ? 0 : phaseUsed);
         const step = Math.min(remaining, segDist - walked);
 
@@ -1031,7 +989,7 @@ export class PixiAnimationManager {
     progress: number,
     tailProgress: number,
     isNuke: boolean,
-    fadeOut: number
+    fadeOut: number,
   ): void {
     const g = a.dotsGfx;
     g.clear();
@@ -1047,20 +1005,16 @@ export class PixiAnimationManager {
       if (dp < 0 || dp > 1) continue;
       if (dp < tailProgress) continue;
 
-      const dotPos = isNuke
-        ? lerpPath(a.path, dp)
-        : a.path[Math.min(Math.floor(dp * (pathLen - 1)), pathLen - 1)];
+      const dotPos = isNuke ? lerpPath(a.path, dp) : a.path[Math.min(Math.floor(dp * (pathLen - 1)), pathLen - 1)];
 
       const dotFade = 1 - i / count;
-      const dotScale =
-        1 - (i / count) * a.config.trail.particle_scale_decay;
+      const dotScale = 1 - (i / count) * a.config.trail.particle_scale_decay;
       const radius =
         (i === 0
           ? a.config.trail.particle_head_size
           : Math.max(
               a.config.trail.particle_min_size,
-              a.config.trail.particle_decay_base -
-                i * a.config.trail.particle_decay
+              a.config.trail.particle_decay_base - i * a.config.trail.particle_decay,
             )) * dotScale;
 
       const alpha = dotFade * dotFade * fadeOut;
@@ -1080,7 +1034,7 @@ export class PixiAnimationManager {
     rawLinear: number,
     progress: number,
     isNuke: boolean,
-    fadeOut: number
+    fadeOut: number,
   ): void {
     const g = a.iconGfx;
     g.clear();
@@ -1088,10 +1042,7 @@ export class PixiAnimationManager {
     const iconRadius = 14;
 
     // Breathing scale oscillation
-    const breathe =
-      1 +
-      Math.sin(rawLinear * a.config.icon.breathe_speed) *
-        a.config.icon.breathe_amplitude;
+    const breathe = 1 + Math.sin(rawLinear * a.config.icon.breathe_speed) * a.config.icon.breathe_amplitude;
 
     // Nuke multi-stage scale (grow → cruise → shrink on approach)
     const nukeScale = isNuke
@@ -1104,10 +1055,7 @@ export class PixiAnimationManager {
 
     const finalScale = isNuke
       ? nukeScale
-      : a.config.icon.size *
-        breathe *
-        (a.config.icon.fade_blend_min +
-          (1 - a.config.icon.fade_blend_min) * fadeOut);
+      : a.config.icon.size * breathe * (a.config.icon.fade_blend_min + (1 - a.config.icon.fade_blend_min) * fadeOut);
 
     const alpha = Math.min(1, isNuke ? 1 : fadeOut * 1.3);
 
@@ -1123,8 +1071,7 @@ export class PixiAnimationManager {
     // Bomber shadow: dark oval below the icon to suggest altitude.
     // Drawn at local coordinates — g.position is set to currentPoint below.
     if (a.unitType === "bomber" && alpha > 0.05) {
-      g.ellipse(0, 20, scaledRadius * 1.6, scaledRadius * 0.5)
-        .fill({ color: 0x000000, alpha: alpha * 0.18 });
+      g.ellipse(0, 20, scaledRadius * 1.6, scaledRadius * 0.5).fill({ color: 0x000000, alpha: alpha * 0.18 });
     }
 
     // Rotation toward direction of travel.
@@ -1146,10 +1093,7 @@ export class PixiAnimationManager {
     let rotation = 0;
     if (a.config.icon.rotate) {
       const pathLen = a.path.length;
-      const headIdx = Math.min(
-        Math.floor(progress * (pathLen - 1)),
-        pathLen - 1
-      );
+      const headIdx = Math.min(Math.floor(progress * (pathLen - 1)), pathLen - 1);
       const lookAhead = isNuke
         ? lerpPath(a.path, Math.min(1, progress + 0.005))
         : a.path[Math.min(headIdx + 1, pathLen - 1)];
@@ -1191,12 +1135,7 @@ export class PixiAnimationManager {
 
   // ── Pulse rings ────────────────────────────────────────────────────────────
 
-  private _upsertPulseRing(
-    a: InternalAnim,
-    now: number,
-    progress: number,
-    fadeOut: number
-  ): void {
+  private _upsertPulseRing(a: InternalAnim, now: number, progress: number, fadeOut: number): void {
     const key = a.id;
     if (!this.pulseRings.has(key)) {
       const gfx = new Graphics();
@@ -1218,8 +1157,7 @@ export class PixiAnimationManager {
     const pulseColorNum = hexToNum(pulseCfg.color);
 
     for (let r = 0; r < pulseCfg.rings; r++) {
-      const phase =
-        ((progress - pulseCfg.start_at) * 4 + r / pulseCfg.rings) % 1;
+      const phase = ((progress - pulseCfg.start_at) * 4 + r / pulseCfg.rings) % 1;
       const ringFade = 1 - phase;
       const radius = pulseCfg.radius_base + phase * pulseCfg.radius_expand;
       const alpha = ringFade * ringFade * pulseCfg.opacity * fadeOut;
@@ -1263,12 +1201,7 @@ export class PixiAnimationManager {
    * Spawn a salvo of bombs spread around a province centroid.
    * `isFinal` = true for the target province (bigger salvo + shockwave).
    */
-  private _spawnBombingSalvo(
-    cx: number,
-    cy: number,
-    now: number,
-    isFinal: boolean
-  ): void {
+  private _spawnBombingSalvo(cx: number, cy: number, now: number, isFinal: boolean): void {
     const count = isFinal ? 5 : 2;
     const spread = isFinal ? 22 : 14;
     for (let i = 0; i < count; i++) {
@@ -1292,7 +1225,7 @@ export class PixiAnimationManager {
       const smokeId = `bomb-smoke-${this._particleIdCounter++}`;
       this._particles.addEmitter(
         smokeId,
-        new ParticleEmitter(this._particleContainer, ParticlePresets.smokeTrail(cx, cy))
+        new ParticleEmitter(this._particleContainer, ParticlePresets.smokeTrail(cx, cy)),
       );
     }
   }
@@ -1402,7 +1335,7 @@ export class PixiAnimationManager {
         const bombExplId = `bomb-expl-${this._particleIdCounter++}`;
         this._particles.addEmitter(
           bombExplId,
-          new ParticleEmitter(this._particleContainer, ParticlePresets.explosion(bomb.x, bomb.endY))
+          new ParticleEmitter(this._particleContainer, ParticlePresets.explosion(bomb.x, bomb.endY)),
         );
       }
 
@@ -1417,14 +1350,14 @@ export class PixiAnimationManager {
         if (ip < 1) {
           // Layer 1: outer shockwave ring — fast expanding, fading
           const shockRadius = 8 + ip * 32;
-          const shockAlpha = Math.pow(1 - ip, 2) * 0.7;
+          const shockAlpha = (1 - ip) ** 2 * 0.7;
           ig.circle(bomb.x, bomb.endY, shockRadius).stroke({ color: 0xf97316, alpha: shockAlpha, width: 2 });
 
           // Layer 2: second ring (slightly delayed) for depth
           if (ip > 0.1) {
             const ip2 = (ip - 0.1) / 0.9;
             const ring2Radius = 5 + ip2 * 24;
-            const ring2Alpha = Math.pow(1 - ip2, 2) * 0.5;
+            const ring2Alpha = (1 - ip2) ** 2 * 0.5;
             ig.circle(bomb.x, bomb.endY, ring2Radius).stroke({ color: 0xff6b35, alpha: ring2Alpha, width: 1.5 });
           }
 
@@ -1432,7 +1365,7 @@ export class PixiAnimationManager {
           if (ip < 0.5) {
             const coreP = ip / 0.5;
             const coreRadius = 4 + coreP * 10;
-            const coreAlpha = Math.pow(1 - coreP, 1.5) * 0.9;
+            const coreAlpha = (1 - coreP) ** 1.5 * 0.9;
             // Yellow core
             ig.circle(bomb.x, bomb.endY, coreRadius * 0.6).fill({ color: 0xfbbf24, alpha: coreAlpha });
             // Orange fill
@@ -1450,7 +1383,7 @@ export class PixiAnimationManager {
           if (ip > 0.2) {
             const smokeP = (ip - 0.2) / 0.8;
             const smokeRadius = 6 + smokeP * 18;
-            const smokeAlpha = Math.pow(1 - smokeP, 1.2) * 0.25;
+            const smokeAlpha = (1 - smokeP) ** 1.2 * 0.25;
             ig.circle(bomb.x, bomb.endY - smokeP * 10, smokeRadius).fill({ color: 0x333333, alpha: smokeAlpha });
           }
 
@@ -1461,7 +1394,7 @@ export class PixiAnimationManager {
             const pDist = ip * 22;
             const px = bomb.x + Math.cos(angle) * pDist;
             const py = bomb.endY + Math.sin(angle) * pDist - ip * 5; // slight upward drift
-            const pAlpha = Math.pow(1 - ip, 2.5) * 0.7;
+            const pAlpha = (1 - ip) ** 2.5 * 0.7;
             const pRadius = 1.2 + (1 - ip) * 1.0;
             ig.circle(px, py, pRadius).fill({ color: 0xff8c00, alpha: pAlpha });
           }
@@ -1488,9 +1421,7 @@ export class PixiAnimationManager {
 
   private _triggerImpact(a: InternalAnim, now: number): void {
     const isAttack = a.actionType === "attack";
-    const impactCfg = isAttack
-      ? a.config.impact_attack
-      : a.config.impact_move;
+    const impactCfg = isAttack ? a.config.impact_attack : a.config.impact_move;
 
     const gfx = new Graphics();
     this.container.addChild(gfx);
@@ -1528,9 +1459,7 @@ export class PixiAnimationManager {
       // Naval: water splash
       const cfg = ParticlePresets.sparks(tx, ty);
       cfg.behaviors = cfg.behaviors.map((b) =>
-        b.type === "color"
-          ? { type: "color" as const, config: { start: "#88ccff", end: "#4488cc" } }
-          : b
+        b.type === "color" ? { type: "color" as const, config: { start: "#88ccff", end: "#4488cc" } } : b,
       );
       cfg.maxParticles = 20;
       this._particles.addEmitter(id(), new ParticleEmitter(pc, cfg));
@@ -1559,25 +1488,15 @@ export class PixiAnimationManager {
       for (const layer of flash.config.layers) {
         if (flashProgress > layer.duration_pct) continue;
         const layerProgress = flashProgress / layer.duration_pct;
-        const fade = Math.pow(1 - layerProgress, layer.opacity_curve);
-        const radius =
-          layer.radius[0] +
-          layerProgress * (layer.radius[1] - layer.radius[0]);
+        const fade = (1 - layerProgress) ** layer.opacity_curve;
+        const radius = layer.radius[0] + layerProgress * (layer.radius[1] - layer.radius[0]);
         const colorNum = hexToNum(layer.color);
         const alpha = fade * layer.opacity_start;
 
         if (layer.type === "fill") {
-          g.circle(
-            flash.centroid[0],
-            flash.centroid[1],
-            radius
-          ).fill({ color: colorNum, alpha });
+          g.circle(flash.centroid[0], flash.centroid[1], radius).fill({ color: colorNum, alpha });
         } else {
-          g.circle(
-            flash.centroid[0],
-            flash.centroid[1],
-            radius
-          ).stroke({ color: colorNum, alpha, width: 2.5 });
+          g.circle(flash.centroid[0], flash.centroid[1], radius).stroke({ color: colorNum, alpha, width: 2.5 });
         }
       }
     }
@@ -1642,12 +1561,7 @@ export class PixiAnimationManager {
     a.dotsGfx.destroy();
     a.iconGfx.destroy();
     a.labelText.destroy();
-    this.container.removeChild(
-      a.trailGfx,
-      a.dotsGfx,
-      a.iconGfx,
-      a.labelText
-    );
+    this.container.removeChild(a.trailGfx, a.dotsGfx, a.iconGfx, a.labelText);
     if (a.iconSprite) {
       this.container.removeChild(a.iconSprite);
       a.iconSprite.destroy();

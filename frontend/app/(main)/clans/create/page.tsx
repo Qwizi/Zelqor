@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Coins, Loader2, Shield, Palette, Settings2 } from "lucide-react";
+import { Coins, Loader2, Palette, Settings2, Shield } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCreateClan, useMyClan } from "@/hooks/queries";
 import { useAuth } from "@/hooks/useAuth";
-import { useMyClan, useCreateClan } from "@/hooks/queries";
 import { APIError } from "@/lib/api";
 
 const clanSchema = z.object({
@@ -101,9 +101,7 @@ export default function CreateClanPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary">
               <Shield className="h-4 w-4 text-primary" />
             </div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">
-              Podgląd klanu
-            </p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Podgląd klanu</p>
           </div>
 
           <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
@@ -115,7 +113,9 @@ export default function CreateClanPage() {
             </div>
             <div className="text-center md:text-left">
               <p className="text-lg font-display text-foreground">
-                <span style={{ color: watchColor || "#3B82F6" }}>[{(watchTag || "TAG").toUpperCase().slice(0, 5)}]</span>
+                <span style={{ color: watchColor || "#3B82F6" }}>
+                  [{(watchTag || "TAG").toUpperCase().slice(0, 5)}]
+                </span>
               </p>
               <p className="text-xs text-muted-foreground mt-1">Tak będzie wyglądał tag Twojego klanu</p>
             </div>
@@ -134,9 +134,7 @@ export default function CreateClanPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary">
               <Settings2 className="h-4 w-4 text-primary" />
             </div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">
-              Informacje
-            </p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Informacje</p>
           </div>
 
           <div className="space-y-5">
@@ -149,7 +147,13 @@ export default function CreateClanPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="tag">Tag (2-5 znaków)</Label>
-                <Input id="tag" placeholder="TAG" maxLength={5} {...register("tag")} className="h-10 md:h-12 md:text-base uppercase" />
+                <Input
+                  id="tag"
+                  placeholder="TAG"
+                  maxLength={5}
+                  {...register("tag")}
+                  className="h-10 md:h-12 md:text-base uppercase"
+                />
                 {errors.tag && <p className="text-xs text-destructive">{errors.tag.message}</p>}
               </div>
             </div>
@@ -167,8 +171,15 @@ export default function CreateClanPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <input type="checkbox" id="is_public" {...register("is_public")} className="h-4 w-4 rounded border-input" />
-              <Label htmlFor="is_public" className="cursor-pointer text-sm">Klan publiczny (każdy może dołączyć)</Label>
+              <input
+                type="checkbox"
+                id="is_public"
+                {...register("is_public")}
+                className="h-4 w-4 rounded border-input"
+              />
+              <Label htmlFor="is_public" className="cursor-pointer text-sm">
+                Klan publiczny (każdy może dołączyć)
+              </Label>
             </div>
           </div>
         </section>
@@ -179,9 +190,7 @@ export default function CreateClanPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary">
               <Palette className="h-4 w-4 text-primary" />
             </div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">
-              Kolor
-            </p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground font-medium">Kolor</p>
           </div>
 
           <div className="space-y-2">
@@ -218,7 +227,11 @@ export default function CreateClanPage() {
 
         {/* Submit */}
         <div className="mx-4 md:mx-0">
-          <Button type="submit" className="w-full md:w-auto h-10 md:h-12 md:text-base md:px-12 gap-2" disabled={createMut.isPending}>
+          <Button
+            type="submit"
+            className="w-full md:w-auto h-10 md:h-12 md:text-base md:px-12 gap-2"
+            disabled={createMut.isPending}
+          >
             {createMut.isPending && <Loader2 size={18} className="animate-spin" />}
             {createMut.isPending ? "Tworzenie..." : "Utwórz klan"}
           </Button>

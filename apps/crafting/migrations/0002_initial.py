@@ -6,48 +6,57 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('crafting', '0001_initial'),
-        ('inventory', '0001_initial'),
+        ("crafting", "0001_initial"),
+        ("inventory", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='craftinglog',
-            name='result_item',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='inventory.item'),
+            model_name="craftinglog",
+            name="result_item",
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="inventory.item"),
         ),
         migrations.AddField(
-            model_name='craftinglog',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='crafting_logs', to=settings.AUTH_USER_MODEL),
+            model_name="craftinglog",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="crafting_logs", to=settings.AUTH_USER_MODEL
+            ),
         ),
         migrations.AddField(
-            model_name='recipe',
-            name='result_item',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='produced_by_recipes', to='inventory.item'),
+            model_name="recipe",
+            name="result_item",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="produced_by_recipes", to="inventory.item"
+            ),
         ),
         migrations.AddField(
-            model_name='craftinglog',
-            name='recipe',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='crafting_logs', to='crafting.recipe'),
+            model_name="craftinglog",
+            name="recipe",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="crafting_logs", to="crafting.recipe"
+            ),
         ),
         migrations.AddField(
-            model_name='recipeingredient',
-            name='item',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='used_in_recipes', to='inventory.item'),
+            model_name="recipeingredient",
+            name="item",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="used_in_recipes", to="inventory.item"
+            ),
         ),
         migrations.AddField(
-            model_name='recipeingredient',
-            name='recipe',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='ingredients', to='crafting.recipe'),
+            model_name="recipeingredient",
+            name="recipe",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="ingredients", to="crafting.recipe"
+            ),
         ),
         migrations.AlterUniqueTogether(
-            name='recipeingredient',
-            unique_together={('recipe', 'item')},
+            name="recipeingredient",
+            unique_together={("recipe", "item")},
         ),
     ]

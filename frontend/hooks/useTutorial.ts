@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { TUTORIAL_STEPS, type TutorialStep } from "@/lib/tutorialSteps";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GameState } from "@/hooks/useGameSocket";
-import { completeTutorial, cleanupTutorial } from "@/lib/api";
+import { cleanupTutorial, completeTutorial } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
+import { TUTORIAL_STEPS, type TutorialStep } from "@/lib/tutorialSteps";
 
 interface UseTutorialReturn {
   currentStep: TutorialStep | null;
@@ -22,11 +22,7 @@ interface UseTutorialReturn {
  * Compute the correct step index based on game state.
  * Advances past completed condition-based steps.
  */
-function computeStepIndex(
-  currentIndex: number,
-  gameState: GameState | null,
-  userId: string | undefined
-): number {
+function computeStepIndex(currentIndex: number, gameState: GameState | null, userId: string | undefined): number {
   if (!gameState || !userId) return currentIndex;
 
   let idx = currentIndex;
@@ -43,7 +39,7 @@ export function useTutorial(
   gameState: GameState | null,
   userId: string | undefined,
   isTutorial: boolean,
-  sendWs: (data: Record<string, unknown>) => void
+  sendWs: (data: Record<string, unknown>) => void,
 ): UseTutorialReturn {
   const router = useRouter();
   const [manualStepIndex, setManualStepIndex] = useState(0);
@@ -59,13 +55,10 @@ export function useTutorial(
   // Derive effective step index: max of manual advances and condition-based advances
   const stepIndex = useMemo(
     () => (isActive ? computeStepIndex(manualStepIndex, gameState, userId) : manualStepIndex),
-    [isActive, manualStepIndex, gameState, userId]
+    [isActive, manualStepIndex, gameState, userId],
   );
 
-  const currentStep =
-    isActive && stepIndex < TUTORIAL_STEPS.length
-      ? TUTORIAL_STEPS[stepIndex]
-      : null;
+  const currentStep = isActive && stepIndex < TUTORIAL_STEPS.length ? TUTORIAL_STEPS[stepIndex] : null;
 
   // Send tick multiplier when step changes
   useEffect(() => {

@@ -1,34 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
+import { CosmeticsSkeleton } from "@/components/skeletons/CosmeticsSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import ItemIcon from "@/components/ui/ItemIcon";
 import { Separator } from "@/components/ui/separator";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useEquipCosmetic, useEquippedCosmetics, useMyInventory, useUnequipCosmetic } from "@/hooks/queries";
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
-import { ModuleDisabledPage } from "@/components/ModuleGate";
-import ItemIcon from "@/components/ui/ItemIcon";
-import {
-  type InventoryItemOut,
-  type EquippedCosmeticOut,
-} from "@/lib/api";
-import {
-  useMyInventory,
-  useEquippedCosmetics,
-  useEquipCosmetic,
-  useUnequipCosmetic,
-} from "@/hooks/queries";
-import { CosmeticsSkeleton } from "@/components/skeletons/CosmeticsSkeleton";
+import type { EquippedCosmeticOut, InventoryItemOut } from "@/lib/api";
 
 // ─── Rarity config ───────────────────────────────────────────────────────────
 
@@ -202,11 +188,7 @@ function SlotCard({
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-background/40">
           {equipped.asset_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={equipped.asset_url}
-              alt={equipped.item_name}
-              className="h-7 w-7 object-contain"
-            />
+            <img src={equipped.asset_url} alt={equipped.item_name} className="h-7 w-7 object-contain" />
           ) : (
             <span className="text-xl leading-none select-none">{slotDef.icon}</span>
           )}
@@ -232,9 +214,7 @@ function SlotCard({
           {slotDef.icon}
         </span>
       </div>
-      <p className="w-full truncate text-center text-[10px] text-muted-foreground/70 leading-tight">
-        {slotDef.label}
-      </p>
+      <p className="w-full truncate text-center text-[10px] text-muted-foreground/70 leading-tight">{slotDef.label}</p>
     </button>
   );
 }
@@ -282,14 +262,14 @@ function PickerItem({
           <span className={`text-sm font-medium truncate ${RARITY_TEXT[rarity] ?? "text-foreground"}`}>
             {item.name}
           </span>
-          <Badge
-            className={`text-[10px] px-1.5 py-0 shrink-0 ${RARITY_BADGE_CLASS[rarity] ?? ""}`}
-            variant="outline"
-          >
+          <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${RARITY_BADGE_CLASS[rarity] ?? ""}`} variant="outline">
             {RARITY_LABELS[rarity] ?? rarity}
           </Badge>
           {is_instance && instance?.stattrak && (
-            <Badge className="text-[10px] px-1.5 py-0 shrink-0 bg-amber-500/15 text-amber-300 border-amber-500/20" variant="outline">
+            <Badge
+              className="text-[10px] px-1.5 py-0 shrink-0 bg-amber-500/15 text-amber-300 border-amber-500/20"
+              variant="outline"
+            >
               StatTrak
             </Badge>
           )}
@@ -297,12 +277,8 @@ function PickerItem({
         {is_instance && instance && (
           <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
             <span>{WEAR_LABELS[instance.wear_condition] ?? instance.wear_condition}</span>
-            {instance.is_rare_pattern && (
-              <span className="text-amber-400">Rzadki wzór</span>
-            )}
-            {instance.pattern_seed > 0 && (
-              <span>Wzór #{instance.pattern_seed}</span>
-            )}
+            {instance.is_rare_pattern && <span className="text-amber-400">Rzadki wzór</span>}
+            {instance.pattern_seed > 0 && <span>Wzór #{instance.pattern_seed}</span>}
           </div>
         )}
       </div>
@@ -344,7 +320,12 @@ function SlotPickerSheet({
   loading,
 }: SlotPickerSheetProps) {
   return (
-    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Sheet
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) onClose();
+      }}
+    >
       <SheetContent side="right" className="w-full sm:max-w-md flex flex-col gap-0 p-0">
         <SheetHeader className="px-4 pt-4 pb-3 border-b border-border">
           <SheetTitle className="flex items-center gap-2 text-base">
@@ -372,9 +353,7 @@ function SlotPickerSheet({
                   onClose();
                 }}
               >
-                {loading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                ) : null}
+                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
                 Zdejmij: {equipped.item_name}
               </Button>
               <Separator className="mt-3" />
@@ -478,7 +457,7 @@ function CosmeticsContent() {
 
   const cosmetics = useMemo(
     () => (inventoryData?.items ?? []).filter((i) => i.item.item_type === "cosmetic"),
-    [inventoryData]
+    [inventoryData],
   );
 
   const loading = inventoryLoading || equippedLoading;
@@ -487,9 +466,7 @@ function CosmeticsContent() {
   const handleEquip = async (itemSlug: string, instanceId?: string) => {
     if (actionLoading) return;
     try {
-      const payload = instanceId
-        ? { item_slug: itemSlug, instance_id: instanceId }
-        : { item_slug: itemSlug };
+      const payload = instanceId ? { item_slug: itemSlug, instance_id: instanceId } : { item_slug: itemSlug };
       const result = await equipMutation.mutateAsync(payload);
       toast.success(`Założono: ${result.item_name}`, { id: "cosmetics-equip-success" });
     } catch {
@@ -510,9 +487,7 @@ function CosmeticsContent() {
   if (authLoading || !user) return <CosmeticsSkeleton />;
 
   // Build lookup maps
-  const equippedBySlot = new Map<string, EquippedCosmeticOut>(
-    equipped.map((e) => [e.slot, e])
-  );
+  const equippedBySlot = new Map<string, EquippedCosmeticOut>(equipped.map((e) => [e.slot, e]));
   const inventoryBySlot = new Map<string, InventoryItemOut[]>();
   for (const entry of cosmetics) {
     const slot = entry.item.cosmetic_slot;
@@ -530,9 +505,7 @@ function CosmeticsContent() {
     <div className="animate-page-in space-y-4 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
       {/* Header */}
       <div className="px-4 md:px-0">
-        <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">
-          Konto
-        </p>
+        <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">Konto</p>
         <h1 className="font-display text-2xl md:text-5xl text-foreground">Kosmetyki</h1>
         {!loading && (
           <p className="mt-1 text-xs md:text-sm text-muted-foreground">

@@ -1,7 +1,7 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function TableRowSkeleton({ cols }: { cols: string[] }) {
   return (
@@ -16,7 +16,6 @@ function TableRowSkeleton({ cols }: { cols: string[] }) {
 export function MarketplaceItemSkeleton() {
   return (
     <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* Back link */}
       <div className="px-4 md:px-0">
         <Skeleton className="h-9 w-40 rounded-lg" />
@@ -70,11 +69,7 @@ export function MarketplaceItemSkeleton() {
               {Array.from({ length: 6 }).map((_, i) => (
                 <TableRowSkeleton
                   key={i}
-                  cols={
-                    col === 0
-                      ? ["flex-1", "w-16", "w-12", "w-14"]
-                      : ["flex-1", "w-16", "w-12"]
-                  }
+                  cols={col === 0 ? ["flex-1", "w-16", "w-12", "w-14"] : ["flex-1", "w-16", "w-12"]}
                 />
               ))}
             </div>

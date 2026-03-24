@@ -1,7 +1,7 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const TAB_LABELS = ["browse", "my-listings", "history"] as const;
 const TAB_WIDTHS = ["w-20", "w-20", "w-24"];
@@ -38,7 +38,6 @@ function ListingRow() {
 export function MarketplaceSkeleton() {
   return (
     <div className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* Header */}
       <div className="px-4 md:px-0 space-y-2">
         {/* "RYNEK" eyebrow — desktop only */}
@@ -73,17 +72,13 @@ export function MarketplaceSkeleton() {
       {/* Tab pills */}
       <div className="flex gap-1 md:gap-1.5 overflow-x-auto px-4 md:px-0 scrollbar-none">
         {TAB_LABELS.map((_, i) => (
-          <Skeleton
-            key={i}
-            className={`shrink-0 h-9 ${TAB_WIDTHS[i]} rounded-full md:rounded-lg`}
-          />
+          <Skeleton key={i} className={`shrink-0 h-9 ${TAB_WIDTHS[i]} rounded-full md:rounded-lg`} />
         ))}
       </div>
 
       {/* Content panel */}
       <div className="px-4 md:px-0">
         <div className="md:rounded-2xl md:border md:border-border md:bg-card md:p-6 space-y-3 md:space-y-4">
-
           {/* Search bar */}
           <Skeleton className="h-10 md:h-12 w-full rounded-full md:rounded-lg" />
 

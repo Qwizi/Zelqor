@@ -1,8 +1,8 @@
 // ── Bombardment & combat event listeners ──────────────────────────────────────
 // Extracted from GameCanvas.tsx — handles window events for bombs, SAM, damage.
 
-import { useEffect, useRef } from "react";
-import type { ShapesData, ProvinceRenderState } from "@/lib/canvasTypes";
+import { useEffect } from "react";
+import type { ProvinceRenderState, ShapesData } from "@/lib/canvasTypes";
 import { computeCurvePath } from "@/lib/pixiAnimationPaths";
 import type { PixiAnimationManager } from "@/lib/pixiAnimations";
 
@@ -85,9 +85,15 @@ export function useBombardmentEvents(
     window.addEventListener("bombard-complete", bombardCompleteHandler);
 
     const samInterceptHandler = (e: Event) => {
-      const { sourceId, targetId, samRegionId, flightMs, samFlightMs } = (e as CustomEvent<{
-        sourceId: string; targetId: string; samRegionId: string; flightMs: number; samFlightMs?: number;
-      }>).detail;
+      const { sourceId, targetId, samRegionId, flightMs, samFlightMs } = (
+        e as CustomEvent<{
+          sourceId: string;
+          targetId: string;
+          samRegionId: string;
+          flightMs: number;
+          samFlightMs?: number;
+        }>
+      ).detail;
       const sd = shapesDataRef.current;
       if (!sd) return;
       const artSrc = sd.regions.find((s) => s.id === sourceId)?.centroid;
@@ -133,5 +139,15 @@ export function useBombardmentEvents(
       window.removeEventListener("kill-animation", killAnimHandler);
       clearInterval(interval);
     };
-  }, []);
+  }, [
+    animManagerRef.current,
+    bombardAdjustRef.current.delete,
+    bombardAdjustRef.current.get,
+    bombardAdjustRef.current.set,
+    recentlyBombedRef.current,
+    samInterceptsRef.current.push,
+    shapesDataRef.current,
+    stateMapRef.current.get,
+    unitPulsesRef.current.set,
+  ]);
 }

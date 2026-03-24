@@ -52,7 +52,6 @@ function SectionCard({ rows, hasButton }: SectionDef) {
 export function SettingsSkeleton() {
   return (
     <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* Page header */}
       <div className="px-4 md:px-0 space-y-1.5">
         <Skeleton className="hidden md:block h-3 w-24" />

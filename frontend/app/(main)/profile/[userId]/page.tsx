@@ -1,11 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
-import Link from "next/link";
-import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { ClanTag } from "@/components/ClanTag";
+import { gsap } from "gsap";
 import {
   ArrowLeft,
   ChevronRight,
@@ -21,45 +17,42 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { ClanTag } from "@/components/ClanTag";
 import { ProfileSkeleton } from "@/components/skeletons/ProfileSkeleton";
+import { Badge } from "@/components/ui/badge";
+import { BannedBadge } from "@/components/ui/banned-badge";
+import {
+  useFriends,
+  useLeaderboard,
+  useMe,
+  useMyDecks,
+  useMyInventory,
+  useMyMatches,
+  useMyWallet,
+  usePlayerMatches,
+  useReceivedRequests,
+  useSendFriendRequest,
+  useSentRequests,
+} from "@/hooks/queries";
 import { useAuth } from "@/hooks/useAuth";
 import {
   APIError,
+  type DeckOut,
+  type InventoryItemOut,
   type LeaderboardEntry,
   type Match,
-  type WalletOut,
-  type InventoryItemOut,
-  type DeckOut,
   type User as UserType,
+  type WalletOut,
 } from "@/lib/api";
-import {
-  useMe,
-  useMyMatches,
-  useMyWallet,
-  useMyInventory,
-  useMyDecks,
-  useLeaderboard,
-  usePlayerMatches,
-  useFriends,
-  useSentRequests,
-  useReceivedRequests,
-  useSendFriendRequest,
-} from "@/hooks/queries";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { BannedBadge } from "@/components/ui/banned-badge";
-import dynamic from "next/dynamic";
 
 const ProfileCharts = dynamic(() => import("@/components/profile/ProfileCharts"), { ssr: false });
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
@@ -80,10 +73,7 @@ export default function ProfilePage() {
   const { data: myDecksData } = useMyDecks();
 
   // Other profile queries
-  const { data: playerMatchesData, isLoading: playerMatchesLoading } = usePlayerMatches(
-    isOwnProfile ? "" : userId,
-    50
-  );
+  const { data: playerMatchesData, isLoading: playerMatchesLoading } = usePlayerMatches(isOwnProfile ? "" : userId, 50);
 
   // Shared queries
   const { data: leaderboardData, isLoading: lbLoading } = useLeaderboard(1000);
@@ -98,28 +88,25 @@ export default function ProfilePage() {
   // Derived values
   const profile = useMemo<UserType | null>(
     () => (isOwnProfile ? (profileData ?? null) : null),
-    [isOwnProfile, profileData]
+    [isOwnProfile, profileData],
   );
 
   const matches = useMemo<Match[]>(
     () => (isOwnProfile ? (myMatchesData?.items ?? []) : (playerMatchesData?.items ?? [])),
-    [isOwnProfile, myMatchesData, playerMatchesData]
+    [isOwnProfile, myMatchesData, playerMatchesData],
   );
 
   const wallet = useMemo<WalletOut | null>(
     () => (isOwnProfile ? (walletData ?? null) : null),
-    [isOwnProfile, walletData]
+    [isOwnProfile, walletData],
   );
 
   const inventory = useMemo<InventoryItemOut[]>(
     () => (isOwnProfile ? (inventoryData?.items ?? []) : []),
-    [isOwnProfile, inventoryData]
+    [isOwnProfile, inventoryData],
   );
 
-  const decks = useMemo<DeckOut[]>(
-    () => (isOwnProfile ? (myDecksData?.items ?? []) : []),
-    [isOwnProfile, myDecksData]
-  );
+  const decks = useMemo<DeckOut[]>(() => (isOwnProfile ? (myDecksData?.items ?? []) : []), [isOwnProfile, myDecksData]);
 
   const { entry, placement } = useMemo<{ entry: LeaderboardEntry | null; placement: number | null }>(() => {
     if (!leaderboardData) return { entry: null, placement: null };
@@ -130,9 +117,7 @@ export default function ProfilePage() {
 
   const friendshipStatus = useMemo<"none" | "pending" | "accepted">(() => {
     if (isOwnProfile) return "none";
-    const isFriend = friendsData?.items.some(
-      (f) => f.from_user.id === userId || f.to_user.id === userId
-    ) ?? false;
+    const isFriend = friendsData?.items.some((f) => f.from_user.id === userId || f.to_user.id === userId) ?? false;
     if (isFriend) return "accepted";
     const hasSent = sentData?.items.some((f) => f.to_user.id === userId) ?? false;
     const hasReceived = receivedData?.items.some((f) => f.from_user.id === userId) ?? false;
@@ -153,19 +138,26 @@ export default function ProfilePage() {
     return entry === null;
   }, [isOwnProfile, lbLoading, entry]);
 
-  useGSAP(() => {
-    if (!containerRef.current || dataLoading) return;
+  useGSAP(
+    () => {
+      if (!containerRef.current || dataLoading) return;
 
-    containerRef.current.querySelectorAll("[data-counter]").forEach((el) => {
-      const target = parseInt(el.getAttribute("data-counter") || "0", 10);
-      const suffix = el.getAttribute("data-suffix") || "";
-      const obj = { val: 0 };
-      gsap.to(obj, {
-        val: target, duration: 1, ease: "power2.out",
-        onUpdate: () => { el.textContent = Math.round(obj.val).toString() + suffix; },
+      containerRef.current.querySelectorAll("[data-counter]").forEach((el) => {
+        const target = parseInt(el.getAttribute("data-counter") || "0", 10);
+        const suffix = el.getAttribute("data-suffix") || "";
+        const obj = { val: 0 };
+        gsap.to(obj, {
+          val: target,
+          duration: 1,
+          ease: "power2.out",
+          onUpdate: () => {
+            el.textContent = Math.round(obj.val).toString() + suffix;
+          },
+        });
       });
-    });
-  }, { scope: containerRef, dependencies: [dataLoading] });
+    },
+    { scope: containerRef, dependencies: [dataLoading] },
+  );
 
   // Auth redirect
   if (!authLoading && !user) {
@@ -201,10 +193,7 @@ export default function ProfilePage() {
     } catch (err) {
       if (err instanceof APIError && err.status === 400) {
         const body = err.body as Record<string, unknown> | undefined;
-        const detail =
-          typeof body?.detail === "string"
-            ? body.detail
-            : "Już jesteście znajomymi";
+        const detail = typeof body?.detail === "string" ? body.detail : "Już jesteście znajomymi";
         toast.error(detail, { id: "profile-friend-error" });
       } else {
         toast.error("Nie udało się wysłać zaproszenia", { id: "profile-friend-send-error" });
@@ -223,9 +212,9 @@ export default function ProfilePage() {
     ? matches.filter((m) => m.status === "finished" && m.winner_id === currentUser.id).length
     : (entry?.wins ?? 0);
   const winRate = isOwnProfile
-    ? (matches.filter((m) => m.status === "finished").length > 0
+    ? matches.filter((m) => m.status === "finished").length > 0
       ? Math.round((wins / matches.filter((m) => m.status === "finished").length) * 100)
-      : 0)
+      : 0
     : Math.round((entry?.win_rate ?? 0) * 100);
   const defaultDeck = decks.find((d) => d.is_default);
 
@@ -244,7 +233,12 @@ export default function ProfilePage() {
         <div className="flex-1 min-w-0">
           <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground">Profil</p>
           <h1 className="font-display text-2xl md:text-3xl text-foreground truncate">
-            {(isOwnProfile ? currentUser.clan_tag : entry?.clan_tag) && <ClanTag tag={isOwnProfile ? currentUser.clan_tag : entry?.clan_tag} className="text-lg md:text-xl mr-1.5" />}
+            {(isOwnProfile ? currentUser.clan_tag : entry?.clan_tag) && (
+              <ClanTag
+                tag={isOwnProfile ? currentUser.clan_tag : entry?.clan_tag}
+                className="text-lg md:text-xl mr-1.5"
+              />
+            )}
             {displayName}
           </h1>
         </div>
@@ -262,14 +256,8 @@ export default function ProfilePage() {
             disabled={friendLoading || friendSent}
             className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {friendLoading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <UserPlus className="h-3.5 w-3.5" />
-            )}
-            <span className="hidden sm:inline">
-              {friendSent ? "Wysłano" : "Dodaj do znajomych"}
-            </span>
+            {friendLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">{friendSent ? "Wysłano" : "Dodaj do znajomych"}</span>
           </button>
         )}
         {!isOwnProfile && friendshipStatus === "pending" && (
@@ -317,9 +305,7 @@ export default function ProfilePage() {
                 )}
                 {isBanned && <BannedBadge />}
               </div>
-              {isOwnProfile && (
-                <p className="text-xs md:text-sm text-muted-foreground truncate">{currentUser.email}</p>
-              )}
+              {isOwnProfile && <p className="text-xs md:text-sm text-muted-foreground truncate">{currentUser.email}</p>}
             </div>
             {isOwnProfile && wallet && (
               <div className="hidden md:flex items-center gap-1.5 text-accent">
@@ -337,9 +323,20 @@ export default function ProfilePage() {
               { value: wins, label: "Wygrane", color: "text-emerald-300", isNum: true },
               { value: winRate, label: "Win Rate", color: "text-violet-300", isNum: true, suffix: "%" },
             ].map((s) => (
-              <div key={s.label} className="hover-lift flex shrink-0 items-center gap-2.5 rounded-xl bg-secondary/50 border border-border px-3 py-2 md:p-4 md:flex-col md:items-start md:gap-1.5 min-w-[100px] md:min-w-0">
-                <span className="text-[9px] md:text-xs uppercase tracking-[0.15em] md:tracking-[0.2em] text-muted-foreground font-medium">{s.label}</span>
-                <span data-counter={s.isNum ? s.value : undefined} data-suffix={s.suffix ?? ""} className={`font-display text-base md:text-3xl tabular-nums ${s.color} ml-auto md:ml-0`}>{s.isNum ? "0" + (s.suffix ?? "") : s.value}</span>
+              <div
+                key={s.label}
+                className="hover-lift flex shrink-0 items-center gap-2.5 rounded-xl bg-secondary/50 border border-border px-3 py-2 md:p-4 md:flex-col md:items-start md:gap-1.5 min-w-[100px] md:min-w-0"
+              >
+                <span className="text-[9px] md:text-xs uppercase tracking-[0.15em] md:tracking-[0.2em] text-muted-foreground font-medium">
+                  {s.label}
+                </span>
+                <span
+                  data-counter={s.isNum ? s.value : undefined}
+                  data-suffix={s.suffix ?? ""}
+                  className={`font-display text-base md:text-3xl tabular-nums ${s.color} ml-auto md:ml-0`}
+                >
+                  {s.isNum ? `0${s.suffix ?? ""}` : s.value}
+                </span>
               </div>
             ))}
           </div>
@@ -347,9 +344,13 @@ export default function ProfilePage() {
           {/* Extra stats */}
           {entry && (
             <div className="mt-3 flex flex-wrap gap-3 text-xs md:text-sm text-muted-foreground">
-              <span>Śr. placement: <span className="text-foreground/80">{entry.average_placement.toFixed(2)}</span></span>
+              <span>
+                Śr. placement: <span className="text-foreground/80">{entry.average_placement.toFixed(2)}</span>
+              </span>
               {isOwnProfile && wallet && (
-                <span className="md:hidden">Złoto: <span className="text-accent">{wallet.gold.toLocaleString("pl-PL")}</span></span>
+                <span className="md:hidden">
+                  Złoto: <span className="text-accent">{wallet.gold.toLocaleString("pl-PL")}</span>
+                </span>
               )}
             </div>
           )}
@@ -360,15 +361,72 @@ export default function ProfilePage() {
             const lvl = profileUser?.level ?? 1;
             const xp = profileUser?.experience ?? 0;
             // Thresholds from AccountLevel seed: level → cumulative XP required
-            const thresholds: Record<number, number> = {1:0,2:50,3:100,4:173,5:300,6:500,7:707,8:1000,9:1414,10:2000,11:3000,12:3674,13:4500,14:5514,15:8000,16:10000,17:12599,18:15874,19:20000,20:25000,21:30000,22:35112,23:41160,24:48247,25:56569,26:66324,27:77771,28:91189,29:106934,30:100000,31:120000,32:141421,33:166477,34:195959,35:230651,36:271442,37:319481,38:376060,39:442643,40:400000,41:500000,42:581170,43:675461,44:785105,45:912612,46:1060660,47:1232847,48:1432930,49:1665745,50:2000000};
+            const thresholds: Record<number, number> = {
+              1: 0,
+              2: 50,
+              3: 100,
+              4: 173,
+              5: 300,
+              6: 500,
+              7: 707,
+              8: 1000,
+              9: 1414,
+              10: 2000,
+              11: 3000,
+              12: 3674,
+              13: 4500,
+              14: 5514,
+              15: 8000,
+              16: 10000,
+              17: 12599,
+              18: 15874,
+              19: 20000,
+              20: 25000,
+              21: 30000,
+              22: 35112,
+              23: 41160,
+              24: 48247,
+              25: 56569,
+              26: 66324,
+              27: 77771,
+              28: 91189,
+              29: 106934,
+              30: 100000,
+              31: 120000,
+              32: 141421,
+              33: 166477,
+              34: 195959,
+              35: 230651,
+              36: 271442,
+              37: 319481,
+              38: 376060,
+              39: 442643,
+              40: 400000,
+              41: 500000,
+              42: 581170,
+              43: 675461,
+              44: 785105,
+              45: 912612,
+              46: 1060660,
+              47: 1232847,
+              48: 1432930,
+              49: 1665745,
+              50: 2000000,
+            };
             const xpCurrent = thresholds[lvl] ?? 0;
             const xpNext = thresholds[lvl + 1] ?? xpCurrent + 100;
             const xpInLevel = Math.max(0, xp - xpCurrent);
             const xpNeeded = xpNext - xpCurrent;
             const pct = Math.min(100, xpNeeded > 0 ? Math.round((xpInLevel / xpNeeded) * 100) : 100);
             const RANK_TITLES: [number, number, string][] = [
-              [1, 2, "Rekrut"], [3, 5, "Żołnierz"], [6, 10, "Kapral"], [11, 15, "Sierżant"],
-              [16, 20, "Porucznik"], [21, 30, "Kapitan"], [31, 40, "Major"], [41, 50, "Generał"],
+              [1, 2, "Rekrut"],
+              [3, 5, "Żołnierz"],
+              [6, 10, "Kapral"],
+              [11, 15, "Sierżant"],
+              [16, 20, "Porucznik"],
+              [21, 30, "Kapitan"],
+              [31, 40, "Major"],
+              [41, 50, "Generał"],
             ];
             const title = RANK_TITLES.find(([min, max]) => lvl >= min && lvl <= max)?.[2] ?? "Legenda";
             return (
@@ -381,12 +439,19 @@ export default function ProfilePage() {
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold text-foreground">Poziom {lvl}</span>
-                        <span className="text-[10px] text-violet-400/80 font-medium uppercase tracking-wide">{title}</span>
+                        <span className="text-[10px] text-violet-400/80 font-medium uppercase tracking-wide">
+                          {title}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-muted-foreground tabular-nums">{xpInLevel.toLocaleString()} / {xpNeeded.toLocaleString()} XP do lvl {lvl + 1}</span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">
+                        {xpInLevel.toLocaleString()} / {xpNeeded.toLocaleString()} XP do lvl {lvl + 1}
+                      </span>
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-700" style={{ width: `${pct}%` }} />
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-700"
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -405,24 +470,29 @@ export default function ProfilePage() {
 
       {/* === MATCHES — for all profiles === */}
       {matches.length > 0 && (
-          <div className="px-4 md:px-0">
-            <div className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
-              <div className="flex items-center justify-between mb-2 md:mb-4">
-                <p className="text-[11px] md:text-sm uppercase tracking-[0.18em] md:tracking-[0.2em] text-muted-foreground font-medium">Ostatnie mecze</p>
-                {isOwnProfile && (
-                  <Link href="/dashboard" className="text-xs md:text-sm text-primary hover:text-primary/80 transition-colors">
-                    Panel <ChevronRight className="inline h-3 w-3 md:h-4 md:w-4" />
-                  </Link>
-                )}
-              </div>
+        <div className="px-4 md:px-0">
+          <div className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
+            <div className="flex items-center justify-between mb-2 md:mb-4">
+              <p className="text-[11px] md:text-sm uppercase tracking-[0.18em] md:tracking-[0.2em] text-muted-foreground font-medium">
+                Ostatnie mecze
+              </p>
+              {isOwnProfile && (
+                <Link
+                  href="/dashboard"
+                  className="text-xs md:text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  Panel <ChevronRight className="inline h-3 w-3 md:h-4 md:w-4" />
+                </Link>
+              )}
+            </div>
 
-              {matches.length === 0 ? (
-                <div className="rounded-xl border border-border bg-secondary/30 py-8 text-center">
-                  <Swords className="mx-auto h-6 w-6 md:h-8 md:w-8 text-muted-foreground/40" />
-                  <p className="mt-2 text-xs md:text-sm text-muted-foreground">Brak meczów</p>
-                </div>
-              ) : (
-                <>
+            {matches.length === 0 ? (
+              <div className="rounded-xl border border-border bg-secondary/30 py-8 text-center">
+                <Swords className="mx-auto h-6 w-6 md:h-8 md:w-8 text-muted-foreground/40" />
+                <p className="mt-2 text-xs md:text-sm text-muted-foreground">Brak meczów</p>
+              </div>
+            ) : (
+              <>
                 <div className="md:hidden space-y-0.5">
                   {matches.slice(0, 8).map((match) => {
                     const isActive = match.status === "in_progress" || match.status === "selecting";
@@ -431,16 +501,40 @@ export default function ProfilePage() {
                     const isLoss = match.status === "finished" && !isWinner && profilePlayer && !profilePlayer.is_alive;
                     const date = new Date(match.finished_at ?? match.started_at ?? match.created_at);
                     return (
-                      <button key={match.id} className="hover-lift flex w-full items-center gap-3 rounded-xl py-2.5 px-1 text-left transition-all active:bg-muted/50"
-                        onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}>
+                      <button
+                        key={match.id}
+                        className="hover-lift flex w-full items-center gap-3 rounded-xl py-2.5 px-1 text-left transition-all active:bg-muted/50"
+                        onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}
+                      >
                         <div className="flex gap-0.5 shrink-0">
-                          {match.players.map((p) => (<div key={p.id} className="h-4 w-4 rounded-md" style={{ backgroundColor: p.color, opacity: !p.is_alive && match.status === "finished" ? 0.3 : 1 }} />))}
+                          {match.players.map((p) => (
+                            <div
+                              key={p.id}
+                              className="h-4 w-4 rounded-md"
+                              style={{
+                                backgroundColor: p.color,
+                                opacity: !p.is_alive && match.status === "finished" ? 0.3 : 1,
+                              }}
+                            />
+                          ))}
                         </div>
                         <span className="text-xs font-medium flex-1">
-                          {isActive ? <span className="text-primary">Na żywo</span> : isWinner ? <span className="text-accent">Wygrana</span> : isLoss ? <span className="text-destructive">Przegrana</span> : <span className="text-muted-foreground">Zakończony</span>}
-                          <span className="text-[10px] text-muted-foreground ml-1.5">{match.max_players <= 2 ? "1v1" : `${match.max_players}P`}</span>
+                          {isActive ? (
+                            <span className="text-primary">Na żywo</span>
+                          ) : isWinner ? (
+                            <span className="text-accent">Wygrana</span>
+                          ) : isLoss ? (
+                            <span className="text-destructive">Przegrana</span>
+                          ) : (
+                            <span className="text-muted-foreground">Zakończony</span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground ml-1.5">
+                            {match.max_players <= 2 ? "1v1" : `${match.max_players}P`}
+                          </span>
                         </span>
-                        <span className="text-[10px] text-muted-foreground tabular-nums">{date.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          {date.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}
+                        </span>
                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
                       </button>
                     );
@@ -463,36 +557,69 @@ export default function ProfilePage() {
                       const isActive = match.status === "in_progress" || match.status === "selecting";
                       const isWinner = match.winner_id === userId;
                       const profilePlayer = match.players.find((p) => p.user_id === userId);
-                      const isLoss = match.status === "finished" && !isWinner && profilePlayer && !profilePlayer.is_alive;
+                      const isLoss =
+                        match.status === "finished" && !isWinner && profilePlayer && !profilePlayer.is_alive;
                       const date = new Date(match.finished_at ?? match.started_at ?? match.created_at);
                       const startDate = match.started_at ? new Date(match.started_at) : null;
                       const endDate = match.finished_at ? new Date(match.finished_at) : null;
-                      const durationMin = startDate && endDate ? Math.round((endDate.getTime() - startDate.getTime()) / 60000) : null;
+                      const durationMin =
+                        startDate && endDate ? Math.round((endDate.getTime() - startDate.getTime()) / 60000) : null;
                       return (
-                        <TableRow key={match.id} className="hover-lift cursor-pointer hover:bg-muted/30" onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}>
+                        <TableRow
+                          key={match.id}
+                          className="hover-lift cursor-pointer hover:bg-muted/30"
+                          onClick={() => router.push(isActive ? `/game/${match.id}` : `/match/${match.id}`)}
+                        >
                           <TableCell className="py-2.5">
                             <div className="flex items-center gap-2">
                               <div className="flex gap-0.5 shrink-0">
-                                {match.players.map((p) => (<div key={p.id} className="h-5 w-5 rounded" style={{ backgroundColor: p.color, opacity: !p.is_alive && match.status === "finished" ? 0.3 : 1 }} />))}
+                                {match.players.map((p) => (
+                                  <div
+                                    key={p.id}
+                                    className="h-5 w-5 rounded"
+                                    style={{
+                                      backgroundColor: p.color,
+                                      opacity: !p.is_alive && match.status === "finished" ? 0.3 : 1,
+                                    }}
+                                  />
+                                ))}
                               </div>
                               <span className="text-sm font-medium">
-                                {isActive ? <span className="text-primary">Na żywo</span> : isWinner ? <span className="text-accent">Wygrana</span> : isLoss ? <span className="text-destructive">Przegrana</span> : <span className="text-muted-foreground">{match.status === "cancelled" ? "Anulowany" : "Zakończony"}</span>}
+                                {isActive ? (
+                                  <span className="text-primary">Na żywo</span>
+                                ) : isWinner ? (
+                                  <span className="text-accent">Wygrana</span>
+                                ) : isLoss ? (
+                                  <span className="text-destructive">Przegrana</span>
+                                ) : (
+                                  <span className="text-muted-foreground">
+                                    {match.status === "cancelled" ? "Anulowany" : "Zakończony"}
+                                  </span>
+                                )}
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="py-2.5 text-sm text-muted-foreground">{match.players.length} graczy</TableCell>
-                          <TableCell className="py-2.5 text-sm text-muted-foreground">{match.max_players <= 2 ? "1v1" : `${match.max_players}P`}</TableCell>
-                          <TableCell className="py-2.5 text-sm text-muted-foreground text-right tabular-nums">{durationMin != null ? `${durationMin} min` : isActive ? "W toku" : "—"}</TableCell>
-                          <TableCell className="py-2.5 text-sm text-muted-foreground text-right tabular-nums">{date.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</TableCell>
+                          <TableCell className="py-2.5 text-sm text-muted-foreground">
+                            {match.players.length} graczy
+                          </TableCell>
+                          <TableCell className="py-2.5 text-sm text-muted-foreground">
+                            {match.max_players <= 2 ? "1v1" : `${match.max_players}P`}
+                          </TableCell>
+                          <TableCell className="py-2.5 text-sm text-muted-foreground text-right tabular-nums">
+                            {durationMin != null ? `${durationMin} min` : isActive ? "W toku" : "—"}
+                          </TableCell>
+                          <TableCell className="py-2.5 text-sm text-muted-foreground text-right tabular-nums">
+                            {date.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}
+                          </TableCell>
                         </TableRow>
                       );
                     })}
                   </TableBody>
                 </Table>
-                </>
-              )}
-            </div>
+              </>
+            )}
           </div>
+        </div>
       )}
 
       {/* === OWN PROFILE SECTIONS === */}
@@ -502,8 +629,13 @@ export default function ProfilePage() {
           <div className="px-4 md:px-0">
             <div className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
               <div className="flex items-center justify-between mb-2 md:mb-4">
-                <p className="text-[11px] md:text-sm uppercase tracking-[0.18em] md:tracking-[0.2em] text-muted-foreground font-medium">Ekwipunek</p>
-                <Link href="/inventory" className="text-xs md:text-sm text-primary hover:text-primary/80 transition-colors">
+                <p className="text-[11px] md:text-sm uppercase tracking-[0.18em] md:tracking-[0.2em] text-muted-foreground font-medium">
+                  Ekwipunek
+                </p>
+                <Link
+                  href="/inventory"
+                  className="text-xs md:text-sm text-primary hover:text-primary/80 transition-colors"
+                >
                   Pełny <ChevronRight className="inline h-3 w-3 md:h-4 md:w-4" />
                 </Link>
               </div>
@@ -516,11 +648,21 @@ export default function ProfilePage() {
               ) : (
                 <div className="grid grid-cols-4 gap-1.5 md:grid-cols-8 lg:grid-cols-10 md:gap-2">
                   {inventory.map((inv) => (
-                    <Link key={inv.id} href="/inventory" title={`${inv.item.name} ×${inv.quantity}`}
-                      className="relative flex flex-col items-center justify-center rounded-xl border border-border bg-secondary/50 p-1.5 md:p-2 transition-all hover:bg-muted hover:border-border/60 hover:scale-[1.02] aspect-square md:aspect-auto md:py-2.5">
+                    <Link
+                      key={inv.id}
+                      href="/inventory"
+                      title={`${inv.item.name} ×${inv.quantity}`}
+                      className="relative flex flex-col items-center justify-center rounded-xl border border-border bg-secondary/50 p-1.5 md:p-2 transition-all hover:bg-muted hover:border-border/60 hover:scale-[1.02] aspect-square md:aspect-auto md:py-2.5"
+                    >
                       <span className="text-lg md:text-xl leading-none select-none">{inv.item.icon || "📦"}</span>
-                      <span className="mt-1 text-[9px] md:text-[10px] font-medium text-foreground/80 text-center leading-tight line-clamp-1">{inv.item.name.replace(/^(Blueprint|Pakiet|Bonus): ?/, "")}</span>
-                      {inv.quantity > 1 && <span className="absolute top-0.5 right-1 text-[7px] md:text-[9px] text-muted-foreground font-semibold">×{inv.quantity}</span>}
+                      <span className="mt-1 text-[9px] md:text-[10px] font-medium text-foreground/80 text-center leading-tight line-clamp-1">
+                        {inv.item.name.replace(/^(Blueprint|Pakiet|Bonus): ?/, "")}
+                      </span>
+                      {inv.quantity > 1 && (
+                        <span className="absolute top-0.5 right-1 text-[7px] md:text-[9px] text-muted-foreground font-semibold">
+                          ×{inv.quantity}
+                        </span>
+                      )}
                     </Link>
                   ))}
                 </div>
@@ -532,7 +674,9 @@ export default function ProfilePage() {
           <div className="px-4 md:px-0">
             <div className="md:rounded-2xl md:border md:border-border md:bg-card md:p-5">
               <div className="flex items-center justify-between mb-2 md:mb-4">
-                <p className="text-[11px] md:text-sm uppercase tracking-[0.18em] md:tracking-[0.2em] text-muted-foreground font-medium">Aktywna talia</p>
+                <p className="text-[11px] md:text-sm uppercase tracking-[0.18em] md:tracking-[0.2em] text-muted-foreground font-medium">
+                  Aktywna talia
+                </p>
                 <Link href="/decks" className="text-xs md:text-sm text-primary hover:text-primary/80 transition-colors">
                   Zarządzaj <ChevronRight className="inline h-3 w-3 md:h-4 md:w-4" />
                 </Link>
@@ -553,8 +697,12 @@ export default function ProfilePage() {
                   {defaultDeck.items.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 md:gap-2">
                       {defaultDeck.items.map((di, i) => (
-                        <span key={i} className="rounded-full border border-border bg-secondary px-2.5 py-0.5 md:px-3 md:py-1 text-[10px] md:text-sm text-foreground/80">
-                          {di.item.name}{di.quantity > 1 && ` ×${di.quantity}`}
+                        <span
+                          key={i}
+                          className="rounded-full border border-border bg-secondary px-2.5 py-0.5 md:px-3 md:py-1 text-[10px] md:text-sm text-foreground/80"
+                        >
+                          {di.item.name}
+                          {di.quantity > 1 && ` ×${di.quantity}`}
                         </span>
                       ))}
                     </div>

@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("game_config", "0007_unittype_sea_hop_distance_km"),
     ]

@@ -40,12 +40,7 @@ function latToMercatorY(lat: number): number {
  * @param canvasSize - Width and height of the target canvas in pixels
  * @returns [x, y] pixel coordinates
  */
-export function lngLatToPixel(
-  lng: number,
-  lat: number,
-  bounds: Bounds,
-  canvasSize: CanvasSize
-): [number, number] {
+export function lngLatToPixel(lng: number, lat: number, bounds: Bounds, canvasSize: CanvasSize): [number, number] {
   // Normalise longitude to [0, 1] within bounds
   const xNorm = (lng - bounds.minLng) / (bounds.maxLng - bounds.minLng);
 

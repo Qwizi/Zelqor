@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useState, useMemo, useRef } from "react";
 import Image from "next/image";
+import { memo, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { GameRegion } from "@/hooks/useGameSocket";
 import type { UnitType } from "@/lib/api";
@@ -68,13 +68,10 @@ export default memo(function ActionBar({
   onRemoveTarget,
   onCancel,
 }: ActionBarProps) {
-  const unitConfigMap = useMemo(
-    () => new Map((unitsConfig ?? []).map((u) => [u.slug, u])),
-    [unitsConfig]
-  );
+  const unitConfigMap = useMemo(() => new Map((unitsConfig ?? []).map((u) => [u.slug, u])), [unitsConfig]);
   const unitTypes = useMemo(
     () => Object.entries(sourceRegion.units ?? {}).filter(([, count]) => count > 0),
-    [sourceRegion.units]
+    [sourceRegion.units],
   );
   const availableUnitsByType = sourceRegion.units ?? {};
 
@@ -90,8 +87,8 @@ export default memo(function ActionBar({
         info[slug] = { display: count, manpower: count * mp };
       }
     }
-    const infantryRaw = units["infantry"] ?? 0;
-    info["infantry"] = { display: Math.max(0, infantryRaw - reserved), manpower: Math.max(0, infantryRaw - reserved) };
+    const infantryRaw = units.infantry ?? 0;
+    info.infantry = { display: Math.max(0, infantryRaw - reserved), manpower: Math.max(0, infantryRaw - reserved) };
     return info;
   }, [sourceRegion.units, unitConfigMap]);
   const liveMaxUnits = useMemo(() => {
@@ -149,13 +146,13 @@ export default memo(function ActionBar({
 
   return (
     <div className="absolute inset-x-0 bottom-0 z-30 px-2 pb-2 sm:left-1/2 sm:right-auto sm:w-[min(480px,calc(100vw-1rem))] sm:-translate-x-1/2 sm:px-0 sm:pb-3">
-      <div className={`overflow-hidden rounded-xl border bg-card sm:bg-card/90 shadow-lg sm:shadow-[0_-10px_32px_rgba(0,0,0,0.28)] sm:backdrop-blur-xl ${accentClass}`}>
+      <div
+        className={`overflow-hidden rounded-xl border bg-card sm:bg-card/90 shadow-lg sm:shadow-[0_-10px_32px_rgba(0,0,0,0.28)] sm:backdrop-blur-xl ${accentClass}`}
+      >
         <div className="sm:hidden p-1.5 space-y-1">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                {sourceName}
-              </div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{sourceName}</div>
             </div>
             <button
               onClick={onCancel}
@@ -177,9 +174,8 @@ export default memo(function ActionBar({
               const active = unitType === selectedUnitType;
               const unitCfg = unitConfigMap.get(unitType);
               const info = unitDisplayInfo[unitType];
-              const displayLabel = unitType === "infantry"
-                ? `${info?.display ?? 0}`
-                : `${info?.display ?? 0} (${info?.manpower ?? 0})`;
+              const displayLabel =
+                unitType === "infantry" ? `${info?.display ?? 0}` : `${info?.display ?? 0} (${info?.manpower ?? 0})`;
               return (
                 <button
                   key={unitType}
@@ -198,7 +194,9 @@ export default memo(function ActionBar({
                     className="h-4 w-4 object-contain"
                   />
                   <span className="text-[11px] font-medium">{getUnitLabel(unitType)}</span>
-                  <span className={`text-[10px] ${active ? "text-primary/80" : "text-muted-foreground"}`}>{displayLabel}</span>
+                  <span className={`text-[10px] ${active ? "text-primary/80" : "text-muted-foreground"}`}>
+                    {displayLabel}
+                  </span>
                 </button>
               );
             })}
@@ -214,7 +212,9 @@ export default memo(function ActionBar({
               onChange={(e) => setTotalUnits(Number(e.target.value))}
               className={`min-w-0 flex-1 ${hasAttack ? "accent-red-500" : "accent-cyan-400"}`}
             />
-            <span className="font-display text-xs text-foreground">{safeTotalUnits}/{maxUnits}</span>
+            <span className="font-display text-xs text-foreground">
+              {safeTotalUnits}/{maxUnits}
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5 overflow-x-auto">
@@ -242,7 +242,9 @@ export default memo(function ActionBar({
             onClick={() => onConfirm({ allocations, unitType: selectedUnitType })}
             disabled={targets.length === 0}
             className={`h-8 w-full ${
-              hasAttack ? "bg-red-600 text-white hover:bg-red-500" : "bg-primary text-primary-foreground hover:bg-cyan-400"
+              hasAttack
+                ? "bg-red-600 text-white hover:bg-red-500"
+                : "bg-primary text-primary-foreground hover:bg-cyan-400"
             }`}
           >
             <Image
@@ -258,12 +260,8 @@ export default memo(function ActionBar({
 
         <div className="hidden sm:block p-2">
           <div className="mb-2 min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              Region zrodlowy
-            </div>
-            <div className="truncate font-display text-sm text-foreground">
-              {sourceName}
-            </div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Region zrodlowy</div>
+            <div className="truncate font-display text-sm text-foreground">{sourceName}</div>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -272,9 +270,8 @@ export default memo(function ActionBar({
                 const active = unitType === selectedUnitType;
                 const unitCfg = unitConfigMap.get(unitType);
                 const info = unitDisplayInfo[unitType];
-                const displayLabel = unitType === "infantry"
-                  ? `${info?.display ?? 0}`
-                  : `${info?.display ?? 0} (${info?.manpower ?? 0})`;
+                const displayLabel =
+                  unitType === "infantry" ? `${info?.display ?? 0}` : `${info?.display ?? 0} (${info?.manpower ?? 0})`;
                 return (
                   <button
                     key={unitType}
@@ -293,10 +290,10 @@ export default memo(function ActionBar({
                       className="h-[18px] w-[18px] object-contain"
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[11px] font-medium leading-none">
-                        {getUnitLabel(unitType)}
-                      </span>
-                      <span className={`mt-1 block text-[10px] leading-none ${active ? "text-primary/80" : "text-muted-foreground"}`}>
+                      <span className="block text-[11px] font-medium leading-none">{getUnitLabel(unitType)}</span>
+                      <span
+                        className={`mt-1 block text-[10px] leading-none ${active ? "text-primary/80" : "text-muted-foreground"}`}
+                      >
                         {displayLabel}
                       </span>
                     </span>
@@ -308,7 +305,9 @@ export default memo(function ActionBar({
             <div className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
               <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                 <span>Wysylasz</span>
-                <span className="font-display text-xs text-foreground">{safeTotalUnits} / {maxUnits}</span>
+                <span className="font-display text-xs text-foreground">
+                  {safeTotalUnits} / {maxUnits}
+                </span>
               </div>
               <input
                 type="range"
@@ -340,9 +339,7 @@ export default memo(function ActionBar({
                       </button>
                     ))
                   ) : (
-                    <div className="text-[11px] text-muted-foreground">
-                      Wybierz cel na mapie
-                    </div>
+                    <div className="text-[11px] text-muted-foreground">Wybierz cel na mapie</div>
                   )}
                 </div>
               </div>
@@ -351,7 +348,9 @@ export default memo(function ActionBar({
                 onClick={() => onConfirm({ allocations, unitType: selectedUnitType })}
                 disabled={targets.length === 0}
                 className={`h-8 shrink-0 px-3 text-[11px] uppercase tracking-[0.16em] ${
-                  hasAttack ? "bg-red-600 text-white hover:bg-red-500" : "bg-primary text-primary-foreground hover:bg-cyan-400"
+                  hasAttack
+                    ? "bg-red-600 text-white hover:bg-red-500"
+                    : "bg-primary text-primary-foreground hover:bg-cyan-400"
                 }`}
               >
                 <Image

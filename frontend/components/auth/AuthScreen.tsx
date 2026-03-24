@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { Globe } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 interface AuthScreenProps {
@@ -50,14 +50,8 @@ export default function AuthScreen({
               <p className="text-[11px] md:text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
                 {eyebrow}
               </p>
-              <h1 className="mt-2 font-display text-3xl md:text-4xl text-foreground leading-tight">
-                {title}
-              </h1>
-              {description && (
-                <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                  {description}
-                </p>
-              )}
+              <h1 className="mt-2 font-display text-3xl md:text-4xl text-foreground leading-tight">{title}</h1>
+              {description && <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{description}</p>}
             </div>
             {children}
           </div>
@@ -67,10 +61,7 @@ export default function AuthScreen({
         {altPrompt && altHref && (
           <p className="text-center text-sm text-muted-foreground">
             {altPrompt}{" "}
-            <Link
-              href={altHref}
-              className="font-bold text-primary hover:text-primary/80 transition-colors"
-            >
+            <Link href={altHref} className="font-bold text-primary hover:text-primary/80 transition-colors">
               {altLabel}
             </Link>
           </p>

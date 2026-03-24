@@ -1,21 +1,22 @@
+import contextlib
+
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.db import models
 from django.shortcuts import redirect
-from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
+from unfold.contrib.filters.admin import RangeNumericFilter
 from unfold.decorators import action, display
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
-from unfold.contrib.filters.admin import RangeNumericFilter
+
 from apps.accounts.models import DirectMessage, Friendship, SocialAccount, User
-from apps.inventory.admin import UserInventoryInline, EquippedCosmeticInline, DeckInline, ItemInstanceInline
+from apps.inventory.admin import DeckInline, EquippedCosmeticInline
 
 
 class SocialAccountInline(TabularInline):
     model = SocialAccount
     extra = 0
-    fields = ('provider', 'provider_user_id', 'email', 'display_name', 'created_at')
-    readonly_fields = ('created_at',)
+    fields = ("provider", "provider_user_id", "email", "display_name", "created_at")
+    readonly_fields = ("created_at",)
 
 
 @admin.register(User)
@@ -23,25 +24,34 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
-    list_display = ('email', 'username', 'display_role', 'display_elo', 'display_social', 'is_staff', 'is_active', 'is_banned')
+    list_display = (
+        "email",
+        "username",
+        "display_role",
+        "display_elo",
+        "display_social",
+        "is_staff",
+        "is_active",
+        "is_banned",
+    )
     list_filter = (
-        'role',
-        'is_staff',
-        'is_active',
-        'is_banned',
-        'banned_reason',
-        ('elo_rating', RangeNumericFilter),
+        "role",
+        "is_staff",
+        "is_active",
+        "is_banned",
+        "banned_reason",
+        ("elo_rating", RangeNumericFilter),
     )
     list_filter_submit = True
     list_fullwidth = True
-    search_fields = ('email', 'username')
-    ordering = ('email',)
+    search_fields = ("email", "username")
+    ordering = ("email",)
     warn_unsaved_form = True
-    actions = ['merge_selected_users']
-    actions_detail = ['merge_into_user', 'set_admin_password']
+    actions = ["merge_selected_users"]
+    actions_detail = ["merge_into_user", "set_admin_password"]
     inlines = [SocialAccountInline, EquippedCosmeticInline, DeckInline]
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('Game', {'fields': ('role', 'elo_rating', 'avatar', 'tutorial_completed', 'is_banned', 'banned_reason')}),
+        ("Game", {"fields": ("role", "elo_rating", "avatar", "tutorial_completed", "is_banned", "banned_reason")}),
     )
 
     @display(description="Role", label={"USER": "info", "ADMIN": "danger"})
@@ -54,10 +64,10 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
 
     @display(description="Social")
     def display_social(self, obj):
-        providers = list(obj.social_accounts.values_list('provider', flat=True))
+        providers = list(obj.social_accounts.values_list("provider", flat=True))
         if not providers:
-            return '-'
-        return ', '.join(p.capitalize() for p in providers)
+            return "-"
+        return ", ".join(p.capitalize() for p in providers)
 
     @action(description="Scal konto do innego użytkownika", url_path="merge-into-user")
     def merge_into_user(self, request, object_id):
@@ -66,14 +76,13 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         Shows a form to enter target username/email, then merges all data.
         """
         from django.contrib import messages
-        from django.template.response import TemplateResponse
 
         source = User.objects.get(pk=object_id)
 
-        if request.method == 'POST':
-            target_identifier = request.POST.get('target_identifier', '').strip()
+        if request.method == "POST":
+            target_identifier = request.POST.get("target_identifier", "").strip()
             if not target_identifier:
-                messages.error(request, 'Podaj nazwę użytkownika lub email docelowego konta.')
+                messages.error(request, "Podaj nazwę użytkownika lub email docelowego konta.")
                 return redirect(request.get_full_path())
 
             target = (
@@ -81,11 +90,11 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                 or User.objects.filter(email__iexact=target_identifier).first()
             )
             if not target:
-                messages.error(request, f'Nie znaleziono użytkownika: {target_identifier}')
+                messages.error(request, f"Nie znaleziono użytkownika: {target_identifier}")
                 return redirect(request.get_full_path())
 
             if str(source.pk) == str(target.pk):
-                messages.error(request, 'Nie można scalić użytkownika z samym sobą.')
+                messages.error(request, "Nie można scalić użytkownika z samym sobą.")
                 return redirect(request.get_full_path())
 
             # Move social accounts
@@ -102,37 +111,30 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                     related_qs = getattr(source, accessor)
                 except Exception:
                     continue  # OneToOneField may raise RelatedObjectDoesNotExist
-                if hasattr(related_qs, 'all'):
-                    try:
+                if hasattr(related_qs, "all"):
+                    with contextlib.suppress(Exception):  # skip relations with unique constraints
                         related_qs.all().update(**{rel.field.name: target})
-                    except Exception:
-                        pass  # skip relations with unique constraints
                 elif rel.one_to_one:
-                    try:
+                    with contextlib.suppress(Exception):
                         setattr(related_qs, rel.field.name, target)
                         related_qs.save(update_fields=[rel.field.name])
-                    except Exception:
-                        pass
 
             # Merge ELO: keep the higher rating
             if source.elo_rating > target.elo_rating:
                 target.elo_rating = source.elo_rating
-                target.save(update_fields=['elo_rating'])
+                target.save(update_fields=["elo_rating"])
 
             # Deactivate source
             source.is_active = False
-            source.save(update_fields=['is_active'])
+            source.save(update_fields=["is_active"])
 
-            messages.success(
-                request,
-                f'Scalono {source.username} → {target.username}. '
-                f'Konto źródłowe dezaktywowane.'
-            )
-            return redirect(f'/admin/accounts/user/{target.pk}/change/')
+            messages.success(request, f"Scalono {source.username} → {target.username}. Konto źródłowe dezaktywowane.")
+            return redirect(f"/admin/accounts/user/{target.pk}/change/")
 
         # GET: show inline form
         from django.http import HttpResponse
         from django.middleware.csrf import get_token
+
         csrf_token = get_token(request)
         html = f"""
         <!DOCTYPE html>
@@ -168,7 +170,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         Unfold already hooks AdminPasswordChangeForm into that view via
         ``change_password_form``, so no custom template is needed.
         """
-        return redirect(f'/admin/accounts/user/{object_id}/password/')
+        return redirect(f"/admin/accounts/user/{object_id}/password/")
 
     @action(description="Scal zaznaczonych użytkowników (zaznacz 2)")
     def merge_selected_users(self, request, queryset):
@@ -177,18 +179,18 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         from django.http import HttpResponse
         from django.middleware.csrf import get_token
 
-        users = list(queryset.order_by('date_joined'))
+        users = list(queryset.order_by("date_joined"))
         if len(users) != 2:
-            django_messages.error(request, 'Zaznacz dokładnie 2 użytkowników do scalenia.')
+            django_messages.error(request, "Zaznacz dokładnie 2 użytkowników do scalenia.")
             return
 
         # If POST with direction chosen — execute merge
-        if request.method == 'POST' and request.POST.get('target_id'):
-            target_id = request.POST['target_id']
+        if request.method == "POST" and request.POST.get("target_id"):
+            target_id = request.POST["target_id"]
             target = next((u for u in users if str(u.pk) == target_id), None)
             source = next((u for u in users if str(u.pk) != target_id), None)
             if not target or not source:
-                django_messages.error(request, 'Nieprawidłowy wybór.')
+                django_messages.error(request, "Nieprawidłowy wybór.")
                 return
 
             # Move social accounts
@@ -205,11 +207,9 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                     related_qs = getattr(source, accessor)
                 except Exception:
                     continue
-                if hasattr(related_qs, 'all'):
-                    try:
+                if hasattr(related_qs, "all"):
+                    with contextlib.suppress(Exception):
                         related_qs.all().update(**{rel.field.name: target})
-                    except Exception:
-                        pass
                 elif rel.one_to_one:
                     try:
                         setattr(related_qs, rel.field.name, target)
@@ -224,23 +224,23 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
                 target.tutorial_completed = True
             if source.avatar and not target.avatar:
                 target.avatar = source.avatar
-            target.save(update_fields=['elo_rating', 'tutorial_completed', 'avatar'])
+            target.save(update_fields=["elo_rating", "tutorial_completed", "avatar"])
 
             # Deactivate source
             source.is_active = False
-            source.save(update_fields=['is_active'])
+            source.save(update_fields=["is_active"])
 
             django_messages.success(
                 request,
-                f'Scalono {source.username} → {target.username}. '
-                f'Wszystkie dane przeniesione. Konto {source.username} dezaktywowane.'
+                f"Scalono {source.username} → {target.username}. "
+                f"Wszystkie dane przeniesione. Konto {source.username} dezaktywowane.",
             )
-            return redirect(f'/admin/accounts/user/{target.pk}/change/')
+            return redirect(f"/admin/accounts/user/{target.pk}/change/")
 
         # GET — show direction picker
         u1, u2 = users[0], users[1]
-        u1_social = ', '.join(s.provider for s in u1.social_accounts.all()) or 'brak'
-        u2_social = ', '.join(s.provider for s in u2.social_accounts.all()) or 'brak'
+        u1_social = ", ".join(s.provider for s in u1.social_accounts.all()) or "brak"
+        u2_social = ", ".join(s.provider for s in u2.social_accounts.all()) or "brak"
         csrf_token = get_token(request)
 
         html = f"""<!DOCTYPE html>
@@ -272,7 +272,7 @@ a {{ color: #22d3ee; }}
     <p>{u1.email}</p>
     <p class="elo">ELO: {u1.elo_rating}</p>
     <p class="social">Social: {u1_social}</p>
-    <p>Hasło: {'✅ tak' if u1.has_usable_password() else '❌ nie'}</p>
+    <p>Hasło: {"✅ tak" if u1.has_usable_password() else "❌ nie"}</p>
     <form method="post"><input type="hidden" name="csrfmiddlewaretoken" value="{csrf_token}">
     <input type="hidden" name="action" value="merge_selected_users">
     <input type="hidden" name="_selected_action" value="{u1.pk}">
@@ -286,7 +286,7 @@ a {{ color: #22d3ee; }}
     <p>{u2.email}</p>
     <p class="elo">ELO: {u2.elo_rating}</p>
     <p class="social">Social: {u2_social}</p>
-    <p>Hasło: {'✅ tak' if u2.has_usable_password() else '❌ nie'}</p>
+    <p>Hasło: {"✅ tak" if u2.has_usable_password() else "❌ nie"}</p>
     <form method="post"><input type="hidden" name="csrfmiddlewaretoken" value="{csrf_token}">
     <input type="hidden" name="action" value="merge_selected_users">
     <input type="hidden" name="_selected_action" value="{u1.pk}">
@@ -302,25 +302,25 @@ a {{ color: #22d3ee; }}
 
 @admin.register(SocialAccount)
 class SocialAccountAdmin(ModelAdmin):
-    list_display = ('user', 'provider', 'display_name', 'email', 'created_at')
-    list_filter = ('provider',)
-    search_fields = ('user__email', 'user__username', 'display_name', 'email', 'provider_user_id')
-    raw_id_fields = ('user',)
-    readonly_fields = ('created_at', 'updated_at')
+    list_display = ("user", "provider", "display_name", "email", "created_at")
+    list_filter = ("provider",)
+    search_fields = ("user__email", "user__username", "display_name", "email", "provider_user_id")
+    raw_id_fields = ("user",)
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(DirectMessage)
 class DirectMessageAdmin(ModelAdmin):
-    list_display = ('sender', 'receiver', 'content', 'is_read', 'created_at')
-    list_filter = ('is_read',)
-    search_fields = ('sender__username', 'receiver__username', 'content')
-    raw_id_fields = ('sender', 'receiver')
+    list_display = ("sender", "receiver", "content", "is_read", "created_at")
+    list_filter = ("is_read",)
+    search_fields = ("sender__username", "receiver__username", "content")
+    raw_id_fields = ("sender", "receiver")
 
 
 @admin.register(Friendship)
 class FriendshipAdmin(ModelAdmin):
-    list_display = ('from_user', 'to_user', 'status', 'created_at', 'updated_at')
-    list_filter = ('status',)
-    search_fields = ('from_user__email', 'from_user__username', 'to_user__email', 'to_user__username')
-    raw_id_fields = ('from_user', 'to_user')
-    readonly_fields = ('created_at', 'updated_at')
+    list_display = ("from_user", "to_user", "status", "created_at", "updated_at")
+    list_filter = ("status",)
+    search_fields = ("from_user__email", "from_user__username", "to_user__email", "to_user__username")
+    raw_id_fields = ("from_user", "to_user")
+    readonly_fields = ("created_at", "updated_at")

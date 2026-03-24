@@ -1,33 +1,27 @@
 "use client";
 
-import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowLeft,
   BookOpen,
+  ChevronRight,
   Code,
+  Globe,
   Key,
+  Lock,
   Shield,
   Webhook,
-  AlertTriangle,
-  ChevronRight,
-  Globe,
-  Lock,
 } from "lucide-react";
+import Link from "next/link";
 
 // ── Helpers ───────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/70">
-      {children}
-    </div>
-  );
+  return <div className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/70">{children}</div>;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="mt-1 font-display text-xl text-zinc-50">{children}</h2>
-  );
+  return <h2 className="mt-1 font-display text-xl text-zinc-50">{children}</h2>;
 }
 
 function SectionDescription({ children }: { children: React.ReactNode }) {
@@ -36,9 +30,7 @@ function SectionDescription({ children }: { children: React.ReactNode }) {
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div
-      className={`rounded-[24px] border border-white/10 bg-slate-950/55 backdrop-blur-xl ${className}`}
-    >
+    <div className={`rounded-[24px] border border-white/10 bg-slate-950/55 backdrop-blur-xl ${className}`}>
       {children}
     </div>
   );
@@ -89,53 +81,33 @@ function EndpointRow({
   return (
     <div className="flex flex-col gap-2 border-t border-white/5 px-5 py-3.5 first:border-t-0 sm:flex-row sm:items-center sm:gap-4">
       <MethodBadge method={method} />
-      <code className="min-w-0 flex-1 font-mono text-xs text-slate-200 sm:text-sm">
-        {path}
-      </code>
+      <code className="min-w-0 flex-1 font-mono text-xs text-slate-200 sm:text-sm">{path}</code>
       <ScopeBadge scope={scope} />
-      <span className="text-xs text-slate-500 sm:w-48 sm:shrink-0 sm:text-right">
-        {description}
-      </span>
+      <span className="text-xs text-slate-500 sm:w-48 sm:shrink-0 sm:text-right">{description}</span>
     </div>
   );
 }
 
-function ErrorRow({
-  code,
-  name,
-  description,
-}: {
-  code: number;
-  name: string;
-  description: string;
-}) {
+function ErrorRow({ code, name, description }: { code: number; name: string; description: string }) {
   const colorClass =
     code >= 500
       ? "text-red-300"
       : code === 429
-      ? "text-orange-300"
-      : code >= 400
-      ? "text-amber-300"
-      : "text-emerald-300";
+        ? "text-orange-300"
+        : code >= 400
+          ? "text-amber-300"
+          : "text-emerald-300";
 
   return (
     <div className="flex flex-col gap-1 border-t border-white/5 px-5 py-3.5 first:border-t-0 sm:flex-row sm:items-center sm:gap-6">
-      <span className={`w-12 shrink-0 font-mono text-base font-bold ${colorClass}`}>
-        {code}
-      </span>
+      <span className={`w-12 shrink-0 font-mono text-base font-bold ${colorClass}`}>{code}</span>
       <span className="w-40 shrink-0 font-mono text-xs text-slate-300">{name}</span>
       <span className="text-sm text-slate-500">{description}</span>
     </div>
   );
 }
 
-function StepItem({
-  step,
-  children,
-}: {
-  step: number;
-  children: React.ReactNode;
-}) {
+function StepItem({ step, children }: { step: number; children: React.ReactNode }) {
   return (
     <div className="flex gap-4">
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-400/10 font-display text-sm text-cyan-200">
@@ -146,15 +118,7 @@ function StepItem({
   );
 }
 
-function ScopeRow({
-  scope,
-  description,
-  oauth,
-}: {
-  scope: string;
-  description: string;
-  oauth?: boolean;
-}) {
+function ScopeRow({ scope, description, oauth }: { scope: string; description: string; oauth?: boolean }) {
   return (
     <div className="flex flex-col gap-2 border-t border-white/5 px-5 py-3.5 first:border-t-0 sm:flex-row sm:items-center sm:gap-6">
       <code className="w-48 shrink-0 font-mono text-xs text-cyan-200">{scope}</code>
@@ -185,13 +149,10 @@ export default function DocsPage() {
 
         <div className="mt-4">
           <SectionLabel>Portal Deweloperski</SectionLabel>
-          <h1 className="mt-2 font-display text-3xl text-zinc-50">
-            Dokumentacja API
-          </h1>
+          <h1 className="mt-2 font-display text-3xl text-zinc-50">Dokumentacja API</h1>
           <p className="mt-2 max-w-xl text-sm text-slate-400">
-            Kompletny przewodnik po integracji z MapLord API. Znajdziesz tu
-            informacje o uwierzytelnianiu, dostepnych endpointach, OAuth2,
-            webhookach i obsludze bledow.
+            Kompletny przewodnik po integracji z MapLord API. Znajdziesz tu informacje o uwierzytelnianiu, dostepnych
+            endpointach, OAuth2, webhookach i obsludze bledow.
           </p>
         </div>
 
@@ -231,34 +192,27 @@ export default function DocsPage() {
         </div>
 
         <SectionDescription>
-          Aby rozpoczac integracje z MapLord API, wykonaj trzy kroki: utworz
-          aplikacje w portalu deweloperskim, pobierz klucz API, a nastepnie
-          wykonaj pierwsze zapytanie.
+          Aby rozpoczac integracje z MapLord API, wykonaj trzy kroki: utworz aplikacje w portalu deweloperskim, pobierz
+          klucz API, a nastepnie wykonaj pierwsze zapytanie.
         </SectionDescription>
 
         <div className="space-y-3">
           <StepItem step={1}>
-            <strong className="text-zinc-100">Utworz aplikacje</strong> — przejdz
-            do{" "}
+            <strong className="text-zinc-100">Utworz aplikacje</strong> — przejdz do{" "}
             <Link href="/developers" className="text-cyan-300 hover:underline">
               portalu deweloperskiego
             </Link>{" "}
-            i kliknij &ldquo;Utworz aplikacje&rdquo;. Podaj nazwe i opis swojej
-            integracji.
+            i kliknij &ldquo;Utworz aplikacje&rdquo;. Podaj nazwe i opis swojej integracji.
           </StepItem>
           <StepItem step={2}>
-            <strong className="text-zinc-100">Pobierz klucz API</strong> — po
-            utworzeniu aplikacji przejdz do jej szczegolów i wygeneruj klucz API
-            w sekcji &ldquo;Klucze API&rdquo;. Klucz bedzie widoczny tylko raz
-            — zachowaj go bezpiecznie.
+            <strong className="text-zinc-100">Pobierz klucz API</strong> — po utworzeniu aplikacji przejdz do jej
+            szczegolów i wygeneruj klucz API w sekcji &ldquo;Klucze API&rdquo;. Klucz bedzie widoczny tylko raz —
+            zachowaj go bezpiecznie.
           </StepItem>
           <StepItem step={3}>
-            <strong className="text-zinc-100">Wykonaj pierwsze zapytanie</strong>{" "}
-            — uzywaj nagłowka{" "}
-            <code className="rounded bg-white/[0.07] px-1.5 py-0.5 font-mono text-xs text-cyan-200">
-              X-API-Key
-            </code>{" "}
-            we wszystkich zapytaniach do publicznych endpointow.
+            <strong className="text-zinc-100">Wykonaj pierwsze zapytanie</strong> — uzywaj nagłowka{" "}
+            <code className="rounded bg-white/[0.07] px-1.5 py-0.5 font-mono text-xs text-cyan-200">X-API-Key</code> we
+            wszystkich zapytaniach do publicznych endpointow.
           </StepItem>
         </div>
 
@@ -266,13 +220,9 @@ export default function DocsPage() {
           <div className="border-b border-white/8 px-5 py-3">
             <div className="flex items-center gap-2">
               <Globe className="h-4 w-4 text-slate-500" />
-              <span className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                Base URL
-              </span>
+              <span className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Base URL</span>
             </div>
-            <code className="mt-1 block font-mono text-sm text-cyan-200">
-              https://maplord.gg/api/v1/public/
-            </code>
+            <code className="mt-1 block font-mono text-sm text-cyan-200">https://maplord.gg/api/v1/public/</code>
           </div>
           <div className="px-5 py-4">
             <div className="mb-3 text-[11px] uppercase tracking-[0.2em] text-slate-500">
@@ -298,9 +248,8 @@ export default function DocsPage() {
         </div>
 
         <SectionDescription>
-          MapLord API obsluguje dwie metody uwierzytelniania: klucze API do
-          endpointow publicznych oraz OAuth2 do endpointow wymagajacych
-          kontekstu uzytkownika.
+          MapLord API obsluguje dwie metody uwierzytelniania: klucze API do endpointow publicznych oraz OAuth2 do
+          endpointow wymagajacych kontekstu uzytkownika.
         </SectionDescription>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -311,10 +260,8 @@ export default function DocsPage() {
             </div>
             <p className="mt-2 text-xs leading-5 text-slate-400">
               Do publicznych endpointow. Dodaj nagłowek{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-[11px] text-cyan-200">
-                X-API-Key
-              </code>{" "}
-              z wartoscia klucza wygenerowanego w panelu aplikacji.
+              <code className="rounded bg-white/[0.07] px-1 font-mono text-[11px] text-cyan-200">X-API-Key</code> z
+              wartoscia klucza wygenerowanego w panelu aplikacji.
             </p>
             <CodeBlock>{`X-API-Key: ml_twoj_klucz`}</CodeBlock>
           </Card>
@@ -324,27 +271,20 @@ export default function DocsPage() {
               <span className="font-display text-sm text-zinc-100">OAuth2</span>
             </div>
             <p className="mt-2 text-xs leading-5 text-slate-400">
-              Do endpointow wymagajacych kontekstu uzytkownika. Uzyj przepływu
-              Authorization Code i przesylaj token w nagłowku{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-[11px] text-cyan-200">
-                Authorization
-              </code>
-              .
+              Do endpointow wymagajacych kontekstu uzytkownika. Uzyj przepływu Authorization Code i przesylaj token w
+              nagłowku{" "}
+              <code className="rounded bg-white/[0.07] px-1 font-mono text-[11px] text-cyan-200">Authorization</code>.
             </p>
             <CodeBlock>{`Authorization: Bearer eyJhbGci...`}</CodeBlock>
           </Card>
         </div>
 
         <Card className="p-5">
-          <div className="mb-3 font-display text-sm text-zinc-100">
-            Limity zapytan (Rate Limiting)
-          </div>
+          <div className="mb-3 font-display text-sm text-zinc-100">Limity zapytan (Rate Limiting)</div>
           <p className="mb-4 text-sm text-slate-400">
-            Kazda odpowiedz zawiera nagłowki informujace o biezacym zuzyciu
-            limitu zapytan. Po przekroczeniu limitu serwer zwroci kod{" "}
-            <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-amber-200">
-              429 Too Many Requests
-            </code>
+            Kazda odpowiedz zawiera nagłowki informujace o biezacym zuzyciu limitu zapytan. Po przekroczeniu limitu
+            serwer zwroci kod{" "}
+            <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-amber-200">429 Too Many Requests</code>
             .
           </p>
           <div className="space-y-2">
@@ -363,9 +303,7 @@ export default function DocsPage() {
               },
             ].map(({ header, desc }) => (
               <div key={header} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
-                <code className="w-56 shrink-0 font-mono text-xs text-cyan-200">
-                  {header}
-                </code>
+                <code className="w-56 shrink-0 font-mono text-xs text-cyan-200">{header}</code>
                 <span className="text-sm text-slate-500">{desc}</span>
               </div>
             ))}
@@ -386,9 +324,8 @@ export default function DocsPage() {
         </div>
 
         <SectionDescription>
-          Uprawnienia kontroluja dostep do poszczegolnych zasobow API.
-          Przy tworzeniu aplikacji lub inicjowaniu przepływu OAuth2 nalezy
-          okreslic, jakich uprawnien wymaga Twoja integracja.
+          Uprawnienia kontroluja dostep do poszczegolnych zasobow API. Przy tworzeniu aplikacji lub inicjowaniu
+          przepływu OAuth2 nalezy okreslic, jakich uprawnien wymaga Twoja integracja.
         </SectionDescription>
 
         <Card className="overflow-hidden">
@@ -421,11 +358,8 @@ export default function DocsPage() {
         </div>
 
         <SectionDescription>
-          Wszystkie endpointy ponizej sa dostepne przy uzyciu klucza API
-          (nagłowek{" "}
-          <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">
-            X-API-Key
-          </code>
+          Wszystkie endpointy ponizej sa dostepne przy uzyciu klucza API (nagłowek{" "}
+          <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">X-API-Key</code>
           ). Odpowiedzi sa zwracane w formacie JSON.
         </SectionDescription>
 
@@ -474,21 +408,14 @@ export default function DocsPage() {
             scope="players:read"
             description="Statystyki gracza"
           />
-          <EndpointRow
-            method="GET"
-            path="/api/v1/public/config/"
-            scope="config:read"
-            description="Konfiguracja gry"
-          />
+          <EndpointRow method="GET" path="/api/v1/public/config/" scope="config:read" description="Konfiguracja gry" />
         </Card>
 
         <Card className="p-5">
-          <div className="mb-3 font-display text-sm text-zinc-100">
-            Paginacja
-          </div>
+          <div className="mb-3 font-display text-sm text-zinc-100">Paginacja</div>
           <p className="mb-3 text-sm text-slate-400">
-            Endpointy zwracajace listy obsługuja paginacje przez parametry
-            zapytania. Odpowiedz zawiera metadane paginacji.
+            Endpointy zwracajace listy obsługuja paginacje przez parametry zapytania. Odpowiedz zawiera metadane
+            paginacji.
           </p>
           <CodeBlock>{`GET /api/v1/public/leaderboard/?page=2&page_size=20
 
@@ -514,20 +441,16 @@ export default function DocsPage() {
         </div>
 
         <SectionDescription>
-          OAuth2 Authorization Code Flow pozwala Twojej aplikacji dzialac w
-          imieniu uzytkownika MapLord po uzyskaniu jego zgody. Uzywaj tego
-          przepływu, gdy potrzebujesz dostepu do danych konkretnego gracza.
+          OAuth2 Authorization Code Flow pozwala Twojej aplikacji dzialac w imieniu uzytkownika MapLord po uzyskaniu
+          jego zgody. Uzywaj tego przepływu, gdy potrzebujesz dostepu do danych konkretnego gracza.
         </SectionDescription>
 
         <Card className="p-5">
-          <div className="mb-4 font-display text-sm text-zinc-100">
-            Diagram przepływu
-          </div>
+          <div className="mb-4 font-display text-sm text-zinc-100">Diagram przepływu</div>
           <div className="space-y-2">
             <StepItem step={1}>
-              Uzytkownik klika{" "}
-              <strong className="text-zinc-100">&ldquo;Zaloguj przez MapLord&rdquo;</strong>{" "}
-              w Twojej aplikacji.
+              Uzytkownik klika <strong className="text-zinc-100">&ldquo;Zaloguj przez MapLord&rdquo;</strong> w Twojej
+              aplikacji.
             </StepItem>
             <StepItem step={2}>
               Twoja aplikacja przekierowuje uzytkownika na{" "}
@@ -535,61 +458,29 @@ export default function DocsPage() {
                 /api/v1/oauth/authorize/
               </code>{" "}
               z parametrami{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">
-                client_id
-              </code>
-              ,{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">
-                redirect_uri
-              </code>
-              ,{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">
-                scope
-              </code>{" "}
-              i{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">
-                state
-              </code>
-              .
+              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">client_id</code>,{" "}
+              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">redirect_uri</code>,{" "}
+              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">scope</code> i{" "}
+              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">state</code>.
             </StepItem>
             <StepItem step={3}>
-              Uzytkownik loguje sie na MapLord i{" "}
-              <strong className="text-zinc-100">autoryzuje</strong> dostep dla
-              Twojej aplikacji.
+              Uzytkownik loguje sie na MapLord i <strong className="text-zinc-100">autoryzuje</strong> dostep dla Twojej
+              aplikacji.
             </StepItem>
             <StepItem step={4}>
               MapLord przekierowuje uzytkownika z powrotem na{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">
-                redirect_uri
-              </code>{" "}
-              z parametrem{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">
-                code
-              </code>{" "}
-              i{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">
-                state
-              </code>
-              .
+              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">redirect_uri</code> z
+              parametrem <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">code</code> i{" "}
+              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">state</code>.
             </StepItem>
             <StepItem step={5}>
               Twoj serwer wymienia kod na token: wysyla{" "}
               <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-amber-200">
                 POST /api/v1/oauth/token/
               </code>{" "}
-              z{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">
-                code
-              </code>
-              ,{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">
-                client_id
-              </code>{" "}
-              i{" "}
-              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">
-                client_secret
-              </code>
-              .
+              z <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">code</code>,{" "}
+              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">client_id</code> i{" "}
+              <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">client_secret</code>.
             </StepItem>
             <StepItem step={6}>
               Uzywaj tokena dostepowego, np.{" "}
@@ -606,9 +497,7 @@ export default function DocsPage() {
         </Card>
 
         <Card className="p-5">
-          <div className="mb-3 font-display text-sm text-zinc-100">
-            Przyklad — inicjowanie autoryzacji
-          </div>
+          <div className="mb-3 font-display text-sm text-zinc-100">Przyklad — inicjowanie autoryzacji</div>
           <CodeBlock>{`https://maplord.gg/api/v1/oauth/authorize/
   ?response_type=code
   &client_id=ml_app_abc123
@@ -618,9 +507,7 @@ export default function DocsPage() {
         </Card>
 
         <Card className="p-5">
-          <div className="mb-3 font-display text-sm text-zinc-100">
-            Przyklad — wymiana kodu na token
-          </div>
+          <div className="mb-3 font-display text-sm text-zinc-100">Przyklad — wymiana kodu na token</div>
           <CodeBlock>{`curl -X POST https://maplord.gg/api/v1/oauth/token/ \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -643,9 +530,7 @@ export default function DocsPage() {
 
         <Card className="overflow-hidden">
           <div className="border-b border-white/8 px-5 py-3">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-              Endpointy OAuth2
-            </div>
+            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Endpointy OAuth2</div>
           </div>
           <EndpointRow
             method="POST"
@@ -653,24 +538,14 @@ export default function DocsPage() {
             scope="—"
             description="Autoryzacja (wymaga logowania)"
           />
-          <EndpointRow
-            method="POST"
-            path="/api/v1/oauth/token/"
-            scope="—"
-            description="Wymiana kodu na token"
-          />
+          <EndpointRow method="POST" path="/api/v1/oauth/token/" scope="—" description="Wymiana kodu na token" />
           <EndpointRow
             method="GET"
             path="/api/v1/oauth/userinfo/"
             scope="user:profile"
             description="Dane zalogowanego uzytkownika"
           />
-          <EndpointRow
-            method="POST"
-            path="/api/v1/oauth/revoke/"
-            scope="—"
-            description="Uniewaznij token dostepowy"
-          />
+          <EndpointRow method="POST" path="/api/v1/oauth/revoke/" scope="—" description="Uniewaznij token dostepowy" />
         </Card>
       </section>
 
@@ -687,16 +562,13 @@ export default function DocsPage() {
         </div>
 
         <SectionDescription>
-          Webhooki pozwalaja Twojej aplikacji otrzymywac powiadomienia o
-          zdarzeniach w grze w czasie rzeczywistym. MapLord wysyla zapytanie
-          HTTP POST na skonfigurowany URL, gdy nastapi okreslone zdarzenie.
+          Webhooki pozwalaja Twojej aplikacji otrzymywac powiadomienia o zdarzeniach w grze w czasie rzeczywistym.
+          MapLord wysyla zapytanie HTTP POST na skonfigurowany URL, gdy nastapi okreslone zdarzenie.
         </SectionDescription>
 
         <Card className="overflow-hidden">
           <div className="border-b border-white/8 px-5 py-3">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-              Dostepne zdarzenia
-            </div>
+            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Dostepne zdarzenia</div>
           </div>
           {[
             {
@@ -716,26 +588,19 @@ export default function DocsPage() {
               key={event}
               className="flex flex-col gap-1 border-t border-white/5 px-5 py-3.5 first:border-t-0 sm:flex-row sm:items-center sm:gap-6"
             >
-              <code className="w-44 shrink-0 font-mono text-xs text-cyan-200">
-                {event}
-              </code>
+              <code className="w-44 shrink-0 font-mono text-xs text-cyan-200">{event}</code>
               <span className="text-sm text-slate-400">{description}</span>
             </div>
           ))}
         </Card>
 
         <Card className="p-5">
-          <div className="mb-2 font-display text-sm text-zinc-100">
-            Weryfikacja podpisu (HMAC-SHA256)
-          </div>
+          <div className="mb-2 font-display text-sm text-zinc-100">Weryfikacja podpisu (HMAC-SHA256)</div>
           <p className="mb-3 text-sm text-slate-400">
             Kazde zapytanie webhook zawiera nagłowek{" "}
-            <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">
-              X-MapLord-Signature
-            </code>
-            , ktory jest podpisem HMAC-SHA256 ciała zapytania z uzyciem sekretu
-            webhooka skonfigurowanego w panelu aplikacji. Zawsze weryfikuj
-            podpis przed przetworzeniem zdarzenia.
+            <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">X-MapLord-Signature</code>,
+            ktory jest podpisem HMAC-SHA256 ciała zapytania z uzyciem sekretu webhooka skonfigurowanego w panelu
+            aplikacji. Zawsze weryfikuj podpis przed przetworzeniem zdarzenia.
           </p>
           <CodeBlock>{`import hmac
 import hashlib
@@ -757,22 +622,14 @@ if not verify_webhook(raw_body, sig, WEBHOOK_SECRET):
         </Card>
 
         <Card className="p-5">
-          <div className="mb-2 font-display text-sm text-zinc-100">
-            Ponowne proby i dezaktywacja
-          </div>
+          <div className="mb-2 font-display text-sm text-zinc-100">Ponowne proby i dezaktywacja</div>
           <p className="text-sm leading-6 text-slate-400">
             Jesli Twoj serwer odpowie kodem innym niz{" "}
-            <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-emerald-200">
-              2xx
-            </code>
-            , MapLord ponowi probe z wykładniczym opóznieniem:{" "}
-            <strong className="text-slate-200">
-              5 s, 30 s, 2 min, 10 min, 30 min
-            </strong>
-            . Po{" "}
-            <strong className="text-slate-200">10 nieudanych probach</strong>{" "}
-            webhook zostanie automatycznie dezaktywowany. Bedziesz mogl go
-            reaktywowac recznie w panelu aplikacji.
+            <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-emerald-200">2xx</code>, MapLord ponowi
+            probe z wykładniczym opóznieniem:{" "}
+            <strong className="text-slate-200">5 s, 30 s, 2 min, 10 min, 30 min</strong>. Po{" "}
+            <strong className="text-slate-200">10 nieudanych probach</strong> webhook zostanie automatycznie
+            dezaktywowany. Bedziesz mogl go reaktywowac recznie w panelu aplikacji.
           </p>
         </Card>
       </section>
@@ -790,12 +647,9 @@ if not verify_webhook(raw_body, sig, WEBHOOK_SECRET):
         </div>
 
         <SectionDescription>
-          API zwraca standardowe kody statusu HTTP. Ciało odpowiedzi bledu
-          zawsze zawiera pole{" "}
-          <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">
-            detail
-          </code>{" "}
-          z czytelnym opisem przyczyny.
+          API zwraca standardowe kody statusu HTTP. Ciało odpowiedzi bledu zawsze zawiera pole{" "}
+          <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">detail</code> z czytelnym
+          opisem przyczyny.
         </SectionDescription>
 
         <Card className="overflow-hidden">
@@ -811,11 +665,7 @@ if not verify_webhook(raw_body, sig, WEBHOOK_SECRET):
             name="Bad Request"
             description="Nieprawidlowe dane wejsciowe — sprawdz parametry zapytania lub cialo"
           />
-          <ErrorRow
-            code={401}
-            name="Unauthorized"
-            description="Brakujacy lub nieprawidlowy klucz API / token OAuth2"
-          />
+          <ErrorRow code={401} name="Unauthorized" description="Brakujacy lub nieprawidlowy klucz API / token OAuth2" />
           <ErrorRow
             code={403}
             name="Forbidden"
@@ -834,9 +684,7 @@ if not verify_webhook(raw_body, sig, WEBHOOK_SECRET):
         </Card>
 
         <Card className="p-5">
-          <div className="mb-3 font-display text-sm text-zinc-100">
-            Format odpowiedzi bledu
-          </div>
+          <div className="mb-3 font-display text-sm text-zinc-100">Format odpowiedzi bledu</div>
           <CodeBlock>{`HTTP/1.1 403 Forbidden
 Content-Type: application/json
 
@@ -849,15 +697,11 @@ Content-Type: application/json
 
       {/* ── Footer CTA ─────────────────────────────────────── */}
       <div className="rounded-[24px] border border-cyan-300/20 bg-[linear-gradient(135deg,rgba(34,211,238,0.06),rgba(15,118,110,0.04))] p-6 text-center">
-        <div className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/70">
-          Gotowy do integracji?
-        </div>
-        <h3 className="mt-2 font-display text-xl text-zinc-50">
-          Utworz swoja pierwsza aplikacje
-        </h3>
+        <div className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/70">Gotowy do integracji?</div>
+        <h3 className="mt-2 font-display text-xl text-zinc-50">Utworz swoja pierwsza aplikacje</h3>
         <p className="mx-auto mt-2 max-w-sm text-sm text-slate-400">
-          Przejdz do portalu deweloperskiego, aby wygenerowac klucze API i
-          skonfigurowac webhooki dla swojej integracji z MapLord.
+          Przejdz do portalu deweloperskiego, aby wygenerowac klucze API i skonfigurowac webhooki dla swojej integracji
+          z MapLord.
         </p>
         <Link
           href="/developers"

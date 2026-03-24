@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,17 +18,10 @@ export function useGameNotifications() {
   const [notifications, setNotifications] = useState<GameNotification[]>([]);
   const counterRef = useRef(0);
 
-  const notify = useCallback(
-    (
-      message: string,
-      type: GameNotification["type"],
-      duration?: number
-    ) => {
-      const id = `gn-${Date.now()}-${++counterRef.current}`;
-      setNotifications((prev) => [...prev, { id, message, type, duration }]);
-    },
-    []
-  );
+  const notify = useCallback((message: string, type: GameNotification["type"], duration?: number) => {
+    const id = `gn-${Date.now()}-${++counterRef.current}`;
+    setNotifications((prev) => [...prev, { id, message, type, duration }]);
+  }, []);
 
   const dismiss = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
@@ -130,18 +123,12 @@ function NotificationItem({ notification, onDismiss }: NotificationItemProps) {
         config.glowClass,
         // Transition
         "transition-all duration-300 ease-out",
-        visible
-          ? "translate-y-0 opacity-100"
-          : "-translate-y-2 opacity-0",
+        visible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
       ].join(" ")}
     >
       <Icon size={16} className={`shrink-0 ${config.iconClass}`} />
       <div className="flex flex-col">
-        <span
-          className={`text-[10px] uppercase tracking-[0.18em] ${config.labelClass}`}
-        >
-          {config.label}
-        </span>
+        <span className={`text-[10px] uppercase tracking-[0.18em] ${config.labelClass}`}>{config.label}</span>
         <span className="text-sm leading-snug text-foreground">{message}</span>
       </div>
     </div>

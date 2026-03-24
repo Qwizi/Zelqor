@@ -2,7 +2,6 @@ from django.core.management.base import BaseCommand
 
 from apps.game_config.models import AbilityType, BuildingType, GameMode, GameSettings, UnitType
 
-
 GAME_MODES = [
     {
         "name": "Standard 1v1",

@@ -6,24 +6,24 @@ import Image from "next/image";
 const SVG_MAP: Record<string, string> = {
   // Materials
   "armor-piercing-ammo": "/assets/items/svg/armor-piercing-ammo.svg",
-  "antimatter": "/assets/items/svg/antimatter.svg",
+  antimatter: "/assets/items/svg/antimatter.svg",
   "artifact-fragment": "/assets/items/svg/artifact-fragment.svg",
   "titanium-composite": "/assets/items/svg/titanium-composite.svg",
-  "capacitor": "/assets/items/svg/capacitor.svg",
+  capacitor: "/assets/items/svg/capacitor.svg",
   "raw-silicon": "/assets/items/svg/raw-silicon.svg",
   "radar-module": "/assets/items/svg/radar-module.svg",
   "fuel-cell": "/assets/items/svg/fuel-cell.svg",
   "quantum-processor": "/assets/items/svg/quantum-processor.svg",
-  "gunpowder": "/assets/items/svg/gunpowder.svg",
+  gunpowder: "/assets/items/svg/gunpowder.svg",
   "command-protocol": "/assets/items/svg/command-protocol.svg",
   "circuit-board": "/assets/items/svg/circuit-board.svg",
   "plasma-core": "/assets/items/svg/plasma-core.svg",
-  "mercury": "/assets/items/svg/mercury.svg",
+  mercury: "/assets/items/svg/mercury.svg",
   "copper-ore": "/assets/items/svg/copper-ore.svg",
   "lead-ore": "/assets/items/svg/lead-ore.svg",
   "tungsten-ore": "/assets/items/svg/tungsten-ore.svg",
   "iron-alloy": "/assets/items/svg/iron-alloy.svg",
-  "carbon": "/assets/items/svg/carbon.svg",
+  carbon: "/assets/items/svg/carbon.svg",
   "steel-scrap": "/assets/items/svg/steel-scrap.svg",
   "optic-fiber": "/assets/items/svg/optic-fiber.svg",
   // Crates & Keys
@@ -114,7 +114,10 @@ export default function ItemIcon({ slug, icon, size = 32, className }: ItemIconP
         alt={slug ?? ""}
         width={size}
         height={size}
-        className={className ?? `h-${size <= 20 ? 5 : size <= 32 ? 8 : size <= 48 ? 12 : 16} w-${size <= 20 ? 5 : size <= 32 ? 8 : size <= 48 ? 12 : 16} object-contain`}
+        className={
+          className ??
+          `h-${size <= 20 ? 5 : size <= 32 ? 8 : size <= 48 ? 12 : 16} w-${size <= 20 ? 5 : size <= 32 ? 8 : size <= 48 ? 12 : 16} object-contain`
+        }
         style={{ width: size, height: size }}
       />
     );
@@ -122,10 +125,7 @@ export default function ItemIcon({ slug, icon, size = 32, className }: ItemIconP
 
   // Emoji fallback
   return (
-    <span
-      className={className ?? "leading-none select-none"}
-      style={{ fontSize: size * 0.75 }}
-    >
+    <span className={className ?? "leading-none select-none"} style={{ fontSize: size * 0.75 }}>
       {icon || "📦"}
     </span>
   );

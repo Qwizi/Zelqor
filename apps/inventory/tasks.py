@@ -9,26 +9,26 @@ logger = logging.getLogger(__name__)
 # Rarity weights by placement role
 # Winner gets better odds for rarer items; loser gets heavier common weighting
 WINNER_RARITY_WEIGHTS = {
-    'common': 40,
-    'uncommon': 35,
-    'rare': 18,
-    'epic': 5,
-    'legendary': 2,
+    "common": 40,
+    "uncommon": 35,
+    "rare": 18,
+    "epic": 5,
+    "legendary": 2,
 }
 
 LOSER_RARITY_WEIGHTS = {
-    'common': 55,
-    'uncommon': 28,
-    'rare': 12,
-    'epic': 4,
-    'legendary': 1,
+    "common": 55,
+    "uncommon": 28,
+    "rare": 12,
+    "epic": 4,
+    "legendary": 1,
 }
 
 # Excluded item types from random drops (crates, keys, and cosmetics are not rewarded this way)
 _EXCLUDED_TYPES = {
-    'crate',
-    'key',
-    'cosmetic',
+    "crate",
+    "key",
+    "cosmetic",
 }
 
 # Gold and drop count constants
@@ -42,8 +42,8 @@ MATERIAL_DROP_WEIGHT = 70
 EQUIPMENT_DROP_WEIGHT = 20  # blueprints, tactical packages, boosts
 OTHER_DROP_WEIGHT = 10
 
-_MATERIAL_TYPE = 'material'
-_EQUIPMENT_TYPES = {'blueprint_building', 'blueprint_unit', 'tactical_package', 'boost'}
+_MATERIAL_TYPE = "material"
+_EQUIPMENT_TYPES = {"blueprint_building", "blueprint_unit", "tactical_package", "boost"}
 
 
 def generate_match_drops(match_id: str):
@@ -63,13 +63,11 @@ def generate_match_drops(match_id: str):
     Adds items to UserInventory and gold to Wallet.
     """
     from apps.game.models import PlayerResult
-    from apps.inventory.models import Item, ItemDrop, UserInventory, Wallet
+    from apps.inventory.models import Item, ItemDrop, Wallet
     from apps.inventory.views import add_item_to_inventory
 
     player_results = list(
-        PlayerResult.objects
-        .filter(match_result__match_id=match_id)
-        .select_related('user', 'match_result__match')
+        PlayerResult.objects.filter(match_result__match_id=match_id).select_related("user", "match_result__match")
     )
 
     if not player_results:
@@ -77,10 +75,7 @@ def generate_match_drops(match_id: str):
         return
 
     # Fetch all droppable items (exclude crate, key, cosmetic)
-    droppable_items = list(
-        Item.objects.filter(is_active=True)
-        .exclude(item_type__in=list(_EXCLUDED_TYPES))
-    )
+    droppable_items = list(Item.objects.filter(is_active=True).exclude(item_type__in=list(_EXCLUDED_TYPES)))
 
     if not droppable_items:
         logger.warning("No droppable items defined, skipping drops for match %s", match_id)
@@ -123,7 +118,7 @@ def generate_match_drops(match_id: str):
             wallet, _ = Wallet.objects.get_or_create(user=pr.user)
             wallet.gold += gold_reward
             wallet.total_earned += gold_reward
-            wallet.save(update_fields=['gold', 'total_earned'])
+            wallet.save(update_fields=["gold", "total_earned"])
 
             # Roll item drops
             num_drops = random.randint(min_drops, max_drops)
@@ -157,7 +152,7 @@ def generate_match_drops(match_id: str):
                     drop_qty,
                     dropped_from_match=match_obj,
                 )
-                instance = result if hasattr(result, 'pattern_seed') else None
+                instance = result if hasattr(result, "pattern_seed") else None
 
                 # Record the drop
                 ItemDrop.objects.create(

@@ -6,10 +6,10 @@ from django.db import migrations, models
 
 def migrate_gamemodule_to_systemmodule(apps, schema_editor):
     """Copy GameModule data into SystemModule, then remap override FKs."""
-    GameModule = apps.get_model('game_config', 'GameModule')
-    SystemModule = apps.get_model('game_config', 'SystemModule')
-    GameSettingsModuleOverride = apps.get_model('game_config', 'GameSettingsModuleOverride')
-    GameModeModuleOverride = apps.get_model('game_config', 'GameModeModuleOverride')
+    GameModule = apps.get_model("game_config", "GameModule")
+    SystemModule = apps.get_model("game_config", "SystemModule")
+    GameSettingsModuleOverride = apps.get_model("game_config", "GameSettingsModuleOverride")
+    GameModeModuleOverride = apps.get_model("game_config", "GameModeModuleOverride")
 
     # Step 1: Copy each GameModule into SystemModule
     slug_to_sysmodule = {}
@@ -17,21 +17,21 @@ def migrate_gamemodule_to_systemmodule(apps, schema_editor):
         sm, _ = SystemModule.objects.update_or_create(
             slug=gm.slug,
             defaults={
-                'name': gm.name,
-                'description': gm.description,
-                'icon': gm.icon,
-                'module_type': 'game',
-                'enabled': True,
-                'config': {},
-                'config_schema': gm.config_schema,
-                'affects_backend': True,
-                'affects_frontend': True,
-                'affects_gateway': True,
-                'is_core': False,
-                'order': gm.order + 100,  # offset to avoid collisions with existing system modules
-                'default_enabled': gm.default_enabled,
-                'default_config': gm.default_config,
-                'field_mapping': gm.field_mapping,
+                "name": gm.name,
+                "description": gm.description,
+                "icon": gm.icon,
+                "module_type": "game",
+                "enabled": True,
+                "config": {},
+                "config_schema": gm.config_schema,
+                "affects_backend": True,
+                "affects_frontend": True,
+                "affects_gateway": True,
+                "is_core": False,
+                "order": gm.order + 100,  # offset to avoid collisions with existing system modules
+                "default_enabled": gm.default_enabled,
+                "default_config": gm.default_config,
+                "field_mapping": gm.field_mapping,
             },
         )
         slug_to_sysmodule[gm.id] = sm.id
@@ -41,13 +41,13 @@ def migrate_gamemodule_to_systemmodule(apps, schema_editor):
         new_id = slug_to_sysmodule.get(override.module_id)
         if new_id:
             override.new_module_id = new_id
-            override.save(update_fields=['new_module_id'])
+            override.save(update_fields=["new_module_id"])
 
     for override in GameModeModuleOverride.objects.all():
         new_id = slug_to_sysmodule.get(override.module_id)
         if new_id:
             override.new_module_id = new_id
-            override.save(update_fields=['new_module_id'])
+            override.save(update_fields=["new_module_id"])
 
 
 def noop(apps, schema_editor):
@@ -55,105 +55,130 @@ def noop(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0024_enrich_system_module_configs'),
+        ("game_config", "0024_enrich_system_module_configs"),
     ]
 
     operations = [
         # 1. Add new fields to SystemModule
         migrations.AddField(
-            model_name='systemmodule',
-            name='default_config',
-            field=models.JSONField(blank=True, default=dict, help_text='Default config parameters for game modules (merged with overrides per match)'),
+            model_name="systemmodule",
+            name="default_config",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text="Default config parameters for game modules (merged with overrides per match)",
+            ),
         ),
         migrations.AddField(
-            model_name='systemmodule',
-            name='default_enabled',
-            field=models.BooleanField(default=True, help_text='Default enabled state for new matches'),
+            model_name="systemmodule",
+            name="default_enabled",
+            field=models.BooleanField(default=True, help_text="Default enabled state for new matches"),
         ),
         migrations.AddField(
-            model_name='systemmodule',
-            name='field_mapping',
-            field=models.JSONField(blank=True, default=dict, help_text='Maps module to flat settings fields: {"enabled_field": "weather_enabled", "config_fields": {"key": "snapshot_field"}}'),
+            model_name="systemmodule",
+            name="field_mapping",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text='Maps module to flat settings fields: {"enabled_field": "weather_enabled", "config_fields": {"key": "snapshot_field"}}',
+            ),
         ),
         migrations.AddField(
-            model_name='systemmodule',
-            name='is_active',
-            field=models.BooleanField(default=True, help_text='Whether this module is available in the system'),
+            model_name="systemmodule",
+            name="is_active",
+            field=models.BooleanField(default=True, help_text="Whether this module is available in the system"),
         ),
         migrations.AddField(
-            model_name='systemmodule',
-            name='module_type',
-            field=models.CharField(choices=[('system', 'System'), ('game', 'Game')], default='system', help_text='System = app-wide feature toggle, Game = per-match configurable module', max_length=20),
+            model_name="systemmodule",
+            name="module_type",
+            field=models.CharField(
+                choices=[("system", "System"), ("game", "Game")],
+                default="system",
+                help_text="System = app-wide feature toggle, Game = per-match configurable module",
+                max_length=20,
+            ),
         ),
         migrations.AlterField(
-            model_name='systemmodule',
-            name='is_core',
-            field=models.BooleanField(default=False, help_text='Core modules cannot be disabled (auth, config, geo)'),
+            model_name="systemmodule",
+            name="is_core",
+            field=models.BooleanField(default=False, help_text="Core modules cannot be disabled (auth, config, geo)"),
         ),
-
         # 2. Add temporary new_module FK on overrides (nullable, pointing to SystemModule)
         migrations.AddField(
-            model_name='gamesettingsmoduleoverride',
-            name='new_module',
-            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='game_config.systemmodule'),
+            model_name="gamesettingsmoduleoverride",
+            name="new_module",
+            field=models.ForeignKey(
+                null=True,
+                blank=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="+",
+                to="game_config.systemmodule",
+            ),
         ),
         migrations.AddField(
-            model_name='gamemodemoduleoverride',
-            name='new_module',
-            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='game_config.systemmodule'),
+            model_name="gamemodemoduleoverride",
+            name="new_module",
+            field=models.ForeignKey(
+                null=True,
+                blank=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="+",
+                to="game_config.systemmodule",
+            ),
         ),
-
         # 3. Data migration: copy GameModule -> SystemModule, remap override FKs
         migrations.RunPython(migrate_gamemodule_to_systemmodule, noop),
-
         # 4. Remove old module FK (to GameModule)
         migrations.RemoveField(
-            model_name='gamesettingsmoduleoverride',
-            name='module',
+            model_name="gamesettingsmoduleoverride",
+            name="module",
         ),
         migrations.RemoveField(
-            model_name='gamemodemoduleoverride',
-            name='module',
+            model_name="gamemodemoduleoverride",
+            name="module",
         ),
-
         # 5. Rename new_module -> module
         migrations.RenameField(
-            model_name='gamesettingsmoduleoverride',
-            old_name='new_module',
-            new_name='module',
+            model_name="gamesettingsmoduleoverride",
+            old_name="new_module",
+            new_name="module",
         ),
         migrations.RenameField(
-            model_name='gamemodemoduleoverride',
-            old_name='new_module',
-            new_name='module',
+            model_name="gamemodemoduleoverride",
+            old_name="new_module",
+            new_name="module",
         ),
-
         # 6. Make module non-nullable and set proper related_name
         migrations.AlterField(
-            model_name='gamesettingsmoduleoverride',
-            name='module',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='settings_overrides', to='game_config.systemmodule'),
+            model_name="gamesettingsmoduleoverride",
+            name="module",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="settings_overrides",
+                to="game_config.systemmodule",
+            ),
         ),
         migrations.AlterField(
-            model_name='gamemodemoduleoverride',
-            name='module',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='mode_overrides', to='game_config.systemmodule'),
+            model_name="gamemodemoduleoverride",
+            name="module",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="mode_overrides",
+                to="game_config.systemmodule",
+            ),
         ),
-
         # 7. Re-add unique_together constraints
         migrations.AlterUniqueTogether(
-            name='gamesettingsmoduleoverride',
-            unique_together={('game_settings', 'module')},
+            name="gamesettingsmoduleoverride",
+            unique_together={("game_settings", "module")},
         ),
         migrations.AlterUniqueTogether(
-            name='gamemodemoduleoverride',
-            unique_together={('game_mode', 'module')},
+            name="gamemodemoduleoverride",
+            unique_together={("game_mode", "module")},
         ),
-
         # 8. Delete GameModule model
         migrations.DeleteModel(
-            name='GameModule',
+            name="GameModule",
         ),
     ]

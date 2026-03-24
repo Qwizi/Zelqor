@@ -1,10 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  getRegions,
-  getRegionsGraph,
-  type GeoJSON,
-  type RegionGraphEntry,
-} from "@/lib/api";
+import { type GeoJSON, getRegions, getRegionsGraph, type RegionGraphEntry } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 
 export function useRegions() {

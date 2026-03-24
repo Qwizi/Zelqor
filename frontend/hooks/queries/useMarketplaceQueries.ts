@@ -1,19 +1,19 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  buyFromListing,
+  cancelListing,
+  createListing,
   getMarketConfig,
   getMarketListings,
   getMyListings,
   getMyTradeHistory,
-  createListing,
-  buyFromListing,
-  cancelListing,
   type MarketConfigOut,
   type MarketListingOut,
   type MarketTransactionOut,
   type PaginatedResponse,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export function useMarketConfig() {
   return useQuery<MarketConfigOut>({
@@ -23,12 +23,7 @@ export function useMarketConfig() {
   });
 }
 
-export function useMarketListings(
-  itemSlug?: string,
-  listingType?: string,
-  limit?: number,
-  offset?: number
-) {
+export function useMarketListings(itemSlug?: string, listingType?: string, limit?: number, offset?: number) {
   return useQuery<PaginatedResponse<MarketListingOut>>({
     queryKey: queryKeys.marketplace.listings({
       itemSlug,
@@ -60,12 +55,8 @@ export function useMyTradeHistory(limit?: number, offset?: number) {
 export function useCreateListing() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: {
-      item_slug: string;
-      listing_type: string;
-      quantity: number;
-      price_per_unit: number;
-    }) => createListing(requireToken(), data),
+    mutationFn: (data: { item_slug: string; listing_type: string; quantity: number; price_per_unit: number }) =>
+      createListing(requireToken(), data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.marketplace.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
@@ -76,13 +67,8 @@ export function useCreateListing() {
 export function useBuyFromListing() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      listingId,
-      quantity,
-    }: {
-      listingId: string;
-      quantity: number;
-    }) => buyFromListing(requireToken(), listingId, quantity),
+    mutationFn: ({ listingId, quantity }: { listingId: string; quantity: number }) =>
+      buyFromListing(requireToken(), listingId, quantity),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.marketplace.all });
       queryClient.invalidateQueries({
@@ -96,8 +82,7 @@ export function useBuyFromListing() {
 export function useCancelListing() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (listingId: string) =>
-      cancelListing(requireToken(), listingId),
+    mutationFn: (listingId: string) => cancelListing(requireToken(), listingId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.marketplace.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });

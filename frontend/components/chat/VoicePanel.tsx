@@ -1,6 +1,6 @@
 "use client";
 
-import { Mic, MicOff, PhoneOff, Phone, Users } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff } from "lucide-react";
 import type { VoicePeer } from "@/hooks/useVoiceChat";
 
 interface PlayerInfo {
@@ -22,9 +22,16 @@ interface VoicePanelProps {
 }
 
 export default function VoicePanel({
-  token, url, players,
-  connected, micEnabled, isSpeaking, peers,
-  onJoin, onLeave, onToggleMic,
+  token,
+  url,
+  players,
+  connected,
+  micEnabled,
+  isSpeaking,
+  peers,
+  onJoin,
+  onLeave,
+  onToggleMic,
 }: VoicePanelProps) {
   if (!token || !url) return null;
 
@@ -107,9 +114,7 @@ export default function VoicePanel({
         <div className="h-4 w-px bg-border" />
 
         <div className="flex items-center gap-1.5">
-          {peers.length === 0 && (
-            <span className="text-[10px] text-muted-foreground">Brak graczy</span>
-          )}
+          {peers.length === 0 && <span className="text-[10px] text-muted-foreground">Brak graczy</span>}
           {peers.map((peer) => {
             const player = players[peer.identity];
             return (

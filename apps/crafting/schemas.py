@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+
 from ninja import Schema
 
 from apps.inventory.schemas import ItemOutSchema

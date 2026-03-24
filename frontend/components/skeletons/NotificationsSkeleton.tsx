@@ -1,14 +1,13 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const ROW_COUNT = 12;
 
 export function NotificationsSkeleton() {
   return (
     <div className="space-y-3 md:space-y-6 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 px-4 md:px-0">
         <div className="space-y-1.5">
@@ -34,14 +33,10 @@ export function NotificationsSkeleton() {
 
       {/* ── Notification list ── */}
       <div className="px-4 md:px-0">
-
         {/* Mobile flat list */}
         <div className="md:hidden space-y-0.5">
           {Array.from({ length: ROW_COUNT }).map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 rounded-xl py-3 px-2"
-            >
+            <div key={i} className="flex items-center gap-3 rounded-xl py-3 px-2">
               {/* Icon circle */}
               <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
 
@@ -73,10 +68,7 @@ export function NotificationsSkeleton() {
 
           {/* Table rows */}
           {Array.from({ length: ROW_COUNT }).map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-4 border-b border-border/50 last:border-0 px-6 py-4"
-            >
+            <div key={i} className="flex items-center gap-4 border-b border-border/50 last:border-0 px-6 py-4">
               {/* Icon circle */}
               <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
 
@@ -109,7 +101,6 @@ export function NotificationsSkeleton() {
           <Skeleton className="h-9 w-9 md:h-10 md:w-32 rounded-full md:rounded-xl" />
         </div>
       </div>
-
     </div>
   );
 }

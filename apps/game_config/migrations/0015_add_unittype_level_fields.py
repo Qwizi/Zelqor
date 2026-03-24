@@ -4,20 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game_config', '0014_abilitytype_level_stats_abilitytype_max_level_and_more'),
+        ("game_config", "0014_abilitytype_level_stats_abilitytype_max_level_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='unittype',
-            name='level_stats',
-            field=models.JSONField(blank=True, default=dict, help_text='Per-level stat overrides. Keys are level numbers as strings. Example: {"1": {"attack": 3.0, "defense": 2.5}, "2": {"attack": 4.0}}. Supported keys: attack, defense, speed, production_cost, production_time_ticks, manpower_cost'),
+            model_name="unittype",
+            name="level_stats",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text='Per-level stat overrides. Keys are level numbers as strings. Example: {"1": {"attack": 3.0, "defense": 2.5}, "2": {"attack": 4.0}}. Supported keys: attack, defense, speed, production_cost, production_time_ticks, manpower_cost',
+            ),
         ),
         migrations.AddField(
-            model_name='unittype',
-            name='max_level',
-            field=models.PositiveIntegerField(default=1, help_text='Maximum upgrade level'),
+            model_name="unittype",
+            name="max_level",
+            field=models.PositiveIntegerField(default=1, help_text="Maximum upgrade level"),
         ),
     ]

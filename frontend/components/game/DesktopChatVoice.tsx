@@ -1,10 +1,10 @@
 "use client";
 
+import { ChevronDown, ChevronUp, MessageSquare, Mic, MicOff, Phone, PhoneOff } from "lucide-react";
 import { useState } from "react";
-import { MessageSquare, ChevronDown, ChevronUp, Mic, MicOff, Phone, PhoneOff } from "lucide-react";
-import type { VoicePeer } from "@/hooks/useVoiceChat";
-import { MessageList, type ChatMessage } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { type ChatMessage, MessageList } from "@/components/chat/MessageList";
+import type { VoicePeer } from "@/hooks/useVoiceChat";
 
 interface DesktopChatVoiceProps {
   myUserId: string;
@@ -65,7 +65,11 @@ export default function DesktopChatVoice({
               <span className="font-display text-xs tabular-nums text-muted-foreground">{chatMessages.length}</span>
             )}
           </div>
-          {chatOpen ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
+          {chatOpen ? (
+            <ChevronUp className="h-3 w-3 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          )}
         </button>
         {chatOpen && (
           <div className="border-t border-border">
@@ -81,8 +85,14 @@ export default function DesktopChatVoice({
 }
 
 function VoicePill({
-  connected, micEnabled, isSpeaking, peers,
-  onJoin, onLeave, onToggleMic, disabled = false,
+  connected,
+  micEnabled,
+  isSpeaking,
+  peers,
+  onJoin,
+  onLeave,
+  onToggleMic,
+  disabled = false,
 }: {
   connected: boolean;
   micEnabled: boolean;
@@ -111,18 +121,18 @@ function VoicePill({
       <button
         onClick={onToggleMic}
         className={`rounded-full p-1 transition-colors ${
-          micEnabled
-            ? isSpeaking ? "text-emerald-300" : "text-foreground/60 hover:text-foreground"
-            : "text-red-400"
+          micEnabled ? (isSpeaking ? "text-emerald-300" : "text-foreground/60 hover:text-foreground") : "text-red-400"
         }`}
         title={micEnabled ? "Wycisz" : "Włącz mikrofon"}
       >
         {micEnabled ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
       </button>
-      {peers.length > 0 && (
-        <span className="text-[10px] tabular-nums text-muted-foreground">{peers.length}</span>
-      )}
-      <button onClick={onLeave} className="rounded-full p-1 text-red-400 transition-colors hover:bg-red-500/20" title="Rozłącz">
+      {peers.length > 0 && <span className="text-[10px] tabular-nums text-muted-foreground">{peers.length}</span>}
+      <button
+        onClick={onLeave}
+        className="rounded-full p-1 text-red-400 transition-colors hover:bg-red-500/20"
+        title="Rozłącz"
+      >
         <PhoneOff className="h-3.5 w-3.5" />
       </button>
     </div>

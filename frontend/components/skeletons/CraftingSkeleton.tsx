@@ -1,7 +1,7 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // 8 categories matching CATEGORIES in the real page
 const CATEGORY_COUNT = 8;
@@ -13,7 +13,6 @@ const PILL_COUNT = 6;
 export function CraftingSkeleton() {
   return (
     <div className="space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       {/* ── Header ── */}
       <div className="px-4 md:px-0 space-y-1.5">
         {/* "Warsztat" label — desktop only */}
@@ -43,14 +42,10 @@ export function CraftingSkeleton() {
         className="md:flex md:flex-row md:gap-4 md:rounded-2xl md:border md:border-border md:bg-card md:p-5 px-4 md:px-5"
         style={{ maxHeight: "calc(100vh - 12rem)" }}
       >
-
         {/* ── Left sidebar: category buttons (desktop only) ── */}
         <div className="hidden w-52 shrink-0 space-y-1 overflow-y-auto lg:block">
           {Array.from({ length: CATEGORY_COUNT }).map((_, i) => (
-            <div
-              key={i}
-              className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-3"
-            >
+            <div key={i} className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-3">
               {/* Emoji icon placeholder */}
               <Skeleton className="h-6 w-6 shrink-0 rounded-md" />
               {/* Label */}
@@ -63,14 +58,10 @@ export function CraftingSkeleton() {
 
         {/* ── Center: recipe list ── */}
         <div className="min-w-0 flex-1 space-y-3 md:space-y-4 overflow-y-auto">
-
           {/* Mobile category pills */}
           <div className="flex gap-1.5 overflow-x-auto pb-0.5 lg:hidden">
             {Array.from({ length: PILL_COUNT }).map((_, i) => (
-              <Skeleton
-                key={i}
-                className="h-8 w-10 shrink-0 rounded-full"
-              />
+              <Skeleton key={i} className="h-8 w-10 shrink-0 rounded-full" />
             ))}
           </div>
 
@@ -143,7 +134,6 @@ export function CraftingSkeleton() {
           {/* Craft button */}
           <Skeleton className="h-14 w-full rounded-xl" />
         </div>
-
       </div>
     </div>
   );

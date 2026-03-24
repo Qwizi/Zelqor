@@ -1,39 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, Check, Loader2, Plus, Star, StarOff, X } from "lucide-react";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Check,
-  Loader2,
-  Plus,
-  Star,
-  StarOff,
-  X,
-} from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
-import ItemIcon from "@/components/ui/ItemIcon";
-import { useAuth } from "@/hooks/useAuth";
-import {
-  useDeck,
-  useMyInventory,
-  useUpdateDeck,
-  useSetDefaultDeck,
-} from "@/hooks/queries";
 import { DeckEditorSkeleton } from "@/components/skeletons/DeckEditorSkeleton";
-import { type DeckOut, type InventoryItemOut } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import ItemIcon from "@/components/ui/ItemIcon";
+import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useDeck, useMyInventory, useSetDefaultDeck, useUpdateDeck } from "@/hooks/queries";
+import { useAuth } from "@/hooks/useAuth";
+import type { DeckOut, InventoryItemOut } from "@/lib/api";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -188,9 +169,7 @@ function FilledSlotCard({
       onClick={isLocked ? undefined : onRemove}
       className={[
         "group relative flex flex-col items-center gap-1.5 rounded-xl border-2 p-2 text-left transition-all duration-150",
-        isLocked
-          ? "cursor-default opacity-70"
-          : "hover:brightness-110 active:scale-[0.97] cursor-pointer",
+        isLocked ? "cursor-default opacity-70" : "hover:brightness-110 active:scale-[0.97] cursor-pointer",
         RARITY_BORDER_COLOR[rarity] ?? "border-slate-500/50",
         RARITY_SLOT_BG[rarity] ?? "bg-slate-500/[0.07]",
       ].join(" ")}
@@ -221,12 +200,8 @@ function FilledSlotCard({
       <p className="w-full truncate text-center text-[10px] font-medium text-foreground leading-tight">
         {item.item_name}
       </p>
-      <span className={`text-[9px] font-semibold ${levelBadgeClass(item.level)}`}>
-        Lvl {item.level}
-      </span>
-      {item.is_stattrak && (
-        <span className="text-[8px] font-bold text-amber-400">ST</span>
-      )}
+      <span className={`text-[9px] font-semibold ${levelBadgeClass(item.level)}`}>Lvl {item.level}</span>
+      {item.is_stattrak && <span className="text-[8px] font-bold text-amber-400">ST</span>}
     </button>
   );
 }
@@ -256,13 +231,13 @@ function EmptySlotCard({
       title={isLocked ? `Slot ${index + 1}` : `Slot ${index + 1} — kliknij aby dodać`}
     >
       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/30">
-        <span className={`text-xl leading-none select-none transition-colors ${isLocked ? "text-muted-foreground/30" : "text-muted-foreground/40 group-hover:text-muted-foreground"}`}>
+        <span
+          className={`text-xl leading-none select-none transition-colors ${isLocked ? "text-muted-foreground/30" : "text-muted-foreground/40 group-hover:text-muted-foreground"}`}
+        >
           {sectionIcon}
         </span>
       </div>
-      <p className="w-full truncate text-center text-[10px] text-muted-foreground/50 leading-tight">
-        Slot {index + 1}
-      </p>
+      <p className="w-full truncate text-center text-[10px] text-muted-foreground/50 leading-tight">Slot {index + 1}</p>
       {!isLocked && (
         <span className="text-[9px] text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors">
           <Plus className="h-2.5 w-2.5 inline" />
@@ -332,7 +307,7 @@ function DeckSectionCard({
                 onClick={onSlotClick}
                 isLocked={isLocked}
               />
-            )
+            ),
           )}
         </div>
       </div>
@@ -375,29 +350,35 @@ function PickerItem({
           <span className={`text-sm font-medium truncate ${RARITY_TEXT[rarity] ?? "text-foreground"}`}>
             {inv.item.name}
           </span>
-          <Badge
-            className={`text-[10px] px-1.5 py-0 shrink-0 ${RARITY_BADGE_CLASS[rarity] ?? ""}`}
-            variant="outline"
-          >
+          <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${RARITY_BADGE_CLASS[rarity] ?? ""}`} variant="outline">
             Lvl {inv.item.level ?? 1}
           </Badge>
         </div>
         <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
           {inv.is_instance && inv.instance?.stattrak && (
-            <Badge className="text-[9px] px-1 py-0 bg-amber-500/15 text-amber-300 border-amber-500/20" variant="outline">
+            <Badge
+              className="text-[9px] px-1 py-0 bg-amber-500/15 text-amber-300 border-amber-500/20"
+              variant="outline"
+            >
               StatTrak
             </Badge>
           )}
           {inv.is_instance && inv.instance?.wear_condition && (
-            <span>{inv.instance.wear_condition === "factory_new" ? "FN" : inv.instance.wear_condition === "minimal_wear" ? "MW" : inv.instance.wear_condition === "field_tested" ? "FT" : inv.instance.wear_condition === "well_worn" ? "WW" : "BS"}</span>
+            <span>
+              {inv.instance.wear_condition === "factory_new"
+                ? "FN"
+                : inv.instance.wear_condition === "minimal_wear"
+                  ? "MW"
+                  : inv.instance.wear_condition === "field_tested"
+                    ? "FT"
+                    : inv.instance.wear_condition === "well_worn"
+                      ? "WW"
+                      : "BS"}
+            </span>
           )}
-          {inv.is_instance && inv.instance?.is_rare_pattern && (
-            <span className="text-amber-400">Rzadki wzór</span>
-          )}
+          {inv.is_instance && inv.instance?.is_rare_pattern && <span className="text-amber-400">Rzadki wzór</span>}
           {!inv.is_instance && <span>x{inv.quantity}</span>}
-          {disabled && disabledReason && (
-            <span className="text-amber-400/70">{disabledReason}</span>
-          )}
+          {disabled && disabledReason && <span className="text-amber-400/70">{disabledReason}</span>}
         </div>
       </div>
 
@@ -419,14 +400,7 @@ interface SectionPickerSheetProps {
   onAdd: (inv: InventoryItemOut) => void;
 }
 
-function SectionPickerSheet({
-  open,
-  onClose,
-  section,
-  inventory,
-  draftSlots,
-  onAdd,
-}: SectionPickerSheetProps) {
+function SectionPickerSheet({ open, onClose, section, inventory, draftSlots, onAdd }: SectionPickerSheetProps) {
   if (!section) return null;
 
   const sectionType = section.type;
@@ -435,7 +409,12 @@ function SectionPickerSheet({
   const sectionFull = currentSlots.length >= section.slots;
 
   return (
-    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Sheet
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) onClose();
+      }}
+    >
       <SheetContent side="right" className="w-full sm:max-w-md flex flex-col gap-0 p-0">
         <SheetHeader className="px-4 pt-4 pb-3 border-b border-border">
           <SheetTitle className="flex items-center gap-2 text-base">
@@ -463,17 +442,15 @@ function SectionPickerSheet({
               {availableItems.map((inv) => {
                 const instanceId = inv.is_instance && inv.instance ? inv.instance.id : undefined;
                 // For instances, check if THIS specific instance is already in deck
-                const instanceAlreadyUsed = instanceId
-                  ? currentSlots.some((s) => s.instance_id === instanceId)
-                  : false;
+                const instanceAlreadyUsed = instanceId ? currentSlots.some((s) => s.instance_id === instanceId) : false;
                 // For stackable/consumable, count by slug
                 const inDraftCount = currentSlots.filter((s) => s.item_slug === inv.item.slug).length;
                 const ownedQty = inv.quantity ?? 0;
                 // Non-consumable non-instance items: one per slug
                 const alreadyInDeck = !inv.item.is_consumable && !instanceId && inDraftCount >= 1;
-                const refTaken = !!(inv.item.blueprint_ref && currentSlots.some(
-                  (s) => s.blueprint_ref === inv.item.blueprint_ref
-                ));
+                const refTaken = !!(
+                  inv.item.blueprint_ref && currentSlots.some((s) => s.blueprint_ref === inv.item.blueprint_ref)
+                );
                 const exhausted = inv.item.is_consumable && inDraftCount >= ownedQty;
                 const disabled = sectionFull || instanceAlreadyUsed || alreadyInDeck || refTaken || exhausted;
 
@@ -541,9 +518,7 @@ export default function DeckEditorPage() {
   const saving = updateDeckMutation.isPending || setDefaultDeckMutation.isPending;
 
   // Derived inventory list filtered to deck item types
-  const inventory = (inventoryData?.items ?? []).filter((i) =>
-    DECK_ITEM_TYPES.includes(i.item.item_type)
-  );
+  const inventory = (inventoryData?.items ?? []).filter((i) => DECK_ITEM_TYPES.includes(i.item.item_type));
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -599,7 +574,7 @@ export default function DeckEditorPage() {
             icon: invItem.item.icon || "",
             blueprint_ref: ref || "",
             instance_id: invItem.is_instance && invItem.instance ? invItem.instance.id : undefined,
-            is_stattrak: invItem.is_instance && invItem.instance?.stattrak || false,
+            is_stattrak: (invItem.is_instance && invItem.instance?.stattrak) || false,
           },
         ],
       };
@@ -630,9 +605,7 @@ export default function DeckEditorPage() {
     for (const s of allSlotItems) {
       countMap.set(s.item_slug, (countMap.get(s.item_slug) ?? 0) + 1);
     }
-    const items = Array.from(countMap.entries()).map(
-      ([item_slug, quantity]) => ({ item_slug, quantity })
-    );
+    const items = Array.from(countMap.entries()).map(([item_slug, quantity]) => ({ item_slug, quantity }));
 
     try {
       await updateDeckMutation.mutateAsync({
@@ -651,10 +624,7 @@ export default function DeckEditorPage() {
     }
   };
 
-  const totalDraftItems = Object.values(draftSlots).reduce(
-    (acc, arr) => acc + arr.length,
-    0
-  );
+  const totalDraftItems = Object.values(draftSlots).reduce((acc, arr) => acc + arr.length, 0);
 
   if (authLoading || !user || loading) return <DeckEditorSkeleton />;
 
@@ -680,14 +650,10 @@ export default function DeckEditorPage() {
           <p className="hidden md:block text-xs uppercase tracking-[0.24em] text-muted-foreground font-medium">
             Edytor talii
           </p>
-          <h1 className="font-display text-xl md:text-3xl text-foreground truncate">
-            {editName || "Edytor talii"}
-          </h1>
+          <h1 className="font-display text-xl md:text-3xl text-foreground truncate">{editName || "Edytor talii"}</h1>
         </div>
         {!loading && (
-          <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-            {totalDraftItems} szt.
-          </span>
+          <span className="text-xs text-muted-foreground tabular-nums shrink-0">{totalDraftItems} szt.</span>
         )}
       </div>
 
@@ -725,9 +691,7 @@ export default function DeckEditorPage() {
         {/* Desktop controls */}
         <Card className="hidden md:block rounded-2xl backdrop-blur-xl">
           <CardContent className="flex flex-wrap items-center gap-3 px-5 py-4">
-            <span className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              Talia:
-            </span>
+            <span className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Talia:</span>
             <Input
               type="text"
               value={editName}

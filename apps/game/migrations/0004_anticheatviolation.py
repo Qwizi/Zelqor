@@ -6,28 +6,46 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('game', '0003_sharelink'),
-        ('matchmaking', '0007_lobby_full_at'),
+        ("game", "0003_sharelink"),
+        ("matchmaking", "0007_lobby_full_at"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='AnticheatViolation',
+            name="AnticheatViolation",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('violation_kind', models.CharField(max_length=50)),
-                ('severity', models.CharField(choices=[('warn', 'Warning'), ('flag', 'Flagged'), ('ban', 'Banned')], max_length=10)),
-                ('detail', models.TextField()),
-                ('tick', models.IntegerField()),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('match', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='anticheat_violations', to='matchmaking.match')),
-                ('player', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='anticheat_violations', to=settings.AUTH_USER_MODEL)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("violation_kind", models.CharField(max_length=50)),
+                (
+                    "severity",
+                    models.CharField(
+                        choices=[("warn", "Warning"), ("flag", "Flagged"), ("ban", "Banned")], max_length=10
+                    ),
+                ),
+                ("detail", models.TextField()),
+                ("tick", models.IntegerField()),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "match",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="anticheat_violations",
+                        to="matchmaking.match",
+                    ),
+                ),
+                (
+                    "player",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="anticheat_violations",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-created_at'],
+                "ordering": ["-created_at"],
             },
         ),
     ]

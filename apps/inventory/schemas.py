@@ -1,15 +1,16 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+
 from ninja import Schema
 
 
 class RenameInstanceInSchema(Schema):
-    nametag: str = ''
+    nametag: str = ""
 
 
 class DeckItemSlotSchema(Schema):
     """Input schema for a single item slot when updating a deck."""
+
     item_slug: str
     quantity: int
 
@@ -19,8 +20,8 @@ class DeckCreateSchema(Schema):
 
 
 class DeckUpdateSchema(Schema):
-    name: Optional[str] = None
-    items: Optional[list[DeckItemSlotSchema]] = None
+    name: str | None = None
+    items: list[DeckItemSlotSchema] | None = None
 
 
 class ItemOutSchema(Schema):
@@ -37,7 +38,7 @@ class ItemOutSchema(Schema):
     is_consumable: bool
     base_value: int
     level: int
-    blueprint_ref: str = ''
+    blueprint_ref: str = ""
     boost_params: dict | None = None
     cosmetic_params: dict | None = None
     crate_loot_table: list | None = None
@@ -56,7 +57,7 @@ class ItemInstanceOutSchema(Schema):
     stattrak_matches: int = 0
     stattrak_kills: int = 0
     stattrak_units_produced: int = 0
-    nametag: str = ''
+    nametag: str = ""
     is_rare_pattern: bool
     first_owner_username: str | None = None
     crafted_by_username: str | None = None
@@ -67,7 +68,7 @@ class ItemInstanceOutSchema(Schema):
 
     @staticmethod
     def resolve_wear_condition(obj):
-        return obj.wear_condition.value if hasattr(obj.wear_condition, 'value') else obj.wear_condition
+        return obj.wear_condition.value if hasattr(obj.wear_condition, "value") else obj.wear_condition
 
     @staticmethod
     def resolve_is_rare_pattern(obj):
@@ -115,7 +116,7 @@ class ItemDropOutSchema(Schema):
     item: ItemOutSchema
     quantity: int
     source: str
-    match_id: Optional[uuid.UUID] = None
+    match_id: uuid.UUID | None = None
     instance: ItemInstanceOutSchema | None = None
     created_at: datetime
 

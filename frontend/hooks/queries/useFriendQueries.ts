@@ -1,26 +1,22 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  acceptFriendRequest,
+  acceptGameInvite,
+  type FriendshipOut,
   getFriends,
   getReceivedRequests,
   getSentRequests,
-  sendFriendRequest,
-  acceptFriendRequest,
-  rejectFriendRequest,
-  removeFriend,
   inviteFriendToGame,
-  acceptGameInvite,
-  rejectGameInvite,
-  type FriendshipOut,
   type PaginatedResponse,
+  rejectFriendRequest,
+  rejectGameInvite,
+  removeFriend,
+  sendFriendRequest,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/queryKeys";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
-export function useFriends(
-  limit?: number,
-  offset?: number,
-  options?: { refetchInterval?: number }
-) {
+export function useFriends(limit?: number, offset?: number, options?: { refetchInterval?: number }) {
   return useQuery<PaginatedResponse<FriendshipOut>>({
     queryKey: queryKeys.friends.list(limit, offset),
     queryFn: () => getFriends(requireToken(), limit, offset),
@@ -29,11 +25,7 @@ export function useFriends(
   });
 }
 
-export function useReceivedRequests(
-  limit?: number,
-  offset?: number,
-  options?: { refetchInterval?: number }
-) {
+export function useReceivedRequests(limit?: number, offset?: number, options?: { refetchInterval?: number }) {
   return useQuery<PaginatedResponse<FriendshipOut>>({
     queryKey: queryKeys.friends.received(limit, offset),
     queryFn: () => getReceivedRequests(requireToken(), limit, offset),
@@ -53,8 +45,7 @@ export function useSentRequests(limit?: number, offset?: number) {
 export function useSendFriendRequest() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (username: string) =>
-      sendFriendRequest(requireToken(), username),
+    mutationFn: (username: string) => sendFriendRequest(requireToken(), username),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
     },
@@ -64,8 +55,7 @@ export function useSendFriendRequest() {
 export function useAcceptFriendRequest() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (friendshipId: string) =>
-      acceptFriendRequest(requireToken(), friendshipId),
+    mutationFn: (friendshipId: string) => acceptFriendRequest(requireToken(), friendshipId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
     },
@@ -75,8 +65,7 @@ export function useAcceptFriendRequest() {
 export function useRejectFriendRequest() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (friendshipId: string) =>
-      rejectFriendRequest(requireToken(), friendshipId),
+    mutationFn: (friendshipId: string) => rejectFriendRequest(requireToken(), friendshipId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
     },
@@ -86,8 +75,7 @@ export function useRejectFriendRequest() {
 export function useRemoveFriend() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (friendshipId: string) =>
-      removeFriend(requireToken(), friendshipId),
+    mutationFn: (friendshipId: string) => removeFriend(requireToken(), friendshipId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
     },
@@ -96,26 +84,19 @@ export function useRemoveFriend() {
 
 export function useInviteFriendToGame() {
   return useMutation({
-    mutationFn: ({
-      friendshipId,
-      gameMode,
-    }: {
-      friendshipId: string;
-      gameMode: string;
-    }) => inviteFriendToGame(requireToken(), friendshipId, gameMode),
+    mutationFn: ({ friendshipId, gameMode }: { friendshipId: string; gameMode: string }) =>
+      inviteFriendToGame(requireToken(), friendshipId, gameMode),
   });
 }
 
 export function useAcceptGameInvite() {
   return useMutation({
-    mutationFn: (notificationId: string) =>
-      acceptGameInvite(requireToken(), notificationId),
+    mutationFn: (notificationId: string) => acceptGameInvite(requireToken(), notificationId),
   });
 }
 
 export function useRejectGameInvite() {
   return useMutation({
-    mutationFn: (notificationId: string) =>
-      rejectGameInvite(requireToken(), notificationId),
+    mutationFn: (notificationId: string) => rejectGameInvite(requireToken(), notificationId),
   });
 }

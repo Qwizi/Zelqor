@@ -12,6 +12,6 @@ class ActiveUserJWTAuth(JWTAuth):
 
     def authenticate(self, request, token: str):
         user = super().authenticate(request, token)
-        if user is not None and getattr(user, 'is_banned', False):
+        if user is not None and getattr(user, "is_banned", False):
             return None
         return user

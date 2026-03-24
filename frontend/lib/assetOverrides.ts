@@ -1,8 +1,6 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  (typeof window !== "undefined"
-    ? "/api/v1"
-    : process.env.API_URL || "http://backend:8000/api/v1");
+  (typeof window !== "undefined" ? "/api/v1" : process.env.API_URL || "http://backend:8000/api/v1");
 
 let overrideMap: Record<string, string> = {};
 let loaded = false;

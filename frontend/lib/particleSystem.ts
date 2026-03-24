@@ -6,7 +6,7 @@
  * Uses Sprite-based particles with object pooling for 60fps performance.
  */
 
-import { Container, Sprite, Texture } from "pixi.js";
+import { type Container, Sprite, Texture } from "pixi.js";
 
 // ---------------------------------------------------------------------------
 // Types & Interfaces
@@ -225,12 +225,7 @@ export class ParticlePool {
 // Behavior helpers applied at spawn time
 // ---------------------------------------------------------------------------
 
-function applySpawnBehaviors(
-  particle: Particle,
-  config: EmitterConfig,
-  emitterX: number,
-  emitterY: number
-): void {
+function applySpawnBehaviors(particle: Particle, config: EmitterConfig, emitterX: number, emitterY: number): void {
   // Defaults
   particle.maxLife = rand(config.lifetime.min, config.lifetime.max);
   particle.life = particle.maxLife;
@@ -275,9 +270,7 @@ function applySpawnBehaviors(
         break;
       }
       case "moveDirection": {
-        angleRad = degToRad(
-          rand(behavior.config.minAngle, behavior.config.maxAngle)
-        );
+        angleRad = degToRad(rand(behavior.config.minAngle, behavior.config.maxAngle));
         break;
       }
       case "alpha": {
@@ -333,7 +326,6 @@ function applySpawnBehaviors(
 export class ParticleEmitter {
   emit = true;
   spawnPos: { x: number; y: number };
-
   private container: Container;
   private config: EmitterConfig;
   private pool: ParticlePool;
@@ -378,10 +370,7 @@ export class ParticleEmitter {
       while (this.spawnTimer >= this.frequency) {
         this.spawnTimer -= this.frequency;
         const currentActive = this.pool.activeCount;
-        const toSpawn = Math.min(
-          this.particlesPerWave,
-          this.maxParticles - currentActive
-        );
+        const toSpawn = Math.min(this.particlesPerWave, this.maxParticles - currentActive);
         for (let i = 0; i < toSpawn; i++) {
           this.spawnParticle();
         }
@@ -462,11 +451,7 @@ export class ParticleEmitter {
   }
 
   get isComplete(): boolean {
-    return (
-      !this.emit &&
-      this.emitterLifetime >= 0 &&
-      this.pool.activeCount === 0
-    );
+    return !this.emit && this.emitterLifetime >= 0 && this.pool.activeCount === 0;
   }
 }
 
@@ -479,7 +464,7 @@ export class ParticleManager {
 
   addEmitter(id: string, emitter: ParticleEmitter): void {
     if (this.emitters.has(id)) {
-      this.emitters.get(id)!.cleanup();
+      this.emitters.get(id)?.cleanup();
     }
     this.emitters.set(id, emitter);
   }
@@ -689,22 +674,8 @@ export const ParticleTextures = {
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.beginPath();
       ctx.moveTo(c, size * 0.05);
-      ctx.bezierCurveTo(
-        size * 0.85,
-        size * 0.1,
-        size * 0.9,
-        size * 0.85,
-        c,
-        size * 0.95
-      );
-      ctx.bezierCurveTo(
-        size * 0.1,
-        size * 0.85,
-        size * 0.15,
-        size * 0.1,
-        c,
-        size * 0.05
-      );
+      ctx.bezierCurveTo(size * 0.85, size * 0.1, size * 0.9, size * 0.85, c, size * 0.95);
+      ctx.bezierCurveTo(size * 0.1, size * 0.85, size * 0.15, size * 0.1, c, size * 0.05);
       ctx.closePath();
       ctx.fill();
       // Vein
@@ -1067,10 +1038,7 @@ export const ParticlePresets = {
         {
           type: "textureRandom",
           config: {
-            textures: [
-              ParticleTextures.createSpark(),
-              ParticleTextures.createSmoke(),
-            ],
+            textures: [ParticleTextures.createSpark(), ParticleTextures.createSmoke()],
           },
         },
         { type: "alpha", config: { start: 1.0, end: 0.0 } },
@@ -1228,10 +1196,7 @@ export const ParticlePresets = {
         {
           type: "textureRandom",
           config: {
-            textures: [
-              ParticleTextures.createSmoke(),
-              ParticleTextures.createCircleSoft(),
-            ],
+            textures: [ParticleTextures.createSmoke(), ParticleTextures.createCircleSoft()],
           },
         },
         { type: "alpha", config: { start: 0.8, end: 0.0 } },
@@ -1349,10 +1314,7 @@ export const ParticlePresets = {
         {
           type: "textureRandom",
           config: {
-            textures: [
-              ParticleTextures.createSpark(),
-              ParticleTextures.createStar(),
-            ],
+            textures: [ParticleTextures.createSpark(), ParticleTextures.createStar()],
           },
         },
         { type: "alpha", config: { start: 1.0, end: 0.0 } },

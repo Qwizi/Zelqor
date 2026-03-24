@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, Suspense } from "react";
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import AuthScreen from "@/components/auth/AuthScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { linkSocialAccount } from "@/lib/api";
-import AuthScreen from "@/components/auth/AuthScreen";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
 function LinkContent() {
   const params = useParams();
@@ -49,10 +49,9 @@ function LinkContent() {
 
     linkSocialAccount(token, provider, code, redirectUri, state)
       .then(() => {
-        toast.success(
-          `Konto ${provider === "google" ? "Google" : "Discord"} zostało podłączone.`,
-          { id: "auth-link-success" }
-        );
+        toast.success(`Konto ${provider === "google" ? "Google" : "Discord"} zostało podłączone.`, {
+          id: "auth-link-success",
+        });
         router.replace("/settings");
       })
       .catch(() => {
@@ -83,8 +82,7 @@ function LinkContent() {
       <div className="flex flex-col items-center gap-4 py-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">
-          Trwa podłączanie konta{" "}
-          {provider === "google" ? "Google" : "Discord"}...
+          Trwa podłączanie konta {provider === "google" ? "Google" : "Discord"}...
         </p>
       </div>
     </AuthScreen>

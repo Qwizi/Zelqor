@@ -4,15 +4,34 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('notifications', '0002_alter_notification_type'),
+        ("notifications", "0002_alter_notification_type"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='notification',
-            name='type',
-            field=models.CharField(choices=[('friend_request_received', 'Friend Request Received'), ('friend_request_accepted', 'Friend Request Accepted'), ('match_won', 'Match Won'), ('match_lost', 'Match Lost'), ('player_eliminated', 'Player Eliminated'), ('game_invite', 'Game Invite'), ('clan_invitation_received', 'Clan Invitation Received'), ('clan_join_request', 'Clan Join Request'), ('clan_join_request_accepted', 'Clan Join Request Accepted'), ('clan_member_joined', 'Clan Member Joined'), ('clan_member_left', 'Clan Member Left'), ('clan_war_declared', 'Clan War Declared'), ('clan_war_result', 'Clan War Result'), ('clan_promoted', 'Clan Promoted'), ('clan_demoted', 'Clan Demoted'), ('clan_kicked', 'Clan Kicked')], max_length=40),
+            model_name="notification",
+            name="type",
+            field=models.CharField(
+                choices=[
+                    ("friend_request_received", "Friend Request Received"),
+                    ("friend_request_accepted", "Friend Request Accepted"),
+                    ("match_won", "Match Won"),
+                    ("match_lost", "Match Lost"),
+                    ("player_eliminated", "Player Eliminated"),
+                    ("game_invite", "Game Invite"),
+                    ("clan_invitation_received", "Clan Invitation Received"),
+                    ("clan_join_request", "Clan Join Request"),
+                    ("clan_join_request_accepted", "Clan Join Request Accepted"),
+                    ("clan_member_joined", "Clan Member Joined"),
+                    ("clan_member_left", "Clan Member Left"),
+                    ("clan_war_declared", "Clan War Declared"),
+                    ("clan_war_result", "Clan War Result"),
+                    ("clan_promoted", "Clan Promoted"),
+                    ("clan_demoted", "Clan Demoted"),
+                    ("clan_kicked", "Clan Kicked"),
+                ],
+                max_length=40,
+            ),
         ),
     ]

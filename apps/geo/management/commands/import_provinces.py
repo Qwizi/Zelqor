@@ -1,16 +1,13 @@
+import contextlib
 import json
 from pathlib import Path
 
+from django.contrib.gis.geos import GEOSGeometry, MultiPolygon, Point, Polygon
 from django.core.management.base import BaseCommand
-from django.contrib.gis.geos import GEOSGeometry, MultiPolygon, Polygon, Point
+
 from apps.geo.models import Country, Region
 
-
-GEOJSON_PATH = (
-    Path(__file__).resolve().parent.parent.parent.parent.parent
-    / "fixtures"
-    / "provinces.geojson"
-)
+GEOJSON_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / "fixtures" / "provinces.geojson"
 
 GAME_COUNTRY_CODE = "GAM"
 GAME_COUNTRY_NAME = "Game Map"
@@ -48,10 +45,7 @@ class Command(BaseCommand):
         geojson_path = Path(options["geojson"]) if options["geojson"] else GEOJSON_PATH
 
         if not geojson_path.exists():
-            self.stderr.write(
-                f"GeoJSON not found: {geojson_path}\n"
-                "Run: python scripts/convert_provinces_to_geojson.py"
-            )
+            self.stderr.write(f"GeoJSON not found: {geojson_path}\nRun: python scripts/convert_provinces_to_geojson.py")
             return
 
         if options["clear"]:
@@ -93,7 +87,7 @@ class Command(BaseCommand):
             props = feature["properties"]
             province_id = props["id"]  # numeric 1-144
             s_id = props["s_id"]
-            name = props["name"]
+            props["name"]
             is_coastal = props.get("is_coastal", False)
             capital_lonlat = props.get("capital_lonlat")
             neighbor_ids = props.get("neighbors", [])
@@ -109,10 +103,8 @@ class Command(BaseCommand):
             # Centroid: use capital position if available, else compute from geometry
             centroid = None
             if capital_lonlat:
-                try:
+                with contextlib.suppress(Exception):
                     centroid = Point(capital_lonlat[0], capital_lonlat[1], srid=4326)
-                except Exception:
-                    pass
             if centroid is None:
                 centroid = geometry.centroid
 
@@ -136,9 +128,7 @@ class Command(BaseCommand):
             else:
                 updated_count += 1
 
-        self.stdout.write(
-            f"Regions: {created_count} created, {updated_count} updated, {skipped} skipped"
-        )
+        self.stdout.write(f"Regions: {created_count} created, {updated_count} updated, {skipped} skipped")
 
         if not options["skip_neighbors"]:
             self._set_neighbors(province_id_to_region, province_id_to_neighbor_ids)
@@ -190,10 +180,12 @@ class Command(BaseCommand):
                         target_region = None
                     if target_region:
                         provinces.append(str(target_region.id))
-                normalized_bands.append({
-                    "r": int(band.get("r", 0)),
-                    "provinces": provinces,
-                })
+                normalized_bands.append(
+                    {
+                        "r": int(band.get("r", 0)),
+                        "provinces": provinces,
+                    }
+                )
 
             region.sea_distances = normalized_bands
             region.save(update_fields=["sea_distances"])

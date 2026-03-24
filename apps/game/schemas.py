@@ -1,6 +1,6 @@
 import uuid
-from typing import List, Optional
 from datetime import datetime
+
 from ninja import Schema
 
 
@@ -32,7 +32,7 @@ class MatchResultOutSchema(Schema):
     match_id: uuid.UUID
     duration_seconds: int
     total_ticks: int
-    player_results: List[PlayerResultOutSchema] = []
+    player_results: list[PlayerResultOutSchema] = []
 
     class Config:
         from_attributes = True
@@ -56,6 +56,7 @@ class SnapshotDetailSchema(Schema):
 
 
 # --- Share link schemas ---
+
 
 class CreateShareSchema(Schema):
     resource_type: str
@@ -95,25 +96,25 @@ class SharedMatchResultSchema(Schema):
     match_id: str
     duration_seconds: int
     total_ticks: int
-    player_results: List[SharedPlayerResultSchema] = []
+    player_results: list[SharedPlayerResultSchema] = []
 
 
 class SharedMatchSchema(Schema):
     id: str
     status: str
     max_players: int
-    winner_id: Optional[str]
-    started_at: Optional[datetime]
-    finished_at: Optional[datetime]
+    winner_id: str | None
+    started_at: datetime | None
+    finished_at: datetime | None
     created_at: datetime
-    players: List[SharedMatchPlayerSchema] = []
+    players: list[SharedMatchPlayerSchema] = []
 
 
 class SharedResourceSchema(Schema):
     resource_type: str
     match: SharedMatchSchema
-    result: Optional[SharedMatchResultSchema]
-    snapshot_ticks: List[int] = []
+    result: SharedMatchResultSchema | None
+    snapshot_ticks: list[int] = []
 
 
 class SharedSnapshotSchema(Schema):

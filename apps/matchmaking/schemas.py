@@ -1,6 +1,7 @@
 import uuid
-from typing import Literal, Optional, List, Union
 from datetime import datetime
+from typing import Literal
+
 from ninja import Schema
 
 
@@ -11,7 +12,7 @@ class MatchPlayerOutSchema(Schema):
     is_banned: bool = False
     color: str
     is_alive: bool
-    capital_region_id: Optional[uuid.UUID] = None
+    capital_region_id: uuid.UUID | None = None
     joined_at: datetime
 
     @staticmethod
@@ -30,12 +31,12 @@ class MatchOutSchema(Schema):
     id: uuid.UUID
     status: str
     max_players: int
-    game_mode_id: Optional[uuid.UUID] = None
-    map_config_id: Optional[uuid.UUID] = None
-    winner_id: Optional[uuid.UUID] = None
-    players: List[MatchPlayerOutSchema] = []
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
+    game_mode_id: uuid.UUID | None = None
+    map_config_id: uuid.UUID | None = None
+    winner_id: uuid.UUID | None = None
+    players: list[MatchPlayerOutSchema] = []
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
     created_at: datetime
 
     class Config:
@@ -45,7 +46,7 @@ class MatchOutSchema(Schema):
 class MatchQueueOutSchema(Schema):
     id: uuid.UUID
     user_id: uuid.UUID
-    game_mode_id: Optional[uuid.UUID] = None
+    game_mode_id: uuid.UUID | None = None
     joined_at: datetime
 
     class Config:
@@ -54,8 +55,9 @@ class MatchQueueOutSchema(Schema):
 
 # --- Matchmaking status endpoint schemas ---
 
+
 class MatchmakingStatusInMatchSchema(Schema):
-    state: Literal['in_match'] = 'in_match'
+    state: Literal["in_match"] = "in_match"
     match_id: str
 
 
@@ -78,26 +80,26 @@ class LobbyPlayerStatusSchema(Schema):
 
 
 class MatchmakingStatusInLobbySchema(Schema):
-    state: Literal['in_lobby'] = 'in_lobby'
+    state: Literal["in_lobby"] = "in_lobby"
     lobby_id: str
-    game_mode_slug: Optional[str] = None
-    players: List[LobbyPlayerStatusSchema] = []
+    game_mode_slug: str | None = None
+    players: list[LobbyPlayerStatusSchema] = []
     max_players: int
 
 
 class MatchmakingStatusInQueueSchema(Schema):
-    state: Literal['in_queue'] = 'in_queue'
-    game_mode_slug: Optional[str] = None
+    state: Literal["in_queue"] = "in_queue"
+    game_mode_slug: str | None = None
     joined_at: datetime
 
 
 class MatchmakingStatusIdleSchema(Schema):
-    state: Literal['idle'] = 'idle'
+    state: Literal["idle"] = "idle"
 
 
-MatchmakingStatusSchema = Union[
-    MatchmakingStatusInMatchSchema,
-    MatchmakingStatusInLobbySchema,
-    MatchmakingStatusInQueueSchema,
-    MatchmakingStatusIdleSchema,
-]
+MatchmakingStatusSchema = (
+    MatchmakingStatusInMatchSchema
+    | MatchmakingStatusInLobbySchema
+    | MatchmakingStatusInQueueSchema
+    | MatchmakingStatusIdleSchema
+)

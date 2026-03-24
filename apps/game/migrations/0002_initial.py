@@ -6,42 +6,49 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('game', '0001_initial'),
-        ('matchmaking', '0001_initial'),
+        ("game", "0001_initial"),
+        ("matchmaking", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='gamestatesnapshot',
-            name='match',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='snapshots', to='matchmaking.match'),
+            model_name="gamestatesnapshot",
+            name="match",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="snapshots", to="matchmaking.match"
+            ),
         ),
         migrations.AddField(
-            model_name='matchresult',
-            name='match',
-            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='result', to='matchmaking.match'),
+            model_name="matchresult",
+            name="match",
+            field=models.OneToOneField(
+                on_delete=django.db.models.deletion.CASCADE, related_name="result", to="matchmaking.match"
+            ),
         ),
         migrations.AddField(
-            model_name='playerresult',
-            name='match_result',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='player_results', to='game.matchresult'),
+            model_name="playerresult",
+            name="match_result",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="player_results", to="game.matchresult"
+            ),
         ),
         migrations.AddField(
-            model_name='playerresult',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='game_results', to=settings.AUTH_USER_MODEL),
+            model_name="playerresult",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="game_results", to=settings.AUTH_USER_MODEL
+            ),
         ),
         migrations.AlterUniqueTogether(
-            name='gamestatesnapshot',
-            unique_together={('match', 'tick')},
+            name="gamestatesnapshot",
+            unique_together={("match", "tick")},
         ),
         migrations.AlterUniqueTogether(
-            name='playerresult',
-            unique_together={('match_result', 'user')},
+            name="playerresult",
+            unique_together={("match_result", "user")},
         ),
     ]

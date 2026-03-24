@@ -126,8 +126,10 @@ def main():
             "source": "provinces_nvetbz_1.8.2.json",
             "coordinate_system": "linear_normalized",
             "canvas_bounds": {
-                "x_min": X_MIN, "x_max": X_MAX,
-                "y_min": Y_MIN, "y_max": Y_MAX,
+                "x_min": X_MIN,
+                "x_max": X_MAX,
+                "y_min": Y_MIN,
+                "y_max": Y_MAX,
             },
         },
     }

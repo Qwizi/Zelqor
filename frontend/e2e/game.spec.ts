@@ -1,4 +1,4 @@
-import { test, expect, TEST_USER } from "./fixtures";
+import { expect, TEST_USER, test } from "./fixtures";
 
 // ---------------------------------------------------------------------------
 // Game page tests
@@ -14,10 +14,7 @@ import { test, expect, TEST_USER } from "./fixtures";
  * Helper: start a tutorial match via the REST API and return its matchId.
  * Returns null if the API is unavailable.
  */
-async function startTutorialMatch(
-  page: import("@playwright/test").Page,
-  accessToken: string
-): Promise<string | null> {
+async function startTutorialMatch(page: import("@playwright/test").Page, accessToken: string): Promise<string | null> {
   try {
     const res = await page.request.post("/api/v1/matches/tutorial/start/", {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -33,13 +30,12 @@ async function startTutorialMatch(
 /**
  * Helper: clean up the tutorial match.
  */
-async function cleanupTutorialMatch(
-  page: import("@playwright/test").Page,
-  accessToken: string
-): Promise<void> {
-  await page.request.post("/api/v1/matches/tutorial/cleanup/", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  }).catch(() => {});
+async function cleanupTutorialMatch(page: import("@playwright/test").Page, accessToken: string): Promise<void> {
+  await page.request
+    .post("/api/v1/matches/tutorial/cleanup/", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    .catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -67,10 +63,7 @@ test.describe("Game page — structure", () => {
     }
   });
 
-  test("game page renders the GameHUD overlay", async ({
-    authenticatedPage: page,
-    accessToken,
-  }) => {
+  test("game page renders the GameHUD overlay", async ({ authenticatedPage: page, accessToken }) => {
     const matchId = await startTutorialMatch(page, accessToken);
     if (!matchId) {
       test.skip(true, "Tutorial match API not available");
@@ -90,10 +83,7 @@ test.describe("Game page — structure", () => {
     }
   });
 
-  test("game HUD shows Ranking section with player list", async ({
-    authenticatedPage: page,
-    accessToken,
-  }) => {
+  test("game HUD shows Ranking section with player list", async ({ authenticatedPage: page, accessToken }) => {
     const matchId = await startTutorialMatch(page, accessToken);
     if (!matchId) {
       test.skip(true, "Tutorial match API not available");
@@ -108,9 +98,9 @@ test.describe("Game page — structure", () => {
       await expect(page.getByText("Ranking").first()).toBeVisible({ timeout: 15_000 });
 
       // Our own username should appear in the player list with "(Ty)" suffix
-      await expect(
-        page.getByText(new RegExp(`${TEST_USER.username}.*\\(Ty\\)`, "i")).first()
-      ).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText(new RegExp(`${TEST_USER.username}.*\\(Ty\\)`, "i")).first()).toBeVisible({
+        timeout: 10_000,
+      });
     } finally {
       await cleanupTutorialMatch(page, accessToken);
     }
@@ -141,10 +131,7 @@ test.describe("Game page — structure", () => {
     }
   });
 
-  test("chat panel toggle opens and closes the chat", async ({
-    authenticatedPage: page,
-    accessToken,
-  }) => {
+  test("chat panel toggle opens and closes the chat", async ({ authenticatedPage: page, accessToken }) => {
     const matchId = await startTutorialMatch(page, accessToken);
     if (!matchId) {
       test.skip(true, "Tutorial match API not available");
@@ -183,10 +170,7 @@ test.describe("Game page — structure", () => {
     }
   });
 
-  test("region panel opens when a map region is clicked", async ({
-    authenticatedPage: page,
-    accessToken,
-  }) => {
+  test("region panel opens when a map region is clicked", async ({ authenticatedPage: page, accessToken }) => {
     const matchId = await startTutorialMatch(page, accessToken);
     if (!matchId) {
       test.skip(true, "Tutorial match API not available");
@@ -207,15 +191,12 @@ test.describe("Game page — structure", () => {
         return;
       }
 
-      await page.mouse.click(
-        canvasBounds.x + canvasBounds.width / 2,
-        canvasBounds.y + canvasBounds.height / 2
-      );
+      await page.mouse.click(canvasBounds.x + canvasBounds.width / 2, canvasBounds.y + canvasBounds.height / 2);
 
       // RegionPanel appears when a region is selected — it contains region info
       // The panel renders labels like "Regiony" or shows the region name
       const regionPanel = page.locator("[data-tutorial='region-panel'], [class*='RegionPanel']").first();
-      const panelVisible = await regionPanel.isVisible({ timeout: 5_000 }).catch(() => false);
+      const _panelVisible = await regionPanel.isVisible({ timeout: 5_000 }).catch(() => false);
 
       // Clicking an ocean tile or unloaded tile won't open the panel — this is OK
       // Just verify the page is still functional (no crash)
@@ -225,10 +206,7 @@ test.describe("Game page — structure", () => {
     }
   });
 
-  test("tutorial overlay shows for tutorial matches", async ({
-    authenticatedPage: page,
-    accessToken,
-  }) => {
+  test("tutorial overlay shows for tutorial matches", async ({ authenticatedPage: page, accessToken }) => {
     const matchId = await startTutorialMatch(page, accessToken);
     if (!matchId) {
       test.skip(true, "Tutorial match API not available");
@@ -263,10 +241,7 @@ test.describe("Game page — structure", () => {
     }
   });
 
-  test("capital selection toast appears during selecting phase", async ({
-    authenticatedPage: page,
-    accessToken,
-  }) => {
+  test("capital selection toast appears during selecting phase", async ({ authenticatedPage: page, accessToken }) => {
     const matchId = await startTutorialMatch(page, accessToken);
     if (!matchId) {
       test.skip(true, "Tutorial match API not available");
@@ -278,11 +253,17 @@ test.describe("Game page — structure", () => {
 
       // "Wybierz region startowy" Sonner toast is shown during "selecting" status
       const capitalToast = page.getByText(/wybierz region startowy/i);
-      const toastVisible = await capitalToast.waitFor({ state: "visible", timeout: 15_000 }).then(() => true).catch(() => false);
+      const toastVisible = await capitalToast
+        .waitFor({ state: "visible", timeout: 15_000 })
+        .then(() => true)
+        .catch(() => false);
 
       // Also acceptable: HUD shows "Wybór stolicy" status badge
       const statusBadge = page.getByText("Wybór stolicy");
-      const badgeVisible = await statusBadge.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false);
+      const badgeVisible = await statusBadge
+        .waitFor({ state: "visible", timeout: 5_000 })
+        .then(() => true)
+        .catch(() => false);
 
       expect(toastVisible || badgeVisible).toBe(true);
     } finally {

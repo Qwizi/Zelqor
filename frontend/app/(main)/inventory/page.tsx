@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Backpack,
   Calendar,
@@ -9,33 +7,28 @@ import {
   Gift,
   KeyRound,
   Lock,
-  Package,
   ShoppingCart,
   TrendingDown,
   TrendingUp,
   User,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { CrateOpenModal } from "@/components/inventory/CrateOpenModal";
+import { ModuleDisabledPage } from "@/components/ModuleGate";
+import { InventorySkeleton } from "@/components/skeletons/InventorySkeleton";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import ItemIcon from "@/components/ui/ItemIcon";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useItemCategories, useMyDrops, useMyInventory, useMyWallet, useOpenCrate } from "@/hooks/queries";
 import { useAuth } from "@/hooks/useAuth";
 import { useModuleConfig } from "@/hooks/useSystemModules";
-import { ModuleDisabledPage } from "@/components/ModuleGate";
-import { CrateOpenModal } from "@/components/inventory/CrateOpenModal";
-import ItemIcon from "@/components/ui/ItemIcon";
-import {
-  type InventoryItemOut,
-  type ItemInstanceOut,
-  type ItemOut,
-  type WalletOut,
-  type ItemDropOut,
-} from "@/lib/api";
-import { useMyInventory, useMyWallet, useMyDrops, useItemCategories, useOpenCrate } from "@/hooks/queries";
-import { InventorySkeleton } from "@/components/skeletons/InventorySkeleton";
+import type { InventoryItemOut, ItemInstanceOut, ItemOut } from "@/lib/api";
 
 // ─── Wear condition config ────────────────────────────────────────────────────
 
@@ -73,7 +66,7 @@ const RARITY_BORDER: Record<string, string> = {
   legendary: "border-l-amber-400",
 };
 
-const RARITY_GLOW: Record<string, string> = {
+const _RARITY_GLOW: Record<string, string> = {
   common: "hover:shadow-slate-500/20",
   uncommon: "hover:shadow-green-500/25",
   rare: "hover:shadow-blue-500/25",
@@ -117,7 +110,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 // Icon letter derived from item type
-const TYPE_LETTER: Record<string, string> = {
+const _TYPE_LETTER: Record<string, string> = {
   material: "M",
   blueprint_building: "B",
   blueprint_unit: "U",
@@ -222,29 +215,21 @@ function FilledSlot({ entry, isSelected, onClick }: SlotProps) {
       )}
 
       {/* Rare pattern star — bottom right */}
-      {inst?.is_rare_pattern && (
-        <span className="absolute bottom-1 right-1 text-xs leading-none">
-          ⭐
-        </span>
-      )}
+      {inst?.is_rare_pattern && <span className="absolute bottom-1 right-1 text-xs leading-none">⭐</span>}
 
       {/* Icon */}
       <ItemIcon slug={entry.item.slug} icon={entry.item.icon} size={32} />
 
       {/* Name / nametag */}
       <p className="mt-1 max-w-full truncate px-1 text-center text-xs leading-none text-muted-foreground">
-        {inst?.nametag
-          ? `"${inst.nametag}"`
-          : entry.item.name.replace(/^(Pakiet|Blueprint|Bonus): ?/, "")}
+        {inst?.nametag ? `"${inst.nametag}"` : entry.item.name.replace(/^(Pakiet|Blueprint|Bonus): ?/, "")}
       </p>
     </div>
   );
 }
 
 function EmptySlot() {
-  return (
-    <div className="aspect-square rounded-lg border border-dashed border-border/30 bg-muted/10" />
-  );
+  return <div className="aspect-square rounded-lg border border-dashed border-border/30 bg-muted/10" />;
 }
 
 // ─── Detail panel ──────────────────────────────────────────────────────────────
@@ -261,11 +246,7 @@ function InstanceDetail({ inst }: { inst: ItemInstanceOut }) {
   return (
     <div className="mt-3 space-y-3">
       {/* Nametag */}
-      {inst.nametag && (
-        <p className="text-lg text-accent italic">
-          &ldquo;{inst.nametag}&rdquo;
-        </p>
-      )}
+      {inst.nametag && <p className="text-lg text-accent italic">&ldquo;{inst.nametag}&rdquo;</p>}
 
       {/* Wear row */}
       <div className="flex flex-wrap items-center gap-2">
@@ -278,18 +259,17 @@ function InstanceDetail({ inst }: { inst: ItemInstanceOut }) {
         >
           {WEAR_FULL_LABELS[inst.wear_condition] ?? inst.wear_condition}
         </Badge>
-        <span className="font-mono text-base text-muted-foreground tabular-nums">
-          {inst.wear.toFixed(6)}
-        </span>
+        <span className="font-mono text-base text-muted-foreground tabular-nums">{inst.wear.toFixed(6)}</span>
         <span className="text-base text-muted-foreground/70">({wearPct.toFixed(1)}%)</span>
         {inst.stattrak && (
-          <Badge className="rounded border border-orange-500/40 bg-orange-500/15 px-2 py-px text-sm font-bold text-orange-300 h-auto" variant="outline">
+          <Badge
+            className="rounded border border-orange-500/40 bg-orange-500/15 px-2 py-px text-sm font-bold text-orange-300 h-auto"
+            variant="outline"
+          >
             StatTrak
           </Badge>
         )}
-        {inst.is_rare_pattern && (
-          <span className="text-sm text-accent">⭐ Rzadki wzór</span>
-        )}
+        {inst.is_rare_pattern && <span className="text-sm text-accent">⭐ Rzadki wzór</span>}
       </div>
 
       {/* StatTrak stats */}
@@ -313,21 +293,18 @@ function InstanceDetail({ inst }: { inst: ItemInstanceOut }) {
       {/* Pattern seed */}
       <div className="flex flex-wrap gap-4 text-base text-muted-foreground">
         <span>
-          Wzór:{" "}
-          <span className="font-mono text-foreground">{inst.pattern_seed}</span>
+          Wzór: <span className="font-mono text-foreground">{inst.pattern_seed}</span>
         </span>
         {inst.first_owner_username && (
           <span className="flex items-center gap-1">
             <User className="h-3.5 w-3.5" />
-            Pierwszy właściciel:{" "}
-            <span className="text-foreground">{inst.first_owner_username}</span>
+            Pierwszy właściciel: <span className="text-foreground">{inst.first_owner_username}</span>
           </span>
         )}
         {inst.crafted_by_username && (
           <span className="flex items-center gap-1">
             <User className="h-3.5 w-3.5" />
-            Craftowane przez:{" "}
-            <span className="text-foreground">{inst.crafted_by_username}</span>
+            Craftowane przez: <span className="text-foreground">{inst.crafted_by_username}</span>
           </span>
         )}
         <span className="flex items-center gap-1">
@@ -368,7 +345,9 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
                   <span className="italic text-accent">&ldquo;{inst.nametag}&rdquo;</span>
                   <span className="ml-1.5 text-muted-foreground text-base font-normal">({item.name})</span>
                 </span>
-              ) : item.name}
+              ) : (
+                item.name
+              )}
             </h3>
             <Badge
               className={[
@@ -396,9 +375,7 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
           </div>
 
           {item.description && (
-            <p className="text-base text-muted-foreground leading-relaxed mb-2">
-              {item.description}
-            </p>
+            <p className="text-base text-muted-foreground leading-relaxed mb-2">{item.description}</p>
           )}
 
           {/* Stack quantity or instance details */}
@@ -407,10 +384,7 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
           ) : (
             <div className="flex flex-wrap items-center gap-4 text-base">
               <span className="text-muted-foreground">
-                Posiadasz:{" "}
-                <span className="font-mono font-semibold text-foreground">
-                  {entry.quantity}
-                </span>
+                Posiadasz: <span className="font-mono font-semibold text-foreground">{entry.quantity}</span>
               </span>
               {item.base_value > 0 && (
                 <span className="flex items-center gap-1 text-accent/70">
@@ -422,7 +396,6 @@ function DetailPanel({ entry, hasMatchingKey, onOpenCrate, onClose }: DetailPane
             </div>
           )}
         </div>
-
       </div>
 
       {/* Actions */}
@@ -499,9 +472,12 @@ function InventoryContent() {
   // Crate opening modal state
   const [crateModalOpen, setCrateModalOpen] = useState(false);
   const [openingCrateItem, setOpeningCrateItem] = useState<ItemOut | null>(null);
-  const [crateDrops, setCrateDrops] = useState<
-    Array<{ item_name: string; item_slug: string; rarity: string; quantity: number }> | null
-  >(null);
+  const [crateDrops, setCrateDrops] = useState<Array<{
+    item_name: string;
+    item_slug: string;
+    rarity: string;
+    quantity: number;
+  }> | null>(null);
 
   const { data: inventoryData, isLoading: inventoryLoading } = useMyInventory(200);
   const { data: wallet, isLoading: walletLoading } = useMyWallet();
@@ -521,10 +497,7 @@ function InventoryContent() {
   const keys = inventory.filter((i) => i.item.item_type === "key");
 
   const hasMatchingKey = (crateSlug: string) =>
-    keys.some(
-      (k) =>
-        k.item.slug.replace("key-", "") === crateSlug.replace("crate-", "")
-    );
+    keys.some((k) => k.item.slug.replace("key-", "") === crateSlug.replace("crate-", ""));
 
   const handleOpenCrate = async (crateSlug: string) => {
     const matchingKey = keys.find((k) => {
@@ -553,10 +526,7 @@ function InventoryContent() {
     setCrateDrops(null);
   };
 
-  const filteredInventory =
-    filter === "all"
-      ? inventory
-      : inventory.filter((i) => i.item.item_type === filter);
+  const filteredInventory = filter === "all" ? inventory : inventory.filter((i) => i.item.item_type === filter);
 
   // Total slots to render — always at least MIN_SLOTS
   const totalSlots = Math.max(MIN_SLOTS, filteredInventory.length);
@@ -566,7 +536,6 @@ function InventoryContent() {
 
   return (
     <div className="animate-page-in space-y-3 md:space-y-8 -mx-4 md:mx-0 -mt-2 md:mt-0">
-
       <CrateOpenModal
         isOpen={crateModalOpen}
         onClose={handleCrateModalClose}
@@ -587,7 +556,9 @@ function InventoryContent() {
           {/* Mobile: compact balance */}
           <div className="flex items-center gap-3 md:hidden">
             <Coins className="h-5 w-5 text-amber-300" />
-            <span className="font-display text-2xl tabular-nums text-amber-300">{wallet.gold.toLocaleString("pl-PL")}</span>
+            <span className="font-display text-2xl tabular-nums text-amber-300">
+              {wallet.gold.toLocaleString("pl-PL")}
+            </span>
             <span className="text-sm text-muted-foreground">złota</span>
             <div className="flex-1" />
             <span className="text-xs text-muted-foreground tabular-nums">
@@ -627,199 +598,210 @@ function InventoryContent() {
 
       {/* ── Tabs ────────────────────────────────────────────────────────────── */}
       <div className="px-4 md:px-0">
-      <Tabs defaultValue="inventory">
-        <TabsList variant="line" className="h-auto p-0 gap-1">
-          <TabsTrigger value="inventory" className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 text-sm md:text-base">
-            <Backpack className="h-4 w-4" />
-            <span className="hidden md:inline">Ekwipunek</span>
-            <span className="md:hidden">Przedmioty</span>
-            <span className="ml-0.5 text-xs text-muted-foreground">
-              {inventory.length}
-            </span>
-          </TabsTrigger>
-          <TabsTrigger value="drops" className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 text-sm md:text-base">
-            <Gift className="h-4 w-4" />
-            Dropy
-          </TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="inventory">
+          <TabsList variant="line" className="h-auto p-0 gap-1">
+            <TabsTrigger
+              value="inventory"
+              className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 text-sm md:text-base"
+            >
+              <Backpack className="h-4 w-4" />
+              <span className="hidden md:inline">Ekwipunek</span>
+              <span className="md:hidden">Przedmioty</span>
+              <span className="ml-0.5 text-xs text-muted-foreground">{inventory.length}</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="drops"
+              className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 text-sm md:text-base"
+            >
+              <Gift className="h-4 w-4" />
+              Dropy
+            </TabsTrigger>
+          </TabsList>
 
-        {/* ── Inventory tab ─────────────────────────────────────────────────── */}
-        <TabsContent value="inventory">
-          {/* Filter pills — flat on mobile, card on desktop */}
-          <div className="mb-3 md:mb-0">
-            <div className="flex gap-1.5 md:gap-2 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
-              {FILTERS.map((f) => {
-                const count =
-                  f.value === "all"
-                    ? inventory.length
-                    : inventory.filter((i) => i.item.item_type === f.value).length;
-                if (f.value !== "all" && count === 0) return null;
-                const isActive = filter === f.value;
-                return (
-                  <button
-                    key={f.value}
-                    onClick={() => setFilter(f.value)}
-                    className={[
-                      "flex shrink-0 items-center gap-1 md:gap-1.5 rounded-full px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-base font-medium transition-colors",
-                      isActive
-                        ? "bg-primary/15 border border-primary/25 text-primary"
-                        : "border border-border/50 text-muted-foreground hover:bg-muted/40 hover:border-border hover:text-foreground",
-                    ].join(" ")}
-                  >
-                    {f.label}
-                    <span
+          {/* ── Inventory tab ─────────────────────────────────────────────────── */}
+          <TabsContent value="inventory">
+            {/* Filter pills — flat on mobile, card on desktop */}
+            <div className="mb-3 md:mb-0">
+              <div className="flex gap-1.5 md:gap-2 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+                {FILTERS.map((f) => {
+                  const count =
+                    f.value === "all" ? inventory.length : inventory.filter((i) => i.item.item_type === f.value).length;
+                  if (f.value !== "all" && count === 0) return null;
+                  const isActive = filter === f.value;
+                  return (
+                    <button
+                      key={f.value}
+                      onClick={() => setFilter(f.value)}
                       className={[
-                        "text-[10px] md:text-sm font-semibold tabular-nums",
-                        isActive ? "text-primary/70" : "text-muted-foreground/60",
+                        "flex shrink-0 items-center gap-1 md:gap-1.5 rounded-full px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-base font-medium transition-colors",
+                        isActive
+                          ? "bg-primary/15 border border-primary/25 text-primary"
+                          : "border border-border/50 text-muted-foreground hover:bg-muted/40 hover:border-border hover:text-foreground",
                       ].join(" ")}
                     >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Slot grid — no card wrapper on mobile */}
-          <div className="md:rounded-2xl md:border md:border-border md:bg-card md:backdrop-blur-xl md:p-5">
-            {loading ? (
-              <div className="flex h-40 items-center justify-center text-sm md:text-base text-muted-foreground">
-                Ładowanie ekwipunku...
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-4 gap-1.5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 md:gap-2">
-                  {filteredInventory.map((entry) => (
-                    <HoverCard key={entry.id}>
-                      <HoverCardTrigger
-                        render={
-                          <div>
-                            <FilledSlot
-                              entry={entry}
-                              isSelected={false}
-                              onClick={() => {}}
-                            />
-                          </div>
-                        }
-                      />
-                      <HoverCardContent side="right" sideOffset={8} className="w-[min(384px,calc(100vw-2rem))] p-0">
-                        <DetailPanel
-                          entry={entry}
-                          hasMatchingKey={hasMatchingKey(entry.item.slug)}
-                          onOpenCrate={handleOpenCrate}
-                          onClose={() => {}}
-                        />
-                      </HoverCardContent>
-                    </HoverCard>
-                  ))}
-                  {/* Empty slots only on desktop */}
-                  <div className="hidden md:contents">
-                    {Array.from({ length: emptyCount }).map((_, i) => (
-                      <EmptySlot key={`empty-${i}`} />
-                    ))}
-                  </div>
-                </div>
-
-                {filteredInventory.length === 0 && (
-                  <p className="mt-6 text-center text-sm md:text-base text-muted-foreground">
-                    Brak przedmiotów w tej kategorii.
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* ── Drops tab ─────────────────────────────────────────────────────── */}
-        <TabsContent value="drops">
-          <div className="md:rounded-2xl md:border md:border-border md:bg-card md:backdrop-blur-xl">
-            {drops.length === 0 ? (
-              <p className="py-8 text-center text-sm md:text-base text-muted-foreground">
-                Brak dropów — graj mecze!
-              </p>
-            ) : (
-              <div className="md:p-5">
-                {drops.map((drop) => {
-                  const rarity = drop.item.rarity;
-                  return (
-                    <HoverCard key={drop.id}>
-                      <HoverCardTrigger
-                        render={
-                          <div className="flex items-center gap-2.5 md:gap-3 rounded-xl px-1 md:px-3 py-3 md:py-4 hover:bg-muted/30 transition-colors cursor-pointer active:bg-muted/40">
-                            {/* Icon */}
-                            <div
-                              className={[
-                                "flex h-9 w-9 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-lg md:rounded-md border border-l-[2px]",
-                                "border-border bg-muted/20",
-                                RARITY_BORDER[rarity] ?? "border-l-slate-400",
-                              ].join(" ")}
-                            >
-                              <ItemIcon slug={drop.item.slug} icon={drop.item.icon} size={28} />
-                            </div>
-
-                            {/* Name + qty */}
-                            <div className="flex-1 min-w-0">
-                              <span className="text-sm md:text-base text-foreground truncate block">
-                                {drop.item.name}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {SOURCE_LABEL[drop.source] ?? drop.source}
-                                {drop.quantity > 1 && <span className="font-mono ml-1">x{drop.quantity}</span>}
-                              </span>
-                            </div>
-
-                            {/* Source badge — desktop only */}
-                            <Badge variant="outline" className="hidden md:inline-flex shrink-0 rounded-full px-2 py-px text-sm h-auto">
-                              {SOURCE_LABEL[drop.source] ?? drop.source}
-                            </Badge>
-
-                            {/* Time */}
-                            <span className="shrink-0 text-xs md:text-sm text-muted-foreground tabular-nums">
-                              {timeAgo(drop.created_at)}
-                            </span>
-                          </div>
-                        }
-                      />
-                      <HoverCardContent side="left" sideOffset={8} className="w-[min(320px,calc(100vw-2rem))] p-4">
-                        <div className="flex items-center gap-3 mb-2">
-                          <ItemIcon slug={drop.item.slug} icon={drop.item.icon} size={32} />
-                          <div>
-                            <p className={`text-base font-semibold ${RARITY_TEXT[rarity]}`}>{drop.item.name}</p>
-                            <Badge className={`text-xs ${RARITY_BG_BADGE[rarity]}`} variant="outline">
-                              {RARITY_LABELS[rarity]}
-                            </Badge>
-                          </div>
-                        </div>
-                        {drop.item.description && (
-                          <p className="text-sm text-muted-foreground mb-2">{drop.item.description}</p>
-                        )}
-                        <div className="flex gap-3 text-sm text-muted-foreground">
-                          <span>Ilość: <span className="text-foreground font-semibold">{drop.quantity}</span></span>
-                          <span>Źródło: <span className="text-foreground">{SOURCE_LABEL[drop.source]}</span></span>
-                        </div>
-                        {drop.instance && (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            <Badge className={`text-xs ${WEAR_COLORS[drop.instance.wear_condition]}`} variant="outline">
-                              {WEAR_FULL_LABELS[drop.instance.wear_condition]}
-                            </Badge>
-                            {drop.instance.stattrak && (
-                              <Badge className="text-xs border-orange-500/40 bg-orange-500/15 text-orange-300" variant="outline">StatTrak</Badge>
-                            )}
-                            {drop.instance.is_rare_pattern && (
-                              <span className="text-xs text-accent">⭐ Rzadki wzór</span>
-                            )}
-                          </div>
-                        )}
-                      </HoverCardContent>
-                    </HoverCard>
+                      {f.label}
+                      <span
+                        className={[
+                          "text-[10px] md:text-sm font-semibold tabular-nums",
+                          isActive ? "text-primary/70" : "text-muted-foreground/60",
+                        ].join(" ")}
+                      >
+                        {count}
+                      </span>
+                    </button>
                   );
                 })}
               </div>
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
+            </div>
+
+            {/* Slot grid — no card wrapper on mobile */}
+            <div className="md:rounded-2xl md:border md:border-border md:bg-card md:backdrop-blur-xl md:p-5">
+              {loading ? (
+                <div className="flex h-40 items-center justify-center text-sm md:text-base text-muted-foreground">
+                  Ładowanie ekwipunku...
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-4 gap-1.5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 md:gap-2">
+                    {filteredInventory.map((entry) => (
+                      <HoverCard key={entry.id}>
+                        <HoverCardTrigger
+                          render={
+                            <div>
+                              <FilledSlot entry={entry} isSelected={false} onClick={() => {}} />
+                            </div>
+                          }
+                        />
+                        <HoverCardContent side="right" sideOffset={8} className="w-[min(384px,calc(100vw-2rem))] p-0">
+                          <DetailPanel
+                            entry={entry}
+                            hasMatchingKey={hasMatchingKey(entry.item.slug)}
+                            onOpenCrate={handleOpenCrate}
+                            onClose={() => {}}
+                          />
+                        </HoverCardContent>
+                      </HoverCard>
+                    ))}
+                    {/* Empty slots only on desktop */}
+                    <div className="hidden md:contents">
+                      {Array.from({ length: emptyCount }).map((_, i) => (
+                        <EmptySlot key={`empty-${i}`} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {filteredInventory.length === 0 && (
+                    <p className="mt-6 text-center text-sm md:text-base text-muted-foreground">
+                      Brak przedmiotów w tej kategorii.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ── Drops tab ─────────────────────────────────────────────────────── */}
+          <TabsContent value="drops">
+            <div className="md:rounded-2xl md:border md:border-border md:bg-card md:backdrop-blur-xl">
+              {drops.length === 0 ? (
+                <p className="py-8 text-center text-sm md:text-base text-muted-foreground">Brak dropów — graj mecze!</p>
+              ) : (
+                <div className="md:p-5">
+                  {drops.map((drop) => {
+                    const rarity = drop.item.rarity;
+                    return (
+                      <HoverCard key={drop.id}>
+                        <HoverCardTrigger
+                          render={
+                            <div className="flex items-center gap-2.5 md:gap-3 rounded-xl px-1 md:px-3 py-3 md:py-4 hover:bg-muted/30 transition-colors cursor-pointer active:bg-muted/40">
+                              {/* Icon */}
+                              <div
+                                className={[
+                                  "flex h-9 w-9 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-lg md:rounded-md border border-l-[2px]",
+                                  "border-border bg-muted/20",
+                                  RARITY_BORDER[rarity] ?? "border-l-slate-400",
+                                ].join(" ")}
+                              >
+                                <ItemIcon slug={drop.item.slug} icon={drop.item.icon} size={28} />
+                              </div>
+
+                              {/* Name + qty */}
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm md:text-base text-foreground truncate block">
+                                  {drop.item.name}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {SOURCE_LABEL[drop.source] ?? drop.source}
+                                  {drop.quantity > 1 && <span className="font-mono ml-1">x{drop.quantity}</span>}
+                                </span>
+                              </div>
+
+                              {/* Source badge — desktop only */}
+                              <Badge
+                                variant="outline"
+                                className="hidden md:inline-flex shrink-0 rounded-full px-2 py-px text-sm h-auto"
+                              >
+                                {SOURCE_LABEL[drop.source] ?? drop.source}
+                              </Badge>
+
+                              {/* Time */}
+                              <span className="shrink-0 text-xs md:text-sm text-muted-foreground tabular-nums">
+                                {timeAgo(drop.created_at)}
+                              </span>
+                            </div>
+                          }
+                        />
+                        <HoverCardContent side="left" sideOffset={8} className="w-[min(320px,calc(100vw-2rem))] p-4">
+                          <div className="flex items-center gap-3 mb-2">
+                            <ItemIcon slug={drop.item.slug} icon={drop.item.icon} size={32} />
+                            <div>
+                              <p className={`text-base font-semibold ${RARITY_TEXT[rarity]}`}>{drop.item.name}</p>
+                              <Badge className={`text-xs ${RARITY_BG_BADGE[rarity]}`} variant="outline">
+                                {RARITY_LABELS[rarity]}
+                              </Badge>
+                            </div>
+                          </div>
+                          {drop.item.description && (
+                            <p className="text-sm text-muted-foreground mb-2">{drop.item.description}</p>
+                          )}
+                          <div className="flex gap-3 text-sm text-muted-foreground">
+                            <span>
+                              Ilość: <span className="text-foreground font-semibold">{drop.quantity}</span>
+                            </span>
+                            <span>
+                              Źródło: <span className="text-foreground">{SOURCE_LABEL[drop.source]}</span>
+                            </span>
+                          </div>
+                          {drop.instance && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <Badge
+                                className={`text-xs ${WEAR_COLORS[drop.instance.wear_condition]}`}
+                                variant="outline"
+                              >
+                                {WEAR_FULL_LABELS[drop.instance.wear_condition]}
+                              </Badge>
+                              {drop.instance.stattrak && (
+                                <Badge
+                                  className="text-xs border-orange-500/40 bg-orange-500/15 text-orange-300"
+                                  variant="outline"
+                                >
+                                  StatTrak
+                                </Badge>
+                              )}
+                              {drop.instance.is_rare_pattern && (
+                                <span className="text-xs text-accent">⭐ Rzadki wzór</span>
+                              )}
+                            </div>
+                          )}
+                        </HoverCardContent>
+                      </HoverCard>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

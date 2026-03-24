@@ -1,60 +1,51 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, use } from "react";
-import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useConfig, useRegionsGraph } from "@/hooks/queries";
+import { MUSIC_TRACKS, useAudio } from "@/hooks/useAudio";
 import { useAuth } from "@/hooks/useAuth";
 import { useGameSocket } from "@/hooks/useGameSocket";
-import { useAudio, MUSIC_TRACKS } from "@/hooks/useAudio";
-import {
-  type RegionGraphEntry,
-  type BuildingType,
-  type UnitType,
-  type AbilityType,
-} from "@/lib/api";
-import { useRegionsGraph, useConfig } from "@/hooks/queries";
+import { useShapesData } from "@/hooks/useShapesData";
+import type { AbilityType } from "@/lib/api";
 import { loadAssetOverrides } from "@/lib/assetOverrides";
 import { getSeaTravelRange, getTravelDistance } from "@/lib/gameTravel.js";
-import dynamic from "next/dynamic";
-import type { TroopAnimation, PlannedMove } from "@/lib/gameTypes";
-import { MAX_PLANNED_MOVES, PLAN_EXPIRY_S, AP_COSTS, getAttackApCost } from "@/lib/gameTypes";
-import { getEliminationVfx, getVictoryVfx } from "@/lib/animationConfig";
-import { useShapesData } from "@/hooks/useShapesData";
+import type { PlannedMove, TroopAnimation } from "@/lib/gameTypes";
+import { AP_COSTS, getAttackApCost, MAX_PLANNED_MOVES, PLAN_EXPIRY_S } from "@/lib/gameTypes";
+
 const ANIMATION_DURATION_MS = 2200;
 const GameCanvas = dynamic(() => import("@/components/map/GameCanvas"), { ssr: false });
-import GameHUD from "@/components/game/GameHUD";
-import QuickActionBar from "@/components/game/QuickActionBar";
-import BuildQueue from "@/components/game/BuildQueue";
-import MobileBuildSheet from "@/components/game/MobileBuildSheet";
-import AbilityBar from "@/components/game/AbilityBar";
+
 import { Loader2 } from "lucide-react";
-import MatchIntroOverlay from "@/components/game/MatchIntroOverlay";
 import { toast } from "sonner";
-import { useTutorial } from "@/hooks/useTutorial";
-import TutorialOverlay from "@/components/game/TutorialOverlay";
 import MatchChatPanel from "@/components/chat/MatchChatPanel";
 import VoicePanel from "@/components/chat/VoicePanel";
+import AbilityBar from "@/components/game/AbilityBar";
+import BuildQueue from "@/components/game/BuildQueue";
 import DesktopChatVoice from "@/components/game/DesktopChatVoice";
+import DiplomacyPanel from "@/components/game/DiplomacyPanel";
+import GameHUD from "@/components/game/GameHUD";
+import MatchIntroOverlay from "@/components/game/MatchIntroOverlay";
+import MobileBuildSheet from "@/components/game/MobileBuildSheet";
+import QuickActionBar from "@/components/game/QuickActionBar";
+import TutorialOverlay from "@/components/game/TutorialOverlay";
+import { useGameAnimations } from "@/hooks/useGameAnimations";
+import { useGameEventSounds } from "@/hooks/useGameEventSounds";
+import { usePlannedMoves } from "@/hooks/usePlannedMoves";
+import { useTutorial } from "@/hooks/useTutorial";
 // WeatherIndicator removed — weather/day-night not used
 import { useVoiceChat } from "@/hooks/useVoiceChat";
-import DiplomacyPanel from "@/components/game/DiplomacyPanel";
 import {
-  BOOST_EFFECT_LABELS,
-  getUnitRules,
   getAnimationPower,
   getAvailableUnits,
+  getUnitRules,
   intOrZero,
   type ReachabilityEntry,
 } from "@/lib/gamePageUtils";
-import { usePlannedMoves } from "@/hooks/usePlannedMoves";
-import { useGameAnimations } from "@/hooks/useGameAnimations";
-import { useGameEventSounds } from "@/hooks/useGameEventSounds";
 
-export default function GamePage({
-  params,
-}: {
-  params: Promise<{ matchId: string }>;
-}) {
+export default function GamePage({ params }: { params: Promise<{ matchId: string }> }) {
   const { matchId } = use(params);
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -93,15 +84,18 @@ export default function GamePage({
   void interceptFlight;
 
   const voice = useVoiceChat();
-  const effectiveVoiceUrl =
-    (typeof process !== "undefined" && process.env.NEXT_PUBLIC_LIVEKIT_URL) || voiceUrl;
+  const effectiveVoiceUrl = (typeof process !== "undefined" && process.env.NEXT_PUBLIC_LIVEKIT_URL) || voiceUrl;
 
   const handleVoiceJoin = useCallback(async () => {
     if (!effectiveVoiceUrl || !voiceToken) return;
-    try { await voice.join(effectiveVoiceUrl, voiceToken); } catch (e) { console.error("Voice join failed:", e); }
+    try {
+      await voice.join(effectiveVoiceUrl, voiceToken);
+    } catch (e) {
+      console.error("Voice join failed:", e);
+    }
   }, [voice, effectiveVoiceUrl, voiceToken]);
 
-  const speakingPlayerIds = useMemo(() => {
+  const _speakingPlayerIds = useMemo(() => {
     const ids: string[] = [];
     if (voice.isSpeaking) ids.push(user?.id ?? "");
     for (const peer of voice.peers) {
@@ -110,7 +104,8 @@ export default function GamePage({
     return ids;
   }, [voice.isSpeaking, voice.peers, user?.id]);
 
-  const { startMusic, stopMusic, playSound, playJingle, toggleMute, muted, currentTrackIndex, selectTrack } = useAudio();
+  const { startMusic, stopMusic, playSound, playJingle, toggleMute, muted, currentTrackIndex, selectTrack } =
+    useAudio();
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
 
   const { data: regionGraphData } = useRegionsGraph(matchId);
@@ -138,8 +133,8 @@ export default function GamePage({
       const anims = (e as CustomEvent<TroopAnimation[]>).detail;
       if (anims.length > 0) {
         setAnimations((prev) => {
-          const existingIds = new Set(prev.map(a => a.id));
-          const newAnims = anims.filter(a => !existingIds.has(a.id));
+          const existingIds = new Set(prev.map((a) => a.id));
+          const newAnims = anims.filter((a) => !existingIds.has(a.id));
           return newAnims.length > 0 ? [...prev, ...newAnims] : prev;
         });
       }
@@ -178,7 +173,9 @@ export default function GamePage({
 
   // Keep a ref to gameState so event-driven animation effect can read latest players/colors
   const gameStateRef = useRef(gameState);
-  useLayoutEffect(() => { gameStateRef.current = gameState; });
+  useLayoutEffect(() => {
+    gameStateRef.current = gameState;
+  });
 
   // Planned moves queue (extracted to hook)
   const onPlanClear = useCallback(() => {
@@ -189,9 +186,13 @@ export default function GamePage({
     return Object.fromEntries(unitsConfig.map((u) => [u.slug, u.manpower_cost ?? 1]));
   }, [unitsConfig]);
   const {
-    plannedMoves, setPlannedMoves,
-    planningMode, setPlanningMode,
-    executePlannedMoves, clearPlannedMoves, undoLastPlannedMove,
+    plannedMoves,
+    setPlannedMoves,
+    planningMode,
+    setPlanningMode,
+    executePlannedMoves,
+    clearPlannedMoves,
+    undoLastPlannedMove,
   } = usePlannedMoves(myUserId, gameStateRef, attack, move, bombard, onPlanClear, unitManpowerMap);
 
   // processedAnimKeysRef / processedAudioKeysRef moved into useGameAnimations / useGameEventSounds
@@ -231,7 +232,9 @@ export default function GamePage({
   }, [bannedReason, router]);
 
   // Load asset overrides once on mount
-  useEffect(() => { loadAssetOverrides(); }, []);
+  useEffect(() => {
+    loadAssetOverrides();
+  }, []);
 
   // Prune finished animations + nuke blackout — only run when there are items to prune
   const pruneTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -265,7 +268,7 @@ export default function GamePage({
         pruneTimerRef.current = null;
       }
     };
-  }, [animations.length > 0, nukeBlackout.length > 0]);
+  }, [animations.length, nukeBlackout.length]);
 
   useEffect(() => {
     if (status !== "selecting") return;
@@ -284,7 +287,7 @@ export default function GamePage({
     return map;
   }, [regionGraph]);
 
-  const tutorialHighlightRegions = useMemo(() => {
+  const _tutorialHighlightRegions = useMemo(() => {
     if (!tutorial.isActive || !tutorial.currentStep?.getHighlightRegions || !gameState || !user?.id) return [];
     return tutorial.currentStep.getHighlightRegions(gameState, user.id, neighborMap);
   }, [tutorial.isActive, tutorial.currentStep, gameState, user?.id, neighborMap]);
@@ -358,17 +361,12 @@ export default function GamePage({
 
   // ── Derived state ──────────────────────────────────────────
 
-  const sourceRegionData = selectedRegion
-    ? gameState?.regions[selectedRegion]
-    : null;
+  const sourceRegionData = selectedRegion ? gameState?.regions[selectedRegion] : null;
   const availableSourceUnitTypes = Object.entries(sourceRegionData?.units ?? {})
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1]);
 
-  const isSource =
-    !!sourceRegionData &&
-    sourceRegionData.owner_id === myUserId &&
-    sourceRegionData.unit_count > 0;
+  const isSource = !!sourceRegionData && sourceRegionData.owner_id === myUserId && sourceRegionData.unit_count > 0;
 
   // Stable reference to regions for reachability — only recompute when selectedRegion's
   // owner or units change, not on every tick's region delta.
@@ -377,7 +375,11 @@ export default function GamePage({
     const r = gameState?.regions?.[selectedRegion];
     if (!r || r.owner_id !== myUserId) return "";
     // Key on unit composition so we recompute only when units in selected region change
-    const unitEntries = Object.entries(r.units ?? {}).filter(([, c]) => c > 0).sort().map(([t, c]) => `${t}:${c}`).join(",");
+    const unitEntries = Object.entries(r.units ?? {})
+      .filter(([, c]) => c > 0)
+      .sort()
+      .map(([t, c]) => `${t}:${c}`)
+      .join(",");
     return `${selectedRegion}|${unitEntries}`;
   }, [selectedRegion, status, gameState?.regions, myUserId]);
 
@@ -429,7 +431,7 @@ export default function GamePage({
               if (movementType === "sea" && !candidate.is_coastal) return false;
               if (movementType === "air") return true;
               return candidate.owner_id === myUserId;
-            }
+            },
           );
           if (moveDistance !== null) {
             moveTargets.add(regionId);
@@ -454,7 +456,7 @@ export default function GamePage({
             if (!candidate) return false;
             if (movementType === "sea" && !candidate.is_coastal) return false;
             return true;
-          }
+          },
         );
         if (attackDistance !== null) {
           // Fighters (combat_target="air") can only attack provinces with enemy air units.
@@ -480,56 +482,61 @@ export default function GamePage({
     }
 
     return result;
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- gated by selectedRegionKey to avoid BFS on every tick
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gated by selectedRegionKey to avoid BFS on every tick
   }, [selectedRegionKey, gameState?.regions, myUserId, neighborMap, selectedRegion, unitConfigBySlug, unitsConfig]);
 
-  const getPreferredReachableUnitType = useCallback((targetId: string) => {
-    if (!sourceRegionData) return null;
-    const targetRegion = gameState?.regions[targetId];
-    if (!targetRegion) return null;
+  const getPreferredReachableUnitType = useCallback(
+    (targetId: string) => {
+      if (!sourceRegionData) return null;
+      const targetRegion = gameState?.regions[targetId];
+      if (!targetRegion) return null;
 
-    const candidates = Object.entries(sourceRegionData.units ?? {})
-      .filter(([, count]) => count > 0)
-      .map(([unitType]) => unitType)
-      .filter((unitType) => {
-        const entry = reachabilityByUnitType[unitType];
-        if (!entry) return false;
-        return targetRegion.owner_id === myUserId
-          ? entry.moveTargets.has(targetId)
-          : entry.attackTargets.has(targetId);
-      });
+      const candidates = Object.entries(sourceRegionData.units ?? {})
+        .filter(([, count]) => count > 0)
+        .map(([unitType]) => unitType)
+        .filter((unitType) => {
+          const entry = reachabilityByUnitType[unitType];
+          if (!entry) return false;
+          return targetRegion.owner_id === myUserId
+            ? entry.moveTargets.has(targetId)
+            : entry.attackTargets.has(targetId);
+        });
 
-    if (candidates.length === 0) return null;
-    if (candidates.includes("infantry")) return "infantry";
+      if (candidates.length === 0) return null;
+      if (candidates.includes("infantry")) return "infantry";
 
-    return candidates.sort((left, right) => {
-      const leftOrder = unitConfigBySlug[left]?.order ?? 9999;
-      const rightOrder = unitConfigBySlug[right]?.order ?? 9999;
-      return leftOrder - rightOrder;
-    })[0];
-  }, [gameState?.regions, myUserId, reachabilityByUnitType, sourceRegionData, unitConfigBySlug]);
+      return candidates.sort((left, right) => {
+        const leftOrder = unitConfigBySlug[left]?.order ?? 9999;
+        const rightOrder = unitConfigBySlug[right]?.order ?? 9999;
+        return leftOrder - rightOrder;
+      })[0];
+    },
+    [gameState?.regions, myUserId, reachabilityByUnitType, sourceRegionData, unitConfigBySlug],
+  );
 
   const selectedUnitTypeForAction =
-    (selectedActionUnitType &&
-    availableSourceUnitTypes.some(([unitType]) => unitType === selectedActionUnitType)
+    (selectedActionUnitType && availableSourceUnitTypes.some(([unitType]) => unitType === selectedActionUnitType)
       ? selectedActionUnitType
       : null) ||
     availableSourceUnitTypes[0]?.[0] ||
     sourceRegionData?.unit_type ||
     null;
 
-  const isTargetReachableForUnitType = useCallback((targetId: string, unitType: string | null | undefined) => {
-    if (!unitType) return false;
-    const targetRegion = gameState?.regions[targetId];
-    if (!targetRegion) return false;
+  const isTargetReachableForUnitType = useCallback(
+    (targetId: string, unitType: string | null | undefined) => {
+      if (!unitType) return false;
+      const targetRegion = gameState?.regions[targetId];
+      if (!targetRegion) return false;
 
-    const reachability = reachabilityByUnitType[unitType];
-    if (!reachability) return false;
+      const reachability = reachabilityByUnitType[unitType];
+      if (!reachability) return false;
 
-    return targetRegion.owner_id === myUserId
-      ? reachability.moveTargets.has(targetId)
-      : reachability.attackTargets.has(targetId);
-  }, [gameState?.regions, myUserId, reachabilityByUnitType]);
+      return targetRegion.owner_id === myUserId
+        ? reachability.moveTargets.has(targetId)
+        : reachability.attackTargets.has(targetId);
+    },
+    [gameState?.regions, myUserId, reachabilityByUnitType],
+  );
 
   const highlightedNeighbors = useMemo(() => {
     if (!isSource || !selectedRegion || status !== "in_progress") return [];
@@ -612,10 +619,7 @@ export default function GamePage({
   }, [selectedAbility, effectiveAbilities, gameState?.regions, myUserId, neighborMap, status]);
 
   // Per-map minimum distance between capitals (comes from MapConfig → settings_snapshot → Redis meta)
-  const MIN_CAPITAL_DISTANCE = parseInt(
-    gameState?.meta?.min_capital_distance || "3",
-    10
-  );
+  const MIN_CAPITAL_DISTANCE = parseInt(gameState?.meta?.min_capital_distance || "3", 10);
   // Regions too close to any existing capital — dimmed on the map during selection
   const dimmedRegions = useMemo(() => {
     if (status !== "selecting") return [];
@@ -661,7 +665,7 @@ export default function GamePage({
   const currentTick = parseInt(gameState?.meta?.current_tick || "0", 10);
   const tickIntervalMs = parseInt(gameState?.meta?.tick_interval_ms || "1000", 10);
   const capitalProtectionTicks = parseInt(gameState?.meta?.capital_protection_ticks || "0", 10);
-  const diplomacyEnabled = gameState?.meta?.diplomacy_enabled === "1";
+  const _diplomacyEnabled = gameState?.meta?.diplomacy_enabled === "1";
 
   // My stats
   const { myRegionCount, myUnitCount, myEnergy, myActionPoints } = useMemo(() => {
@@ -710,11 +714,12 @@ export default function GamePage({
           cosmetics: player.cosmetics,
         };
       })
-      .sort((left, right) =>
-        Number(right.isAlive) - Number(left.isAlive) ||
-        right.regionCount - left.regionCount ||
-        right.unitCount - left.unitCount ||
-        left.username.localeCompare(right.username)
+      .sort(
+        (left, right) =>
+          Number(right.isAlive) - Number(left.isAlive) ||
+          right.regionCount - left.regionCount ||
+          right.unitCount - left.unitCount ||
+          left.username.localeCompare(right.username),
       );
   }, [players, regions]);
 
@@ -733,18 +738,27 @@ export default function GamePage({
         isBot: player.is_bot ?? false,
         eliminatedTick: player.eliminated_tick ?? null,
       }))
-      .sort((a, b) =>
-        Number(b.isAlive) - Number(a.isAlive) ||
-        (b.eliminatedTick ?? 0) - (a.eliminatedTick ?? 0) ||
-        b.regionsConquered - a.regionsConquered ||
-        b.unitsProduced - a.unitsProduced
+      .sort(
+        (a, b) =>
+          Number(b.isAlive) - Number(a.isAlive) ||
+          (b.eliminatedTick ?? 0) - (a.eliminatedTick ?? 0) ||
+          b.regionsConquered - a.regionsConquered ||
+          b.unitsProduced - a.unitsProduced,
       );
   }, [status, players]);
 
   // Event-driven animations (extracted to hook)
   useGameAnimations(
-    events, myUserId, unitsConfig, unitConfigBySlug, unitManpowerMap,
-    gameStateRef, neighborMap, localDispatchKeysRef, setAnimations, setNukeBlackout,
+    events,
+    myUserId,
+    unitsConfig,
+    unitConfigBySlug,
+    unitManpowerMap,
+    gameStateRef,
+    neighborMap,
+    localDispatchKeysRef,
+    setAnimations,
+    setNukeBlackout,
   );
 
   // ── Instant dispatch helper (used by both drag and click-click) ────
@@ -796,9 +810,10 @@ export default function GamePage({
       const tickMs = parseInt(gameState.meta?.tick_interval_ms || "1000", 10);
       // Match engine's get_travel_ticks: ticks_per_hop takes priority over legacy speed.
       const tph = rules.ticks_per_hop ?? 0;
-      const travelTicks = tph > 0
-        ? Math.max(1, Math.max(1, distance) * tph)
-        : Math.max(1, Math.ceil(Math.max(1, distance) / Math.max(1, rules.speed || 1)));
+      const travelTicks =
+        tph > 0
+          ? Math.max(1, Math.max(1, distance) * tph)
+          : Math.max(1, Math.ceil(Math.max(1, distance) / Math.max(1, rules.speed || 1)));
       const actionType = isAttackTarget ? "attack" : "move";
 
       const dispatchKey = [actionType, myUserId, sourceId, targetId, unitType, unitCount].join(":");
@@ -851,7 +866,7 @@ export default function GamePage({
         move(sourceId, targetId, unitCount, unitType);
       }
     },
-    [gameState, myUserId, attack, move, bombard, reachabilityByUnitType, unitConfigBySlug, unitsConfig]
+    [gameState, myUserId, attack, move, bombard, reachabilityByUnitType, unitConfigBySlug, unitsConfig],
   );
 
   // ── Click handler ──────────────────────────────────────────
@@ -874,7 +889,9 @@ export default function GamePage({
         // Too close to an existing capital
         if (dimmedRegions.includes(regionId)) {
           const minDist = parseInt(gameState?.meta?.min_capital_distance || "3", 10);
-          toast.error(`Stolica musi być co najmniej ${minDist} regiony od stolicy innego gracza`, { id: "game-capital-too-close" });
+          toast.error(`Stolica musi być co najmniej ${minDist} regiony od stolicy innego gracza`, {
+            id: "game-capital-too-close",
+          });
           return;
         }
         selectCapital(regionId);
@@ -896,10 +913,8 @@ export default function GamePage({
             (abilityDef.target_type === "own" && region.owner_id === myUserId);
           if (!isValidTarget) {
             toast.error(
-              abilityDef.target_type === "enemy"
-                ? "Zdolnosc wymaga wrogiego celu"
-                : "Zdolnosc wymaga wlasnego regionu",
-              { id: "game-ability-invalid-target" }
+              abilityDef.target_type === "enemy" ? "Zdolnosc wymaga wrogiego celu" : "Zdolnosc wymaga wlasnego regionu",
+              { id: "game-ability-invalid-target" },
             );
             return;
           }
@@ -910,19 +925,15 @@ export default function GamePage({
       }
 
       // If we have a source and clicked a valid neighbor → INSTANT SEND
-      if (
-        selectedRegion &&
-        selectedRegion !== regionId &&
-        isSource &&
-        highlightedNeighbors.includes(regionId)
-      ) {
+      if (selectedRegion && selectedRegion !== regionId && isSource && highlightedNeighbors.includes(regionId)) {
         const sourceRegion = gameState?.regions[selectedRegion];
         if (!sourceRegion) return;
 
-        const unitType = selectedActionUnitType
-          ?? getPreferredReachableUnitType(regionId)
-          ?? Object.entries(sourceRegion.units ?? {}).find(([, c]) => c > 0)?.[0]
-          ?? "infantry";
+        const unitType =
+          selectedActionUnitType ??
+          getPreferredReachableUnitType(regionId) ??
+          Object.entries(sourceRegion.units ?? {}).find(([, c]) => c > 0)?.[0] ??
+          "infantry";
 
         if (!isTargetReachableForUnitType(regionId, unitType)) return;
 
@@ -941,30 +952,37 @@ export default function GamePage({
           // Toast on first planned move — show immediately
           if (!planningMode) setPlanningMode(true);
           if (plannedMoves.length === 0) {
-            toast.info("Tryb planowania: klikaj cele, Enter = wykonaj, Z = cofnij, Esc = anuluj", { id: "planning-mode", duration: 5000 });
+            toast.info("Tryb planowania: klikaj cele, Enter = wykonaj, Z = cofnij, Esc = anuluj", {
+              id: "planning-mode",
+              duration: 5000,
+            });
           }
           if (plannedMoves.length >= MAX_PLANNED_MOVES) {
             toast.warning(`Limit ${MAX_PLANNED_MOVES} ruchow osiagniety`, { id: "plan-limit", duration: 2000 });
             return;
           }
           const alreadyQueued = plannedMoves
-            .filter(pm => pm.sourceId === selectedRegion && pm.unitType === unitType)
+            .filter((pm) => pm.sourceId === selectedRegion && pm.unitType === unitType)
             .reduce((sum, pm) => sum + pm.unitCount, 0);
-          const avail = getAvailableUnits(gameState?.regions[selectedRegion!]?.units, unitType, unitConfigBySlug) - alreadyQueued;
+          const avail =
+            getAvailableUnits(gameState?.regions[selectedRegion!]?.units, unitType, unitConfigBySlug) - alreadyQueued;
           if (avail <= 0) return;
           const clampedUnits = Math.min(unitsToSend, avail);
           const isAttackTarget = gameState?.regions[regionId]?.owner_id !== myUserId;
           let actionType: PlannedMove["actionType"] = isAttackTarget ? "attack" : "move";
           if (unitType === "artillery" && isAttackTarget) actionType = "bombard";
-          setPlannedMoves(prev => [...prev, {
-            id: crypto.randomUUID(),
-            sourceId: selectedRegion!,
-            targetId: regionId,
-            unitType,
-            unitCount: clampedUnits,
-            actionType,
-            createdAt: Date.now(),
-          }]);
+          setPlannedMoves((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              sourceId: selectedRegion!,
+              targetId: regionId,
+              unitType,
+              unitCount: clampedUnits,
+              actionType,
+              createdAt: Date.now(),
+            },
+          ]);
           // Deselect so player can pick another province (or re-select this one)
           setSelectedRegion(null);
           setSelectedActionUnitType(null);
@@ -1007,7 +1025,12 @@ export default function GamePage({
       castAbility,
       dispatchTroops,
       setPlannedMoves,
-    ]
+      plannedMoves.filter,
+      plannedMoves.length,
+      planningMode,
+      setPlanningMode,
+      unitConfigBySlug,
+    ],
   );
 
   // ── Double-tap handler — send MAX units immediately ─────────
@@ -1023,10 +1046,11 @@ export default function GamePage({
       // Check if target is a highlighted neighbor
       if (!highlightedNeighbors.includes(regionId)) return;
 
-      const unitType = selectedActionUnitType
-        ?? getPreferredReachableUnitType(regionId)
-        ?? Object.entries(source.units ?? {}).find(([, c]) => c > 0)?.[0]
-        ?? "infantry";
+      const unitType =
+        selectedActionUnitType ??
+        getPreferredReachableUnitType(regionId) ??
+        Object.entries(source.units ?? {}).find(([, c]) => c > 0)?.[0] ??
+        "infantry";
 
       if (!isTargetReachableForUnitType(regionId, unitType)) return;
 
@@ -1049,7 +1073,7 @@ export default function GamePage({
       isTargetReachableForUnitType,
       dispatchTroops,
       unitConfigBySlug,
-    ]
+    ],
   );
 
   // ── Action handlers ────────────────────────────────────────
@@ -1060,7 +1084,7 @@ export default function GamePage({
         build(selectedRegion, buildingType);
       }
     },
-    [selectedRegion, build]
+    [selectedRegion, build],
   );
 
   const handleProduceUnit = useCallback(
@@ -1069,15 +1093,18 @@ export default function GamePage({
         produceUnit(selectedRegion, unitType);
       }
     },
-    [selectedRegion, produceUnit]
+    [selectedRegion, produceUnit],
   );
 
-  const handleSelectedActionUnitTypeChange = useCallback((unitType: string) => {
-    setSelectedActionUnitType(unitType);
-    if (selectedRegion) {
-      lastUnitTypePerRegionRef.current.set(selectedRegion, unitType);
-    }
-  }, [selectedRegion]);
+  const handleSelectedActionUnitTypeChange = useCallback(
+    (unitType: string) => {
+      setSelectedActionUnitType(unitType);
+      if (selectedRegion) {
+        lastUnitTypePerRegionRef.current.set(selectedRegion, unitType);
+      }
+    },
+    [selectedRegion],
+  );
 
   const handleMapReady = useCallback(() => {
     mapReadyRef.current = true;
@@ -1100,16 +1127,28 @@ export default function GamePage({
 
       switch (e.key) {
         // 1-4: unit percentage presets
-        case "1": setUnitPercent(25); break;
-        case "2": setUnitPercent(50); break;
-        case "3": setUnitPercent(75); break;
-        case "4": setUnitPercent(100); break;
+        case "1":
+          setUnitPercent(25);
+          break;
+        case "2":
+          setUnitPercent(50);
+          break;
+        case "3":
+          setUnitPercent(75);
+          break;
+        case "4":
+          setUnitPercent(100);
+          break;
 
         // Q/W/E/R: switch unit type (1st, 2nd, 3rd, 4th available)
-        case "q": case "Q":
-        case "w": case "W":
-        case "e": case "E":
-        case "r": case "R": {
+        case "q":
+        case "Q":
+        case "w":
+        case "W":
+        case "e":
+        case "E":
+        case "r":
+        case "R": {
           if (!selectedRegion || !gameState) break;
           const source = gameState.regions[selectedRegion];
           if (!source || source.owner_id !== myUserId) break;
@@ -1124,7 +1163,8 @@ export default function GamePage({
         }
 
         // Ctrl+Z / Z: undo last planned move
-        case "z": case "Z":
+        case "z":
+        case "Z":
           if (plannedMoves.length > 0) {
             e.preventDefault();
             undoLastPlannedMove();
@@ -1139,10 +1179,14 @@ export default function GamePage({
           break;
 
         // P: toggle planning mode
-        case "p": case "P":
+        case "p":
+        case "P":
           if (!planningMode) {
             setPlanningMode(true);
-            toast.info("Tryb planowania: klikaj cele, Enter = wykonaj, Z = cofnij, Esc = anuluj", { id: "planning-mode", duration: 5000 });
+            toast.info("Tryb planowania: klikaj cele, Enter = wykonaj, Z = cofnij, Esc = anuluj", {
+              id: "planning-mode",
+              duration: 5000,
+            });
           } else {
             clearPlannedMoves();
           }
@@ -1185,7 +1229,20 @@ export default function GamePage({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [status, selectedRegion, gameState, myUserId, handleCancelAction, handleSelectedActionUnitTypeChange, plannedMoves, planningMode, executePlannedMoves, clearPlannedMoves, undoLastPlannedMove]);
+  }, [
+    status,
+    selectedRegion,
+    gameState,
+    myUserId,
+    handleCancelAction,
+    handleSelectedActionUnitTypeChange,
+    plannedMoves,
+    planningMode,
+    executePlannedMoves,
+    clearPlannedMoves,
+    undoLastPlannedMove,
+    setPlanningMode,
+  ]);
 
   const handleSelectAbility = useCallback((slug: string | null) => {
     setSelectedAbility(slug);
@@ -1200,7 +1257,7 @@ export default function GamePage({
     (slug: string) => {
       castAbility("", slug);
     },
-    [castAbility]
+    [castAbility],
   );
 
   const buildingsQueue = useMemo(() => gameState?.buildings_queue || [], [gameState?.buildings_queue]);
@@ -1238,21 +1295,30 @@ export default function GamePage({
 
   // Game event sounds & toasts (extracted to hook)
   useGameEventSounds(
-    events, myUserId, gameStateRef, neighborMap,
-    playSound, playJingle, setAnimations, setNukeBlackout, gameState?.players,
+    events,
+    myUserId,
+    gameStateRef,
+    neighborMap,
+    playSound,
+    playJingle,
+    setAnimations,
+    setNukeBlackout,
+    gameState?.players,
   );
 
   const capitalSelectionEndsAt = Number(gameState?.meta?.capital_selection_ends_at || 0);
-  const capitalSelectionRemaining = status === "selecting" && capitalSelectionEndsAt > 0
-    ? Math.max(0, capitalSelectionEndsAt - Math.floor(nowMs / 1000))
-    : 0;
+  const capitalSelectionRemaining =
+    status === "selecting" && capitalSelectionEndsAt > 0
+      ? Math.max(0, capitalSelectionEndsAt - Math.floor(nowMs / 1000))
+      : 0;
 
   // Capital selection toast — only after overlay dismissed
   useEffect(() => {
     if (status === "selecting" && !showIntro && !hasSelectedCapital) {
-      const msg = capitalSelectionRemaining > 0
-        ? `Wybierz stolice! Pozostalo: ${capitalSelectionRemaining}s`
-        : "Wybierz stolice!";
+      const msg =
+        capitalSelectionRemaining > 0
+          ? `Wybierz stolice! Pozostalo: ${capitalSelectionRemaining}s`
+          : "Wybierz stolice!";
       toast.info(msg, {
         id: "capital-selection",
         duration: Infinity,
@@ -1276,8 +1342,6 @@ export default function GamePage({
     <div className="relative h-screen w-screen overflow-hidden bg-[#050b14]">
       {/* Hex tile overlay hidden on mobile for GPU perf */}
       <div className="pointer-events-none absolute inset-0 hidden bg-[url('/assets/ui/hex_bg_tile.webp')] bg-[size:240px] opacity-[0.04] sm:block" />
-
-
 
       {tutorial.isActive && tutorial.currentStep && (
         <TutorialOverlay
@@ -1312,9 +1376,7 @@ export default function GamePage({
             <>
               <div className="fixed inset-0 z-30" onClick={() => setMusicPickerOpen(false)} />
               <div className="absolute right-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-lg sm:bg-card/95 sm:backdrop-blur-xl">
-                <div className="px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Muzyka
-                </div>
+                <div className="px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Muzyka</div>
                 {MUSIC_TRACKS.map((track, i) => (
                   <button
                     key={track.src}
@@ -1323,14 +1385,10 @@ export default function GamePage({
                       setMusicPickerOpen(false);
                     }}
                     className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/30 ${
-                      i === currentTrackIndex
-                        ? "bg-muted/30 text-accent"
-                        : "text-foreground/80"
+                      i === currentTrackIndex ? "bg-muted/30 text-accent" : "text-foreground/80"
                     }`}
                   >
-                    <span className="w-4 text-center text-xs">
-                      {i === currentTrackIndex && !muted ? "▶" : ""}
-                    </span>
+                    <span className="w-4 text-center text-xs">{i === currentTrackIndex && !muted ? "▶" : ""}</span>
                     <span className="truncate">{track.name}</span>
                   </button>
                 ))}
@@ -1415,13 +1473,7 @@ export default function GamePage({
       {!connected && status !== "finished" && status !== "cancelled" && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="flex items-center gap-3 rounded-[24px] border border-border bg-card px-6 py-4">
-            <Image
-              src="/assets/common/world.webp"
-              alt=""
-              width={24}
-              height={24}
-              className="h-6 w-6 object-contain"
-            />
+            <Image src="/assets/common/world.webp" alt="" width={24} height={24} className="h-6 w-6 object-contain" />
             <Loader2 className="h-5 w-5 animate-spin" />
             <span>Łączenie z serwerem...</span>
           </div>
@@ -1461,12 +1513,7 @@ export default function GamePage({
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
           <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-0 text-center shadow-2xl sm:rounded-[32px]">
             <div className="relative h-36 w-full overflow-hidden">
-              <Image
-                src="/assets/match_gui/finish/g77116.webp"
-                alt=""
-                fill
-                className="object-cover opacity-60"
-              />
+              <Image src="/assets/match_gui/finish/g77116.webp" alt="" fill className="object-cover opacity-60" />
               <Image
                 src="/assets/match_gui/finish/g86466.webp"
                 alt=""
@@ -1497,23 +1544,16 @@ export default function GamePage({
                           isMe ? "bg-primary/15 border border-primary/30" : "bg-muted/30 border border-border/50"
                         }`}
                       >
-                        <span className="w-6 text-center font-display text-lg text-muted-foreground">
-                          {i + 1}
-                        </span>
+                        <span className="w-6 text-center font-display text-lg text-muted-foreground">{i + 1}</span>
+                        <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: p.color }} />
                         <span
-                          className="h-3 w-3 shrink-0 rounded-full"
-                          style={{ backgroundColor: p.color }}
-                        />
-                        <span className={`flex-1 truncate text-sm ${isMe ? "font-medium text-foreground" : "text-foreground/80"}`}>
+                          className={`flex-1 truncate text-sm ${isMe ? "font-medium text-foreground" : "text-foreground/80"}`}
+                        >
                           {p.username}
                           {p.isBot && <span className="ml-1.5 text-[10px] text-muted-foreground">BOT</span>}
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          {p.regionsConquered} reg
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {p.unitsProduced} jedn.
-                        </span>
+                        <span className="text-xs text-muted-foreground">{p.regionsConquered} reg</span>
+                        <span className="text-xs text-muted-foreground">{p.unitsProduced} jedn.</span>
                         {p.isAlive ? (
                           <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
                             WINNER
@@ -1529,18 +1569,18 @@ export default function GamePage({
                 </div>
               )}
               <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <button
-                onClick={() => router.push(`/match/${matchId}`)}
-                className="rounded-full border border-border bg-muted/30 px-6 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted/50"
-              >
-                Statystyki meczu ({gameEndCountdown}s)
-              </button>
-              <button
-                onClick={() => router.push("/dashboard")}
-                className="rounded-full bg-primary px-8 py-2.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                Wróć do lobby
-              </button>
+                <button
+                  onClick={() => router.push(`/match/${matchId}`)}
+                  className="rounded-full border border-border bg-muted/30 px-6 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted/50"
+                >
+                  Statystyki meczu ({gameEndCountdown}s)
+                </button>
+                <button
+                  onClick={() => router.push("/dashboard")}
+                  className="rounded-full bg-primary px-8 py-2.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  Wróć do lobby
+                </button>
               </div>
             </div>
           </div>
@@ -1549,95 +1589,111 @@ export default function GamePage({
 
       {/* Map */}
       <GameCanvas
-          shapesData={shapesData}
-          dimmedRegions={dimmedRegions}
-          regions={regions}
-          players={players}
-          selectedRegion={selectedRegion}
-          targetRegions={[]}
-          highlightedNeighbors={selectedAbility ? abilityTargets : highlightedNeighbors}
-          onRegionClick={handleRegionClick}
-          onDoubleTap={handleDoubleTap}
-          myUserId={myUserId}
-          animations={animations}
-          buildingIcons={buildingIcons}
-          activeEffects={gameState?.active_effects}
-          nukeBlackout={nukeBlackout}
-          onMapReady={handleMapReady}
-          airTransitQueue={gameState?.air_transit_queue}
-          unitManpowerMap={unitManpowerMap}
-          plannedMoves={plannedMoves}
-          diplomacy={diplomacy}
-          onFlightClick={(flightId) => {
-            // Find a source region with fighters to intercept
-            if (!gameState) return;
-            const flight = gameState.air_transit_queue?.find((f) => f.id === flightId);
-            if (!flight || flight.player_id === myUserId) return;
-            // Find closest own region with fighters
-            const ownRegionsWithFighters = Object.entries(gameState.regions)
-              .filter(([, r]) => r.owner_id === myUserId && (r.units?.fighter ?? 0) > 0);
-            if (ownRegionsWithFighters.length === 0) {
-              toast.warning("Brak myśliwców do przechwycenia!", { id: "game-intercept-no-fighters" });
-              return;
-            }
-            // Use selected region if it has fighters, otherwise first available
-            const sourceId = selectedRegion && ownRegionsWithFighters.some(([id]) => id === selectedRegion)
+        shapesData={shapesData}
+        dimmedRegions={dimmedRegions}
+        regions={regions}
+        players={players}
+        selectedRegion={selectedRegion}
+        targetRegions={[]}
+        highlightedNeighbors={selectedAbility ? abilityTargets : highlightedNeighbors}
+        onRegionClick={handleRegionClick}
+        onDoubleTap={handleDoubleTap}
+        myUserId={myUserId}
+        animations={animations}
+        buildingIcons={buildingIcons}
+        activeEffects={gameState?.active_effects}
+        nukeBlackout={nukeBlackout}
+        onMapReady={handleMapReady}
+        airTransitQueue={gameState?.air_transit_queue}
+        unitManpowerMap={unitManpowerMap}
+        plannedMoves={plannedMoves}
+        diplomacy={diplomacy}
+        onFlightClick={(flightId) => {
+          // Find a source region with fighters to intercept
+          if (!gameState) return;
+          const flight = gameState.air_transit_queue?.find((f) => f.id === flightId);
+          if (!flight || flight.player_id === myUserId) return;
+          // Find closest own region with fighters
+          const ownRegionsWithFighters = Object.entries(gameState.regions).filter(
+            ([, r]) => r.owner_id === myUserId && (r.units?.fighter ?? 0) > 0,
+          );
+          if (ownRegionsWithFighters.length === 0) {
+            toast.warning("Brak myśliwców do przechwycenia!", { id: "game-intercept-no-fighters" });
+            return;
+          }
+          // Use selected region if it has fighters, otherwise first available
+          const sourceId =
+            selectedRegion && ownRegionsWithFighters.some(([id]) => id === selectedRegion)
               ? selectedRegion
               : ownRegionsWithFighters[0][0];
-            const fighterCount = gameState.regions[sourceId]?.units?.fighter ?? 0;
-            interceptFlight(sourceId, flightId, fighterCount);
-            toast.info(`Wysłano ${fighterCount} myśliwców na przechwycenie!`, { id: "game-intercept-sent" });
-          }}
-        />
+          const fighterCount = gameState.regions[sourceId]?.units?.fighter ?? 0;
+          interceptFlight(sourceId, flightId, fighterCount);
+          toast.info(`Wysłano ${fighterCount} myśliwców na przechwycenie!`, { id: "game-intercept-sent" });
+        }}
+      />
 
       {/* Intercept button — shown when enemy flights are active and player has fighters */}
-      {status === "in_progress" && (() => {
-        const enemyFlights = gameState?.air_transit_queue?.filter(
-          (f) => f.player_id !== myUserId && f.mission_type === "bomb_run"
-            // Hide if we already sent interceptors to this flight
-            && !(f.interceptors ?? []).some((ig) => ig.player_id === myUserId)
-        ) ?? [];
-        const myFighterRegions = Object.entries(gameState?.regions ?? {})
-          .filter(([, r]) => r.owner_id === myUserId && (r.units?.fighter ?? 0) > 0);
-        if (enemyFlights.length === 0 || myFighterRegions.length === 0) return null;
-        return (
-          <div className="absolute right-3 top-1/2 z-20 -translate-y-1/2 flex flex-col gap-2">
-            {enemyFlights.map((flight) => {
-              const attacker = gameState?.players[flight.player_id];
-              return (
-                <button
-                  key={flight.id}
-                  onClick={() => {
-                    const sourceId = selectedRegion && myFighterRegions.some(([id]) => id === selectedRegion)
-                      ? selectedRegion
-                      : myFighterRegions[0]?.[0];
-                    if (!sourceId) { toast.error("Brak prowincji z myśliwcami!", { id: "game-intercept-no-source" }); return; }
-                    const available = gameState?.regions[sourceId]?.units?.fighter ?? 0;
-                    if (available <= 0) { toast.error("Brak myśliwców w prowincji!", { id: "game-intercept-no-available" }); return; }
-                    // Calculate how many fighters needed: enough to beat escorts + bombers.
-                    const needed = flight.escort_fighters + flight.units + 1; // +1 for advantage
-                    const toSend = Math.min(available, Math.max(needed, 1));
-                    interceptFlight(sourceId, flight.id, toSend);
-                    toast.info(`Wysłano ${toSend} myśliwców na przechwycenie! (potrzeba ~${needed})`, { id: "game-intercept-sent-button" });
-                  }}
-                  className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-950/80 px-3 py-2 text-sm font-semibold text-red-300 shadow-lg backdrop-blur-sm transition-colors hover:bg-red-900/80 hover:text-red-200"
-                >
-                  <span className="text-lg">🎯</span>
-                  <div className="flex flex-col items-start">
-                    <span className="text-xs text-red-400">Przechwycenie</span>
-                    <span className="text-[10px] text-red-400/70">
-                      {attacker?.username ?? "Wróg"} → {gameState?.regions[flight.target_region_id]?.name ?? "?"}
-                    </span>
-                    <span className="text-[10px] text-red-300/60">
-                      {flight.units}💣{flight.escort_fighters > 0 ? ` +${flight.escort_fighters}✈ eskort` : ""}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        );
-      })()}
+      {status === "in_progress" &&
+        (() => {
+          const enemyFlights =
+            gameState?.air_transit_queue?.filter(
+              (f) =>
+                f.player_id !== myUserId &&
+                f.mission_type === "bomb_run" &&
+                // Hide if we already sent interceptors to this flight
+                !(f.interceptors ?? []).some((ig) => ig.player_id === myUserId),
+            ) ?? [];
+          const myFighterRegions = Object.entries(gameState?.regions ?? {}).filter(
+            ([, r]) => r.owner_id === myUserId && (r.units?.fighter ?? 0) > 0,
+          );
+          if (enemyFlights.length === 0 || myFighterRegions.length === 0) return null;
+          return (
+            <div className="absolute right-3 top-1/2 z-20 -translate-y-1/2 flex flex-col gap-2">
+              {enemyFlights.map((flight) => {
+                const attacker = gameState?.players[flight.player_id];
+                return (
+                  <button
+                    key={flight.id}
+                    onClick={() => {
+                      const sourceId =
+                        selectedRegion && myFighterRegions.some(([id]) => id === selectedRegion)
+                          ? selectedRegion
+                          : myFighterRegions[0]?.[0];
+                      if (!sourceId) {
+                        toast.error("Brak prowincji z myśliwcami!", { id: "game-intercept-no-source" });
+                        return;
+                      }
+                      const available = gameState?.regions[sourceId]?.units?.fighter ?? 0;
+                      if (available <= 0) {
+                        toast.error("Brak myśliwców w prowincji!", { id: "game-intercept-no-available" });
+                        return;
+                      }
+                      // Calculate how many fighters needed: enough to beat escorts + bombers.
+                      const needed = flight.escort_fighters + flight.units + 1; // +1 for advantage
+                      const toSend = Math.min(available, Math.max(needed, 1));
+                      interceptFlight(sourceId, flight.id, toSend);
+                      toast.info(`Wysłano ${toSend} myśliwców na przechwycenie! (potrzeba ~${needed})`, {
+                        id: "game-intercept-sent-button",
+                      });
+                    }}
+                    className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-950/80 px-3 py-2 text-sm font-semibold text-red-300 shadow-lg backdrop-blur-sm transition-colors hover:bg-red-900/80 hover:text-red-200"
+                  >
+                    <span className="text-lg">🎯</span>
+                    <div className="flex flex-col items-start">
+                      <span className="text-xs text-red-400">Przechwycenie</span>
+                      <span className="text-[10px] text-red-400/70">
+                        {attacker?.username ?? "Wróg"} → {gameState?.regions[flight.target_region_id]?.name ?? "?"}
+                      </span>
+                      <span className="text-[10px] text-red-300/60">
+                        {flight.units}💣{flight.escort_fighters > 0 ? ` +${flight.escort_fighters}✈ eskort` : ""}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
 
       {/* HUD */}
       <GameHUD
@@ -1665,10 +1721,7 @@ export default function GamePage({
       />
 
       {/* Weather indicator removed — weather/day-night not used */}
-      {false && gameState?.weather && (
-        <div className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3">
-        </div>
-      )}
+      {false && gameState?.weather && <div className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3"></div>}
 
       {/* Desktop: chat + voice in bottom-left, separate from HUD to avoid re-render perf issues */}
       {status !== "finished" && status !== "cancelled" && connected && (
@@ -1699,45 +1752,50 @@ export default function GamePage({
       />
 
       {/* Planned moves queue bar */}
-      {(planningMode || plannedMoves.length > 0) && (() => {
-        const hasItems = plannedMoves.length > 0;
-        const oldest = hasItems ? Math.min(...plannedMoves.map(pm => pm.createdAt)) : Date.now();
-        const remaining = hasItems ? Math.max(0, Math.ceil((PLAN_EXPIRY_S * 1000 - (Date.now() - oldest)) / 1000)) : PLAN_EXPIRY_S;
-        return (
-          <div className="absolute bottom-[72px] left-1/2 z-30 -translate-x-1/2 flex items-center gap-3 rounded-xl border border-primary/30 bg-card/95 px-4 py-2 shadow-lg backdrop-blur-xl">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">📋 Plan</span>
-              <span className="text-xs font-semibold text-foreground tabular-nums">
-                {plannedMoves.length}/{MAX_PLANNED_MOVES}
-              </span>
-              {hasItems && (
-                <span className={`text-[10px] tabular-nums ${remaining <= 10 ? "text-red-400" : "text-muted-foreground"}`}>
-                  {remaining}s
+      {(planningMode || plannedMoves.length > 0) &&
+        (() => {
+          const hasItems = plannedMoves.length > 0;
+          const oldest = hasItems ? Math.min(...plannedMoves.map((pm) => pm.createdAt)) : Date.now();
+          const remaining = hasItems
+            ? Math.max(0, Math.ceil((PLAN_EXPIRY_S * 1000 - (Date.now() - oldest)) / 1000))
+            : PLAN_EXPIRY_S;
+          return (
+            <div className="absolute bottom-[72px] left-1/2 z-30 -translate-x-1/2 flex items-center gap-3 rounded-xl border border-primary/30 bg-card/95 px-4 py-2 shadow-lg backdrop-blur-xl">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">📋 Plan</span>
+                <span className="text-xs font-semibold text-foreground tabular-nums">
+                  {plannedMoves.length}/{MAX_PLANNED_MOVES}
                 </span>
-              )}
+                {hasItems && (
+                  <span
+                    className={`text-[10px] tabular-nums ${remaining <= 10 ? "text-red-400" : "text-muted-foreground"}`}
+                  >
+                    {remaining}s
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={undoLastPlannedMove}
+                className="rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"
+                title="Cofnij ostatni (Z)"
+              >
+                Cofnij (Z)
+              </button>
+              <button
+                onClick={executePlannedMoves}
+                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90"
+              >
+                Wykonaj (Enter)
+              </button>
+              <button
+                onClick={clearPlannedMoves}
+                className="rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"
+              >
+                Anuluj (Esc)
+              </button>
             </div>
-            <button
-              onClick={undoLastPlannedMove}
-              className="rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"
-              title="Cofnij ostatni (Z)"
-            >
-              Cofnij (Z)
-            </button>
-            <button
-              onClick={executePlannedMoves}
-              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90"
-            >
-              Wykonaj (Enter)
-            </button>
-            <button
-              onClick={clearPlannedMoves}
-              className="rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"
-            >
-              Anuluj (Esc)
-            </button>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {/* Quick Action Bar — region info + unit actions + build/produce */}
       {sourceRegionData && selectedRegion && status === "in_progress" && (
@@ -1831,11 +1889,7 @@ export default function GamePage({
             onLeave={voice.leave}
             onToggleMic={voice.toggleMic}
           />
-          <MatchChatPanel
-            messages={matchChatMessages}
-            currentUserId={myUserId}
-            onSend={sendChat}
-          />
+          <MatchChatPanel messages={matchChatMessages} currentUserId={myUserId} onSend={sendChat} />
         </div>
       )}
 
