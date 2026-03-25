@@ -21,6 +21,12 @@ def dispatch_webhook_event(event: str, payload: dict):
         deliver_webhook.delay(str(webhook.id), event, payload)
 
 
+@shared_task
+def dispatch_webhook_event_task(event: str, payload: dict):
+    """Celery wrapper for dispatch_webhook_event."""
+    dispatch_webhook_event(event, payload)
+
+
 @shared_task(bind=True, max_retries=5)
 def deliver_webhook(self, webhook_id: str, event: str, payload: dict):
     """Deliver a webhook event to the registered URL."""

@@ -9,7 +9,7 @@ use maplord_engine::{
     Action, ActiveBoost, ActiveEffect, AirTransitItem, BuildingQueueItem, DiplomacyState, Event,
     GameEngine, GameSettings, Player, Region, TransitQueueItem, UnitQueueItem, WeatherState,
 };
-use maplord_state::{FullGameState, GameStateManager};
+use maplord_state::{FullGameState, GameStateManager, InMemoryState};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -1096,14 +1096,17 @@ async fn game_loop(
     let snapshot_interval = settings.snapshot_interval_ticks;
     let mut next_tick_at = tokio::time::Instant::now() + tick_interval;
 
+    // Load full state into memory (single Redis read for entire match lifecycle)
+    let mut game_state = InMemoryState::load(state_mgr.clone()).await?;
+
     // Save initial state snapshot (tick 0)
-    if let Ok(full_state) = state_mgr.get_full_state().await {
+    if let Ok(full_state) = game_state.to_full_state().await {
         let state_json = serde_json::to_value(&full_state).unwrap_or_default();
         let _ = state.django.save_snapshot(match_id, 0, state_json).await;
     }
 
     // Initialize BotBrains for bot players
-    let initial_players = state_mgr.get_all_players().await?;
+    let initial_players = &game_state.players;
     let is_tutorial = meta.get("is_tutorial").map(|v| v == "1").unwrap_or(false);
     let bot_brains: HashMap<String, Box<dyn BotStrategy>> = initial_players
         .iter()
@@ -1169,34 +1172,33 @@ async fn game_loop(
             }
         }
 
-        let mut tick_data = state_mgr.get_tick_data().await?;
-        let tick = tick_data.tick;
+        let (tick, mut actions) = game_state.read_tick_actions().await?;
 
         // Check if match should end (no human players alive)
-        let has_alive_human = tick_data.players.values().any(|p| p.is_alive && !p.is_bot);
+        let has_alive_human = game_state.players.values().any(|p| p.is_alive && !p.is_bot);
         if !has_alive_human {
             info!("Match {match_id} has no alive human players, ending match");
-            let alive: Vec<(&String, &Player)> = tick_data.players.iter()
+            let alive: Vec<(&String, &Player)> = game_state.players.iter()
                 .filter(|(_, p)| p.is_alive)
                 .collect();
             // Find the last eliminated human as "winner"
             let winner_id = if alive.len() == 1 {
                 Some(alive[0].0.clone())
             } else {
-                tick_data.players.iter()
+                game_state.players.iter()
                     .filter(|(_, p)| !p.is_bot)
                     .max_by_key(|(_, p)| p.eliminated_tick.unwrap_or(0))
                     .map(|(id, _)| id.clone())
             };
             // Eliminate remaining bots
-            for (_, player) in tick_data.players.iter_mut() {
+            for (_, player) in game_state.players.iter_mut() {
                 if player.is_alive && player.is_bot {
                     player.is_alive = false;
                     player.eliminated_reason = Some("match_ended".to_string());
                     player.eliminated_tick = Some(tick);
                 }
             }
-            let _ = state_mgr.set_players_bulk(&tick_data.players).await;
+            let _ = state_mgr.set_players_bulk(&game_state.players).await;
             let _ = state_mgr.set_meta_field("status", "finished").await;
             let _ = state.django.update_match_status(match_id, "finished").await;
             let early_now_secs = SystemTime::now()
@@ -1209,11 +1211,11 @@ async fn game_loop(
                 "tick": tick,
                 "events": [{"type": "game_over", "winner_id": winner_id}],
                 "regions": {},
-                "players": tick_data.players,
-                "buildings_queue": tick_data.buildings_queue,
-                "unit_queue": tick_data.unit_queue,
-                "transit_queue": tick_data.transit_queue,
-                "air_transit_queue": tick_data.air_transit_queue,
+                "players": game_state.players,
+                "buildings_queue": game_state.buildings_queue,
+                "unit_queue": game_state.unit_queue,
+                "transit_queue": game_state.transit_queue,
+                "air_transit_queue": game_state.air_transit_queue,
                 "weather": early_weather,
             });
             broadcast_to_match(match_id, &game_over_msg, &state.game_connections);
@@ -1224,21 +1226,21 @@ async fn game_loop(
 
         // Generate bot actions
         for (bot_id, brain) in &bot_brains {
-            if tick_data
+            if game_state
                 .players
                 .get(bot_id)
                 .map(|p| p.is_alive)
                 .unwrap_or(false)
             {
                 let bot_actions = brain.decide(
-                    &tick_data.players,
-                    &tick_data.regions,
+                    &game_state.players,
+                    &game_state.regions,
                     &neighbor_map,
                     &settings,
                     tick,
-                    &tick_data.diplomacy,
+                    &game_state.diplomacy,
                 );
-                tick_data.actions.extend(bot_actions);
+                actions.extend(bot_actions);
             }
         }
 
@@ -1246,10 +1248,10 @@ async fn game_loop(
         let ac_verdict = if anticheat_enabled {
             anticheat
                 .analyze_tick(
-                    &tick_data.actions,
+                    &actions,
                     tick,
-                    &tick_data.regions,
-                    &tick_data.players,
+                    &game_state.regions,
+                    &game_state.players,
                     &neighbor_map,
                 )
                 .await
@@ -1265,7 +1267,7 @@ async fn game_loop(
                 let violations = anticheat.get_violations().await;
                 let django = state.django.clone();
                 let mid = match_id.to_string();
-                let all_player_ids: Vec<String> = tick_data.players.keys().cloned().collect();
+                let all_player_ids: Vec<String> = game_state.players.keys().cloned().collect();
                 tokio::spawn(async move {
                     for v in &violations {
                         let _ = django.report_anticheat_violation(
@@ -1319,12 +1321,12 @@ async fn game_loop(
                 }
 
                 // Eliminate the cheater
-                if let Some(player) = tick_data.players.get_mut(player_id) {
+                if let Some(player) = game_state.players.get_mut(player_id) {
                     player.is_alive = false;
                     player.eliminated_reason = Some("cheating_detected".to_string());
                     player.eliminated_tick = Some(tick);
                 }
-                let _ = state_mgr.set_players_bulk(&tick_data.players).await;
+                let _ = state_mgr.set_players_bulk(&game_state.players).await;
                 {
                     let django = state.django.clone();
                     let mid = match_id.to_string();
@@ -1349,19 +1351,19 @@ async fn game_loop(
                         "reason": "cheating_detected",
                     }],
                     "regions": {},
-                    "players": tick_data.players,
-                    "buildings_queue": tick_data.buildings_queue,
-                    "unit_queue": tick_data.unit_queue,
-                    "transit_queue": tick_data.transit_queue,
-                    "air_transit_queue": tick_data.air_transit_queue,
-                    "active_effects": tick_data.active_effects,
+                    "players": game_state.players,
+                    "buildings_queue": game_state.buildings_queue,
+                    "unit_queue": game_state.unit_queue,
+                    "transit_queue": game_state.transit_queue,
+                    "air_transit_queue": game_state.air_transit_queue,
+                    "active_effects": game_state.active_effects,
                     "weather": cheat_weather,
                 });
                 broadcast_to_match(match_id, &flag_msg, &state.game_connections);
 
                 // Remove cheater's actions from this tick
                 let cheater_id = player_id.clone();
-                tick_data.actions.retain(|a| {
+                actions.retain(|a| {
                     a.player_id.as_deref() != Some(&cheater_id)
                 });
             }
@@ -1388,9 +1390,9 @@ async fn game_loop(
         }
 
         // Resolve disconnect timeouts
-        let timeout_events = resolve_disconnect_timeout_events(&mut tick_data.players);
+        let timeout_events = resolve_disconnect_timeout_events(&mut game_state.players);
         if !timeout_events.is_empty() {
-            state_mgr.set_players_bulk(&tick_data.players).await?;
+            state_mgr.set_players_bulk(&game_state.players).await?;
             for event in &timeout_events {
                 if let Event::PlayerEliminated { player_id, .. } = event {
                     let django = state.django.clone();
@@ -1403,7 +1405,7 @@ async fn game_loop(
             }
         }
 
-        let regions_fingerprints = region_fingerprints(&tick_data.regions);
+        let regions_fingerprints = region_fingerprints(&game_state.regions);
 
         let now_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1413,16 +1415,16 @@ async fn game_loop(
         engine.set_weather(&weather);
 
         let mut events = engine.process_tick(
-            &mut tick_data.players,
-            &mut tick_data.regions,
-            &tick_data.actions,
-            &mut tick_data.buildings_queue,
-            &mut tick_data.unit_queue,
-            &mut tick_data.transit_queue,
-            &mut tick_data.air_transit_queue,
+            &mut game_state.players,
+            &mut game_state.regions,
+            &actions,
+            &mut game_state.buildings_queue,
+            &mut game_state.unit_queue,
+            &mut game_state.transit_queue,
+            &mut game_state.air_transit_queue,
             tick,
-            &mut tick_data.active_effects,
-            &mut tick_data.diplomacy,
+            &mut game_state.active_effects,
+            &mut game_state.diplomacy,
         );
 
         if !timeout_events.is_empty() {
@@ -1434,7 +1436,7 @@ async fn game_loop(
         // Mark eliminated_tick on players
         for event in &events {
             if let Event::PlayerEliminated { player_id, reason } = event {
-                if let Some(player) = tick_data.players.get_mut(player_id) {
+                if let Some(player) = game_state.players.get_mut(player_id) {
                     player.eliminated_reason = Some(reason.clone());
                     player.eliminated_tick = Some(tick);
                 }
@@ -1442,23 +1444,11 @@ async fn game_loop(
         }
 
         // Compute changed regions (delta) from pre-tick fingerprints
-        let changed_regions = compute_changed_regions_from_fingerprints(&regions_fingerprints, &tick_data.regions);
+        let changed_regions = compute_changed_regions_from_fingerprints(&regions_fingerprints, &game_state.regions);
         let dirty_ids: HashSet<String> = changed_regions.keys().cloned().collect();
 
         // Write back
-        state_mgr
-            .set_tick_result(
-                &tick_data.players,
-                &tick_data.regions,
-                &tick_data.buildings_queue,
-                &tick_data.unit_queue,
-                &tick_data.transit_queue,
-                &tick_data.air_transit_queue,
-                &tick_data.active_effects,
-                &tick_data.diplomacy,
-                Some(&dirty_ids),
-            )
-            .await?;
+        game_state.flush_to_redis(&dirty_ids).await?;
 
         // Set alive state in DB for eliminated players (fire-and-forget — don't block the tick)
         for event in &events {
@@ -1475,7 +1465,7 @@ async fn game_loop(
         // Log bombarded regions in the delta to verify state is correct
         for event in &events {
             if let Event::Bombard { target_region_id, total_killed, .. } = event {
-                let after_units = tick_data.regions.get(target_region_id)
+                let after_units = game_state.regions.get(target_region_id)
                     .map(|r| r.unit_count).unwrap_or(-1);
                 let in_delta = changed_regions.contains_key(target_region_id);
                 eprintln!("[TICK] Bombarded {} killed={} after_unit_count={} in_delta={}",
@@ -1489,14 +1479,14 @@ async fn game_loop(
             tick,
             events: &events,
             regions: &changed_regions,
-            players: &tick_data.players,
-            buildings_queue: &tick_data.buildings_queue,
-            unit_queue: &tick_data.unit_queue,
-            transit_queue: &tick_data.transit_queue,
-            air_transit_queue: &tick_data.air_transit_queue,
-            active_effects: &tick_data.active_effects,
+            players: &game_state.players,
+            buildings_queue: &game_state.buildings_queue,
+            unit_queue: &game_state.unit_queue,
+            transit_queue: &game_state.transit_queue,
+            air_transit_queue: &game_state.air_transit_queue,
+            active_effects: &game_state.active_effects,
             weather: &weather,
-            diplomacy: &tick_data.diplomacy,
+            diplomacy: &game_state.diplomacy,
         };
         match serde_json::to_string(&tick_broadcast) {
             Ok(text) => broadcast_str_to_match(match_id, text, &state.game_connections),
@@ -1508,30 +1498,29 @@ async fn game_loop(
         // Tutorial fast-forward: process additional ticks without sleeping
         if is_tutorial && current_tick_multiplier > 1 && !primary_game_over {
             for _ in 1..current_tick_multiplier {
-                let mut extra_tick = state_mgr.get_tick_data().await?;
-                let extra_tick_num = extra_tick.tick;
+                let (extra_tick_num, mut extra_actions) = game_state.read_tick_actions().await?;
 
                 // Generate bot actions
                 for (bot_id, brain) in &bot_brains {
-                    if extra_tick.players.get(bot_id).map(|p| p.is_alive).unwrap_or(false) {
+                    if game_state.players.get(bot_id).map(|p| p.is_alive).unwrap_or(false) {
                         let bot_actions = brain.decide(
-                            &extra_tick.players,
-                            &extra_tick.regions,
+                            &game_state.players,
+                            &game_state.regions,
                             &neighbor_map,
                             &settings,
                             extra_tick_num,
-                            &extra_tick.diplomacy,
+                            &game_state.diplomacy,
                         );
-                        extra_tick.actions.extend(bot_actions);
+                        extra_actions.extend(bot_actions);
                     }
                 }
 
-                let extra_timeout_events = resolve_disconnect_timeout_events(&mut extra_tick.players);
+                let extra_timeout_events = resolve_disconnect_timeout_events(&mut game_state.players);
                 if !extra_timeout_events.is_empty() {
-                    state_mgr.set_players_bulk(&extra_tick.players).await?;
+                    state_mgr.set_players_bulk(&game_state.players).await?;
                 }
 
-                let extra_regions_fingerprints = region_fingerprints(&extra_tick.regions);
+                let extra_regions_fingerprints = region_fingerprints(&game_state.regions);
 
                 let extra_now_secs = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -1541,16 +1530,16 @@ async fn game_loop(
                 engine.set_weather(&extra_weather);
 
                 let mut extra_events = engine.process_tick(
-                    &mut extra_tick.players,
-                    &mut extra_tick.regions,
-                    &extra_tick.actions,
-                    &mut extra_tick.buildings_queue,
-                    &mut extra_tick.unit_queue,
-                    &mut extra_tick.transit_queue,
-                    &mut extra_tick.air_transit_queue,
+                    &mut game_state.players,
+                    &mut game_state.regions,
+                    &extra_actions,
+                    &mut game_state.buildings_queue,
+                    &mut game_state.unit_queue,
+                    &mut game_state.transit_queue,
+                    &mut game_state.air_transit_queue,
                     extra_tick_num,
-                    &mut extra_tick.active_effects,
-                    &mut extra_tick.diplomacy,
+                    &mut game_state.active_effects,
+                    &mut game_state.diplomacy,
                 );
 
                 if !extra_timeout_events.is_empty() {
@@ -1561,27 +1550,17 @@ async fn game_loop(
 
                 for event in &extra_events {
                     if let Event::PlayerEliminated { player_id, reason } = event {
-                        if let Some(player) = extra_tick.players.get_mut(player_id) {
+                        if let Some(player) = game_state.players.get_mut(player_id) {
                             player.eliminated_reason = Some(reason.clone());
                             player.eliminated_tick = Some(extra_tick_num);
                         }
                     }
                 }
 
-                let extra_changed = compute_changed_regions_from_fingerprints(&extra_regions_fingerprints, &extra_tick.regions);
+                let extra_changed = compute_changed_regions_from_fingerprints(&extra_regions_fingerprints, &game_state.regions);
                 let extra_dirty: HashSet<String> = extra_changed.keys().cloned().collect();
 
-                state_mgr.set_tick_result(
-                    &extra_tick.players,
-                    &extra_tick.regions,
-                    &extra_tick.buildings_queue,
-                    &extra_tick.unit_queue,
-                    &extra_tick.transit_queue,
-                    &extra_tick.air_transit_queue,
-                    &extra_tick.active_effects,
-                    &extra_tick.diplomacy,
-                    Some(&extra_dirty),
-                ).await?;
+                game_state.flush_to_redis(&extra_dirty).await?;
 
                 for event in &extra_events {
                     if let Event::PlayerEliminated { player_id, .. } = event {
@@ -1600,14 +1579,14 @@ async fn game_loop(
                     tick: extra_tick_num,
                     events: &extra_events,
                     regions: &extra_changed,
-                    players: &extra_tick.players,
-                    buildings_queue: &extra_tick.buildings_queue,
-                    unit_queue: &extra_tick.unit_queue,
-                    transit_queue: &extra_tick.transit_queue,
-                    air_transit_queue: &extra_tick.air_transit_queue,
-                    active_effects: &extra_tick.active_effects,
+                    players: &game_state.players,
+                    buildings_queue: &game_state.buildings_queue,
+                    unit_queue: &game_state.unit_queue,
+                    transit_queue: &game_state.transit_queue,
+                    air_transit_queue: &game_state.air_transit_queue,
+                    active_effects: &game_state.active_effects,
                     weather: &extra_weather,
-                    diplomacy: &extra_tick.diplomacy,
+                    diplomacy: &game_state.diplomacy,
                 };
                 match serde_json::to_string(&extra_broadcast) {
                     Ok(text) => broadcast_str_to_match(match_id, text, &state.game_connections),
@@ -1625,7 +1604,7 @@ async fn game_loop(
                             None
                         }
                     });
-                    if let Ok(full_state) = state_mgr.get_full_state().await {
+                    if let Ok(full_state) = game_state.to_full_state().await {
                         let state_json = serde_json::to_value(&full_state).unwrap_or_default();
                         let _ = state.django.finalize_match(
                             match_id,
@@ -1650,7 +1629,7 @@ async fn game_loop(
 
         // Periodic snapshot
         if tick as u64 % snapshot_interval == 0 {
-            if let Ok(full_state) = state_mgr.get_full_state().await {
+            if let Ok(full_state) = game_state.to_full_state().await {
                 let state_json = serde_json::to_value(&full_state).unwrap_or_default();
                 let _ = state
                     .django
@@ -1665,7 +1644,7 @@ async fn game_loop(
             if tick as u64 >= max_ticks && !events.iter().any(|e| matches!(e, Event::GameOver { .. })) {
                 info!("Match {match_id} reached time limit ({} min), ending", settings.match_duration_limit_minutes);
                 // Determine winner by most regions, then most units
-                let alive: Vec<(&String, &Player)> = tick_data.players.iter()
+                let alive: Vec<(&String, &Player)> = game_state.players.iter()
                     .filter(|(_, p)| p.is_alive)
                     .collect();
                 let winner_id = if alive.len() == 1 {
@@ -1675,7 +1654,7 @@ async fn game_loop(
                 } else {
                     // Count regions per player
                     let mut region_counts: HashMap<&str, (i64, i64)> = HashMap::new();
-                    for region in tick_data.regions.values() {
+                    for region in game_state.regions.values() {
                         if let Some(ref oid) = region.owner_id {
                             let entry = region_counts.entry(oid.as_str()).or_insert((0, 0));
                             entry.0 += 1;
@@ -1706,7 +1685,7 @@ async fn game_loop(
             });
 
             // Finalize
-            if let Ok(full_state) = state_mgr.get_full_state().await {
+            if let Ok(full_state) = game_state.to_full_state().await {
                 let state_json = serde_json::to_value(&full_state).unwrap_or_default();
                 let _ = state
                     .django

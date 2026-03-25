@@ -66,6 +66,10 @@ impl GameStateManager {
         self.redis.clone()
     }
 
+    pub fn match_id(&self) -> &str {
+        &self.match_id
+    }
+
     // --- Meta ---
 
     pub async fn init_meta(
@@ -649,6 +653,137 @@ impl GameStateManager {
             .iter()
             .map(|v| deser(v))
             .collect::<redis::RedisResult<_>>()?)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// In-memory game state cache
+// ---------------------------------------------------------------------------
+
+/// In-memory game state cache that avoids HGETALL every tick.
+///
+/// Loads the full state from Redis once at match start, then operates on
+/// local data for each tick. Only player actions and the tick counter are
+/// fetched from Redis per tick; dirty regions/players are written back after
+/// the engine processes the tick.
+///
+/// For snapshots, [`InMemoryState::to_full_state`] returns the in-memory
+/// data directly without a Redis round-trip.
+pub struct InMemoryState {
+    state_mgr: GameStateManager,
+    pub players: HashMap<String, Player>,
+    pub regions: HashMap<String, Region>,
+    pub buildings_queue: Vec<BuildingQueueItem>,
+    pub unit_queue: Vec<UnitQueueItem>,
+    pub transit_queue: Vec<TransitQueueItem>,
+    pub air_transit_queue: Vec<AirTransitItem>,
+    pub active_effects: Vec<ActiveEffect>,
+    pub diplomacy: DiplomacyState,
+    current_tick: i64,
+}
+
+impl InMemoryState {
+    /// Load the full game state from Redis into memory.
+    ///
+    /// This issues a single pipelined read (identical to [`GameStateManager::get_tick_data`])
+    /// and should be called once when the game loop starts for a match.
+    pub async fn load(state_mgr: GameStateManager) -> redis::RedisResult<Self> {
+        let tick_data = state_mgr.get_tick_data().await?;
+        Ok(Self {
+            state_mgr,
+            players: tick_data.players,
+            regions: tick_data.regions,
+            buildings_queue: tick_data.buildings_queue,
+            unit_queue: tick_data.unit_queue,
+            transit_queue: tick_data.transit_queue,
+            air_transit_queue: tick_data.air_transit_queue,
+            active_effects: tick_data.active_effects,
+            diplomacy: tick_data.diplomacy,
+            current_tick: tick_data.tick,
+        })
+    }
+
+    /// Read only new player actions from Redis and atomically increment the tick counter.
+    ///
+    /// All other game state (players, regions, queues) is already held in memory and
+    /// does not require a Redis round-trip. The consumed actions list is deleted from
+    /// Redis in the same pipeline command so they are processed exactly once.
+    ///
+    /// Returns `(current_tick, actions)`.
+    pub async fn read_tick_actions(&mut self) -> redis::RedisResult<(i64, Vec<Action>)> {
+        let meta_key = format!("game:{}:meta", self.state_mgr.match_id());
+        let actions_key = format!("game:{}:actions", self.state_mgr.match_id());
+
+        let mut pipe = redis::pipe();
+        pipe.hincr(&meta_key, "current_tick", 1i64);
+        pipe.lrange(&actions_key, 0, -1);
+        pipe.del(&actions_key);
+
+        let mut conn = self.state_mgr.redis();
+        let (tick, raw_actions, ()): (i64, Vec<Vec<u8>>, ()) =
+            pipe.query_async(&mut conn).await?;
+
+        self.current_tick = tick;
+
+        let actions = raw_actions
+            .iter()
+            .map(|v| deser(v))
+            .collect::<redis::RedisResult<_>>()?;
+
+        Ok((self.current_tick, actions))
+    }
+
+    /// Write only dirty state back to Redis after the engine has processed a tick.
+    ///
+    /// Delegates directly to [`GameStateManager::set_tick_result`], which already
+    /// applies the `dirty_region_ids` filter to skip unchanged regions.
+    pub async fn flush_to_redis(
+        &self,
+        dirty_region_ids: &std::collections::HashSet<String>,
+    ) -> redis::RedisResult<()> {
+        self.state_mgr
+            .set_tick_result(
+                &self.players,
+                &self.regions,
+                &self.buildings_queue,
+                &self.unit_queue,
+                &self.transit_queue,
+                &self.air_transit_queue,
+                &self.active_effects,
+                &self.diplomacy,
+                Some(dirty_region_ids),
+            )
+            .await
+    }
+
+    /// Build a [`FullGameState`] from in-memory data without reading Redis.
+    ///
+    /// Only the `meta` hash is fetched from Redis because it contains
+    /// runtime fields (status, tick_interval_ms, etc.) that are not cached
+    /// locally. All other fields come directly from memory.
+    pub async fn to_full_state(&self) -> redis::RedisResult<FullGameState> {
+        let meta = self.state_mgr.get_meta().await?;
+        Ok(FullGameState {
+            meta,
+            players: self.players.clone(),
+            regions: self.regions.clone(),
+            buildings_queue: self.buildings_queue.clone(),
+            unit_queue: self.unit_queue.clone(),
+            transit_queue: self.transit_queue.clone(),
+            air_transit_queue: self.air_transit_queue.clone(),
+            active_effects: self.active_effects.clone(),
+            diplomacy: self.diplomacy.clone(),
+        })
+    }
+
+    /// Current tick number as tracked in memory (mirrors the Redis meta value).
+    pub fn tick(&self) -> i64 {
+        self.current_tick
+    }
+
+    /// Access the underlying [`GameStateManager`] for meta/lock operations.
+    pub fn state_mgr(&self) -> &GameStateManager {
+        &self.state_mgr
     }
 }
 

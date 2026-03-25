@@ -6,12 +6,28 @@ from django.db import models
 
 
 class GameStateSnapshot(models.Model):
-    """Periodic snapshots of game state from Redis → PostgreSQL for history/replay."""
+    """Periodic snapshots of game state from Redis → PostgreSQL for history/replay.
+
+    State is stored zstd-compressed in ``compressed_state`` for ~90% storage
+    savings.  The legacy ``state_data`` JSONField is kept nullable for backward
+    compatibility with existing rows; new writes always go to the compressed
+    column.
+    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     match = models.ForeignKey("matchmaking.Match", on_delete=models.CASCADE, related_name="snapshots")
     tick = models.PositiveIntegerField()
-    state_data = models.JSONField(help_text="Full game state snapshot (regions, players, buildings)")
+    state_data = models.JSONField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text="Legacy uncompressed state (nullable, new snapshots use compressed_state)",
+    )
+    compressed_state = models.BinaryField(
+        null=True,
+        blank=True,
+        help_text="zstd-compressed JSON game state (~90% smaller than JSONField)",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -20,6 +36,27 @@ class GameStateSnapshot(models.Model):
 
     def __str__(self):
         return f"Snapshot {self.match_id} tick {self.tick}"
+
+    def get_state(self) -> dict:
+        """Return decompressed state dict, reading from compressed or legacy field."""
+        import json
+
+        if self.compressed_state:
+            import zstandard
+
+            data = zstandard.decompress(bytes(self.compressed_state))
+            return json.loads(data)
+        return self.state_data or {}
+
+    def set_state(self, state: dict) -> None:
+        """Compress and store state, clearing the legacy field."""
+        import json
+
+        import zstandard
+
+        json_bytes = json.dumps(state, separators=(",", ":")).encode()
+        self.compressed_state = zstandard.compress(json_bytes, 3)
+        self.state_data = None
 
 
 class MatchResult(models.Model):

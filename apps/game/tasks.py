@@ -123,11 +123,13 @@ def finalize_match_results_sync(
         match.winner_id = winner_id
         match.save(update_fields=["status", "finished_at", "winner"])
 
-        GameStateSnapshot.objects.update_or_create(
+        snapshot, _created = GameStateSnapshot.objects.update_or_create(
             match=match,
             tick=total_ticks,
-            defaults={"state_data": final_state},
+            defaults={},
         )
+        snapshot.set_state(final_state)
+        snapshot.save(update_fields=["compressed_state", "state_data"])
 
         duration = 0
         if match.started_at:
@@ -321,82 +323,74 @@ def finalize_match_results_sync(
         total_ticks,
     )
 
-    # --- StatTrak increment ---
+    # --- StatTrak increment (single pass over match players) ---
     try:
         from django.db.models import F
 
         from apps.inventory.models import ItemInstance
 
-        stattrak_instance_ids = set()
+        # Build per-player stats map from already-fetched player_rows
+        player_stats = {
+            row["pid"]: {
+                "regions": row.get("owned_regions", 0),
+                "units": row.get("total_units", 0),
+            }
+            for row in player_rows
+        }
 
+        all_stattrak_ids = set()
+        per_player_ids: dict[str, set] = {}
+
+        # Single query — reuse already-prefetched match.players
         for mp in match.players.all():
-            # Collect instance_ids from deck_snapshot
+            mp_ids = set()
             if mp.deck_snapshot:
                 for iid in mp.deck_snapshot.get("instance_ids", []):
-                    stattrak_instance_ids.add(iid)
-
-            # Collect instance_ids from cosmetic_snapshot
+                    mp_ids.add(iid)
             if mp.cosmetic_snapshot:
                 for _slot, val in mp.cosmetic_snapshot.items():
                     if isinstance(val, dict) and val.get("instance_id"):
-                        stattrak_instance_ids.add(val["instance_id"])
+                        mp_ids.add(val["instance_id"])
 
-        if stattrak_instance_ids:
-            # Build per-player stats map keyed by user_id string
-            player_stats = {}
-            for row in player_rows:
-                pid = row["pid"]
-                player_stats[pid] = {
-                    "regions": row.get("owned_regions", 0),
-                    "units": row.get("total_units", 0),
-                }
+            if mp_ids:
+                per_player_ids[str(mp.user_id)] = mp_ids
+                all_stattrak_ids.update(mp_ids)
 
-            # Increment matches counter on all StatTrak instances that participated
+        if all_stattrak_ids:
+            # Bulk increment matches counter
             ItemInstance.objects.filter(
-                id__in=stattrak_instance_ids,
+                id__in=all_stattrak_ids,
                 stattrak=True,
             ).update(
                 stattrak_matches=F("stattrak_matches") + 1,
             )
 
-            # Per-player updates for region kills and units produced
-            for mp in match.players.all():
-                pid = str(mp.user_id)
+            # Per-player stat updates
+            for pid, mp_ids in per_player_ids.items():
                 stats = player_stats.get(pid, {})
-
-                mp_instance_ids = set()
-                if mp.deck_snapshot:
-                    for iid in mp.deck_snapshot.get("instance_ids", []):
-                        mp_instance_ids.add(iid)
-                if mp.cosmetic_snapshot:
-                    for _slot, val in mp.cosmetic_snapshot.items():
-                        if isinstance(val, dict) and val.get("instance_id"):
-                            mp_instance_ids.add(val["instance_id"])
-
-                if mp_instance_ids:
-                    ItemInstance.objects.filter(
-                        id__in=mp_instance_ids,
-                        stattrak=True,
-                    ).update(
-                        stattrak_kills=F("stattrak_kills") + stats.get("regions", 0),
-                        stattrak_units_produced=F("stattrak_units_produced") + stats.get("units", 0),
-                    )
+                ItemInstance.objects.filter(
+                    id__in=mp_ids,
+                    stattrak=True,
+                ).update(
+                    stattrak_kills=F("stattrak_kills") + stats.get("regions", 0),
+                    stattrak_units_produced=F("stattrak_units_produced") + stats.get("units", 0),
+                )
     except Exception as e:
         logger.error("Failed to update StatTrak for match %s: %s", match_id, e)
 
-    # Generate post-match item drops
+    # Generate post-match item drops (async — don't block finalization)
     try:
-        from apps.inventory.tasks import generate_match_drops
+        from apps.inventory.tasks import generate_match_drops_task
 
-        generate_match_drops(match_id)
+        generate_match_drops_task.delay(match_id)
     except Exception as e:
-        logger.error("Failed to generate match drops for %s: %s", match_id, e)
+        logger.error("Failed to dispatch match drops task for %s: %s", match_id, e)
 
-    # Dispatch webhook events
+    # Dispatch webhook events (async — don't block finalization)
     try:
-        from apps.developers.tasks import dispatch_webhook_event
+        from apps.developers.tasks import dispatch_webhook_event_task
 
-        dispatch_webhook_event(
+        dispatch_webhook_event_task.delay(
             "match.finished",
             {
                 "match_id": str(match_id),
@@ -407,7 +401,7 @@ def finalize_match_results_sync(
         for row in player_rows:
             if not row["is_bot"] and row.get("final_elo_change", 0) != 0:
                 user = row["match_player"].user
-                dispatch_webhook_event(
+                dispatch_webhook_event_task.delay(
                     "player.elo_changed",
                     {
                         "user_id": str(user.id),
@@ -418,7 +412,7 @@ def finalize_match_results_sync(
                     },
                 )
     except Exception as e:
-        logger.error(f"Failed to dispatch webhook events: {e}")
+        logger.error("Failed to dispatch webhook events: %s", e)
 
     # --- Clan war resolution ---
     try:
@@ -513,14 +507,16 @@ def _resolve_clan_war(clan_war, match_id: str, winner_id: str | None) -> None:
 
 @shared_task
 def save_game_snapshot(match_id: str, tick: int, state_data: dict):
-    """Save a periodic game state snapshot to PostgreSQL."""
+    """Save a periodic game state snapshot to PostgreSQL (zstd compressed)."""
     from apps.game.models import GameStateSnapshot
 
-    GameStateSnapshot.objects.update_or_create(
+    snapshot, _created = GameStateSnapshot.objects.update_or_create(
         match_id=match_id,
         tick=tick,
-        defaults={"state_data": state_data},
+        defaults={},
     )
+    snapshot.set_state(state_data)
+    snapshot.save(update_fields=["compressed_state", "state_data"])
     logger.info("Snapshot saved for match %s at tick %d", match_id, tick)
 
 

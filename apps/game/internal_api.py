@@ -74,11 +74,13 @@ class GameInternalController(ControllerBase):
 
         from apps.game.models import GameStateSnapshot
 
-        GameStateSnapshot.objects.update_or_create(
+        snapshot, _created = GameStateSnapshot.objects.update_or_create(
             match_id=body.match_id,
             tick=body.tick,
-            defaults={"state_data": body.state_data},
+            defaults={},
         )
+        snapshot.set_state(body.state_data)
+        snapshot.save(update_fields=["compressed_state", "state_data"])
         return {"ok": True}
 
     @route.get("/game/latest-snapshot/{match_id}/")
@@ -90,7 +92,7 @@ class GameInternalController(ControllerBase):
 
         snapshot = GameStateSnapshot.objects.filter(match_id=match_id).order_by("-tick").first()
         if snapshot:
-            return {"tick": snapshot.tick, "state_data": snapshot.state_data}
+            return {"tick": snapshot.tick, "state_data": snapshot.get_state()}
         return {"tick": None, "state_data": None}
 
     @route.post("/game/finalize/")
