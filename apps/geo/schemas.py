@@ -26,11 +26,15 @@ class RegionOutSchema(Schema):
 
     @staticmethod
     def resolve_centroid_lat(obj):
-        return obj.centroid.y if obj.centroid else None
+        if isinstance(obj.centroid, list) and len(obj.centroid) == 2:
+            return obj.centroid[1]
+        return None
 
     @staticmethod
     def resolve_centroid_lng(obj):
-        return obj.centroid.x if obj.centroid else None
+        if isinstance(obj.centroid, list) and len(obj.centroid) == 2:
+            return obj.centroid[0]
+        return None
 
 
 class RegionGeoJsonFeature(Schema):

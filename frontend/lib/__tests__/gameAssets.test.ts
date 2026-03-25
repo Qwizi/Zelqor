@@ -118,28 +118,28 @@ describe("getUnitAsset()", () => {
     expect(getUnitAsset("tank", "/custom/tank.png")).toBe("/custom/tank.png");
   });
 
-  it("returns ground_unit_sphere asset for default/unknown kind", () => {
-    expect(getUnitAsset()).toContain("ground_unit_sphere");
-    expect(getUnitAsset("unknown_kind")).toContain("ground_unit_sphere");
+  it("returns infantry svg asset for default/unknown kind", () => {
+    expect(getUnitAsset()).toContain("infantry");
+    expect(getUnitAsset("unknown_kind")).toContain("infantry");
   });
 
   it('returns moving asset for "moving" kind', () => {
     expect(getUnitAsset("moving")).toBe("/assets/units/moving.webp");
   });
 
-  it('returns nuke icon for "nuke_rocket" kind', () => {
-    expect(getUnitAsset("nuke_rocket")).toBe("/assets/units/nuke_icon.png");
+  it('returns nuke svg icon for "nuke_rocket" kind', () => {
+    expect(getUnitAsset("nuke_rocket")).toContain("nuke");
   });
 
-  it('returns bomber asset for "fighter" kind', () => {
-    expect(getUnitAsset("fighter")).toContain("bomber");
+  it('returns fighter svg asset for "fighter" kind', () => {
+    expect(getUnitAsset("fighter")).toContain("fighter");
   });
 
-  it('returns bomber asset for "bomber" kind (same asset as fighter)', () => {
-    expect(getUnitAsset("bomber")).toBe(getUnitAsset("fighter"));
+  it('returns bomber svg asset for "bomber" kind (different from fighter)', () => {
+    expect(getUnitAsset("bomber")).toContain("bomber");
   });
 
-  it('returns bomber asset for "air" kind', () => {
+  it('returns fighter svg asset for "air" kind (same as fighter)', () => {
     expect(getUnitAsset("air")).toBe(getUnitAsset("fighter"));
   });
 
@@ -151,13 +151,13 @@ describe("getUnitAsset()", () => {
     expect(getUnitAsset("ship_1")).toBe(getUnitAsset("ship"));
   });
 
-  it('returns ground_unit_sphere for "tank" and "ground_unit_sphere" kinds', () => {
-    expect(getUnitAsset("tank")).toContain("ground_unit_sphere");
+  it('returns tank svg asset for "tank" and "ground_unit_sphere" kinds', () => {
+    expect(getUnitAsset("tank")).toContain("tank");
     expect(getUnitAsset("ground_unit_sphere")).toBe(getUnitAsset("tank"));
   });
 
-  it('returns ground_unit for "infantry" kind', () => {
-    expect(getUnitAsset("infantry")).toContain("ground_unit");
+  it('returns infantry svg asset for "infantry" kind', () => {
+    expect(getUnitAsset("infantry")).toContain("infantry");
   });
 
   it("returns override when getOverrideUrl returns a value", () => {
@@ -176,17 +176,18 @@ describe("getPlayerBuildingAsset()", () => {
     mockGetAssetUrl.mockImplementation((_key, fallback) => fallback);
   });
 
-  it("returns string cosmetic URL when playerCosmetics has string entry for slug", () => {
-    const cosmetics = { barracks: "/cosmetic/barracks.png" };
+  it("returns string cosmetic URL when playerCosmetics has entry for the slot key", () => {
+    // Cosmetic slot for "barracks" is "building_barracks"
+    const cosmetics = { building_barracks: "/cosmetic/barracks.png" };
     expect(getPlayerBuildingAsset("barracks", cosmetics)).toBe("/cosmetic/barracks.png");
   });
 
   it('returns object cosmetic url when playerCosmetics entry is { url: "..." }', () => {
-    const cosmetics = { barracks: { url: "/cosmetic/barracks_obj.png" } };
+    const cosmetics = { building_barracks: { url: "/cosmetic/barracks_obj.png" } };
     expect(getPlayerBuildingAsset("barracks", cosmetics)).toBe("/cosmetic/barracks_obj.png");
   });
 
-  it("falls through to getBuildingAsset when playerCosmetics has no entry for slug", () => {
+  it("falls through to getBuildingAsset when playerCosmetics has no entry for slot", () => {
     const cosmetics = { other: "/cosmetic/other.png" };
     expect(getPlayerBuildingAsset("barracks", cosmetics)).toBe(BUILDING_ASSET_MAP.barracks);
   });
@@ -199,9 +200,9 @@ describe("getPlayerBuildingAsset()", () => {
     expect(getPlayerBuildingAsset("ghost_slug")).toBeNull();
   });
 
-  it("prioritizes assetUrl over cosmetics when assetUrl is provided", () => {
-    // assetUrl is passed as third arg to getBuildingAsset, cosmetic wins for slug key
-    const cosmetics = { barracks: "/cosmetic/barracks.png" };
+  it("cosmetic takes priority over assetUrl when cosmetic slot is set", () => {
+    // Cosmetic slot key is checked before falling through to getBuildingAsset(assetUrl)
+    const cosmetics = { building_barracks: "/cosmetic/barracks.png" };
     // cosmetic wins because it is checked before assetUrl delegation
     expect(getPlayerBuildingAsset("barracks", cosmetics, "/explicit.png")).toBe("/cosmetic/barracks.png");
   });
@@ -217,8 +218,9 @@ describe("getPlayerUnitAsset()", () => {
     mockGetAssetUrl.mockImplementation((_key, fallback) => fallback);
   });
 
-  it("returns string cosmetic URL for the resolved kind", () => {
-    const cosmetics = { tank: "/cosmetic/tank.png" };
+  it("returns string cosmetic URL for the resolved kind via slot key", () => {
+    // Cosmetic slot for "tank" is "unit_tank"
+    const cosmetics = { unit_tank: "/cosmetic/tank.png" };
     expect(getPlayerUnitAsset("tank", cosmetics)).toBe("/cosmetic/tank.png");
   });
 
@@ -226,9 +228,9 @@ describe("getPlayerUnitAsset()", () => {
     expect(getPlayerUnitAsset("infantry", {})).toBe(getUnitAsset("infantry"));
   });
 
-  it('uses "default" key when kind is null', () => {
-    const cosmetics = { default: "/cosmetic/default_unit.png" };
-    expect(getPlayerUnitAsset(null, cosmetics)).toBe("/cosmetic/default_unit.png");
+  it("falls back to getUnitAsset when kind is null", () => {
+    // kind=null has no slot in UNIT_SLOT_MAP, falls through to getUnitAsset(null)
+    expect(getPlayerUnitAsset(null, {})).toBe(getUnitAsset(null));
   });
 });
 

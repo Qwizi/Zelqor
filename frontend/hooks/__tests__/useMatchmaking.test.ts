@@ -51,7 +51,13 @@ vi.stubGlobal("WebSocket", MockWebSocket);
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/auth", () => ({
-  getAccessToken: vi.fn(() => "test-token"),
+  isAuthenticated: vi.fn(() => true),
+  setAuthenticated: vi.fn(),
+  getAccessToken: vi.fn(() => null),
+  getRefreshToken: vi.fn(() => null),
+  setTokens: vi.fn(),
+  clearTokens: vi.fn(),
+  isLoggedIn: vi.fn(() => true),
 }));
 
 vi.mock("@/lib/api", () => ({

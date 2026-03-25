@@ -1084,10 +1084,10 @@ export default function DeveloperAppDetailPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !token) {
+    if (!user) {
       router.replace("/login");
     }
-  }, [authLoading, user, token, router]);
+  }, [authLoading, user, router]);
 
   const handleDelete = async () => {
     if (!app) return;

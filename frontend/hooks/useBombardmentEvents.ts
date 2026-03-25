@@ -1,7 +1,7 @@
 // ── Bombardment & combat event listeners ──────────────────────────────────────
 // Extracted from GameCanvas.tsx — handles window events for bombs, SAM, damage.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { ProvinceRenderState, ShapesData } from "@/lib/canvasTypes";
 import { computeCurvePath } from "@/lib/pixiAnimationPaths";
 import type { PixiAnimationManager } from "@/lib/pixiAnimations";
@@ -28,6 +28,21 @@ export function useBombardmentEvents(
   recentlyBombedRef: React.RefObject<Map<string, number>>,
   samInterceptsRef: React.RefObject<SamIntercept[]>,
 ) {
+  // Pre-built shape lookup map — rebuilt when shapesData changes, O(1) per event
+  const shapeMapRef = useRef<Map<string, { centroid: [number, number] }>>(new Map());
+
+  // Rebuild shape map when shapesData changes
+  useEffect(() => {
+    const map = new Map<string, { centroid: [number, number] }>();
+    const sd = shapesDataRef.current;
+    if (sd) {
+      for (const s of sd.regions) {
+        map.set(s.id, { centroid: s.centroid });
+      }
+    }
+    shapeMapRef.current = map;
+  }, [shapesDataRef.current]);
+
   useEffect(() => {
     const handler = (e: Event) => {
       const { regionId } = (e as CustomEvent<{ regionId: string; count: number }>).detail;
@@ -43,10 +58,9 @@ export function useBombardmentEvents(
 
     const pathDamageBombHandler = (e: Event) => {
       const { regionId } = (e as CustomEvent<{ regionId: string; killed: number }>).detail;
-      const sd = shapesDataRef.current;
       const mgr = animManagerRef.current;
-      if (!sd || !mgr) return;
-      const shape = sd.regions.find((s) => s.id === regionId);
+      if (!mgr) return;
+      const shape = shapeMapRef.current.get(regionId);
       if (!shape) return;
       const [cx, cy] = shape.centroid;
       if (typeof mgr.spawnBombingSalvoAt === "function") {
@@ -94,11 +108,10 @@ export function useBombardmentEvents(
           samFlightMs?: number;
         }>
       ).detail;
-      const sd = shapesDataRef.current;
-      if (!sd) return;
-      const artSrc = sd.regions.find((s) => s.id === sourceId)?.centroid;
-      const tgt = sd.regions.find((s) => s.id === targetId)?.centroid;
-      const samSrc = sd.regions.find((s) => s.id === samRegionId)?.centroid;
+      const sMap = shapeMapRef.current;
+      const artSrc = sMap.get(sourceId)?.centroid;
+      const tgt = sMap.get(targetId)?.centroid;
+      const samSrc = sMap.get(samRegionId)?.centroid;
       if (!artSrc || !tgt || !samSrc) return;
       const samMs = samFlightMs ?? 600;
       const artProgress = Math.min(samMs / flightMs, 0.9);
@@ -139,6 +152,8 @@ export function useBombardmentEvents(
       window.removeEventListener("kill-animation", killAnimHandler);
       clearInterval(interval);
     };
+    // Refs are stable across renders — no deps needed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     animManagerRef.current,
     bombardAdjustRef.current.delete,
@@ -146,7 +161,6 @@ export function useBombardmentEvents(
     bombardAdjustRef.current.set,
     recentlyBombedRef.current,
     samInterceptsRef.current.push,
-    shapesDataRef.current,
     stateMapRef.current.get,
     unitPulsesRef.current.set,
   ]);

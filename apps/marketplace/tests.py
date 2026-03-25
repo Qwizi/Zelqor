@@ -2,16 +2,22 @@
 Tests for apps/marketplace — MarketListing, MarketTransaction, MarketConfig.
 """
 
+import uuid
 from datetime import timedelta
 
+import pytest
 from django.contrib.auth import get_user_model
-from django.test import TestCase
 from django.utils import timezone
 
 from apps.inventory.models import Item, ItemCategory, UserInventory, Wallet
 from apps.marketplace.models import MarketConfig, MarketListing, MarketTransaction
 
 User = get_user_model()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def make_category():
@@ -36,38 +42,113 @@ def make_user(email, username):
     return User.objects.create_user(email=email, username=username, password="testpass123")
 
 
+def get_auth_header(user):
+    from ninja_jwt.tokens import RefreshToken
+
+    refresh = RefreshToken.for_user(user)
+    return f"Bearer {str(refresh.access_token)}"
+
+
+BASE = "/api/v1/marketplace"
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def item(db):
+    return make_item()
+
+
+@pytest.fixture
+def seller(db):
+    return make_user("seller@test.com", "sellertestuser")
+
+
+@pytest.fixture
+def buyer(db):
+    return make_user("buyer@test.com", "buyertestuser")
+
+
+@pytest.fixture
+def seller_auth(seller):
+    return get_auth_header(seller)
+
+
+@pytest.fixture
+def buyer_auth(buyer):
+    return get_auth_header(buyer)
+
+
+@pytest.fixture
+def seller_wallet(seller):
+    return Wallet.objects.create(user=seller, gold=0)
+
+
+@pytest.fixture
+def buyer_wallet(buyer):
+    return Wallet.objects.create(user=buyer, gold=10000)
+
+
+@pytest.fixture
+def seller_inventory(seller, item):
+    return UserInventory.objects.create(user=seller, item=item, quantity=50)
+
+
+@pytest.fixture
+def market_config(db):
+    return MarketConfig.get()
+
+
+@pytest.fixture
+def mp_setup(seller, buyer, item, seller_wallet, buyer_wallet, seller_inventory, market_config):
+    """All fixtures needed for MarketplaceViewTests."""
+    return {
+        "seller": seller,
+        "buyer": buyer,
+        "item": item,
+        "seller_wallet": seller_wallet,
+        "buyer_wallet": buyer_wallet,
+    }
+
+
 # ---------------------------------------------------------------------------
 # MarketConfig singleton
 # ---------------------------------------------------------------------------
 
 
-class MarketConfigTests(TestCase):
-    def test_get_creates_singleton(self):
-        config = MarketConfig.get()
-        self.assertIsNotNone(config)
+@pytest.mark.django_db
+def test_config_get_creates_singleton():
+    config = MarketConfig.get()
+    assert config is not None
 
-    def test_get_returns_same_instance(self):
-        c1 = MarketConfig.get()
-        c2 = MarketConfig.get()
-        # Both calls should return the same singleton row
-        self.assertEqual(MarketConfig.objects.count(), 1)
-        # PKs should resolve to the same UUID value
-        self.assertEqual(
-            str(c1.pk).replace("-", "").lower(),
-            str(c2.pk).replace("-", "").lower(),
-        )
 
-    def test_default_transaction_fee_percent(self):
-        config = MarketConfig.get()
-        self.assertEqual(config.transaction_fee_percent, 5.0)
+@pytest.mark.django_db
+def test_config_get_returns_same_instance():
+    c1 = MarketConfig.get()
+    c2 = MarketConfig.get()
+    assert MarketConfig.objects.count() == 1
+    assert str(c1.pk).replace("-", "").lower() == str(c2.pk).replace("-", "").lower()
 
-    def test_default_max_active_listings(self):
-        config = MarketConfig.get()
-        self.assertEqual(config.max_active_listings_per_user, 20)
 
-    def test_str_representation(self):
-        config = MarketConfig.get()
-        self.assertEqual(str(config), "Marketplace Config")
+@pytest.mark.django_db
+def test_config_default_transaction_fee_percent():
+    config = MarketConfig.get()
+    assert config.transaction_fee_percent == 5.0
+
+
+@pytest.mark.django_db
+def test_config_default_max_active_listings():
+    config = MarketConfig.get()
+    assert config.max_active_listings_per_user == 20
+
+
+@pytest.mark.django_db
+def test_config_str_representation():
+    config = MarketConfig.get()
+    assert str(config) == "Marketplace Config"
 
 
 # ---------------------------------------------------------------------------
@@ -75,125 +156,135 @@ class MarketConfigTests(TestCase):
 # ---------------------------------------------------------------------------
 
 
-class MarketListingTests(TestCase):
-    def setUp(self):
-        self.seller = make_user("seller@test.com", "sellertestuser")
-        self.item = make_item()
+@pytest.mark.django_db
+def test_sell_order_creation(seller, item):
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=10,
+        price_per_unit=15,
+        quantity_remaining=10,
+    )
+    assert listing.status == MarketListing.Status.ACTIVE
+    assert listing.quantity == 10
+    assert listing.price_per_unit == 15
 
-    def test_sell_order_creation(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=10,
-            price_per_unit=15,
-            quantity_remaining=10,
-        )
-        self.assertEqual(listing.status, MarketListing.Status.ACTIVE)
-        self.assertEqual(listing.quantity, 10)
-        self.assertEqual(listing.price_per_unit, 15)
 
-    def test_buy_order_creation(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.BUY,
-            quantity=5,
-            price_per_unit=12,
-            quantity_remaining=5,
-        )
-        self.assertEqual(listing.listing_type, MarketListing.ListingType.BUY)
+@pytest.mark.django_db
+def test_buy_order_creation(seller, item):
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.BUY,
+        quantity=5,
+        price_per_unit=12,
+        quantity_remaining=5,
+    )
+    assert listing.listing_type == MarketListing.ListingType.BUY
 
-    def test_str_representation_sell_order(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
+
+@pytest.mark.django_db
+def test_listing_str_representation_sell_order(seller, item):
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        price_per_unit=20,
+        quantity_remaining=1,
+    )
+    assert "Sell" in str(listing)
+    assert "Iron Ore" in str(listing)
+
+
+@pytest.mark.django_db
+def test_listing_total_price_property(seller, item):
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=5,
+        price_per_unit=10,
+        quantity_remaining=5,
+    )
+    assert listing.total_price == 50
+
+
+@pytest.mark.django_db
+def test_listing_expiry_field(seller, item):
+    expires = timezone.now() + timedelta(hours=72)
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        price_per_unit=10,
+        quantity_remaining=1,
+        expires_at=expires,
+    )
+    assert listing.expires_at is not None
+
+
+@pytest.mark.django_db
+def test_listing_status_transitions(seller, item):
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        price_per_unit=10,
+        quantity_remaining=1,
+    )
+    listing.status = MarketListing.Status.FULFILLED
+    listing.save()
+    listing.refresh_from_db()
+    assert listing.status == MarketListing.Status.FULFILLED
+
+
+@pytest.mark.django_db
+def test_listing_is_bot_listing_default_false(seller, item):
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        price_per_unit=10,
+        quantity_remaining=1,
+    )
+    assert listing.is_bot_listing is False
+
+
+@pytest.mark.django_db
+def test_expired_listings_can_be_filtered(seller, item):
+    past = timezone.now() - timedelta(hours=1)
+    expired_listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        price_per_unit=10,
+        quantity_remaining=1,
+        expires_at=past,
+    )
+    expired_listing.status = MarketListing.Status.EXPIRED
+    expired_listing.save()
+    count = MarketListing.objects.filter(status=MarketListing.Status.EXPIRED).count()
+    assert count == 1
+
+
+@pytest.mark.django_db
+def test_multiple_listings_per_item(seller, item):
+    for i in range(3):
+        MarketListing.objects.create(
+            seller=seller,
+            item=item,
             listing_type=MarketListing.ListingType.SELL,
             quantity=1,
-            price_per_unit=20,
+            price_per_unit=10 + i,
             quantity_remaining=1,
         )
-        self.assertIn("Sell", str(listing))
-        self.assertIn("Iron Ore", str(listing))
-
-    def test_total_price_property(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=5,
-            price_per_unit=10,
-            quantity_remaining=5,
-        )
-        self.assertEqual(listing.total_price, 50)
-
-    def test_listing_expiry_field(self):
-        expires = timezone.now() + timedelta(hours=72)
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            price_per_unit=10,
-            quantity_remaining=1,
-            expires_at=expires,
-        )
-        self.assertIsNotNone(listing.expires_at)
-
-    def test_status_transitions(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            price_per_unit=10,
-            quantity_remaining=1,
-        )
-        listing.status = MarketListing.Status.FULFILLED
-        listing.save()
-        listing.refresh_from_db()
-        self.assertEqual(listing.status, MarketListing.Status.FULFILLED)
-
-    def test_is_bot_listing_default_false(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            price_per_unit=10,
-            quantity_remaining=1,
-        )
-        self.assertFalse(listing.is_bot_listing)
-
-    def test_expired_listings_can_be_filtered(self):
-        """Items past expires_at can be queried."""
-        past = timezone.now() - timedelta(hours=1)
-        expired_listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            price_per_unit=10,
-            quantity_remaining=1,
-            expires_at=past,
-        )
-        expired_listing.status = MarketListing.Status.EXPIRED
-        expired_listing.save()
-        count = MarketListing.objects.filter(status=MarketListing.Status.EXPIRED).count()
-        self.assertEqual(count, 1)
-
-    def test_multiple_listings_per_item(self):
-        make_user("buyer@test.com", "buyertestuser")
-        for i in range(3):
-            MarketListing.objects.create(
-                seller=self.seller,
-                item=self.item,
-                listing_type=MarketListing.ListingType.SELL,
-                quantity=1,
-                price_per_unit=10 + i,
-                quantity_remaining=1,
-            )
-        self.assertEqual(MarketListing.objects.filter(item=self.item).count(), 3)
+    assert MarketListing.objects.filter(item=item).count() == 3
 
 
 # ---------------------------------------------------------------------------
@@ -201,96 +292,106 @@ class MarketListingTests(TestCase):
 # ---------------------------------------------------------------------------
 
 
-class MarketTransactionTests(TestCase):
-    def setUp(self):
-        self.seller = make_user("tx_seller@test.com", "txsellertestuser")
-        self.buyer = make_user("tx_buyer@test.com", "txbuyertestuser")
-        self.item = make_item("Steel", "steel")
-        self.listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=10,
-            price_per_unit=25,
-            quantity_remaining=10,
-        )
-
-    def test_transaction_creation(self):
-        tx = MarketTransaction.objects.create(
-            listing=self.listing,
-            buyer=self.buyer,
-            seller=self.seller,
-            item=self.item,
-            quantity=5,
-            price_per_unit=25,
-            total_price=125,
-            fee=6,
-        )
-        self.assertEqual(tx.quantity, 5)
-        self.assertEqual(tx.total_price, 125)
-        self.assertEqual(tx.fee, 6)
-
-    def test_str_representation(self):
-        tx = MarketTransaction.objects.create(
-            listing=self.listing,
-            buyer=self.buyer,
-            seller=self.seller,
-            item=self.item,
-            quantity=1,
-            price_per_unit=25,
-            total_price=25,
-        )
-        self.assertIn("txbuyertestuser", str(tx))
-        self.assertIn("Steel", str(tx))
-
-    def test_transaction_linked_to_listing(self):
-        tx = MarketTransaction.objects.create(
-            listing=self.listing,
-            buyer=self.buyer,
-            seller=self.seller,
-            item=self.item,
-            quantity=2,
-            price_per_unit=25,
-            total_price=50,
-        )
-        self.assertEqual(tx.listing, self.listing)
-
-    def test_buyer_and_seller_relationships(self):
-        MarketTransaction.objects.create(
-            listing=self.listing,
-            buyer=self.buyer,
-            seller=self.seller,
-            item=self.item,
-            quantity=3,
-            price_per_unit=25,
-            total_price=75,
-        )
-        self.assertEqual(self.buyer.market_purchases.count(), 1)
-        self.assertEqual(self.seller.market_sales.count(), 1)
-
-    def test_fee_default_zero(self):
-        tx = MarketTransaction.objects.create(
-            listing=self.listing,
-            buyer=self.buyer,
-            seller=self.seller,
-            item=self.item,
-            quantity=1,
-            price_per_unit=10,
-            total_price=10,
-        )
-        self.assertEqual(tx.fee, 0)
+@pytest.fixture
+def tx_seller(db):
+    return make_user("tx_seller@test.com", "txsellertestuser")
 
 
-# ---------------------------------------------------------------------------
-# Helper: obtain a JWT Bearer token without hitting the network
-# ---------------------------------------------------------------------------
+@pytest.fixture
+def tx_buyer(db):
+    return make_user("tx_buyer@test.com", "txbuyertestuser")
 
 
-def _get_auth_header(user):
-    from ninja_jwt.tokens import RefreshToken
+@pytest.fixture
+def tx_item(db):
+    return make_item("Steel", "steel")
 
-    refresh = RefreshToken.for_user(user)
-    return f"Bearer {str(refresh.access_token)}"
+
+@pytest.fixture
+def tx_listing(tx_seller, tx_item):
+    return MarketListing.objects.create(
+        seller=tx_seller,
+        item=tx_item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=10,
+        price_per_unit=25,
+        quantity_remaining=10,
+    )
+
+
+@pytest.mark.django_db
+def test_transaction_creation(tx_listing, tx_buyer, tx_seller, tx_item):
+    tx = MarketTransaction.objects.create(
+        listing=tx_listing,
+        buyer=tx_buyer,
+        seller=tx_seller,
+        item=tx_item,
+        quantity=5,
+        price_per_unit=25,
+        total_price=125,
+        fee=6,
+    )
+    assert tx.quantity == 5
+    assert tx.total_price == 125
+    assert tx.fee == 6
+
+
+@pytest.mark.django_db
+def test_transaction_str_representation(tx_listing, tx_buyer, tx_seller, tx_item):
+    tx = MarketTransaction.objects.create(
+        listing=tx_listing,
+        buyer=tx_buyer,
+        seller=tx_seller,
+        item=tx_item,
+        quantity=1,
+        price_per_unit=25,
+        total_price=25,
+    )
+    assert "txbuyertestuser" in str(tx)
+    assert "Steel" in str(tx)
+
+
+@pytest.mark.django_db
+def test_transaction_linked_to_listing(tx_listing, tx_buyer, tx_seller, tx_item):
+    tx = MarketTransaction.objects.create(
+        listing=tx_listing,
+        buyer=tx_buyer,
+        seller=tx_seller,
+        item=tx_item,
+        quantity=2,
+        price_per_unit=25,
+        total_price=50,
+    )
+    assert tx.listing == tx_listing
+
+
+@pytest.mark.django_db
+def test_buyer_and_seller_relationships(tx_listing, tx_buyer, tx_seller, tx_item):
+    MarketTransaction.objects.create(
+        listing=tx_listing,
+        buyer=tx_buyer,
+        seller=tx_seller,
+        item=tx_item,
+        quantity=3,
+        price_per_unit=25,
+        total_price=75,
+    )
+    assert tx_buyer.market_purchases.count() == 1
+    assert tx_seller.market_sales.count() == 1
+
+
+@pytest.mark.django_db
+def test_transaction_fee_default_zero(tx_listing, tx_buyer, tx_seller, tx_item):
+    tx = MarketTransaction.objects.create(
+        listing=tx_listing,
+        buyer=tx_buyer,
+        seller=tx_seller,
+        item=tx_item,
+        quantity=1,
+        price_per_unit=10,
+        total_price=10,
+    )
+    assert tx.fee == 0
 
 
 # ---------------------------------------------------------------------------
@@ -298,531 +399,534 @@ def _get_auth_header(user):
 # ---------------------------------------------------------------------------
 
 
-class MarketplaceViewTests(TestCase):
-    """HTTP-level tests for MarketplaceController endpoints."""
+@pytest.mark.django_db
+def test_get_config_public_returns_200(client, market_config):
+    resp = client.get(f"{BASE}/config/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "transaction_fee_percent" in data
+    assert "max_active_listings_per_user" in data
 
-    BASE = "/api/v1/marketplace"
 
-    def setUp(self):
-        self.seller = make_user("mp_seller@test.com", "mp_selleruser")
-        self.buyer = make_user("mp_buyer@test.com", "mp_buyeruser")
-        self.seller_auth = _get_auth_header(self.seller)
-        self.buyer_auth = _get_auth_header(self.buyer)
-        self.item = make_item()
-        # Give seller inventory and buyer gold
-        UserInventory.objects.create(user=self.seller, item=self.item, quantity=50)
-        self.seller_wallet = Wallet.objects.create(user=self.seller, gold=0)
-        self.buyer_wallet = Wallet.objects.create(user=self.buyer, gold=10000)
-        # Ensure config exists
-        MarketConfig.get()
+@pytest.mark.django_db
+def test_list_active_public_no_auth_required(client, market_config):
+    resp = client.get(f"{BASE}/listings/")
+    assert resp.status_code == 200
 
-    # --- GET /config/ (public) -----------------------------------------------
 
-    def test_get_config_public_returns_200(self):
-        resp = self.client.get(f"{self.BASE}/config/")
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertIn("transaction_fee_percent", data)
-        self.assertIn("max_active_listings_per_user", data)
+@pytest.mark.django_db
+def test_list_active_empty_when_no_listings(client, market_config):
+    resp = client.get(f"{BASE}/listings/")
+    assert resp.status_code == 200
+    assert resp.json()["count"] == 0
 
-    # --- GET /listings/ (public) ---------------------------------------------
 
-    def test_list_active_public_no_auth_required(self):
-        resp = self.client.get(f"{self.BASE}/listings/")
-        self.assertEqual(resp.status_code, 200)
+@pytest.mark.django_db
+def test_list_active_shows_active_listings(client, mp_setup):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=5,
+        quantity_remaining=5,
+        price_per_unit=20,
+    )
+    data = client.get(f"{BASE}/listings/").json()
+    assert data["count"] == 1
 
-    def test_list_active_empty_when_no_listings(self):
-        resp = self.client.get(f"{self.BASE}/listings/")
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["count"], 0)
 
-    def test_list_active_shows_active_listings(self):
+@pytest.mark.django_db
+def test_list_active_filters_by_item_slug(client, mp_setup):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    other_item = make_item("Steel", "steel-filter")
+    UserInventory.objects.create(user=seller, item=other_item, quantity=10)
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=10,
+    )
+    MarketListing.objects.create(
+        seller=seller,
+        item=other_item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=10,
+    )
+    data = client.get(f"{BASE}/listings/?item_slug=iron-ore").json()
+    assert data["count"] == 1
+    assert data["items"][0]["item"]["slug"] == "iron-ore"
+
+
+@pytest.mark.django_db
+def test_list_active_filters_by_listing_type(client, mp_setup):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=10,
+    )
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.BUY,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=8,
+    )
+    data = client.get(f"{BASE}/listings/?listing_type=sell").json()
+    assert data["count"] == 1
+    assert data["items"][0]["listing_type"] == "sell"
+
+
+@pytest.mark.django_db
+def test_list_active_excludes_non_active(client, mp_setup):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=10,
+        status=MarketListing.Status.FULFILLED,
+    )
+    data = client.get(f"{BASE}/listings/").json()
+    assert data["count"] == 0
+
+
+@pytest.mark.django_db
+def test_my_listings_unauthenticated_returns_401(client, market_config):
+    resp = client.get(f"{BASE}/my-listings/")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_my_listings_returns_own_listings_only(client, mp_setup, buyer_auth):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=10,
+    )
+    data = client.get(f"{BASE}/my-listings/", HTTP_AUTHORIZATION=buyer_auth).json()
+    assert data["count"] == 0
+
+
+@pytest.mark.django_db
+def test_my_listings_excludes_fulfilled(client, mp_setup, seller_auth):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=0,
+        price_per_unit=10,
+        status=MarketListing.Status.FULFILLED,
+    )
+    data = client.get(f"{BASE}/my-listings/", HTTP_AUTHORIZATION=seller_auth).json()
+    assert data["count"] == 0
+
+
+@pytest.mark.django_db
+def test_history_unauthenticated_returns_401(client, market_config):
+    resp = client.get(f"{BASE}/history/")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_history_returns_transactions_involving_user(client, mp_setup, buyer_auth):
+    seller, buyer, item = mp_setup["seller"], mp_setup["buyer"], mp_setup["item"]
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=5,
+        quantity_remaining=5,
+        price_per_unit=10,
+    )
+    MarketTransaction.objects.create(
+        listing=listing,
+        buyer=buyer,
+        seller=seller,
+        item=item,
+        quantity=2,
+        price_per_unit=10,
+        total_price=20,
+        fee=1,
+    )
+    data = client.get(f"{BASE}/history/", HTTP_AUTHORIZATION=buyer_auth).json()
+    assert data["count"] == 1
+
+
+@pytest.mark.django_db
+def test_create_sell_listing_unauthenticated_returns_401(client, market_config):
+    payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 1, "price_per_unit": 10}'
+    resp = client.post(f"{BASE}/create-listing/", data=payload, content_type="application/json")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_create_sell_listing_success(client, mp_setup, seller_auth):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 5, "price_per_unit": 15}'
+    resp = client.post(
+        f"{BASE}/create-listing/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=seller_auth,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["listing_type"] == "sell"
+    assert data["quantity"] == 5
+    assert data["price_per_unit"] == 15
+    inv = UserInventory.objects.get(user=seller, item=item)
+    assert inv.quantity == 45
+
+
+@pytest.mark.django_db
+def test_create_sell_listing_insufficient_items_returns_400(client, mp_setup, seller_auth):
+    payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 9999, "price_per_unit": 10}'
+    resp = client.post(
+        f"{BASE}/create-listing/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=seller_auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_create_buy_listing_escrows_gold(client, mp_setup, buyer_auth):
+    buyer_wallet = mp_setup["buyer_wallet"]
+    payload = '{"item_slug": "iron-ore", "listing_type": "buy", "quantity": 10, "price_per_unit": 5}'
+    resp = client.post(
+        f"{BASE}/create-listing/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=buyer_auth,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["listing_type"] == "buy"
+    buyer_wallet.refresh_from_db()
+    assert buyer_wallet.gold == 9950
+
+
+@pytest.mark.django_db
+def test_create_buy_listing_insufficient_gold_returns_400(client, mp_setup, buyer_auth):
+    buyer_wallet = mp_setup["buyer_wallet"]
+    buyer_wallet.gold = 0
+    buyer_wallet.save()
+    payload = '{"item_slug": "iron-ore", "listing_type": "buy", "quantity": 10, "price_per_unit": 100}'
+    resp = client.post(
+        f"{BASE}/create-listing/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=buyer_auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_create_listing_nonexistent_item_returns_404(client, mp_setup, seller_auth):
+    payload = '{"item_slug": "does-not-exist", "listing_type": "sell", "quantity": 1, "price_per_unit": 10}'
+    resp = client.post(
+        f"{BASE}/create-listing/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=seller_auth,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_create_listing_non_tradeable_item_returns_404(client, mp_setup, seller_auth):
+    non_tradeable = make_item("Locked Item", "locked-item")
+    non_tradeable.is_tradeable = False
+    non_tradeable.save()
+    payload = '{"item_slug": "locked-item", "listing_type": "sell", "quantity": 1, "price_per_unit": 10}'
+    resp = client.post(
+        f"{BASE}/create-listing/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=seller_auth,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_create_listing_invalid_type_returns_400(client, mp_setup, seller_auth):
+    payload = '{"item_slug": "iron-ore", "listing_type": "trade", "quantity": 1, "price_per_unit": 10}'
+    resp = client.post(
+        f"{BASE}/create-listing/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=seller_auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_create_listing_zero_quantity_returns_400(client, mp_setup, seller_auth):
+    payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 0, "price_per_unit": 10}'
+    resp = client.post(
+        f"{BASE}/create-listing/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=seller_auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_create_listing_exceeds_max_active_returns_400(client, mp_setup, seller_auth):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    config = MarketConfig.get()
+    for _ in range(config.max_active_listings_per_user):
         MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=5,
-            quantity_remaining=5,
-            price_per_unit=20,
-        )
-        resp = self.client.get(f"{self.BASE}/listings/")
-        data = resp.json()
-        self.assertEqual(data["count"], 1)
-
-    def test_list_active_filters_by_item_slug(self):
-        other_item = make_item("Steel", "steel-filter")
-        UserInventory.objects.create(user=self.seller, item=other_item, quantity=10)
-        MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
+            seller=seller,
+            item=item,
             listing_type=MarketListing.ListingType.SELL,
             quantity=1,
             quantity_remaining=1,
             price_per_unit=10,
         )
-        MarketListing.objects.create(
-            seller=self.seller,
-            item=other_item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            quantity_remaining=1,
-            price_per_unit=10,
-        )
-        resp = self.client.get(f"{self.BASE}/listings/?item_slug=iron-ore")
-        data = resp.json()
-        self.assertEqual(data["count"], 1)
-        self.assertEqual(data["items"][0]["item"]["slug"], "iron-ore")
+    payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 1, "price_per_unit": 10}'
+    resp = client.post(
+        f"{BASE}/create-listing/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=seller_auth,
+    )
+    assert resp.status_code == 400
 
-    def test_list_active_filters_by_listing_type(self):
-        MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            quantity_remaining=1,
-            price_per_unit=10,
-        )
-        MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.BUY,
-            quantity=1,
-            quantity_remaining=1,
-            price_per_unit=8,
-        )
-        resp = self.client.get(f"{self.BASE}/listings/?listing_type=sell")
-        data = resp.json()
-        self.assertEqual(data["count"], 1)
-        self.assertEqual(data["items"][0]["listing_type"], "sell")
 
-    def test_list_active_excludes_non_active(self):
-        MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            quantity_remaining=1,
-            price_per_unit=10,
-            status=MarketListing.Status.FULFILLED,
-        )
-        resp = self.client.get(f"{self.BASE}/listings/")
-        data = resp.json()
-        self.assertEqual(data["count"], 0)
+@pytest.mark.django_db
+def test_buy_from_listing_unauthenticated_returns_401(client, market_config):
+    payload = f'{{"listing_id": "{uuid.uuid4()}", "quantity": 1}}'
+    resp = client.post(f"{BASE}/buy/", data=payload, content_type="application/json")
+    assert resp.status_code == 401
 
-    # --- GET /my-listings/ (auth required) -----------------------------------
 
-    def test_my_listings_unauthenticated_returns_401(self):
-        resp = self.client.get(f"{self.BASE}/my-listings/")
-        self.assertEqual(resp.status_code, 401)
+@pytest.mark.django_db
+def test_buy_from_listing_success(client, mp_setup, buyer_auth):
+    seller, buyer, item, buyer_wallet = (
+        mp_setup["seller"],
+        mp_setup["buyer"],
+        mp_setup["item"],
+        mp_setup["buyer_wallet"],
+    )
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=10,
+        quantity_remaining=10,
+        price_per_unit=20,
+    )
+    payload = f'{{"listing_id": "{listing.id}", "quantity": 3}}'
+    resp = client.post(
+        f"{BASE}/buy/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=buyer_auth,
+    )
+    assert resp.status_code == 200
+    assert "Bought" in resp.json()["message"]
+    listing.refresh_from_db()
+    assert listing.quantity_remaining == 7
+    buyer_inv = UserInventory.objects.get(user=buyer, item=item)
+    assert buyer_inv.quantity == 3
+    buyer_wallet.refresh_from_db()
+    assert buyer_wallet.gold == 9940
+    assert MarketTransaction.objects.filter(buyer=buyer).count() == 1
 
-    def test_my_listings_returns_own_listings_only(self):
-        # seller has a listing; buyer should see 0
-        MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            quantity_remaining=1,
-            price_per_unit=10,
-        )
-        resp = self.client.get(
-            f"{self.BASE}/my-listings/",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        data = resp.json()
-        self.assertEqual(data["count"], 0)
 
-    def test_my_listings_excludes_fulfilled(self):
-        MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            quantity_remaining=0,
-            price_per_unit=10,
-            status=MarketListing.Status.FULFILLED,
-        )
-        resp = self.client.get(
-            f"{self.BASE}/my-listings/",
-            HTTP_AUTHORIZATION=self.seller_auth,
-        )
-        data = resp.json()
-        self.assertEqual(data["count"], 0)
+@pytest.mark.django_db
+def test_buy_entire_listing_marks_fulfilled(client, mp_setup, buyer_auth):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=2,
+        quantity_remaining=2,
+        price_per_unit=10,
+    )
+    payload = f'{{"listing_id": "{listing.id}", "quantity": 2}}'
+    resp = client.post(
+        f"{BASE}/buy/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=buyer_auth,
+    )
+    assert resp.status_code == 200
+    listing.refresh_from_db()
+    assert listing.status == MarketListing.Status.FULFILLED
 
-    # --- GET /history/ (auth required) ---------------------------------------
 
-    def test_history_unauthenticated_returns_401(self):
-        resp = self.client.get(f"{self.BASE}/history/")
-        self.assertEqual(resp.status_code, 401)
+@pytest.mark.django_db
+def test_buy_own_listing_returns_400(client, mp_setup, seller_auth):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=5,
+        quantity_remaining=5,
+        price_per_unit=10,
+    )
+    payload = f'{{"listing_id": "{listing.id}", "quantity": 1}}'
+    resp = client.post(
+        f"{BASE}/buy/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=seller_auth,
+    )
+    assert resp.status_code == 400
 
-    def test_history_returns_transactions_involving_user(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=5,
-            quantity_remaining=5,
-            price_per_unit=10,
-        )
-        MarketTransaction.objects.create(
-            listing=listing,
-            buyer=self.buyer,
-            seller=self.seller,
-            item=self.item,
-            quantity=2,
-            price_per_unit=10,
-            total_price=20,
-            fee=1,
-        )
-        resp = self.client.get(
-            f"{self.BASE}/history/",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        data = resp.json()
-        self.assertEqual(data["count"], 1)
 
-    # --- POST /create-listing/ -----------------------------------------------
+@pytest.mark.django_db
+def test_buy_nonexistent_listing_returns_404(client, mp_setup, buyer_auth):
+    payload = f'{{"listing_id": "{uuid.uuid4()}", "quantity": 1}}'
+    resp = client.post(
+        f"{BASE}/buy/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=buyer_auth,
+    )
+    assert resp.status_code == 404
 
-    def test_create_sell_listing_unauthenticated_returns_401(self):
-        payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 1, "price_per_unit": 10}'
-        resp = self.client.post(
-            f"{self.BASE}/create-listing/",
-            data=payload,
-            content_type="application/json",
-        )
-        self.assertEqual(resp.status_code, 401)
 
-    def test_create_sell_listing_success(self):
-        payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 5, "price_per_unit": 15}'
-        resp = self.client.post(
-            f"{self.BASE}/create-listing/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.seller_auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["listing_type"], "sell")
-        self.assertEqual(data["quantity"], 5)
-        self.assertEqual(data["price_per_unit"], 15)
-        # Items should be escrowed (removed from inventory)
-        inv = UserInventory.objects.get(user=self.seller, item=self.item)
-        self.assertEqual(inv.quantity, 45)
+@pytest.mark.django_db
+def test_buy_insufficient_gold_returns_400(client, mp_setup, buyer_auth):
+    seller, item, buyer_wallet = mp_setup["seller"], mp_setup["item"], mp_setup["buyer_wallet"]
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=10,
+        quantity_remaining=10,
+        price_per_unit=5000,
+    )
+    buyer_wallet.gold = 0
+    buyer_wallet.save()
+    payload = f'{{"listing_id": "{listing.id}", "quantity": 5}}'
+    resp = client.post(
+        f"{BASE}/buy/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=buyer_auth,
+    )
+    assert resp.status_code == 400
 
-    def test_create_sell_listing_insufficient_items_returns_400(self):
-        payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 9999, "price_per_unit": 10}'
-        resp = self.client.post(
-            f"{self.BASE}/create-listing/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.seller_auth,
-        )
-        self.assertEqual(resp.status_code, 400)
 
-    def test_create_buy_listing_escrows_gold(self):
-        payload = '{"item_slug": "iron-ore", "listing_type": "buy", "quantity": 10, "price_per_unit": 5}'
-        resp = self.client.post(
-            f"{self.BASE}/create-listing/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["listing_type"], "buy")
-        # 10 * 5 = 50 gold escrowed
-        self.buyer_wallet.refresh_from_db()
-        self.assertEqual(self.buyer_wallet.gold, 9950)
+@pytest.mark.django_db
+def test_buy_applies_transaction_fee_to_seller(client, mp_setup, buyer_auth):
+    seller, item, seller_wallet, buyer = (
+        mp_setup["seller"],
+        mp_setup["item"],
+        mp_setup["seller_wallet"],
+        mp_setup["buyer"],
+    )
+    config = MarketConfig.get()
+    config.transaction_fee_percent = 10.0
+    config.save()
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=100,
+    )
+    payload = f'{{"listing_id": "{listing.id}", "quantity": 1}}'
+    resp = client.post(
+        f"{BASE}/buy/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=buyer_auth,
+    )
+    assert resp.status_code == 200
+    seller_wallet.refresh_from_db()
+    assert seller_wallet.gold == 90
+    tx = MarketTransaction.objects.get(buyer=buyer)
+    assert tx.fee == 10
 
-    def test_create_buy_listing_insufficient_gold_returns_400(self):
-        # Give buyer no gold
-        self.buyer_wallet.gold = 0
-        self.buyer_wallet.save()
-        payload = '{"item_slug": "iron-ore", "listing_type": "buy", "quantity": 10, "price_per_unit": 100}'
-        resp = self.client.post(
-            f"{self.BASE}/create-listing/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        self.assertEqual(resp.status_code, 400)
 
-    def test_create_listing_nonexistent_item_returns_404(self):
-        payload = '{"item_slug": "does-not-exist", "listing_type": "sell", "quantity": 1, "price_per_unit": 10}'
-        resp = self.client.post(
-            f"{self.BASE}/create-listing/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.seller_auth,
-        )
-        self.assertEqual(resp.status_code, 404)
+@pytest.mark.django_db
+def test_cancel_listing_unauthenticated_returns_401(client, market_config):
+    resp = client.post(f"{BASE}/cancel/{uuid.uuid4()}/")
+    assert resp.status_code == 401
 
-    def test_create_listing_non_tradeable_item_returns_404(self):
-        non_tradeable = make_item("Locked Item", "locked-item")
-        non_tradeable.is_tradeable = False
-        non_tradeable.save()
-        payload = '{"item_slug": "locked-item", "listing_type": "sell", "quantity": 1, "price_per_unit": 10}'
-        resp = self.client.post(
-            f"{self.BASE}/create-listing/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.seller_auth,
-        )
-        self.assertEqual(resp.status_code, 404)
 
-    def test_create_listing_invalid_type_returns_400(self):
-        payload = '{"item_slug": "iron-ore", "listing_type": "trade", "quantity": 1, "price_per_unit": 10}'
-        resp = self.client.post(
-            f"{self.BASE}/create-listing/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.seller_auth,
-        )
-        self.assertEqual(resp.status_code, 400)
+@pytest.mark.django_db
+def test_cancel_sell_listing_returns_items(client, mp_setup, seller_auth):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    UserInventory.objects.get(user=seller, item=item).delete()
+    UserInventory.objects.create(user=seller, item=item, quantity=0)
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=5,
+        quantity_remaining=5,
+        price_per_unit=10,
+    )
+    UserInventory.objects.filter(user=seller, item=item).delete()
+    resp = client.post(f"{BASE}/cancel/{listing.id}/", HTTP_AUTHORIZATION=seller_auth)
+    assert resp.status_code == 200
+    listing.refresh_from_db()
+    assert listing.status == MarketListing.Status.CANCELLED
+    inv = UserInventory.objects.get(user=seller, item=item)
+    assert inv.quantity == 5
 
-    def test_create_listing_zero_quantity_returns_400(self):
-        payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 0, "price_per_unit": 10}'
-        resp = self.client.post(
-            f"{self.BASE}/create-listing/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.seller_auth,
-        )
-        self.assertEqual(resp.status_code, 400)
 
-    def test_create_listing_exceeds_max_active_returns_400(self):
-        config = MarketConfig.get()
-        # Fill up to the limit
-        for _i in range(config.max_active_listings_per_user):
-            MarketListing.objects.create(
-                seller=self.seller,
-                item=self.item,
-                listing_type=MarketListing.ListingType.SELL,
-                quantity=1,
-                quantity_remaining=1,
-                price_per_unit=10,
-            )
-        payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 1, "price_per_unit": 10}'
-        resp = self.client.post(
-            f"{self.BASE}/create-listing/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.seller_auth,
-        )
-        self.assertEqual(resp.status_code, 400)
+@pytest.mark.django_db
+def test_cancel_buy_order_returns_gold(client, mp_setup, buyer_auth):
+    buyer, item, buyer_wallet = mp_setup["buyer"], mp_setup["item"], mp_setup["buyer_wallet"]
+    listing = MarketListing.objects.create(
+        seller=buyer,
+        item=item,
+        listing_type=MarketListing.ListingType.BUY,
+        quantity=5,
+        quantity_remaining=5,
+        price_per_unit=10,
+    )
+    buyer_wallet.gold = 9950
+    buyer_wallet.total_spent = 50
+    buyer_wallet.save()
+    resp = client.post(f"{BASE}/cancel/{listing.id}/", HTTP_AUTHORIZATION=buyer_auth)
+    assert resp.status_code == 200
+    buyer_wallet.refresh_from_db()
+    assert buyer_wallet.gold == 10000
 
-    # --- POST /buy/ ----------------------------------------------------------
 
-    def test_buy_from_listing_unauthenticated_returns_401(self):
-        import uuid
-
-        payload = f'{{"listing_id": "{uuid.uuid4()}", "quantity": 1}}'
-        resp = self.client.post(
-            f"{self.BASE}/buy/",
-            data=payload,
-            content_type="application/json",
-        )
-        self.assertEqual(resp.status_code, 401)
-
-    def test_buy_from_listing_success(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=10,
-            quantity_remaining=10,
-            price_per_unit=20,
-        )
-        payload = f'{{"listing_id": "{listing.id}", "quantity": 3}}'
-        resp = self.client.post(
-            f"{self.BASE}/buy/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertIn("Bought", data["message"])
-        # Listing quantity should decrease
-        listing.refresh_from_db()
-        self.assertEqual(listing.quantity_remaining, 7)
-        # Buyer should have the items
-        buyer_inv = UserInventory.objects.get(user=self.buyer, item=self.item)
-        self.assertEqual(buyer_inv.quantity, 3)
-        # Buyer gold deducted: 3 * 20 = 60
-        self.buyer_wallet.refresh_from_db()
-        self.assertEqual(self.buyer_wallet.gold, 9940)
-        # Transaction record created
-        self.assertEqual(MarketTransaction.objects.filter(buyer=self.buyer).count(), 1)
-
-    def test_buy_entire_listing_marks_fulfilled(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=2,
-            quantity_remaining=2,
-            price_per_unit=10,
-        )
-        payload = f'{{"listing_id": "{listing.id}", "quantity": 2}}'
-        resp = self.client.post(
-            f"{self.BASE}/buy/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        listing.refresh_from_db()
-        self.assertEqual(listing.status, MarketListing.Status.FULFILLED)
-
-    def test_buy_own_listing_returns_400(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=5,
-            quantity_remaining=5,
-            price_per_unit=10,
-        )
-        payload = f'{{"listing_id": "{listing.id}", "quantity": 1}}'
-        resp = self.client.post(
-            f"{self.BASE}/buy/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.seller_auth,
-        )
-        self.assertEqual(resp.status_code, 400)
-
-    def test_buy_nonexistent_listing_returns_404(self):
-        import uuid
-
-        payload = f'{{"listing_id": "{uuid.uuid4()}", "quantity": 1}}'
-        resp = self.client.post(
-            f"{self.BASE}/buy/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        self.assertEqual(resp.status_code, 404)
-
-    def test_buy_insufficient_gold_returns_400(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=10,
-            quantity_remaining=10,
-            price_per_unit=5000,
-        )
-        # Drain buyer wallet
-        self.buyer_wallet.gold = 0
-        self.buyer_wallet.save()
-        payload = f'{{"listing_id": "{listing.id}", "quantity": 5}}'
-        resp = self.client.post(
-            f"{self.BASE}/buy/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        self.assertEqual(resp.status_code, 400)
-
-    def test_buy_applies_transaction_fee_to_seller(self):
-        config = MarketConfig.get()
-        config.transaction_fee_percent = 10.0
-        config.save()
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            quantity_remaining=1,
-            price_per_unit=100,
-        )
-        payload = f'{{"listing_id": "{listing.id}", "quantity": 1}}'
-        resp = self.client.post(
-            f"{self.BASE}/buy/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        # Fee is 10% of 100 = 10; seller receives 90
-        self.seller_wallet.refresh_from_db()
-        self.assertEqual(self.seller_wallet.gold, 90)
-        tx = MarketTransaction.objects.get(buyer=self.buyer)
-        self.assertEqual(tx.fee, 10)
-
-    # --- POST /cancel/{listing_id}/ ------------------------------------------
-
-    def test_cancel_listing_unauthenticated_returns_401(self):
-        import uuid
-
-        resp = self.client.post(f"{self.BASE}/cancel/{uuid.uuid4()}/")
-        self.assertEqual(resp.status_code, 401)
-
-    def test_cancel_sell_listing_returns_items(self):
-        UserInventory.objects.get(user=self.seller, item=self.item).delete()
-        # Seller starts with 0 items; create a sell listing directly (bypassing view)
-        UserInventory.objects.create(user=self.seller, item=self.item, quantity=0)
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=5,
-            quantity_remaining=5,
-            price_per_unit=10,
-        )
-        # Remove the zero-quantity row so return lands cleanly
-        UserInventory.objects.filter(user=self.seller, item=self.item).delete()
-
-        resp = self.client.post(
-            f"{self.BASE}/cancel/{listing.id}/",
-            HTTP_AUTHORIZATION=self.seller_auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        listing.refresh_from_db()
-        self.assertEqual(listing.status, MarketListing.Status.CANCELLED)
-        # Items returned
-        inv = UserInventory.objects.get(user=self.seller, item=self.item)
-        self.assertEqual(inv.quantity, 5)
-
-    def test_cancel_buy_order_returns_gold(self):
-        listing = MarketListing.objects.create(
-            seller=self.buyer,
-            item=self.item,
-            listing_type=MarketListing.ListingType.BUY,
-            quantity=5,
-            quantity_remaining=5,
-            price_per_unit=10,
-        )
-        # Simulate escrowed gold
-        self.buyer_wallet.gold = 9950
-        self.buyer_wallet.total_spent = 50
-        self.buyer_wallet.save()
-
-        resp = self.client.post(
-            f"{self.BASE}/cancel/{listing.id}/",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.buyer_wallet.refresh_from_db()
-        self.assertEqual(self.buyer_wallet.gold, 10000)
-
-    def test_cancel_listing_wrong_user_returns_404(self):
-        listing = MarketListing.objects.create(
-            seller=self.seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            quantity_remaining=1,
-            price_per_unit=10,
-        )
-        resp = self.client.post(
-            f"{self.BASE}/cancel/{listing.id}/",
-            HTTP_AUTHORIZATION=self.buyer_auth,
-        )
-        self.assertEqual(resp.status_code, 404)
+@pytest.mark.django_db
+def test_cancel_listing_wrong_user_returns_404(client, mp_setup, buyer_auth):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=10,
+    )
+    resp = client.post(f"{BASE}/cancel/{listing.id}/", HTTP_AUTHORIZATION=buyer_auth)
+    assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
@@ -830,208 +934,343 @@ class MarketplaceViewTests(TestCase):
 # ---------------------------------------------------------------------------
 
 
-class MarketplaceTaskTests(TestCase):
-    """Tests for marketplace Celery task logic (bot seeding, expiry)."""
+@pytest.mark.django_db
+def test_bot_restock_creates_listings_for_tradeable_items(item):
+    from apps.marketplace.tasks import bot_restock_marketplace
 
-    def setUp(self):
-        self.item = make_item()
+    bot_restock_marketplace()
+    assert MarketListing.objects.filter(is_bot_listing=True).count() > 0
 
-    # --- bot_restock_marketplace ---------------------------------------------
 
-    def test_bot_restock_creates_listings_for_tradeable_items(self):
-        from apps.marketplace.tasks import bot_restock_marketplace
+@pytest.mark.django_db
+def test_bot_restock_creates_sell_listings_only(item):
+    from apps.marketplace.tasks import bot_restock_marketplace
 
-        bot_restock_marketplace()
-        bot_listings = MarketListing.objects.filter(is_bot_listing=True)
-        self.assertGreater(bot_listings.count(), 0)
+    bot_restock_marketplace()
+    non_sell = MarketListing.objects.filter(is_bot_listing=True).exclude(listing_type=MarketListing.ListingType.SELL)
+    assert non_sell.count() == 0
 
-    def test_bot_restock_creates_sell_listings_only(self):
-        from apps.marketplace.tasks import bot_restock_marketplace
 
-        bot_restock_marketplace()
-        non_sell = MarketListing.objects.filter(
-            is_bot_listing=True,
-        ).exclude(listing_type=MarketListing.ListingType.SELL)
-        self.assertEqual(non_sell.count(), 0)
+@pytest.mark.django_db
+def test_bot_restock_respects_target_listing_count(item):
+    from apps.marketplace.tasks import bot_restock_marketplace
 
-    def test_bot_restock_respects_target_listing_count(self):
-        from apps.marketplace.tasks import bot_restock_marketplace
+    bot_restock_marketplace()
+    bot_restock_marketplace()
+    item_listings = MarketListing.objects.filter(
+        item=item,
+        is_bot_listing=True,
+        listing_type=MarketListing.ListingType.SELL,
+        status=MarketListing.Status.ACTIVE,
+    )
+    assert item_listings.count() <= 3
 
-        # Run twice — second run should not create more than target_listings (3) per item
-        bot_restock_marketplace()
-        bot_restock_marketplace()
-        item_listings = MarketListing.objects.filter(
-            item=self.item,
-            is_bot_listing=True,
-            listing_type=MarketListing.ListingType.SELL,
-            status=MarketListing.Status.ACTIVE,
-        )
-        self.assertLessEqual(item_listings.count(), 3)
 
-    def test_bot_restock_skips_items_with_zero_base_value(self):
-        from apps.marketplace.tasks import bot_restock_marketplace
+@pytest.mark.django_db
+def test_bot_restock_skips_items_with_zero_base_value(item):
+    from apps.marketplace.tasks import bot_restock_marketplace
 
-        zero_value_item = make_item("Free Item", "free-item")
-        zero_value_item.base_value = 0
-        zero_value_item.save()
-        before = MarketListing.objects.filter(item=zero_value_item).count()
-        bot_restock_marketplace()
-        after = MarketListing.objects.filter(item=zero_value_item).count()
-        self.assertEqual(before, after)
+    zero_value_item = make_item("Free Item", "free-item")
+    zero_value_item.base_value = 0
+    zero_value_item.save()
+    before = MarketListing.objects.filter(item=zero_value_item).count()
+    bot_restock_marketplace()
+    after = MarketListing.objects.filter(item=zero_value_item).count()
+    assert before == after
 
-    def test_bot_restock_creates_bot_user_if_missing(self):
-        from django.contrib.auth import get_user_model
 
-        from apps.marketplace.tasks import bot_restock_marketplace
+@pytest.mark.django_db
+def test_bot_restock_creates_bot_user_if_missing(item):
+    from apps.marketplace.tasks import bot_restock_marketplace
 
-        User = get_user_model()
-        User.objects.filter(username="MarketBot").delete()
-        bot_restock_marketplace()
-        self.assertTrue(User.objects.filter(username="MarketBot", is_bot=True).exists())
+    User.objects.filter(username="MarketBot").delete()
+    bot_restock_marketplace()
+    assert User.objects.filter(username="MarketBot", is_bot=True).exists()
 
-    def test_bot_restock_price_near_base_value(self):
-        from apps.marketplace.tasks import bot_restock_marketplace
 
-        config = MarketConfig.get()
-        config.bot_price_variance_percent = 0.0  # no variance
-        config.save()
-        # Ensure the item has a base_value
-        self.item.base_value = 100
-        self.item.save()
-        bot_restock_marketplace()
-        listing = MarketListing.objects.filter(
-            item=self.item,
-            is_bot_listing=True,
-        ).first()
-        self.assertIsNotNone(listing)
-        # With 0% variance, price should equal base_value
-        self.assertEqual(listing.price_per_unit, 100)
+@pytest.mark.django_db
+def test_bot_restock_price_near_base_value(item):
+    from apps.marketplace.tasks import bot_restock_marketplace
 
-    # --- expire_old_listings -------------------------------------------------
+    config = MarketConfig.get()
+    config.bot_price_variance_percent = 0.0
+    config.save()
+    item.base_value = 100
+    item.save()
+    bot_restock_marketplace()
+    listing = MarketListing.objects.filter(item=item, is_bot_listing=True).first()
+    assert listing is not None
+    assert listing.price_per_unit == 100
 
-    def test_expire_old_listings_marks_expired(self):
-        from datetime import timedelta
 
-        from django.utils import timezone
+@pytest.mark.django_db
+def test_expire_old_listings_marks_expired(item):
+    from apps.marketplace.tasks import expire_old_listings
 
-        from apps.marketplace.tasks import expire_old_listings
+    seller = make_user("exp_seller@test.com", "exp_selleruser")
+    past = timezone.now() - timedelta(hours=1)
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=3,
+        quantity_remaining=3,
+        price_per_unit=10,
+        expires_at=past,
+    )
+    expire_old_listings()
+    listing.refresh_from_db()
+    assert listing.status == MarketListing.Status.EXPIRED
 
-        seller = make_user("exp_seller@test.com", "exp_selleruser")
-        past = timezone.now() - timedelta(hours=1)
-        listing = MarketListing.objects.create(
-            seller=seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=3,
-            quantity_remaining=3,
-            price_per_unit=10,
-            expires_at=past,
-        )
-        expire_old_listings()
-        listing.refresh_from_db()
-        self.assertEqual(listing.status, MarketListing.Status.EXPIRED)
 
-    def test_expire_old_listings_returns_items_to_seller(self):
-        from datetime import timedelta
+@pytest.mark.django_db
+def test_expire_old_listings_returns_items_to_seller(item):
+    from apps.marketplace.tasks import expire_old_listings
 
-        from django.utils import timezone
+    seller = make_user("exp_seller2@test.com", "exp_selleruser2")
+    past = timezone.now() - timedelta(hours=1)
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=4,
+        quantity_remaining=4,
+        price_per_unit=10,
+        expires_at=past,
+        is_bot_listing=False,
+    )
+    expire_old_listings()
+    inv = UserInventory.objects.get(user=seller, item=item)
+    assert inv.quantity == 4
 
-        from apps.marketplace.tasks import expire_old_listings
 
-        seller = make_user("exp_seller2@test.com", "exp_selleruser2")
-        past = timezone.now() - timedelta(hours=1)
-        MarketListing.objects.create(
-            seller=seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=4,
-            quantity_remaining=4,
-            price_per_unit=10,
-            expires_at=past,
-            is_bot_listing=False,
-        )
-        expire_old_listings()
-        inv = UserInventory.objects.get(user=seller, item=self.item)
-        self.assertEqual(inv.quantity, 4)
+@pytest.mark.django_db
+def test_expire_old_listings_returns_gold_for_buy_orders(item):
+    from apps.marketplace.tasks import expire_old_listings
 
-    def test_expire_old_listings_returns_gold_for_buy_orders(self):
-        from datetime import timedelta
+    buyer = make_user("exp_buyer@test.com", "exp_buyeruser")
+    wallet = Wallet.objects.create(user=buyer, gold=0)
+    past = timezone.now() - timedelta(hours=1)
+    MarketListing.objects.create(
+        seller=buyer,
+        item=item,
+        listing_type=MarketListing.ListingType.BUY,
+        quantity=5,
+        quantity_remaining=5,
+        price_per_unit=20,
+        expires_at=past,
+        is_bot_listing=False,
+    )
+    expire_old_listings()
+    wallet.refresh_from_db()
+    assert wallet.gold == 100
 
-        from django.utils import timezone
 
-        from apps.inventory.models import Wallet
-        from apps.marketplace.tasks import expire_old_listings
+@pytest.mark.django_db
+def test_expire_old_listings_bot_listings_just_disappear(item):
+    from apps.marketplace.tasks import expire_old_listings
 
-        buyer = make_user("exp_buyer@test.com", "exp_buyeruser")
-        wallet = Wallet.objects.create(user=buyer, gold=0)
-        past = timezone.now() - timedelta(hours=1)
-        MarketListing.objects.create(
-            seller=buyer,
-            item=self.item,
-            listing_type=MarketListing.ListingType.BUY,
-            quantity=5,
-            quantity_remaining=5,
-            price_per_unit=20,
-            expires_at=past,
-            is_bot_listing=False,
-        )
-        expire_old_listings()
-        wallet.refresh_from_db()
-        # Should refund 5 * 20 = 100 gold
-        self.assertEqual(wallet.gold, 100)
+    bot_user, _ = User.objects.get_or_create(
+        username="MarketBot",
+        defaults={
+            "email": "marketbot@maplord.internal",
+            "is_bot": True,
+            "is_active": True,
+        },
+    )
+    past = timezone.now() - timedelta(hours=1)
+    listing = MarketListing.objects.create(
+        seller=bot_user,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=10,
+        quantity_remaining=10,
+        price_per_unit=5,
+        expires_at=past,
+        is_bot_listing=True,
+    )
+    expire_old_listings()
+    listing.refresh_from_db()
+    assert listing.status == MarketListing.Status.EXPIRED
+    assert not UserInventory.objects.filter(user=bot_user, item=item).exists()
 
-    def test_expire_old_listings_bot_listings_just_disappear(self):
-        from datetime import timedelta
 
-        from django.contrib.auth import get_user_model
-        from django.utils import timezone
+@pytest.mark.django_db
+def test_expire_old_listings_does_not_affect_future_listings(item):
+    from apps.marketplace.tasks import expire_old_listings
 
-        from apps.marketplace.tasks import expire_old_listings
+    seller = make_user("fut_seller@test.com", "fut_selleruser")
+    future = timezone.now() + timedelta(hours=48)
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=10,
+        expires_at=future,
+    )
+    expire_old_listings()
+    listing.refresh_from_db()
+    assert listing.status == MarketListing.Status.ACTIVE
 
-        User = get_user_model()
-        bot_user, _ = User.objects.get_or_create(
-            username="MarketBot",
-            defaults={
-                "email": "marketbot@maplord.internal",
-                "is_bot": True,
-                "is_active": True,
-            },
-        )
-        past = timezone.now() - timedelta(hours=1)
-        listing = MarketListing.objects.create(
-            seller=bot_user,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=10,
-            quantity_remaining=10,
-            price_per_unit=5,
-            expires_at=past,
-            is_bot_listing=True,
-        )
-        expire_old_listings()
-        listing.refresh_from_db()
-        self.assertEqual(listing.status, MarketListing.Status.EXPIRED)
-        # Bot user should NOT have items returned to inventory
-        self.assertFalse(UserInventory.objects.filter(user=bot_user, item=self.item).exists())
 
-    def test_expire_old_listings_does_not_affect_future_listings(self):
-        from datetime import timedelta
+# ---------------------------------------------------------------------------
+# Additional marketplace view edge cases (closing the 1% gap)
+# ---------------------------------------------------------------------------
 
-        from django.utils import timezone
 
-        from apps.marketplace.tasks import expire_old_listings
+@pytest.mark.django_db
+def test_create_listing_zero_price_returns_400(client, mp_setup, seller_auth):
+    payload = '{"item_slug": "iron-ore", "listing_type": "sell", "quantity": 1, "price_per_unit": 0}'
+    resp = client.post(
+        f"{BASE}/create-listing/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=seller_auth,
+    )
+    assert resp.status_code == 400
 
-        seller = make_user("fut_seller@test.com", "fut_selleruser")
-        future = timezone.now() + timedelta(hours=48)
-        listing = MarketListing.objects.create(
-            seller=seller,
-            item=self.item,
-            listing_type=MarketListing.ListingType.SELL,
-            quantity=1,
-            quantity_remaining=1,
-            price_per_unit=10,
-            expires_at=future,
-        )
-        expire_old_listings()
-        listing.refresh_from_db()
-        self.assertEqual(listing.status, MarketListing.Status.ACTIVE)
+
+@pytest.mark.django_db
+def test_buy_from_buy_order_listing_returns_404(client, mp_setup, seller_auth, buyer_auth):
+    """buy_from_listing only accepts sell-type listings; buy orders must return 404."""
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    buy_listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.BUY,
+        quantity=5,
+        quantity_remaining=5,
+        price_per_unit=10,
+    )
+    payload = f'{{"listing_id": "{buy_listing.id}", "quantity": 1}}'
+    resp = client.post(
+        f"{BASE}/buy/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=buyer_auth,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_buy_more_than_available_buys_remaining_amount(client, mp_setup, buyer_auth):
+    """Requesting more than quantity_remaining should buy what's left."""
+    seller, item, buyer_wallet = mp_setup["seller"], mp_setup["item"], mp_setup["buyer_wallet"]
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=3,
+        quantity_remaining=3,
+        price_per_unit=10,
+    )
+    payload = f'{{"listing_id": "{listing.id}", "quantity": 100}}'
+    resp = client.post(
+        f"{BASE}/buy/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=buyer_auth,
+    )
+    assert resp.status_code == 200
+    listing.refresh_from_db()
+    assert listing.status == MarketListing.Status.FULFILLED
+    buyer_wallet.refresh_from_db()
+    assert buyer_wallet.gold == 10000 - 30  # only 3 bought at 10 each
+
+
+@pytest.mark.django_db
+def test_history_shows_sales_for_seller(client, mp_setup, seller_auth):
+    seller, buyer, item = mp_setup["seller"], mp_setup["buyer"], mp_setup["item"]
+    listing = MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=50,
+    )
+    MarketTransaction.objects.create(
+        listing=listing,
+        buyer=buyer,
+        seller=seller,
+        item=item,
+        quantity=1,
+        price_per_unit=50,
+        total_price=50,
+        fee=2,
+    )
+    data = client.get(f"{BASE}/history/", HTTP_AUTHORIZATION=seller_auth).json()
+    assert data["count"] == 1
+
+
+@pytest.mark.django_db
+def test_my_listings_shows_all_non_fulfilled_statuses(client, mp_setup, seller_auth):
+    seller, item = mp_setup["seller"], mp_setup["item"]
+    # Active listing
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=1,
+        price_per_unit=10,
+        status=MarketListing.Status.ACTIVE,
+    )
+    # Cancelled listing (should appear)
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=0,
+        price_per_unit=10,
+        status=MarketListing.Status.CANCELLED,
+    )
+    # Fulfilled listing (should NOT appear)
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=1,
+        quantity_remaining=0,
+        price_per_unit=10,
+        status=MarketListing.Status.FULFILLED,
+    )
+    data = client.get(f"{BASE}/my-listings/", HTTP_AUTHORIZATION=seller_auth).json()
+    assert data["count"] == 2
+
+
+@pytest.mark.django_db
+def test_bot_restock_creates_listings_for_rare_items(db):
+    from apps.marketplace.tasks import bot_restock_marketplace
+
+    make_category()
+    make_item("Rare Gem", "rare-gem")
+    # Update rarity to rare
+    from apps.inventory.models import Item
+
+    Item.objects.filter(slug="rare-gem").update(rarity="rare", base_value=50)
+    bot_restock_marketplace()
+    listings = MarketListing.objects.filter(item__slug="rare-gem", is_bot_listing=True)
+    assert listings.count() <= 3
+
+
+@pytest.mark.django_db
+def test_expire_old_listings_no_expired_does_nothing(item, db):
+    from apps.marketplace.tasks import expire_old_listings
+
+    seller = make_user("no_exp@test.com", "no_exp_user")
+    future = timezone.now() + timedelta(hours=72)
+    MarketListing.objects.create(
+        seller=seller,
+        item=item,
+        listing_type=MarketListing.ListingType.SELL,
+        quantity=2,
+        quantity_remaining=2,
+        price_per_unit=10,
+        expires_at=future,
+    )
+    expire_old_listings()
+    assert MarketListing.objects.filter(status=MarketListing.Status.ACTIVE).count() == 1

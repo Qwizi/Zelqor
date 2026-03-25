@@ -54,7 +54,13 @@ const mockUseAuth = vi.fn();
 const mockCreateSocket = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
+  isAuthenticated: vi.fn(() => true),
+  setAuthenticated: vi.fn(),
   getAccessToken: () => mockGetAccessToken(),
+  getRefreshToken: vi.fn(() => null),
+  setTokens: vi.fn(),
+  clearTokens: vi.fn(),
+  isLoggedIn: vi.fn(() => true),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -141,14 +147,14 @@ describe("useChat", () => {
     expect(result.current.chatOpen).toBe(false);
   });
 
-  it("calls createSocket when user and token are present", async () => {
+  it("calls createSocket when user is authenticated", async () => {
     renderHook(() => useChat(), { wrapper });
     await act(async () => {});
 
     expect(mockCreateSocket).toHaveBeenCalledOnce();
-    const [path, token] = mockCreateSocket.mock.calls[0] as [string, string];
+    const [path] = mockCreateSocket.mock.calls[0] as [string, string | null];
     expect(path).toBe("/chat/");
-    expect(token).toBe("test-token");
+    // Token is always null in cookie-based auth; auth is done via httpOnly cookie
   });
 
   it("sets connected=true when WebSocket onopen fires", async () => {

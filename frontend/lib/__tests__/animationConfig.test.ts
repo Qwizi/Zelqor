@@ -64,16 +64,16 @@ describe("ANIMATION_DEFAULTS — trail config", () => {
     });
   }
 
-  it("fighter trail color is a non-null amber string", () => {
-    expect(ANIMATION_DEFAULTS.fighter.trail.color).toBe("#f59e0b");
+  it("fighter trail color is a non-null silver/grey string", () => {
+    expect(ANIMATION_DEFAULTS.fighter.trail.color).toBe("#c0c0c0");
   });
 
-  it("ship trail color is a non-null blue string", () => {
-    expect(ANIMATION_DEFAULTS.ship.trail.color).toBe("#38bdf8");
+  it("ship trail color is a non-null blue-grey string", () => {
+    expect(ANIMATION_DEFAULTS.ship.trail.color).toBe("#a0c0d0");
   });
 
-  it("tank trail color is null (uses player color)", () => {
-    expect(ANIMATION_DEFAULTS.tank.trail.color).toBeNull();
+  it("tank trail color is a non-null olive/green string", () => {
+    expect(ANIMATION_DEFAULTS.tank.trail.color).toBe("#4a6a3a");
   });
 
   it("infantry trail color is null (uses player color)", () => {

@@ -204,10 +204,15 @@ export default function LobbyPage() {
             <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
             <span className="hidden md:inline text-base">Panel</span>
           </Link>
-          <h1 className="font-display text-lg md:hidden text-foreground">Lobby</h1>
+          <span className="font-display text-lg md:hidden text-foreground" aria-hidden="true">
+            Lobby
+          </span>
         </div>
-        <h1 className="hidden md:block font-display text-5xl text-foreground">
-          {lobbyFull && !allReady ? "Mecz znaleziony!" : allReady ? "Uruchamianie meczu..." : "Szukanie graczy"}
+        <h1 className="font-display text-lg md:text-5xl text-foreground">
+          <span className="md:hidden">Lobby</span>
+          <span className="hidden md:inline">
+            {lobbyFull && !allReady ? "Mecz znaleziony!" : allReady ? "Uruchamianie meczu..." : "Szukanie graczy"}
+          </span>
         </h1>
         <p className="hidden md:block mt-1 text-base text-muted-foreground">
           {lobbyFull && !allReady

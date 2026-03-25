@@ -51,9 +51,9 @@ describe("useAudio", () => {
   // Initial muted state
   // -------------------------------------------------------------------------
 
-  it("starts muted=true by default (no localStorage entry)", () => {
+  it("starts muted=false by default (no localStorage entry)", () => {
     const { result } = renderHook(() => useAudio());
-    expect(result.current.muted).toBe(true);
+    expect(result.current.muted).toBe(false);
   });
 
   it("reads initial muted=false from localStorage", () => {
@@ -235,10 +235,10 @@ describe("useAudio", () => {
     const { result } = renderHook(() => useAudio());
 
     act(() => {
-      result.current.selectTrack(2);
+      result.current.selectTrack(0);
     });
 
-    expect(result.current.currentTrackIndex).toBe(2);
+    expect(result.current.currentTrackIndex).toBe(0);
   });
 
   it("selectTrack() ignores out-of-range indices", () => {
@@ -261,10 +261,10 @@ describe("useAudio", () => {
     const countBefore = MockAudio.instances.length;
 
     act(() => {
-      result.current.selectTrack(1);
+      result.current.selectTrack(0);
     });
 
     expect(MockAudio.instances.length).toBe(countBefore + 1);
-    expect(MockAudio.instances[countBefore].src).toBe(MUSIC_TRACKS[1].src);
+    expect(MockAudio.instances[countBefore].src).toBe(MUSIC_TRACKS[0].src);
   });
 });

@@ -74,7 +74,7 @@ function Badge({
     default: "bg-muted/60 text-muted-foreground border-border",
   };
   return (
-    <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${colors[color]}`}>
+    <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-caption font-medium ${colors[color]}`}>
       {children}
     </span>
   );
@@ -106,11 +106,11 @@ function UnitTooltip({ unit, level }: { unit: UnitType; level?: number }) {
       {/* name + movement */}
       <div className="flex items-start justify-between gap-2">
         <p className="font-semibold text-foreground">
-          {unit.name} {lvl > 1 && <span className="text-amber-400 text-[10px]">Lv{lvl}</span>}
+          {unit.name} {lvl > 1 && <span className="text-amber-400 text-caption">Lv{lvl}</span>}
         </p>
         <Badge color="blue">{movementLabel(unit.movement_type)}</Badge>
       </div>
-      {unit.description && <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{unit.description}</p>}
+      {unit.description && <p className="mt-1 text-caption leading-snug text-muted-foreground">{unit.description}</p>}
 
       {/* core stats */}
       <div className="mt-2.5 space-y-1 text-xs border-t border-border/40 pt-2">
@@ -144,14 +144,14 @@ function UnitTooltip({ unit, level }: { unit: UnitType; level?: number }) {
       {/* level stats */}
       {hasLevelStats && (
         <div className="mt-2 border-t border-border/40 pt-2">
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Poziomy</p>
+          <p className="mb-1 text-caption uppercase tracking-wide text-muted-foreground">Poziomy</p>
           <div className="space-y-0.5 text-xs">
             {Object.entries(unit.level_stats)
               .slice(0, 4)
               .map(([lvl, stats]) => (
                 <div key={lvl} className="flex items-center gap-1.5">
                   <span className="w-8 text-amber-400 font-medium">Lv{lvl}</span>
-                  <span className="text-muted-foreground text-[10px]">
+                  <span className="text-muted-foreground text-caption">
                     {Object.entries(stats)
                       .slice(0, 2)
                       .map(([k, v]) => `${k}:${v}`)
@@ -199,7 +199,7 @@ function BuildingTooltip({
         {building.requires_coastal && <Badge color="blue">Nadbrzezny</Badge>}
       </div>
       {building.description && (
-        <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{building.description}</p>
+        <p className="mt-1 text-caption leading-snug text-muted-foreground">{building.description}</p>
       )}
 
       {/* level indicator */}
@@ -231,12 +231,12 @@ function BuildingTooltip({
       {/* level stats preview */}
       {levelsToShow.length > 0 && (
         <div className="mt-2 border-t border-border/40 pt-2">
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Bonusy poziomow</p>
+          <p className="mb-1 text-caption uppercase tracking-wide text-muted-foreground">Bonusy poziomow</p>
           <div className="space-y-0.5 text-xs">
             {levelsToShow.map(([lvl, stats]) => (
               <div key={lvl} className="flex items-center gap-1.5">
                 <span className="w-8 text-amber-400 font-medium">Lv{lvl}</span>
-                <span className="text-muted-foreground text-[10px]">
+                <span className="text-muted-foreground text-caption">
                   {Object.entries(stats)
                     .slice(0, 3)
                     .map(([k, v]) => `${k}:${v}`)
@@ -440,7 +440,7 @@ export default memo(function QuickActionBar({
             {/* Cooldown badges */}
             {isOwned && isMoveCoolingDown && (
               <div
-                className="flex shrink-0 items-center gap-0.5 rounded-full border border-blue-500/30 bg-blue-950/30 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-blue-400"
+                className="flex shrink-0 items-center gap-0.5 rounded-full border border-blue-500/30 bg-blue-950/30 px-1.5 py-0.5 text-caption font-semibold tabular-nums text-blue-400"
                 title={`Cooldown ruchu: ${moveCooldownRemaining} tickow`}
               >
                 <Timer className="h-2.5 w-2.5" />
@@ -449,7 +449,7 @@ export default memo(function QuickActionBar({
             )}
             {isOwned && isAttackCoolingDown && (
               <div
-                className="flex shrink-0 items-center gap-0.5 rounded-full border border-orange-500/30 bg-orange-950/30 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-orange-400"
+                className="flex shrink-0 items-center gap-0.5 rounded-full border border-orange-500/30 bg-orange-950/30 px-1.5 py-0.5 text-caption font-semibold tabular-nums text-orange-400"
                 title={`Cooldown ataku: ${attackCooldownRemaining} tickow`}
               >
                 <Timer className="h-2.5 w-2.5" />
@@ -472,7 +472,7 @@ export default memo(function QuickActionBar({
               ((region.defense_bonus ?? 0) > 0 ||
                 (region.unit_generation_bonus ?? 0) > 0 ||
                 (region.energy_generation_bonus ?? 0) > 0) && (
-                <div className="flex items-center gap-1.5 text-[10px] tabular-nums shrink-0">
+                <div className="flex items-center gap-1.5 text-caption tabular-nums shrink-0">
                   {(region.defense_bonus ?? 0) > 0 && (
                     <span className="text-blue-400" title="Bonus obrony">
                       🛡+{+(region.defense_bonus ?? 0).toFixed(2)}
@@ -516,7 +516,7 @@ export default memo(function QuickActionBar({
                   <div className="font-display text-lg font-bold leading-none tabular-nums text-foreground">
                     {availableInfantry}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">Jednostki</div>
+                  <div className="text-caption text-muted-foreground">Jednostki</div>
                 </div>
                 {visibleUnitTypes.filter(([t]) => t !== "infantry").length > 0 && (
                   <div className="ml-auto flex items-center gap-1">
@@ -553,7 +553,7 @@ export default memo(function QuickActionBar({
                   >
                     {myEnergy}
                   </div>
-                  <div className="text-[9px] text-muted-foreground">Energia</div>
+                  <div className="text-micro text-muted-foreground">Energia</div>
                 </div>
               </div>
 
@@ -583,10 +583,10 @@ export default memo(function QuickActionBar({
                   </div>
                   <div className="mt-0.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
                     <div
-                      className={`h-full rounded-full transition-all duration-300 ${
+                      className={`h-full rounded-full transition-transform duration-300 ${
                         myActionPoints < 3 ? "bg-red-500" : myActionPoints < 6 ? "bg-amber-500" : "bg-emerald-500"
                       }`}
-                      style={{ width: `${Math.min(100, (myActionPoints / AP_MAX) * 100)}%` }}
+                      style={{ transform: `scaleX(${Math.min(1, myActionPoints / AP_MAX)})`, transformOrigin: "left" }}
                     />
                   </div>
                 </div>
@@ -780,21 +780,21 @@ export default memo(function QuickActionBar({
                               <BoltIcon className="absolute -right-1 -top-1 h-2.5 w-2.5 text-amber-400" />
                             )}
                           </div>
-                          <span className="w-full text-[10px] font-semibold text-foreground/70 leading-tight truncate text-center">
+                          <span className="w-full text-caption font-semibold text-foreground/70 leading-tight truncate text-center">
                             {building.name}
                           </span>
                           {isAtMaxLevel ? (
-                            <span className="text-[11px] font-bold text-amber-400">Max</span>
+                            <span className="text-label font-bold text-amber-400">Max</span>
                           ) : (
                             <div className="flex items-center gap-0.5">
-                              <span className="text-[11px] text-yellow-400">⚡</span>
+                              <span className="text-label text-yellow-400">⚡</span>
                               <span
                                 className={`text-xs font-bold tabular-nums ${canAffordEnergy ? "text-green-400" : "text-red-400"}`}
                               >
                                 {nextCost}
                               </span>
                               {isUpgrade && (
-                                <span className="text-[10px] font-semibold text-amber-400 ml-0.5">Lv{nextLevel}</span>
+                                <span className="text-caption font-semibold text-amber-400 ml-0.5">Lv{nextLevel}</span>
                               )}
                             </div>
                           )}
@@ -867,14 +867,14 @@ export default memo(function QuickActionBar({
                               <BoltIcon className="absolute -right-1 -top-1 h-2.5 w-2.5 text-amber-400" />
                             )}
                           </div>
-                          <span className="w-full text-[10px] font-semibold text-foreground/70 leading-tight truncate text-center">
+                          <span className="w-full text-caption font-semibold text-foreground/70 leading-tight truncate text-center">
                             {unit.name}
                           </span>
                           {isUnitLocked ? (
                             <Lock className="h-3 w-3 text-muted-foreground/60" />
                           ) : (
                             <div className="flex items-center gap-0.5">
-                              <span className="text-[11px] text-yellow-400">⚡</span>
+                              <span className="text-label text-yellow-400">⚡</span>
                               <span
                                 className={`text-xs font-bold tabular-nums ${canAffordEnergy ? "text-green-400" : "text-red-400"}`}
                               >
@@ -882,7 +882,7 @@ export default memo(function QuickActionBar({
                               </span>
                               {effectiveManpower > 1 && (
                                 <span
-                                  className={`text-[11px] font-bold tabular-nums ml-0.5 ${canAffordManpower ? "text-foreground/60" : "text-red-400"}`}
+                                  className={`text-label font-bold tabular-nums ml-0.5 ${canAffordManpower ? "text-foreground/60" : "text-red-400"}`}
                                 >
                                   {effectiveManpower}♟
                                 </span>

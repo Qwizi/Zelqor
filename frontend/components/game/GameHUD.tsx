@@ -111,7 +111,7 @@ function hasOutgoingProposal(diplomacy: DiplomacyState | undefined, myId: string
 function TeammateBadge() {
   return (
     <span
-      className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-medium text-blue-400"
+      className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-blue-500/15 px-1.5 py-0.5 text-micro font-medium text-blue-400"
       title="Sojusznik"
     >
       SOJUSZNIK
@@ -124,20 +124,22 @@ function RelationBadge({ relation }: { relation: PlayerRelation }) {
   if (relation === "war") {
     return (
       <span
-        className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[9px] font-medium text-red-400"
+        className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-red-500/15 px-1.5 py-0.5 text-micro font-medium text-red-400"
         title="W wojnie"
       >
         <Swords className="h-2.5 w-2.5" />
+        <span className="sr-only">W wojnie</span>
       </span>
     );
   }
   if (relation === "nap") {
     return (
       <span
-        className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400"
+        className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-micro font-medium text-emerald-400"
         title="Pakt o nieagresji"
       >
         <Handshake className="h-2.5 w-2.5" />
+        <span className="sr-only">Pakt</span>
       </span>
     );
   }
@@ -199,24 +201,27 @@ export default memo(function GameHUD({
       className="absolute left-2 top-2 z-10 flex max-w-[calc(100vw-5rem)] flex-col gap-2 sm:left-3 sm:top-3 sm:max-w-[260px]"
     >
       {/* Clock + status bar */}
-      <div className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-border bg-card sm:bg-card/85 px-2.5 py-1.5 text-[10px] text-foreground shadow-lg sm:backdrop-blur-xl">
+      <div className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-border bg-card sm:bg-card/85 px-2.5 py-1.5 text-caption text-foreground shadow-lg sm:backdrop-blur-xl">
         <span className="font-display text-xs font-bold text-primary sm:text-base">{formattedClock}</span>
         <span className="h-1 w-1 rounded-full bg-white/20" />
-        <Badge className="h-auto border-0 bg-primary/15 px-2 py-0.5 text-[10px] sm:text-xs text-primary hover:bg-primary/15">
+        <Badge className="h-auto border-0 bg-primary/15 px-2 py-0.5 text-caption sm:text-xs text-primary hover:bg-primary/15">
           {statusLabel(status)}
         </Badge>
-        <span className="hidden text-[10px] sm:text-xs text-muted-foreground sm:inline">{aliveCount} aktywnych</span>
+        <span className="hidden text-caption sm:text-xs text-muted-foreground sm:inline">{aliveCount} aktywnych</span>
         {connected === false && (
-          <span className="flex items-center gap-1 text-[10px] sm:text-xs font-medium text-red-400">
+          <span
+            aria-live="assertive"
+            className="flex items-center gap-1 text-caption sm:text-xs font-medium text-red-400"
+          >
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
             Rozlaczono
           </span>
         )}
         {connected !== false && typeof fps === "number" && (
-          <span className="text-[10px] sm:text-xs sm:font-semibold tabular-nums text-muted-foreground">{fps} FPS</span>
+          <span className="text-caption sm:text-xs sm:font-semibold tabular-nums text-muted-foreground">{fps} FPS</span>
         )}
         {connected !== false && typeof ping === "number" && (
-          <span className="text-[10px] sm:text-xs sm:font-semibold tabular-nums text-muted-foreground">{ping}ms</span>
+          <span className="text-caption sm:text-xs sm:font-semibold tabular-nums text-muted-foreground">{ping}ms</span>
         )}
       </div>
 
@@ -257,8 +262,8 @@ export default memo(function GameHUD({
 
       {/* Incoming diplomacy proposals */}
       {incomingProposals.length > 0 && (
-        <div className="military-frame hidden rounded-xl border border-amber-500/30 bg-card/80 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:block">
-          <div className="mb-1.5 px-1 text-[10px] uppercase tracking-[0.14em] text-amber-400">Propozycje</div>
+        <div className="military-frame hidden rounded-xl border border-amber-500/30 bg-card/80 p-2 shadow-(--shadow-panel) backdrop-blur-xl sm:block">
+          <div className="mb-1.5 px-1 text-caption uppercase tracking-[0.14em] text-amber-400">Propozycje</div>
           <div className="space-y-1.5">
             {incomingProposals.map((proposal) => {
               const fromPlayer = players[proposal.from_player_id];
@@ -269,7 +274,7 @@ export default memo(function GameHUD({
               return (
                 <div key={proposal.id} className="rounded-lg border border-border bg-muted/10 p-2">
                   <div className="mb-1.5 flex items-center justify-between">
-                    <p className="text-[11px] text-foreground">
+                    <p className="text-label text-foreground">
                       <span className="font-medium" style={{ color: fromPlayer.color }}>
                         {fromPlayer.clan_tag && <span className="text-muted-foreground">[{fromPlayer.clan_tag}] </span>}
                         {fromPlayer.username}
@@ -278,7 +283,7 @@ export default memo(function GameHUD({
                     </p>
                     {expireSeconds != null && (
                       <span
-                        className={`ml-2 shrink-0 font-display text-[10px] tabular-nums ${expireSeconds <= 10 ? "text-red-400 animate-pulse" : "text-muted-foreground"}`}
+                        className={`ml-2 shrink-0 font-display text-caption tabular-nums ${expireSeconds <= 10 ? "text-red-400 animate-pulse" : "text-muted-foreground"}`}
                       >
                         {expireSeconds}s
                       </span>
@@ -293,7 +298,7 @@ export default memo(function GameHUD({
                           ? onRespondPeace?.(proposal.id, false)
                           : onRespondPact?.(proposal.id, false)
                       }
-                      className="h-6 flex-1 text-[10px]"
+                      className="h-6 flex-1 text-caption"
                     >
                       Odrzuc
                     </Button>
@@ -304,7 +309,7 @@ export default memo(function GameHUD({
                           ? onRespondPeace?.(proposal.id, true)
                           : onRespondPact?.(proposal.id, true)
                       }
-                      className="h-6 flex-1 text-[10px]"
+                      className="h-6 flex-1 text-caption"
                     >
                       Akceptuj
                     </Button>
@@ -317,8 +322,8 @@ export default memo(function GameHUD({
       )}
 
       {/* Ranking + diplomacy */}
-      <div className="military-frame hidden rounded-xl border border-border bg-card/80 p-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:block">
-        <div className="military-frame-inner px-1 pb-1.5 text-[10px] sm:text-xs uppercase tracking-[0.16em] text-muted-foreground">
+      <div className="military-frame hidden rounded-xl border border-border bg-card/80 p-1.5 shadow-(--shadow-panel) backdrop-blur-xl sm:block">
+        <div className="military-frame-inner px-1 pb-1.5 text-caption sm:text-xs uppercase tracking-[0.16em] text-muted-foreground">
           Ranking
         </div>
         <div className="space-y-0.5">
@@ -334,6 +339,18 @@ export default memo(function GameHUD({
             return (
               <div key={player.user_id}>
                 <div
+                  role={isMe ? undefined : "button"}
+                  tabIndex={isMe ? undefined : 0}
+                  onKeyDown={
+                    isMe
+                      ? undefined
+                      : (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleExpanded(player.user_id);
+                          }
+                        }
+                  }
                   className={`grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1 text-xs sm:text-sm ${
                     isMe ? "bg-muted/30" : "cursor-pointer hover:bg-muted/20"
                   } ${isExpanded ? "bg-muted/25" : ""}`}
@@ -351,11 +368,10 @@ export default memo(function GameHUD({
                       {emblemUrl && (
                         <Image
                           src={emblemUrl}
-                          alt=""
+                          alt={`Emblem ${player.username}`}
                           width={16}
                           height={16}
                           className="h-4 w-4 shrink-0 rounded-sm object-contain"
-                          title="Emblem"
                         />
                       )}
                       <span className="truncate">
@@ -369,7 +385,7 @@ export default memo(function GameHUD({
                       </span>
                       {player.isBot && (
                         <span
-                          className="ml-1 shrink-0 text-[10px] font-medium uppercase tracking-widest text-muted-foreground"
+                          className="ml-1 shrink-0 text-caption font-medium uppercase tracking-widest text-muted-foreground"
                           title="Bot AI"
                         >
                           BOT
@@ -388,9 +404,9 @@ export default memo(function GameHUD({
 
                 {/* Expanded diplomacy actions */}
                 {isExpanded && player.isAlive && !isMe && !isTeammate && (
-                  <div className="mx-2 mb-1 mt-0.5 flex flex-wrap gap-1 rounded-lg border border-border/50 bg-muted/10 p-1.5">
+                  <div className="mx-2 mb-1 mt-0.5 flex flex-wrap gap-1 rounded-lg border border-border/50 bg-muted/10 p-1.5 animate-mil-expand">
                     {hasPending ? (
-                      <span className="px-1 text-[10px] text-muted-foreground">Oczekuje na odpowiedz...</span>
+                      <span className="px-1 text-caption text-muted-foreground">Oczekuje na odpowiedz...</span>
                     ) : relation === "war" ? (
                       <Button
                         size="sm"
@@ -399,7 +415,7 @@ export default memo(function GameHUD({
                           e.stopPropagation();
                           onProposePeace?.(player.user_id, "status_quo");
                         }}
-                        className="h-6 text-[10px]"
+                        className="h-6 text-caption"
                       >
                         Zaproponuj pokoj
                       </Button>
@@ -412,7 +428,7 @@ export default memo(function GameHUD({
                           const pactId = findPactId(diplomacy, myUserId, player.user_id);
                           if (pactId) onBreakPact?.(pactId);
                         }}
-                        className="h-6 text-[10px]"
+                        className="h-6 text-caption"
                       >
                         Zerwij pakt
                       </Button>
@@ -425,7 +441,7 @@ export default memo(function GameHUD({
                             e.stopPropagation();
                             onProposePact?.(player.user_id);
                           }}
-                          className="h-6 text-[10px]"
+                          className="h-6 text-caption"
                         >
                           Zaproponuj pakt
                         </Button>
@@ -436,7 +452,7 @@ export default memo(function GameHUD({
                             e.stopPropagation();
                             onDeclareWar?.(player.user_id);
                           }}
-                          className="h-6 text-[10px]"
+                          className="h-6 text-caption"
                         >
                           Wypowiedz wojne
                         </Button>
@@ -468,7 +484,7 @@ const CompactStat = memo(function CompactStat({
 }) {
   return (
     <div className="min-w-0 rounded-2xl border border-border bg-card sm:bg-card/80 px-2 py-1.5 shadow-lg sm:backdrop-blur-xl">
-      <div className="flex items-center gap-1.5 text-[10px] sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-caption sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
         {typeof icon === "string" ? (
           <Image src={icon} alt="" width={14} height={14} className="h-3.5 w-3.5 object-contain" />
         ) : (
@@ -480,7 +496,7 @@ const CompactStat = memo(function CompactStat({
         className={`mt-1 flex items-baseline gap-0.5 truncate font-display text-base font-bold leading-none sm:text-xl ${valueColor ?? "text-foreground"}`}
       >
         <span>{value}</span>
-        {suffix && <span className="text-[10px] font-normal text-muted-foreground sm:text-xs">{suffix}</span>}
+        {suffix && <span className="text-caption font-normal text-muted-foreground sm:text-xs">{suffix}</span>}
       </div>
     </div>
   );
@@ -506,7 +522,7 @@ const LargeStat = memo(function LargeStat({
         lowPulse ? "border-primary/60 animate-pulse" : "border-border"
       }`}
     >
-      <div className="flex items-center gap-1.5 text-[10px] sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-caption sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
         {icon}
         <span className="truncate">{label}</span>
       </div>
@@ -535,20 +551,25 @@ const APStat = memo(function APStat({ actionPoints }: { actionPoints: number }) 
         isLow ? "border-red-500/60 animate-pulse" : "border-border"
       }`}
     >
-      <div className="flex items-center justify-between gap-1 text-[10px] sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
+      <div className="flex items-center justify-between gap-1 text-caption sm:text-xs uppercase tracking-[0.12em] text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <BoltIcon className="h-4 w-4 text-amber-400" />
           <span>AP</span>
         </div>
-        <span className="normal-case text-[9px] sm:text-[10px] text-muted-foreground/70 tracking-normal">+1 co 3s</span>
+        <span className="normal-case text-micro sm:text-caption text-muted-foreground/70 tracking-normal">
+          +1 co 3s
+        </span>
       </div>
       <div className={`mt-1 font-display text-2xl font-bold leading-none sm:text-3xl tabular-nums ${valueColor}`}>
         {actionPoints}
-        <span className="text-[11px] font-normal text-muted-foreground sm:text-sm">/{AP_MAX_HUD}</span>
+        <span className="text-label font-normal text-muted-foreground sm:text-sm">/{AP_MAX_HUD}</span>
       </div>
       {/* Progress bar */}
       <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted/40">
-        <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full rounded-full transition-transform duration-500 ${barColor}`}
+          style={{ transform: `scaleX(${pct / 100})`, transformOrigin: "left" }}
+        />
       </div>
     </div>
   );

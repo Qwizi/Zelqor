@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Crown, Pause, Play, SkipBack, SkipForward, Skull, Users } from "lucide-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -7,14 +8,16 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useConfig, useMatch, useMatchSnapshots, useRegionsGraph } from "@/hooks/queries";
+import { useConfig, useMatch, useMatchSnapshots } from "@/hooks/queries";
 import { useAuth } from "@/hooks/useAuth";
 import type { GamePlayer, GameRegion, GameState } from "@/hooks/useGameSocket";
-import { getRegionTilesUrl, getSnapshot } from "@/lib/api";
+import { useShapesData } from "@/hooks/useShapesData";
+import { getSnapshot } from "@/lib/api";
 import { loadAssetOverrides } from "@/lib/assetOverrides";
 import { requireToken } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
-const GameMap = dynamic(() => import("@/components/map/GameMap"), { ssr: false });
+const GameCanvas = dynamic(() => import("@/components/map/GameCanvas"), { ssr: false });
 
 const SPEEDS = [1, 2, 4, 8];
 
@@ -25,7 +28,7 @@ export default function ReplayPage() {
 
   const { data: match } = useMatch(matchId);
   const { data: snapshots = [] } = useMatchSnapshots(matchId);
-  const { data: regionGraph = [] } = useRegionsGraph(matchId);
+  const { shapesData } = useShapesData(matchId);
   const { data: configData } = useConfig();
   const buildingTypes = configData?.buildings ?? [];
   const loading = !match || !configData;
@@ -43,30 +46,35 @@ export default function ReplayPage() {
   speedRef.current = speed;
   currentIndexRef.current = currentIndex;
 
-  const snapshotCache = useRef<Map<number, GameState>>(new Map());
+  const queryClient = useQueryClient();
+
+  const fetchSnapshotState = useCallback(
+    async (tick: number): Promise<GameState | null> => {
+      try {
+        const snap = await queryClient.fetchQuery({
+          queryKey: [...queryKeys.matches.snapshots(matchId), tick],
+          queryFn: () => getSnapshot(requireToken(), matchId, tick),
+          staleTime: Infinity,
+        });
+        return snap.state_data as unknown as GameState;
+      } catch {
+        return null;
+      }
+    },
+    [matchId, queryClient],
+  );
 
   const loadSnapshot = useCallback(
     async (tick: number, index: number) => {
-      const cached = snapshotCache.current.get(tick);
-      if (cached) {
-        setGameState(cached);
-        setCurrentIndex(index);
-        return;
-      }
       setSnapshotLoading(true);
-      try {
-        const snap = await getSnapshot(requireToken(), matchId, tick);
-        const state = snap.state_data as unknown as GameState;
-        snapshotCache.current.set(tick, state);
+      const state = await fetchSnapshotState(tick);
+      if (state) {
         setGameState(state);
         setCurrentIndex(index);
-      } catch {
-        // ignore
-      } finally {
-        setSnapshotLoading(false);
       }
+      setSnapshotLoading(false);
     },
-    [matchId],
+    [fetchSnapshotState],
   );
 
   useEffect(() => {
@@ -91,15 +99,13 @@ export default function ReplayPage() {
     if (snapshots.length === 0) return;
     for (let i = currentIndex + 1; i <= Math.min(currentIndex + 2, snapshots.length - 1); i++) {
       const tick = snapshots[i].tick;
-      if (!snapshotCache.current.has(tick)) {
-        getSnapshot(requireToken(), matchId, tick)
-          .then((snap) => {
-            snapshotCache.current.set(tick, snap.state_data as unknown as GameState);
-          })
-          .catch(() => {});
-      }
+      queryClient.prefetchQuery({
+        queryKey: [...queryKeys.matches.snapshots(matchId), tick],
+        queryFn: () => getSnapshot(requireToken(), matchId, tick),
+        staleTime: Infinity,
+      });
     }
-  }, [currentIndex, matchId, snapshots]);
+  }, [currentIndex, matchId, snapshots, queryClient]);
 
   useEffect(() => {
     if (!playing || snapshots.length === 0) return;
@@ -114,14 +120,6 @@ export default function ReplayPage() {
     }, 1000 / speedRef.current);
     return () => clearInterval(interval);
   }, [playing, snapshots, loadSnapshot]);
-
-  const centroids = useMemo(() => {
-    const c: Record<string, [number, number]> = {};
-    for (const entry of regionGraph) {
-      if (entry.centroid) c[entry.id] = entry.centroid;
-    }
-    return c;
-  }, [regionGraph]);
 
   const buildingIcons = useMemo(() => {
     const m: Record<string, string> = {};
@@ -283,9 +281,8 @@ export default function ReplayPage() {
         <div className="relative overflow-hidden rounded-2xl border border-border bg-card h-[50vh] md:h-full">
           <div className="h-full w-full">
             {gameState && (
-              <GameMap
-                tilesUrl={getRegionTilesUrl(matchId)}
-                centroids={centroids}
+              <GameCanvas
+                shapesData={shapesData}
                 regions={regions as Record<string, GameRegion>}
                 players={playersForMap}
                 selectedRegion={null}
@@ -293,11 +290,11 @@ export default function ReplayPage() {
                 highlightedNeighbors={[]}
                 dimmedRegions={[]}
                 onRegionClick={() => {}}
-                myUserId={user?.id ?? ""}
+                myUserId={user?.id ?? "__replay__"}
                 animations={[]}
                 buildingIcons={buildingIcons}
                 activeEffects={gameState.active_effects}
-                initialZoom={2.5}
+                plannedMoves={[]}
               />
             )}
           </div>

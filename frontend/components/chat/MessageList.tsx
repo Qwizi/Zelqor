@@ -26,7 +26,7 @@ export function MessageList({ messages, currentUserId }: MessageListProps) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-1 text-muted-foreground">
         <span className="text-xs">Brak wiadomości</span>
-        <span className="text-[10px] text-muted-foreground/50">Napisz pierwszą!</span>
+        <span className="text-caption text-muted-foreground/50">Napisz pierwszą!</span>
       </div>
     );
   }
@@ -55,7 +55,7 @@ export function MessageList({ messages, currentUserId }: MessageListProps) {
                 <span className={`text-xs md:text-sm font-semibold ${isOwn ? "text-primary" : "text-foreground"}`}>
                   {msg.username}
                 </span>
-                <span className="text-[10px] md:text-xs text-muted-foreground/50 tabular-nums">{timeStr}</span>
+                <span className="text-caption md:text-xs text-muted-foreground/50 tabular-nums">{timeStr}</span>
               </div>
             )}
             <p className="break-words text-foreground/80">{msg.content}</p>

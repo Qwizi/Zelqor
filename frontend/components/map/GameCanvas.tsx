@@ -596,21 +596,25 @@ export default function GameCanvas({
       const gfx = new Graphics();
       gfx.eventMode = "static";
       gfx.cursor = "pointer";
+      gfx.cullable = true;
 
       const label = new Text({ text: "", style: labelStyle, resolution: TEXT_RESOLUTION });
       label.anchor.set(0.5, 0.5);
       label.position.set(shape.centroid[0], shape.centroid[1]);
       label.eventMode = "none";
+      label.cullable = true;
 
       // Dark background behind label for readability
       const labelBg = new Graphics();
       labelBg.eventMode = "none";
+      labelBg.cullable = true;
 
       // Building badge sits just below the centroid label
       const buildingLabel = new Text({ text: "", style: buildingLabelStyle, resolution: TEXT_RESOLUTION });
       buildingLabel.anchor.set(0.5, 0.5);
       buildingLabel.position.set(shape.centroid[0], shape.centroid[1] + 13);
       buildingLabel.eventMode = "none";
+      buildingLabel.cullable = true;
 
       // Pre-compute flat point arrays for each sub-polygon (reused in selection + war pulse)
       const flatPolys: number[][] = [];
@@ -707,7 +711,14 @@ export default function GameCanvas({
               sprite.height = CHUNK_H;
               terrainContainer.addChild(sprite);
             })
-            .catch(() => {});
+            .catch(() => {
+              // Fallback: solid color rect so the chunk isn't invisible
+              if (!viewportRef.current) return;
+              const fallback = new Graphics();
+              fallback.rect(slotX, slotY, CHUNK_W, CHUNK_H).fill({ color: 0x2a4a2a, alpha: 0.6 });
+              fallback.eventMode = "none";
+              terrainContainer.addChild(fallback);
+            });
         }
       }
 
@@ -1111,9 +1122,12 @@ export default function GameCanvas({
       registeredAnimsRef.current.add(anim.id);
     }
 
-    // Bound the set to prevent unbounded growth
+    // Evict stale entries — keep only IDs that are still active animations
     if (registeredAnimsRef.current.size > 1000) {
-      registeredAnimsRef.current.clear();
+      const activeIds = new Set(animations.map((a) => a.id));
+      for (const id of registeredAnimsRef.current) {
+        if (!activeIds.has(id)) registeredAnimsRef.current.delete(id);
+      }
     }
   }, [animations, shapesData, players]);
 
@@ -1287,7 +1301,9 @@ export default function GameCanvas({
       const provinceLayer = new Container();
       provinceLayer.cullable = true;
       const labelLayer = new Container();
+      labelLayer.cullable = true;
       const capitalLayer = new Container();
+      capitalLayer.cullable = true;
       const effectLayer = new Container();
       effectLayer.eventMode = "none";
       const nukeLayer = new Container();

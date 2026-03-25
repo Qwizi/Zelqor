@@ -6,9 +6,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { useConfig, useRegionsGraph, useSharedResource } from "@/hooks/queries";
+import { useConfig, useSharedResource } from "@/hooks/queries";
 import type { GamePlayer, GameRegion, GameState } from "@/hooks/useGameSocket";
-import { type BuildingType, getRegionTilesUrl, type SnapshotTick } from "@/lib/api";
+import { useShapesData } from "@/hooks/useShapesData";
+import type { BuildingType, SnapshotTick } from "@/lib/api";
 import { loadAssetOverrides } from "@/lib/assetOverrides";
 import { queryKeys } from "@/lib/queryKeys";
 
@@ -36,7 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-const GameMap = dynamic(() => import("@/components/map/GameMap"), { ssr: false });
+const GameCanvas = dynamic(() => import("@/components/map/GameCanvas"), { ssr: false });
 
 const SPEEDS = [1, 2, 4, 8];
 
@@ -62,14 +63,10 @@ export default function SharePage() {
 
   const { data: sharedData, isLoading: sharedLoading, isError: sharedError } = useSharedResource(token);
   const { data: config, isLoading: configLoading, isError: configError } = useConfig();
-  const {
-    data: regionGraph = [],
-    isLoading: graphLoading,
-    isError: graphError,
-  } = useRegionsGraph(sharedData?.match.id);
+  const { shapesData, loading: shapesLoading } = useShapesData(sharedData?.match.id);
 
-  const loading = sharedLoading || configLoading || (!!sharedData && graphLoading);
-  const error = sharedError || configError || graphError;
+  const loading = sharedLoading || configLoading || (!!sharedData && shapesLoading);
+  const error = sharedError || configError;
 
   const buildingTypes: BuildingType[] = config?.buildings ?? [];
 
@@ -159,13 +156,6 @@ export default function SharePage() {
     return () => clearInterval(interval);
   }, [playing, snapshots, loadSnapshot]);
 
-  const centroids = useMemo(() => {
-    const c: Record<string, [number, number]> = {};
-    for (const e of regionGraph) {
-      if (e.centroid) c[e.id] = e.centroid;
-    }
-    return c;
-  }, [regionGraph]);
   const buildingIcons = useMemo(() => {
     const m: Record<string, string> = {};
     for (const b of buildingTypes) {
@@ -602,9 +592,8 @@ export default function SharePage() {
                 <div className="relative overflow-hidden rounded-2xl border border-border bg-card h-[50vh] md:h-full">
                   <div className="h-full w-full">
                     {gameState && (
-                      <GameMap
-                        tilesUrl={getRegionTilesUrl(match.id)}
-                        centroids={centroids}
+                      <GameCanvas
+                        shapesData={shapesData}
                         regions={regions as Record<string, GameRegion>}
                         players={playersForMap}
                         selectedRegion={null}
@@ -612,11 +601,11 @@ export default function SharePage() {
                         highlightedNeighbors={[]}
                         dimmedRegions={[]}
                         onRegionClick={() => {}}
-                        myUserId=""
+                        myUserId="__share__"
                         animations={[]}
                         buildingIcons={buildingIcons}
                         activeEffects={gameState.active_effects}
-                        initialZoom={2.5}
+                        plannedMoves={[]}
                       />
                     )}
                   </div>

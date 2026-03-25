@@ -5,23 +5,25 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useS
 import {
   APIError,
   login as apiLogin,
-  refreshToken as apiRefresh,
   register as apiRegister,
   BannedError,
   getMe,
+  logoutAPI,
   type User,
 } from "@/lib/api";
-import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "@/lib/auth";
+import { isAuthenticated, setAuthenticated } from "@/lib/auth";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   isBanned: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** @deprecated Pass tokens to the new cookie-based login. Use login() instead. */
   loginWithTokens: (access: string, refresh: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /** @deprecated Tokens are in httpOnly cookies. This is always null. */
   token: string | null;
 }
 
@@ -30,121 +32,68 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isBanned, setIsBanned] = useState(false);
 
   const handleBanned = useCallback(() => {
-    clearTokens();
+    setAuthenticated(false);
     setUser(null);
-    setToken(null);
     setIsBanned(true);
   }, []);
 
-  const applyUser = useCallback(
-    (me: User, accessToken: string) => {
+  const loadUser = useCallback(async () => {
+    try {
+      const me = await getMe();
       if (me.is_banned) {
         handleBanned();
         return;
       }
+      setAuthenticated(true);
       setUser(me);
-      setToken(accessToken);
       setIsBanned(false);
-    },
-    [handleBanned],
-  );
-
-  const loadUser = useCallback(
-    async (accessToken: string) => {
-      try {
-        const me = await getMe(accessToken);
-        applyUser(me, accessToken);
-      } catch (err) {
-        // Banned users receive 401/403 from the API
-        if (err instanceof APIError && (err.status === 401 || err.status === 403)) {
-          handleBanned();
-          return;
-        }
-        // Token might be expired, try refresh
-        const refresh = getRefreshToken();
-        if (refresh) {
-          try {
-            const newTokens = await apiRefresh(refresh);
-            setTokens(newTokens.access, newTokens.refresh);
-            const me = await getMe(newTokens.access);
-            applyUser(me, newTokens.access);
-          } catch (refreshErr) {
-            if (refreshErr instanceof APIError && (refreshErr.status === 401 || refreshErr.status === 403)) {
-              handleBanned();
-              return;
-            }
-            clearTokens();
-            setUser(null);
-            setToken(null);
-          }
-        } else {
-          clearTokens();
-          setUser(null);
-          setToken(null);
-        }
+    } catch (err) {
+      if (err instanceof APIError && (err.status === 401 || err.status === 403)) {
+        // Cookie invalid / expired and refresh also failed — user is not authenticated
+        setAuthenticated(false);
+        setUser(null);
+        setIsBanned(false);
+        return;
       }
-    },
-    [applyUser, handleBanned],
-  );
+      // Unexpected error — leave existing state intact
+      throw err;
+    }
+  }, [handleBanned]);
 
+  // On mount: if the auth flag says we might be logged in, verify with /auth/me.
+  // If the flag is absent we skip the network call (fast path for logged-out users).
   useEffect(() => {
-    const accessToken = getAccessToken();
-    if (accessToken) {
-      // loadUser is async — setState is called inside promise callbacks, not synchronously
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      loadUser(accessToken).finally(() => setLoading(false));
+    if (isAuthenticated()) {
+      loadUser().finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
   }, [loadUser]);
 
-  // Cross-tab auth sync: detect login/logout in other tabs via localStorage changes
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key !== "maplord_access") return;
-      if (e.newValue) {
-        // Another tab logged in — load user with the new token
-        loadUser(e.newValue);
-      } else {
-        // Another tab logged out — clear local state
-        setUser(null);
-        setToken(null);
-        setIsBanned(false);
-        queryClient.clear();
-      }
-    };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, [loadUser, queryClient]);
-
   const login = async (email: string, password: string) => {
-    const tokens = await apiLogin(email, password);
-    setTokens(tokens.access, tokens.refresh);
-    const me = await getMe(tokens.access);
+    const { user: me } = await apiLogin(email, password);
     if (me.is_banned) {
-      clearTokens();
+      setAuthenticated(false);
       throw new BannedError();
     }
+    setAuthenticated(true);
     setUser(me);
-    setToken(tokens.access);
     setIsBanned(false);
   };
 
-  const loginWithTokens = async (access: string, refresh: string) => {
-    setTokens(access, refresh);
-    const me = await getMe(access);
-    if (me.is_banned) {
-      clearTokens();
-      throw new BannedError();
-    }
-    setUser(me);
-    setToken(access);
-    setIsBanned(false);
+  /**
+   * @deprecated The cookie-based auth flow returns a User directly from login().
+   * This method is kept for call sites (e.g. social auth callbacks) that still
+   * receive tokens and need to set the session.
+   */
+  const loginWithTokens = async (_access: string, _refresh: string) => {
+    // Tokens are ignored — the cookie has already been set by the OAuth callback.
+    // Just verify the session is valid and load the user.
+    await loadUser();
   };
 
   const register = async (username: string, email: string, password: string) => {
@@ -152,23 +101,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await login(email, password);
   };
 
-  const logout = () => {
-    clearTokens();
+  const logout = async () => {
+    try {
+      await logoutAPI();
+    } catch {
+      // Even if the server call fails, clear local state
+    }
+    setAuthenticated(false);
     setUser(null);
-    setToken(null);
     setIsBanned(false);
     queryClient.clear();
   };
 
   const refreshUser = useCallback(async () => {
-    const accessToken = getAccessToken();
-    if (!accessToken) return;
-    await loadUser(accessToken);
-  }, [loadUser]);
+    if (!isAuthenticated() && !user) return;
+    await loadUser();
+  }, [loadUser, user]);
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, isBanned, login, loginWithTokens, register, logout, refreshUser, token }}
+      value={{
+        user,
+        loading,
+        isBanned,
+        login,
+        loginWithTokens,
+        register,
+        logout,
+        refreshUser,
+        // Always null — tokens live in httpOnly cookies now
+        token: null,
+      }}
     >
       {children}
     </AuthContext.Provider>

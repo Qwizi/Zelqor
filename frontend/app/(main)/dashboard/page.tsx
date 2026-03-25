@@ -8,19 +8,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useConfig, useFriends, useMyDecks, useMyMatches, useReceivedRequests } from "@/hooks/queries";
+import {
+  useConfig,
+  useFriends,
+  useInviteFriendToGame,
+  useMyDecks,
+  useMyMatches,
+  useReceivedRequests,
+  useStartTutorial,
+} from "@/hooks/queries";
 import { useAuth } from "@/hooks/useAuth";
 import { useChat } from "@/hooks/useChat";
 import { useMatchmaking } from "@/hooks/useMatchmaking";
-import {
-  type DeckOut,
-  type FriendshipOut,
-  type FriendUser,
-  type GameModeListItem,
-  inviteFriendToGame,
-  type Match,
-  startTutorial,
-} from "@/lib/api";
+import type { DeckOut, FriendshipOut, FriendUser, GameModeListItem, Match } from "@/lib/api";
 
 function activityDot(status: string): string {
   switch (status) {
@@ -95,7 +95,7 @@ const MODE_ICONS: Record<string, typeof Users> = {
 };
 
 export default function DashboardPage() {
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const {
     inQueue,
     playersInQueue,
@@ -116,7 +116,8 @@ export default function DashboardPage() {
 
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
-  const [tutorialLoading, setTutorialLoading] = useState(false);
+  const tutorialMutation = useStartTutorial();
+  const inviteMutation = useInviteFriendToGame();
 
   const { data: configData } = useConfig();
   const { data: matchesData } = useMyMatches(5, undefined, { refetchInterval: 10_000 });
@@ -175,15 +176,11 @@ export default function DashboardPage() {
     if (activeMatchId) router.push(`/game/${activeMatchId}`);
   }, [activeMatchId, router]);
 
-  const handleStartTutorial = async () => {
-    if (!token || tutorialLoading) return;
-    setTutorialLoading(true);
-    try {
-      const r = await startTutorial(token);
-      router.push(`/game/${r.match_id}`);
-    } catch {
-      setTutorialLoading(false);
-    }
+  const handleStartTutorial = () => {
+    if (tutorialMutation.isPending) return;
+    tutorialMutation.mutate(undefined, {
+      onSuccess: (r) => router.push(`/game/${r.match_id}`),
+    });
   };
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -291,7 +288,7 @@ export default function DashboardPage() {
         ].map((s) => (
           <div
             key={s.key}
-            className="flex shrink-0 items-center gap-3 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-4 py-3 md:px-4 md:py-3.5 md:flex-col md:items-start md:gap-1.5 min-w-[140px] md:min-w-0 hover-lift"
+            className="flex shrink-0 items-center gap-3 rounded-2xl bg-card/60 md:bg-card border border-transparent md:border-border px-4 py-3 md:px-4 md:py-3.5 md:flex-col md:items-start md:gap-1.5 min-w-[140px] md:min-w-0 card-tactical"
           >
             <div className="flex items-center gap-2 md:gap-2">
               <s.icon className={`h-4 w-4 text-muted-foreground ${s.desktopIcon}`} />
@@ -315,7 +312,7 @@ export default function DashboardPage() {
         <div className="px-4 md:px-0">
           <button
             onClick={() => router.push(`/game/${activeMatch.id}`)}
-            className="flex w-full items-center gap-4 rounded-2xl bg-primary/10 border border-primary/20 md:border-primary/30 p-4 md:p-6 md:flex-row md:text-left transition-all active:scale-[0.98] hover:bg-primary/15 md:shadow-[0_0_20px_rgba(34,211,238,0.08)] md:hover:shadow-[0_0_30px_rgba(34,211,238,0.15)]"
+            className="flex w-full items-center gap-4 rounded-2xl bg-primary/10 border border-primary/20 md:border-primary/30 p-4 md:p-6 md:flex-row md:text-left btn-tactical hover:bg-primary/15 md:shadow-[0_0_20px_rgba(34,211,238,0.08)] md:hover:shadow-[0_0_30px_rgba(34,211,238,0.15)]"
           >
             <div className="h-3 w-3 md:h-4 md:w-4 animate-pulse rounded-full bg-primary shrink-0" />
             <div className="flex-1 min-w-0">
@@ -747,6 +744,7 @@ export default function DashboardPage() {
                                   "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card",
                                   activityDot(friend.activity_status),
                                 )}
+                                aria-label={activityLabel(friend.activity_status, friend.activity_details)}
                               />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -779,15 +777,20 @@ export default function DashboardPage() {
                             title="Zaproś do gry"
                             disabled={inQueue}
                             onClick={async () => {
-                              if (!token || !selectedMode) return;
+                              if (!selectedMode) return;
                               toast.info("Tworzenie lobby...", { id: "dashboard-creating-lobby" });
-                              try {
-                                await inviteFriendToGame(token, friendship.id, selectedMode);
-                                joinQueue(selectedMode);
-                                toast.success("Zaproszenie wysłane!", { id: "dashboard-invite-sent" });
-                              } catch {
-                                toast.error("Nie udało się wysłać zaproszenia", { id: "dashboard-invite-error" });
-                              }
+                              inviteMutation.mutate(
+                                { friendshipId: friendship.id, gameMode: selectedMode },
+                                {
+                                  onSuccess: () => {
+                                    joinQueue(selectedMode);
+                                    toast.success("Zaproszenie wysłane!", { id: "dashboard-invite-sent" });
+                                  },
+                                  onError: () => {
+                                    toast.error("Nie udało się wysłać zaproszenia", { id: "dashboard-invite-error" });
+                                  },
+                                },
+                              );
                             }}
                             className="shrink-0 flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 disabled:opacity-30 disabled:pointer-events-none transition-all"
                           >
@@ -869,7 +872,7 @@ export default function DashboardPage() {
         <div className="px-4 md:px-0">
           <button
             onClick={handleStartTutorial}
-            disabled={tutorialLoading}
+            disabled={tutorialMutation.isPending}
             className="flex w-full items-center gap-3 md:gap-5 rounded-2xl border border-accent/20 bg-accent/5 p-3 md:p-5 text-left transition-all hover:border-accent/35 hover:bg-accent/10 active:scale-[0.98]"
           >
             <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-xl bg-accent/15">

@@ -41,6 +41,8 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
         className="flex-1 rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs md:text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary/30 focus:outline-none disabled:opacity-40"
       />
       <button
+        type="button"
+        aria-label="Wyślij wiadomość"
         onClick={handleSend}
         disabled={disabled || !value.trim()}
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-30"

@@ -1,6 +1,7 @@
 """
-Test-only geo migration that replaces spatial fields with simple text fields.
-This lets tests run without PostGIS or GDAL installed.
+Test-only geo migration — uses plain Django fields instead of PostGIS spatial fields.
+This lets tests run on SQLite without GDAL/PostGIS.
+Represents the final state after 0004_remove_postgis_fields.
 """
 
 import uuid
@@ -21,8 +22,7 @@ class Migration(migrations.Migration):
                 ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
                 ("name", models.CharField(max_length=200)),
                 ("code", models.CharField(max_length=3, unique=True)),
-                # geometry replaced with TextField so no PostGIS needed in tests
-                ("geometry", models.TextField(blank=True, null=True)),
+                ("geometry", models.JSONField(blank=True, default=dict, help_text="GeoJSON geometry (MultiPolygon)")),
             ],
             options={
                 "verbose_name_plural": "countries",
@@ -35,12 +35,38 @@ class Migration(migrations.Migration):
                 ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
                 ("name", models.CharField(max_length=200)),
                 ("map_source_id", models.PositiveIntegerField(null=True, blank=True, db_index=True)),
-                # geometry/centroid replaced with TextField
-                ("geometry", models.TextField(blank=True, null=True)),
-                ("centroid", models.TextField(blank=True, null=True)),
+                ("geometry", models.JSONField(blank=True, default=dict, help_text="GeoJSON geometry (MultiPolygon)")),
+                ("centroid", models.JSONField(blank=True, default=list, help_text="[lon, lat] coordinate pair")),
                 ("is_coastal", models.BooleanField(default=False)),
                 ("sea_distances", models.JSONField(default=list, blank=True)),
-                ("population_weight", models.FloatField(default=1.0)),
+                ("population_weight", models.FloatField(default=1.0, help_text="Weight for unit generation rate")),
+                (
+                    "polygons_data",
+                    models.JSONField(
+                        blank=True,
+                        default=list,
+                        help_text='Polygon rings in game pixel coords: [{"name": ..., "points": [...]}, ...]',
+                    ),
+                ),
+                (
+                    "centroid_game",
+                    models.JSONField(blank=True, default=list, help_text="Centroid [x, y] in game pixel coords"),
+                ),
+                ("tiles", models.JSONField(blank=True, default=list, help_text='Grid tile positions: ["x,y", ...]')),
+                (
+                    "tile_chunks",
+                    models.JSONField(blank=True, default=list, help_text='Texture chunk coords: ["cx,cy", ...]'),
+                ),
+                ("border_tiles", models.JSONField(blank=True, default=list, help_text="Border tile positions")),
+                (
+                    "buildings_data",
+                    models.JSONField(blank=True, default=dict, help_text="Building placement data from source map"),
+                ),
+                ("capital_data", models.JSONField(blank=True, default=dict, help_text="Capital position and UI data")),
+                ("e_points", models.IntegerField(default=0, help_text="Economy/energy points")),
+                ("coast_port_tile", models.CharField(blank=True, default="", max_length=20)),
+                ("is_zone", models.BooleanField(default=False)),
+                ("is_enabled", models.BooleanField(default=True)),
                 (
                     "country",
                     models.ForeignKey(

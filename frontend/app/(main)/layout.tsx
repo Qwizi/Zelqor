@@ -1432,6 +1432,9 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
         {/* Mobile bottom bar                                                   */}
         {/* ------------------------------------------------------------------ */}
         <MobileBottomBar pathname={pathname} sheetOpen={sheetOpen} setSheetOpen={setSheetOpen} />
+        <footer className="hidden border-t border-border px-6 py-3 text-center text-xs text-muted-foreground md:block">
+          <span>&copy; {new Date().getFullYear()} MapLord. Wszelkie prawa zastrzezone.</span>
+        </footer>
       </div>
     </SocialSocketContext.Provider>
   );

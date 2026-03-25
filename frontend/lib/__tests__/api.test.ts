@@ -57,15 +57,25 @@ describe("fetchAPI via login()", () => {
     vi.unstubAllGlobals();
   });
 
-  it("makes a POST request to /token/pair with credentials", async () => {
+  it("makes a POST request to /auth/login/ with credentials", async () => {
     const mockFetch = vi.mocked(fetch);
-    mockFetch.mockResolvedValueOnce(makeResponse({ access: "acc", refresh: "ref" }));
+    const mockUser = {
+      id: "1",
+      username: "tester",
+      email: "user@example.com",
+      role: "player",
+      elo_rating: 1200,
+      date_joined: "",
+      tutorial_completed: false,
+      is_banned: false,
+    };
+    mockFetch.mockResolvedValueOnce(makeResponse({ user: mockUser }));
 
     await login("user@example.com", "secret");
 
     expect(mockFetch).toHaveBeenCalledOnce();
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toMatch(/\/token\/pair$/);
+    expect(url).toMatch(/\/auth\/login\/$/);
     expect(opts.method).toBe("POST");
     expect(JSON.parse(opts.body as string)).toEqual({
       email: "user@example.com",
@@ -73,10 +83,20 @@ describe("fetchAPI via login()", () => {
     });
   });
 
-  it("returns a TokenPair on success", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ access: "a", refresh: "r" }));
-    const tokens = await login("a@b.com", "pw");
-    expect(tokens).toEqual({ access: "a", refresh: "r" });
+  it("returns a LoginResponse (user object) on success", async () => {
+    const mockUser = {
+      id: "1",
+      username: "tester",
+      email: "a@b.com",
+      role: "player",
+      elo_rating: 1200,
+      date_joined: "",
+      tutorial_completed: false,
+      is_banned: false,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ user: mockUser }));
+    const result = await login("a@b.com", "pw");
+    expect(result).toEqual({ user: mockUser });
   });
 
   it("sets Content-Type: application/json header", async () => {
@@ -111,12 +131,8 @@ describe("fetchAPI via login()", () => {
     }
   });
 
-  it("includes Authorization header when token option is provided", async () => {
-    // Use getConfig as a stand-in for any authenticated endpoint.
-    // We need to call a function that accepts a token option — use register
-    // indirectly via a direct fetch mock inspection with login's token-less flow,
-    // but the cleanest way is to reach for a function that passes token.
-    // Import getMe locally to keep this test self-contained.
+  it("does not include Authorization header for cookie-based auth (getMe)", async () => {
+    // Auth is now cookie-based; getMe no longer sets an Authorization header.
     const { getMe } = await import("../api");
     vi.mocked(fetch).mockResolvedValueOnce(
       makeResponse({
@@ -130,10 +146,11 @@ describe("fetchAPI via login()", () => {
         is_banned: false,
       }),
     );
-    await getMe("my-jwt-token");
+    await getMe();
     const [, opts] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     const headers = opts.headers as Record<string, string>;
-    expect(headers.Authorization).toBe("Bearer my-jwt-token");
+    // Cookie-based auth — no Authorization header should be set
+    expect(headers.Authorization).toBeUndefined();
   });
 });
 
@@ -173,11 +190,15 @@ describe("register()", () => {
 });
 
 describe("getConfig()", () => {
-  it("caches the result and only calls fetch once for multiple calls", async () => {
-    // Reset module to clear the cache.
-    vi.resetModules();
-    const { getConfig: freshGetConfig } = await import("../api");
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("calls fetch each time (no client-side caching)", async () => {
     const cfg = {
       settings: {},
       buildings: [],
@@ -185,18 +206,18 @@ describe("getConfig()", () => {
       abilities: [],
       maps: [],
       game_modes: [],
+      modules: [],
+      system_modules: [],
     };
-    const mockFetch = vi.fn().mockResolvedValue(makeResponse(cfg));
-    vi.stubGlobal("fetch", mockFetch);
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(makeResponse(cfg)));
 
-    await freshGetConfig();
-    await freshGetConfig();
-    await freshGetConfig();
+    const { getConfig } = await import("../api");
 
-    expect(mockFetch).toHaveBeenCalledOnce();
+    await getConfig();
+    await getConfig();
 
-    vi.unstubAllGlobals();
-    vi.resetModules();
+    // No caching — each call hits fetch
+    expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });
 

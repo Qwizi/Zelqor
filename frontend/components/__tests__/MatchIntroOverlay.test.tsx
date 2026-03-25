@@ -40,6 +40,8 @@ vi.mock("lucide-react", () => ({
     React.createElement("span", { "data-testid": "icon-loader", className }),
   Swords: ({ className }: { className?: string }) =>
     React.createElement("span", { "data-testid": "icon-swords", className }),
+  CheckCircle2: ({ className }: { className?: string }) =>
+    React.createElement("span", { "data-testid": "icon-check-circle", className }),
 }));
 
 import MatchIntroOverlay, { type MatchIntroOverlayProps } from "@/components/game/MatchIntroOverlay";
@@ -74,6 +76,8 @@ function makeProps(overrides: Partial<MatchIntroOverlayProps> = {}): MatchIntroO
       "user-opp": PLAYER_OPPONENT,
     },
     myUserId: "user-me",
+    connected: true,
+    gameStateLoaded: true,
     mapReady: false,
     onComplete: vi.fn(),
     ...overrides,
@@ -139,18 +143,23 @@ describe("MatchIntroOverlay", () => {
     expect(screen.getByTestId("icon-loader")).toBeTruthy();
   });
 
-  it('renders "Gotowe!" when mapReady is true and min time elapsed', async () => {
-    render(React.createElement(MatchIntroOverlay, makeProps({ mapReady: true })));
+  it('renders "Gotowe!" when all conditions met and min time elapsed', async () => {
+    render(
+      React.createElement(MatchIntroOverlay, makeProps({ mapReady: true, connected: true, gameStateLoaded: true })),
+    );
     await act(async () => {
       vi.advanceTimersByTime(3001);
     });
     expect(screen.getByText("Gotowe!")).toBeTruthy();
   });
 
-  it("still shows loading when mapReady=true but min time has not elapsed", () => {
-    render(React.createElement(MatchIntroOverlay, makeProps({ mapReady: true })));
-    // Don't advance timers — min time not elapsed
-    expect(screen.getByText("Ładowanie mapy...")).toBeTruthy();
+  it("still shows overlay when mapReady=true but min time has not elapsed", () => {
+    render(
+      React.createElement(MatchIntroOverlay, makeProps({ mapReady: true, connected: true, gameStateLoaded: true })),
+    );
+    // Don't advance timers — min time not elapsed, overlay still visible
+    // Component renders but has not completed/dismissed yet
+    expect(screen.getByLabelText("Przygotowanie do bitwy")).toBeTruthy();
   });
 
   it('renders FFA layout "Wszyscy Przeciw Wszystkim" for >2 players', () => {
@@ -184,9 +193,9 @@ describe("MatchIntroOverlay", () => {
 
   it("renders progress dots", () => {
     const { container } = render(React.createElement(MatchIntroOverlay, makeProps()));
-    // 3 progress dots
-    const dots = container.querySelectorAll(".inline-block.h-1.w-1.rounded-full");
-    expect(dots.length).toBe(3);
+    // Progress dots for each step (4 steps: connect, game state, map, ready)
+    const dots = container.querySelectorAll(".inline-block.h-1\\.5.w-1\\.5.rounded-full");
+    expect(dots.length).toBe(4);
   });
 
   it("renders player initial avatar letters", () => {

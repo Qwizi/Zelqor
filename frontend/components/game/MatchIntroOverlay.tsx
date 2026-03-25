@@ -92,7 +92,7 @@ function PlayerCard({ player, isMe, side }: { player: PlayerInfo; isMe: boolean;
 
         <div className="flex flex-wrap items-center gap-1.5">
           {player.is_bot && (
-            <span className="rounded-full border border-zinc-600/50 bg-zinc-800/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+            <span className="rounded-full border border-zinc-600/50 bg-zinc-800/70 px-2 py-0.5 text-caption font-bold uppercase tracking-widest text-zinc-400">
               BOT
             </span>
           )}
@@ -190,8 +190,8 @@ function ProgressSteps({ steps, progress }: { steps: LoadingStep[]; progress: nu
 
       <div className="h-1.5 w-64 overflow-hidden rounded-full bg-zinc-800 sm:w-80">
         <div
-          className="h-full rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)] transition-all duration-500 ease-out"
-          style={{ width: `${progress}%` }}
+          className="h-full rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)] transition-transform duration-500 ease-out"
+          style={{ transform: `scaleX(${progress / 100})`, transformOrigin: "left" }}
         />
       </div>
 

@@ -57,10 +57,51 @@ impl AppConfig {
     }
 
     pub fn redis_url(&self) -> String {
+        if let Ok(password) = std::env::var("REDIS_PASSWORD") {
+            if !password.is_empty() {
+                return format!(
+                    "redis://:{}@{}:{}/{}",
+                    password, self.redis_host, self.redis_port, self.redis_game_db
+                );
+            }
+        }
         format!(
             "redis://{}:{}/{}",
             self.redis_host, self.redis_port, self.redis_game_db
         )
+    }
+
+    /// Validate configuration secrets.
+    ///
+    /// In production (`ENVIRONMENT=production`) insecure defaults cause a panic.
+    /// In all other environments they emit warnings so developers notice early.
+    pub fn validate(&self) {
+        let is_prod = std::env::var("ENVIRONMENT")
+            .unwrap_or_default()
+            .eq_ignore_ascii_case("production");
+
+        if is_prod {
+            if self.secret_key.starts_with("django-insecure") {
+                panic!("SECRET_KEY must be set to a secure value in production");
+            }
+            if self.internal_secret == "dev-internal-secret" {
+                panic!("INTERNAL_SECRET must be set to a secure value in production");
+            }
+            if std::env::var("REDIS_PASSWORD").unwrap_or_default().is_empty() {
+                panic!("REDIS_PASSWORD must be set in production");
+            }
+        } else {
+            if self.secret_key.starts_with("django-insecure") {
+                tracing::warn!(
+                    "Using insecure default SECRET_KEY — do not use in production"
+                );
+            }
+            if self.internal_secret == "dev-internal-secret" {
+                tracing::warn!(
+                    "Using insecure default INTERNAL_SECRET — do not use in production"
+                );
+            }
+        }
     }
 }
 
@@ -98,13 +139,37 @@ mod tests {
 
         #[test]
         fn url_contains_host_port_and_db() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::remove_var("REDIS_PASSWORD");
             let cfg = config_with("redis", 6379, 1);
             let url = cfg.redis_url();
             assert_eq!(url, "redis://redis:6379/1");
         }
 
         #[test]
+        fn url_includes_password_when_set() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("REDIS_PASSWORD", "s3cr3t");
+            let cfg = config_with("redis", 6379, 1);
+            let url = cfg.redis_url();
+            std::env::remove_var("REDIS_PASSWORD");
+            assert_eq!(url, "redis://:s3cr3t@redis:6379/1");
+        }
+
+        #[test]
+        fn url_without_password_when_env_empty() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("REDIS_PASSWORD", "");
+            let cfg = config_with("redis", 6379, 1);
+            let url = cfg.redis_url();
+            std::env::remove_var("REDIS_PASSWORD");
+            assert_eq!(url, "redis://redis:6379/1");
+        }
+
+        #[test]
         fn url_uses_custom_host() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::remove_var("REDIS_PASSWORD");
             let cfg = config_with("my-redis-host", 6380, 2);
             let url = cfg.redis_url();
             assert!(url.contains("my-redis-host"));
@@ -112,6 +177,8 @@ mod tests {
 
         #[test]
         fn url_uses_custom_port() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::remove_var("REDIS_PASSWORD");
             let cfg = config_with("localhost", 6380, 0);
             let url = cfg.redis_url();
             assert!(url.contains(":6380/"));
@@ -299,6 +366,202 @@ mod tests {
             let cfg = AppConfig::from_env();
             std::env::remove_var("REDIS_PORT");
             assert_eq!(cfg.redis_port, 6380);
+        }
+
+        #[test]
+        fn redis_game_db_invalid_string_falls_back_to_1() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("REDIS_GAME_DB", "not-a-u8");
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("REDIS_GAME_DB");
+            assert_eq!(cfg.redis_game_db, 1);
+        }
+
+        #[test]
+        fn redis_game_db_valid_override_is_respected() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("REDIS_GAME_DB", "3");
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("REDIS_GAME_DB");
+            assert_eq!(cfg.redis_game_db, 3);
+        }
+
+        #[test]
+        fn secret_key_override_is_respected() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("SECRET_KEY", "my-very-secure-secret-key");
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("SECRET_KEY");
+            assert_eq!(cfg.secret_key, "my-very-secure-secret-key");
+        }
+
+        #[test]
+        fn internal_secret_override_is_respected() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("INTERNAL_SECRET", "prod-internal-secret");
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("INTERNAL_SECRET");
+            assert_eq!(cfg.internal_secret, "prod-internal-secret");
+        }
+
+        #[test]
+        fn livekit_api_key_override_is_respected() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("LIVEKIT_API_KEY", "my-lk-key");
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("LIVEKIT_API_KEY");
+            assert_eq!(cfg.livekit_api_key, "my-lk-key");
+        }
+
+        #[test]
+        fn gateway_port_valid_override_is_respected() {
+            let _guard = super::ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("GATEWAY_PORT", "9090");
+            let cfg = AppConfig::from_env();
+            std::env::remove_var("GATEWAY_PORT");
+            assert_eq!(cfg.gateway_port, 9090);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // AppConfig::validate — production vs dev behaviour
+    // -----------------------------------------------------------------------
+
+    mod validate {
+        use super::*;
+
+        fn secure_config() -> AppConfig {
+            AppConfig {
+                secret_key: "a-very-long-and-secure-production-secret-key".to_string(),
+                redis_host: "redis".to_string(),
+                redis_port: 6379,
+                redis_game_db: 1,
+                django_internal_url: "http://backend:8000".to_string(),
+                internal_secret: "prod-internal-secret-not-default".to_string(),
+                gateway_port: 8080,
+                livekit_url: "ws://livekit:7880".to_string(),
+                livekit_public_url: "ws://localhost:7880".to_string(),
+                livekit_api_key: "prodkey".to_string(),
+                livekit_api_secret: "devsecret-maplord-at-least-32-chars-long".to_string(),
+                allowed_ws_origins: vec![],
+            }
+        }
+
+        fn insecure_config() -> AppConfig {
+            AppConfig {
+                secret_key: "django-insecure-dev-key-change-in-production".to_string(),
+                internal_secret: "dev-internal-secret".to_string(),
+                ..secure_config()
+            }
+        }
+
+        /// Run `validate()` under a specific `ENVIRONMENT` value and restore
+        /// both `ENVIRONMENT` and `REDIS_PASSWORD` afterwards.
+        fn run_validate_with_env(
+            cfg: &AppConfig,
+            environment: &str,
+            redis_password: Option<&str>,
+        ) {
+            let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+            let orig_env = std::env::var("ENVIRONMENT").ok();
+            let orig_pw = std::env::var("REDIS_PASSWORD").ok();
+
+            std::env::set_var("ENVIRONMENT", environment);
+            match redis_password {
+                Some(pw) => std::env::set_var("REDIS_PASSWORD", pw),
+                None => std::env::remove_var("REDIS_PASSWORD"),
+            }
+
+            cfg.validate();
+
+            match orig_env {
+                Some(v) => std::env::set_var("ENVIRONMENT", v),
+                None => std::env::remove_var("ENVIRONMENT"),
+            }
+            match orig_pw {
+                Some(v) => std::env::set_var("REDIS_PASSWORD", v),
+                None => std::env::remove_var("REDIS_PASSWORD"),
+            }
+        }
+
+        #[test]
+        fn dev_mode_with_insecure_defaults_does_not_panic() {
+            // In non-production environments insecure defaults are only warnings.
+            let cfg = insecure_config();
+            // Should not panic regardless of REDIS_PASSWORD.
+            run_validate_with_env(&cfg, "development", None);
+        }
+
+        #[test]
+        fn dev_mode_with_secure_config_does_not_panic() {
+            let cfg = secure_config();
+            run_validate_with_env(&cfg, "development", Some("s3cr3t"));
+        }
+
+        #[test]
+        fn staging_environment_with_insecure_defaults_does_not_panic() {
+            // "staging" is not "production" so the panic branch should not fire.
+            let cfg = insecure_config();
+            run_validate_with_env(&cfg, "staging", None);
+        }
+
+        #[test]
+        #[should_panic(expected = "SECRET_KEY must be set to a secure value in production")]
+        fn production_with_insecure_secret_key_panics() {
+            let cfg = insecure_config();
+            let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("ENVIRONMENT", "production");
+            std::env::set_var("REDIS_PASSWORD", "s3cr3t");
+            cfg.validate();
+        }
+
+        #[test]
+        #[should_panic(expected = "INTERNAL_SECRET must be set to a secure value in production")]
+        fn production_with_default_internal_secret_panics() {
+            let cfg = AppConfig {
+                secret_key: "secure-key-long-enough-for-production".to_string(),
+                internal_secret: "dev-internal-secret".to_string(),
+                ..secure_config()
+            };
+            let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("ENVIRONMENT", "production");
+            std::env::set_var("REDIS_PASSWORD", "s3cr3t");
+            cfg.validate();
+        }
+
+        #[test]
+        #[should_panic(expected = "REDIS_PASSWORD must be set in production")]
+        fn production_without_redis_password_panics() {
+            let cfg = secure_config();
+            let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("ENVIRONMENT", "production");
+            std::env::remove_var("REDIS_PASSWORD");
+            cfg.validate();
+        }
+
+        #[test]
+        #[should_panic(expected = "REDIS_PASSWORD must be set in production")]
+        fn production_with_empty_redis_password_panics() {
+            let cfg = secure_config();
+            let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("ENVIRONMENT", "production");
+            std::env::set_var("REDIS_PASSWORD", "");
+            cfg.validate();
+        }
+
+        #[test]
+        fn production_with_all_secure_values_does_not_panic() {
+            let cfg = secure_config();
+            run_validate_with_env(&cfg, "production", Some("strong-redis-password"));
+        }
+
+        #[test]
+        fn production_check_is_case_insensitive_for_environment_value() {
+            // "Production" (capital P) must also trigger the production checks.
+            // A secure config must pass.
+            let cfg = secure_config();
+            run_validate_with_env(&cfg, "Production", Some("strong-redis-password"));
         }
     }
 }

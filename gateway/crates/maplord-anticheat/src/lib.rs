@@ -91,18 +91,23 @@ impl PlayerProfile {
 // ---------------------------------------------------------------------------
 
 /// Compact action log entry stored in Redis for post-match analysis.
+///
+/// Serialized as a msgpack **map** (named fields) via `rmp_serde::to_vec_named`
+/// so that optional fields omitted during serialization are simply absent keys
+/// and can be filled by `#[serde(default)]` during deserialization without
+/// triggering the positional-length mismatch that a tuple-format msgpack would.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionLogEntry {
     pub tick: i64,
     pub player_id: String,
     pub action_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_region_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_region_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub units: Option<i64>,
 }
 
@@ -437,7 +442,10 @@ impl AnticheatEngine {
 
         for action in actions {
             let entry = ActionLogEntry::from((action, tick));
-            if let Ok(packed) = rmp_serde::to_vec(&entry) {
+            // Use named (map-based) msgpack so optional fields skipped during
+            // serialization are absent map keys rather than missing array slots,
+            // allowing `from_slice` to default them on the read path.
+            if let Ok(packed) = rmp_serde::to_vec_named(&entry) {
                 pipe.rpush(&key, packed).ignore();
             }
         }
@@ -522,8 +530,13 @@ impl AnticheatEngine {
         let mut per_player: HashMap<String, Vec<&Action>> = HashMap::new();
         for action in actions {
             if let Some(pid) = &action.player_id {
-                // Skip bots
-                if players.get(pid).map_or(false, |p| p.is_bot) {
+                // Skip legitimate bots — require both the is_bot flag and the
+                // "bot-" ID prefix so a human player cannot bypass anti-cheat
+                // by merely setting is_bot=true on a spoofed action.
+                if players
+                    .get(pid)
+                    .map_or(false, |p| p.is_bot && pid.starts_with("bot-"))
+                {
                     continue;
                 }
                 per_player.entry(pid.clone()).or_default().push(action);
@@ -867,17 +880,21 @@ mod tests {
 
         #[test]
         fn detects_flood_of_actions_in_single_tick() {
-            // Feed TIMING_WINDOW+2 actions all in one tick — all timestamps will be
-            // within 1ms of each other (since the spread is action_count-1 ms).
+            // To trigger the timing detector we need the inferred per-action interval
+            // (TICK_WINDOW_MS / action_count) to fall below MIN_ACTION_INTERVAL_MS.
+            // That requires action_count > TICK_WINDOW_MS / MIN_ACTION_INTERVAL_MS,
+            // i.e. > 1000 / 50 = 20, so use 21 actions (interval = 47ms < 50ms).
+            // We also need at least TIMING_WINDOW+1 timestamps in the buffer, which a
+            // single call with 21 actions satisfies (21 > 15+1).
+            let flood_count = (TICK_WINDOW_MS / MIN_ACTION_INTERVAL_MS + 1) as usize;
             let mut d = Detectors::new();
 
-            // First call sets up timestamps: 11 actions → timestamps spread across 10ms
-            let result = d.check_impossible_timing("p1", TIMING_WINDOW + 2, 1);
+            let result = d.check_impossible_timing("p1", flood_count, 1);
 
-            // All intervals will be 1ms, which is < MIN_ACTION_INTERVAL_MS (50ms)
+            // All TIMING_WINDOW intervals will be ~47ms, which is < MIN_ACTION_INTERVAL_MS
             assert!(
                 result.is_some(),
-                "11 actions in one tick should trigger impossible timing"
+                "{flood_count} actions in one tick should trigger impossible timing"
             );
             assert_eq!(result.unwrap().kind, ViolationKind::ImpossibleTiming);
         }
@@ -1194,6 +1211,410 @@ mod tests {
             let result = worse_verdict(a, b);
 
             assert_eq!(result, AnticheatVerdict::Allow);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // violation_score() — direct read of accumulated score
+    // -----------------------------------------------------------------------
+
+    mod violation_score {
+        use super::*;
+
+        #[test]
+        fn returns_zero_for_unknown_player() {
+            let d = Detectors::new();
+            assert_eq!(d.violation_score("nobody"), 0);
+        }
+
+        #[test]
+        fn returns_zero_for_player_with_no_violations() {
+            let mut d = Detectors::new();
+            // Touch the profile without adding any score.
+            d.profile("p1");
+            assert_eq!(d.violation_score("p1"), 0);
+        }
+
+        #[test]
+        fn returns_correct_score_after_single_apply() {
+            let mut d = Detectors::new();
+            d.apply_violation_score("p1", 25);
+            assert_eq!(d.violation_score("p1"), 25);
+        }
+
+        #[test]
+        fn returns_sum_after_multiple_applies() {
+            let mut d = Detectors::new();
+            d.apply_violation_score("p1", 10);
+            d.apply_violation_score("p1", 20);
+            d.apply_violation_score("p1", 5);
+            // 10 + 20 + 5 = 35
+            assert_eq!(d.violation_score("p1"), 35);
+        }
+
+        #[test]
+        fn scores_are_independent_between_players() {
+            let mut d = Detectors::new();
+            d.apply_violation_score("p1", 50);
+            d.apply_violation_score("p2", 10);
+            assert_eq!(d.violation_score("p1"), 50);
+            assert_eq!(d.violation_score("p2"), 10);
+        }
+
+        #[test]
+        fn saturates_at_u32_max_without_panic() {
+            let mut d = Detectors::new();
+            d.apply_violation_score("p1", u32::MAX);
+            d.apply_violation_score("p1", 1); // saturating_add: stays at u32::MAX
+            assert_eq!(d.violation_score("p1"), u32::MAX);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // apply_violation_score() — accumulation semantics
+    // -----------------------------------------------------------------------
+
+    mod apply_violation_score {
+        use super::*;
+
+        #[test]
+        fn creates_profile_on_first_call() {
+            let mut d = Detectors::new();
+            assert!(!d.profiles.contains_key("new_player"));
+            d.apply_violation_score("new_player", 1);
+            assert!(d.profiles.contains_key("new_player"));
+        }
+
+        #[test]
+        fn accumulates_across_many_calls() {
+            let mut d = Detectors::new();
+            for _ in 0..10 {
+                d.apply_violation_score("p1", 7);
+            }
+            assert_eq!(d.violation_score("p1"), 70);
+        }
+
+        #[test]
+        fn zero_severity_leaves_score_unchanged() {
+            let mut d = Detectors::new();
+            d.apply_violation_score("p1", 42);
+            d.apply_violation_score("p1", 0);
+            assert_eq!(d.violation_score("p1"), 42);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // check_action_flood — boundary and multi-type edge cases
+    // -----------------------------------------------------------------------
+
+    mod check_action_flood_edges {
+        use super::*;
+
+        #[test]
+        fn triggers_at_exact_threshold_sustained() {
+            // FLOOD_THRESHOLD itself satisfies `count >= FLOOD_THRESHOLD`, so
+            // sustaining exactly that value for FLOOD_WINDOW ticks must fire.
+            let mut d = Detectors::new();
+            let mut last = None;
+            for tick in 0..FLOOD_WINDOW as i64 {
+                last = d.check_action_flood("p1", FLOOD_THRESHOLD, tick);
+            }
+            assert!(
+                last.is_some(),
+                "exactly FLOOD_THRESHOLD actions/tick for FLOOD_WINDOW ticks should fire"
+            );
+            assert_eq!(last.unwrap().kind, ViolationKind::ActionFlood);
+        }
+
+        #[test]
+        fn does_not_trigger_one_below_threshold_sustained() {
+            // FLOOD_THRESHOLD - 1 must never trigger regardless of how long it persists.
+            let mut d = Detectors::new();
+            let mut last = None;
+            for tick in 0..(FLOOD_WINDOW as i64 * 2) {
+                last = d.check_action_flood("p1", FLOOD_THRESHOLD - 1, tick);
+            }
+            assert!(
+                last.is_none(),
+                "one below threshold should never produce a flood violation"
+            );
+        }
+
+        #[test]
+        fn different_players_tracked_independently_in_same_ticks() {
+            // Simulate two players sending actions in the same ticks; only p2
+            // floods — p1 stays below the threshold.
+            let mut d = Detectors::new();
+            let mut p2_last = None;
+            for tick in 0..FLOOD_WINDOW as i64 {
+                let _ = d.check_action_flood("p1", FLOOD_THRESHOLD - 1, tick);
+                p2_last = d.check_action_flood("p2", FLOOD_THRESHOLD + 10, tick);
+            }
+            // p1 should be clean
+            for tick in 0..FLOOD_WINDOW as i64 {
+                let r = d.check_action_flood("p1", FLOOD_THRESHOLD - 1, tick);
+                assert!(r.is_none(), "p1 below threshold should never flood");
+            }
+            // p2 should have fired
+            assert!(p2_last.is_some(), "p2 at high rate should produce a flood violation");
+            assert_eq!(p2_last.unwrap().player_id, "p2");
+        }
+
+        #[test]
+        fn single_high_tick_among_low_ticks_does_not_trigger() {
+            // Fill FLOOD_WINDOW - 1 ticks below threshold, then one very high
+            // tick — the window still contains low ticks, so no violation.
+            let mut d = Detectors::new();
+            for tick in 0..(FLOOD_WINDOW as i64 - 1) {
+                let _ = d.check_action_flood("p1", FLOOD_THRESHOLD - 1, tick);
+            }
+            let result = d.check_action_flood("p1", FLOOD_THRESHOLD * 100, FLOOD_WINDOW as i64);
+            assert!(
+                result.is_none(),
+                "isolated high tick surrounded by low ticks should not trigger flood"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // check_fog_of_war — additional edge cases
+    // -----------------------------------------------------------------------
+
+    mod check_fog_of_war_edges {
+        use super::*;
+
+        fn build_star_map() -> (HashMap<String, Region>, HashMap<String, Vec<String>>) {
+            // Center owned by p1; four spokes: N, S, E, W each at 1 hop.
+            // N2 is 2 hops (neighbor of N but not of center).
+            let mut regions = HashMap::new();
+            regions.insert("center".into(), make_region(Some("p1"), 1));
+            regions.insert("N".into(), make_region(None, 0));
+            regions.insert("S".into(), make_region(None, 0));
+            regions.insert("E".into(), make_region(None, 0));
+            regions.insert("W".into(), make_region(None, 0));
+            regions.insert("N2".into(), make_region(None, 0));
+
+            let mut neighbors = HashMap::new();
+            neighbors.insert("center".into(), vec!["N".into(), "S".into(), "E".into(), "W".into()]);
+            neighbors.insert("N".into(), vec!["center".into(), "N2".into()]);
+            neighbors.insert("S".into(), vec!["center".into()]);
+            neighbors.insert("E".into(), vec!["center".into()]);
+            neighbors.insert("W".into(), vec!["center".into()]);
+            neighbors.insert("N2".into(), vec!["N".into()]);
+
+            (regions, neighbors)
+        }
+
+        #[test]
+        fn attack_on_direct_neighbor_passes() {
+            // N is exactly 1 hop away — should pass with vision_range = 1.
+            let (regions, neighbors) = build_star_map();
+            let action = attack_action("p1", "center", "N");
+            let result = Detectors::check_fog_of_war("p1", &action, 1, &regions, &neighbors);
+            assert!(result.is_none(), "attack on direct neighbor should not be flagged");
+        }
+
+        #[test]
+        fn attack_two_hops_beyond_vision_is_flagged() {
+            // N2 is 2 hops away; vision_range = 1, so N2 is outside visibility.
+            let (regions, neighbors) = build_star_map();
+            let action = attack_action("p1", "center", "N2");
+            let result = Detectors::check_fog_of_war("p1", &action, 1, &regions, &neighbors);
+            assert!(result.is_some(), "attack 2 hops beyond vision should be flagged");
+            assert_eq!(result.unwrap().kind, ViolationKind::FogOfWarAbuse);
+        }
+
+        #[test]
+        fn two_attackers_from_different_source_regions_both_evaluated() {
+            // p1 owns both "center" and "E" (make E owned for this test).
+            let (mut regions, neighbors) = build_star_map();
+            regions.insert("E".into(), make_region(Some("p1"), 1));
+
+            // E can see W (since E is neighbor of center, center is neighbor of W).
+            // But N2 is still outside combined visibility.
+            let action_valid = attack_action("p1", "E", "W");
+            let action_invalid = attack_action("p1", "center", "N2");
+
+            let r1 = Detectors::check_fog_of_war("p1", &action_valid, 1, &regions, &neighbors);
+            let r2 = Detectors::check_fog_of_war("p1", &action_invalid, 1, &regions, &neighbors);
+
+            assert!(r1.is_none(), "W is visible from E via center's vision; should pass");
+            assert!(r2.is_some(), "N2 is outside p1's combined visibility; should be flagged");
+        }
+
+        #[test]
+        fn player_with_no_owned_regions_cannot_see_anything() {
+            let (regions, neighbors) = build_star_map();
+            // "p2" owns nothing in this map.
+            let action = attack_action("p2", "N", "center");
+            let result = Detectors::check_fog_of_war("p2", &action, 1, &regions, &neighbors);
+            assert!(
+                result.is_some(),
+                "player with no owned regions should not be able to see any target"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // check_repetitive_pattern — edge cases
+    // -----------------------------------------------------------------------
+
+    mod check_repetitive_pattern_edges {
+        use super::*;
+
+        fn make_typed_action(player_id: &str, kind: &str) -> Action {
+            Action {
+                action_type: kind.to_string(),
+                player_id: Some(player_id.to_string()),
+                source_region_id: Some("src".to_string()),
+                target_region_id: Some("tgt".to_string()),
+                ..Default::default()
+            }
+        }
+
+        #[test]
+        fn empty_history_returns_none() {
+            let mut d = Detectors::new();
+            let result = d.check_repetitive_pattern("p1", &[], 1);
+            assert!(result.is_none(), "empty action slice should never trigger");
+        }
+
+        #[test]
+        fn all_same_actions_degenerate_case_triggers() {
+            // Submitting REPETITION_SEQ_LEN * REPETITION_MIN_REPEATS identical actions
+            // in one call means every chunk equals the first chunk — must trigger.
+            let mut d = Detectors::new();
+            let count = REPETITION_SEQ_LEN * REPETITION_MIN_REPEATS;
+            let actions: Vec<Action> = (0..count)
+                .map(|_| make_typed_action("p1", "attack"))
+                .collect();
+            let refs: Vec<&Action> = actions.iter().collect();
+
+            let result = d.check_repetitive_pattern("p1", &refs, 1);
+            assert!(
+                result.is_some(),
+                "all-identical actions filling exactly min_len should trigger repetition"
+            );
+            assert_eq!(result.unwrap().kind, ViolationKind::RepetitivePattern);
+        }
+
+        #[test]
+        fn pattern_length_exactly_min_repeat_length_triggers() {
+            // Feed the same REPETITION_SEQ_LEN-action pattern exactly
+            // REPETITION_MIN_REPEATS times — the minimum required to detect.
+            let mut d = Detectors::new();
+            // Use distinct actions so the pattern is non-trivial.
+            let pattern: Vec<Action> = (0..REPETITION_SEQ_LEN)
+                .map(|i| make_typed_action("p1", &format!("action_type_{i}")))
+                .collect();
+            let pattern_refs: Vec<&Action> = pattern.iter().collect();
+
+            let mut last = None;
+            for rep in 0..REPETITION_MIN_REPEATS as i64 {
+                last = d.check_repetitive_pattern("p1", &pattern_refs, rep);
+            }
+            assert!(
+                last.is_some(),
+                "pattern repeated exactly REPETITION_MIN_REPEATS times should trigger"
+            );
+        }
+
+        #[test]
+        fn two_repeats_below_min_does_not_trigger() {
+            // Only REPETITION_MIN_REPEATS - 1 repetitions — must not fire.
+            let mut d = Detectors::new();
+            let pattern: Vec<Action> = (0..REPETITION_SEQ_LEN)
+                .map(|i| make_typed_action("p1", &format!("type_{i}")))
+                .collect();
+            let pattern_refs: Vec<&Action> = pattern.iter().collect();
+
+            let mut last = None;
+            for rep in 0..(REPETITION_MIN_REPEATS as i64 - 1) {
+                last = d.check_repetitive_pattern("p1", &pattern_refs, rep);
+            }
+            // The check only becomes possible once there are >= min_len sigs in the buffer,
+            // so with fewer repeats we might still get None; either way no violation.
+            assert!(
+                last.is_none(),
+                "fewer than REPETITION_MIN_REPEATS repetitions must not trigger"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // check_impossible_timing — boundary and multi-tick edge cases
+    // -----------------------------------------------------------------------
+
+    mod check_impossible_timing_edges {
+        use super::*;
+
+        #[test]
+        fn insufficient_history_returns_none_regardless_of_tick_count() {
+            // The timing detector requires TIMING_WINDOW + 1 timestamps before it
+            // can evaluate. With 1 action per call, TIMING_WINDOW calls produce
+            // exactly TIMING_WINDOW timestamps — one short of the required
+            // TIMING_WINDOW + 1 — so every call must return None.
+            let mut d = Detectors::new();
+            let mut last = None;
+            for tick in 0..TIMING_WINDOW as i64 {
+                last = d.check_impossible_timing("p1", 1, tick);
+            }
+            assert!(
+                last.is_none(),
+                "fewer than TIMING_WINDOW + 1 timestamps should always return None"
+            );
+        }
+
+        #[test]
+        fn exactly_at_boundary_interval_does_not_trigger() {
+            // We want to verify that when the inferred interval is exactly
+            // MIN_ACTION_INTERVAL_MS the check does NOT fire (`<` is strict).
+            // interval_ms = TICK_WINDOW_MS / action_count = MIN_ACTION_INTERVAL_MS
+            // => action_count = TICK_WINDOW_MS / MIN_ACTION_INTERVAL_MS = 20
+            let boundary_count = (TICK_WINDOW_MS / MIN_ACTION_INTERVAL_MS) as usize; // 20
+            let mut d = Detectors::new();
+            // Need TIMING_WINDOW + 1 timestamps; one call gives boundary_count entries.
+            // Call twice to ensure the buffer has enough entries.
+            let _ = d.check_impossible_timing("p1", boundary_count, 1);
+            let result = d.check_impossible_timing("p1", boundary_count, 2);
+            // With interval == MIN_ACTION_INTERVAL_MS the condition `interval < MIN` is
+            // false, so fast_count stays 0 — no violation.
+            assert!(
+                result.is_none(),
+                "interval exactly at MIN_ACTION_INTERVAL_MS boundary must not trigger"
+            );
+        }
+
+        #[test]
+        fn just_above_boundary_triggers() {
+            // action_count = boundary + 1  =>  interval = 1000/21 ≈ 47ms < 50ms.
+            // Every pair will be fast, so the detector must fire once the buffer fills.
+            let above_boundary = (TICK_WINDOW_MS / MIN_ACTION_INTERVAL_MS + 1) as usize; // 21
+            let mut d = Detectors::new();
+            // One call of 21 pushes 21 timestamps (> TIMING_WINDOW + 1 = 16).
+            let result = d.check_impossible_timing("p1", above_boundary, 1);
+            assert!(
+                result.is_some(),
+                "action_count one above boundary should trigger impossible timing"
+            );
+            assert_eq!(result.unwrap().kind, ViolationKind::ImpossibleTiming);
+        }
+
+        #[test]
+        fn different_players_timing_is_independent() {
+            // p1 sends a flood; p2 sends only 1 action per tick.
+            let flood_count = (TICK_WINDOW_MS / MIN_ACTION_INTERVAL_MS + 1) as usize;
+            let mut d = Detectors::new();
+
+            let p1_result = d.check_impossible_timing("p1", flood_count, 1);
+            // p2: single action — nowhere near filling TIMING_WINDOW for p2
+            for tick in 0..5 {
+                let _ = d.check_impossible_timing("p2", 1, tick);
+            }
+            let p2_score = d.violation_score("p2");
+
+            assert!(p1_result.is_some(), "p1 flood should trigger timing violation");
+            assert_eq!(p2_score, 0, "p2 with single actions/tick should have no violation score");
         }
     }
 }

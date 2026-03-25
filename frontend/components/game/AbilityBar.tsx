@@ -279,7 +279,7 @@ function AbilityButton({
         {/* Remaining uses badge — top-right corner (hidden when unlimited / ≥100) */}
         {remainingUses !== undefined && remainingUses < 100 && (
           <span
-            className={`absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-secondary font-display font-bold tabular-nums leading-none ${badgeColor} text-[10px]`}
+            className={`absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-secondary font-display font-bold tabular-nums leading-none ${badgeColor} text-caption`}
           >
             {remainingUses}
           </span>
@@ -287,7 +287,7 @@ function AbilityButton({
 
         {/* Boost indicator chip — bottom-left corner */}
         {isBoost && !isOnCooldown && (
-          <span className="absolute -bottom-1 -left-1 rounded-sm border border-accent/40 bg-card/90 px-1 py-px font-bold uppercase leading-none tracking-widest text-accent text-[10px]">
+          <span className="absolute -bottom-1 -left-1 rounded-sm border border-accent/40 bg-card/90 px-1 py-px font-bold uppercase leading-none tracking-widest text-accent text-caption">
             BOOST
           </span>
         )}
@@ -295,7 +295,7 @@ function AbilityButton({
 
       {/* Cost badge — below button, always visible */}
       <div
-        className={`mt-0.5 text-center font-display font-bold tabular-nums text-[10px] sm:text-xs ${
+        className={`mt-0.5 text-center font-display font-bold tabular-nums text-caption sm:text-xs ${
           canAfford ? "text-accent" : "text-destructive"
         }`}
       >
@@ -305,7 +305,7 @@ function AbilityButton({
       {/* Level badge — shown when ability level is known */}
       {abilityLevel !== undefined && (
         <div
-          className={`text-center font-display font-bold tabular-nums leading-none text-[10px] sm:text-xs ${
+          className={`text-center font-display font-bold tabular-nums leading-none text-caption sm:text-xs ${
             abilityLevel >= 3 ? "text-accent" : abilityLevel === 2 ? "text-primary" : "text-muted-foreground"
           }`}
         >

@@ -67,9 +67,9 @@ describe("createSocket", () => {
     expect(MockWebSocket.instances).toHaveLength(1);
   });
 
-  it("includes the token as a query parameter", () => {
+  it("does not include the token as a query parameter (token is sent as first message)", () => {
     createSocket("/game/1", "mytoken", vi.fn());
-    expect(MockWebSocket.instances[0].url).toContain("token=mytoken");
+    expect(MockWebSocket.instances[0].url).not.toContain("token=");
   });
 
   it("omits the token parameter when token is null", () => {

@@ -1,9 +1,22 @@
 # Python
-.venv
-__pycache__
+.venv/
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# Test / Coverage (not needed in production image)
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+apps/test_*.py
+apps/*/tests.py
+conftest.py
+
+# Linters
+.ruff_cache/
+.mypy_cache/
 
 # Frontend (not needed for backend image)
 frontend/
@@ -11,7 +24,7 @@ frontend/
 # Rust gateway (not needed for backend image)
 gateway/
 
-# Other apps/services (not needed for backend image)
+# Other apps/services
 promo/
 desktop/
 twa/
@@ -22,17 +35,20 @@ redis/
 .claude/
 .agents/
 skills-lock.json
+.vscode/
+.idea/
 Makefile
 
 # Documentation
 *.md
 
-# Docker/infra config
+# Docker/infra config (avoid recursive COPY)
 compose*.yml
 Dockerfile*
+.dockerignore
 
 # Dev artifacts
-.git
+.git/
 .gitignore
 .env
 .env.*

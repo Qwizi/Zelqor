@@ -87,7 +87,7 @@ function DMChatView({ friendId, friendUsername, currentUserId, token }: DMChatVi
     });
   }, [onDirectMessage, friendId, currentUserId]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
@@ -128,7 +128,7 @@ function DMChatView({ friendId, friendUsername, currentUserId, token }: DMChatVi
           <div className="flex flex-col items-center justify-center h-full gap-1 text-muted-foreground">
             <MessageSquare className="h-6 w-6 opacity-20" />
             <span className="text-xs">Brak wiadomości</span>
-            <span className="text-[10px] text-muted-foreground/50">Napisz do {friendUsername}!</span>
+            <span className="text-caption text-muted-foreground/50">Napisz do {friendUsername}!</span>
           </div>
         ) : (
           messages.map((msg) => {
@@ -145,7 +145,7 @@ function DMChatView({ friendId, friendUsername, currentUserId, token }: DMChatVi
                   >
                     {msg.content}
                   </div>
-                  <span className="text-[10px] text-muted-foreground/50 tabular-nums px-0.5">
+                  <span className="text-caption text-muted-foreground/50 tabular-nums px-0.5">
                     {formatDMTime(msg.created_at)}
                   </span>
                 </div>
@@ -215,7 +215,7 @@ export default function ChatWidget() {
   return (
     <div className="fixed bottom-16 right-3 z-50 flex flex-col items-end gap-2 md:bottom-6 md:right-6">
       {chatOpen && (
-        <div className="flex h-[380px] w-[calc(100vw-1.5rem)] max-w-sm md:h-[500px] md:w-[420px] flex-col overflow-hidden rounded-2xl border border-border bg-card/95 shadow-2xl shadow-black/20 backdrop-blur-xl">
+        <div className="flex h-[380px] w-[calc(100vw-1.5rem)] max-w-sm md:h-[500px] md:w-[420px] flex-col overflow-hidden rounded-2xl border border-border bg-card/95 shadow-2xl shadow-black/20 backdrop-blur-xl animate-mil-in">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5 shrink-0">
             <div className="flex items-center gap-2">
@@ -229,6 +229,7 @@ export default function ChatWidget() {
             </div>
             <button
               onClick={() => setChatOpen(false)}
+              aria-label="Minimalizuj czat"
               className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <Minus className="h-4 w-4" />
@@ -265,7 +266,7 @@ export default function ChatWidget() {
                   >
                     <span>{tab.friendUsername}</span>
                     {unread > 0 && (
-                      <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
+                      <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-micro font-bold text-white">
                         {unread > 9 ? "9+" : unread}
                       </span>
                     )}
@@ -326,7 +327,7 @@ export default function ChatWidget() {
             {chatOpen ? <X className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
             {!chatOpen && totalUnread > 0 && (
               <span
-                className={`absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-0.5 text-[10px] font-bold text-white ${totalDmUnread > 0 ? "bg-primary animate-pulse" : "bg-destructive"}`}
+                className={`absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-0.5 text-caption font-bold text-white ${totalDmUnread > 0 ? "bg-primary animate-pulse" : "bg-destructive"}`}
               >
                 {totalUnread > 99 ? "99+" : totalUnread}
               </span>

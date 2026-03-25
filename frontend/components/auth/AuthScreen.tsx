@@ -47,7 +47,7 @@ export default function AuthScreen({
         <div className="md:rounded-2xl md:border md:border-border md:bg-card/80 md:backdrop-blur-xl md:shadow-xl md:shadow-black/10">
           <div className="space-y-6 md:p-10 lg:p-12">
             <div>
-              <p className="text-[11px] md:text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+              <p className="text-label md:text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
                 {eyebrow}
               </p>
               <h1 className="mt-2 font-display text-3xl md:text-4xl text-foreground leading-tight">{title}</h1>

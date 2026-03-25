@@ -23,7 +23,7 @@ export function scaleIn(targets: gsap.TweenTarget, options?: { delay?: number; d
   return gsap.fromTo(
     targets,
     { scale: 0.85, opacity: 0 },
-    { scale: 1, opacity: 1, duration, delay, stagger, ease: "back.out(1.4)" },
+    { scale: 1, opacity: 1, duration, delay, stagger, ease: "power3.out" },
   );
 }
 

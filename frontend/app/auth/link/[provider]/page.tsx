@@ -12,7 +12,7 @@ function LinkContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { token } = useAuth();
+  const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const processedRef = useRef(false);
 
@@ -35,7 +35,7 @@ function LinkContent() {
       return;
     }
 
-    if (!token) {
+    if (!user) {
       setError("Musisz być zalogowany aby podłączyć konto.");
       return;
     }
@@ -47,7 +47,7 @@ function LinkContent() {
 
     const redirectUri = `${window.location.origin}/auth/link/${provider}`;
 
-    linkSocialAccount(token, provider, code, redirectUri, state)
+    linkSocialAccount(provider, code, redirectUri, state)
       .then(() => {
         toast.success(`Konto ${provider === "google" ? "Google" : "Discord"} zostało podłączone.`, {
           id: "auth-link-success",
@@ -57,7 +57,7 @@ function LinkContent() {
       .catch(() => {
         setError("Nie udało się podłączyć konta. Możliwe, że jest już używane.");
       });
-  }, [code, state, errorParam, provider, router, token]);
+  }, [code, state, errorParam, provider, router, user]);
 
   if (error) {
     return (

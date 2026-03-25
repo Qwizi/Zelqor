@@ -4,12 +4,14 @@ import re
 import uuid
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model
 from django.db import IntegrityError
 from django.db.models import Avg, Count, Q
+from django.http import JsonResponse
 from ninja.errors import HttpError
 from ninja_extra import api_controller, route
 from ninja_extra.permissions import IsAuthenticated
+from ninja_jwt.tokens import RefreshToken
 
 import redis as redis_lib
 from apps.accounts.auth import ActiveUserJWTAuth
@@ -18,6 +20,7 @@ from apps.accounts.schemas import (
     ChangePasswordSchema,
     ChangeUsernameSchema,
     LeaderboardEntrySchema,
+    LoginSchema,
     PushSubscriptionSchema,
     RegisterSchema,
     SetPasswordSchema,
@@ -108,6 +111,81 @@ class AuthController:
             pass
 
         return user
+
+    @route.post("/login/", auth=None)
+    def login(self, request, payload: LoginSchema):
+        """Login and set JWT tokens as httpOnly cookies."""
+        user = authenticate(
+            request,
+            username=payload.email,
+            password=payload.password,
+        )
+        if not user:
+            raise HttpError(401, "Invalid credentials")
+        if not user.is_active:
+            raise HttpError(403, "Account is inactive")
+        if getattr(user, "is_banned", False):
+            raise HttpError(403, "Account is banned")
+
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        response = JsonResponse({"user": UserOutSchema.from_orm(user).model_dump()})
+        response.set_cookie(
+            settings.JWT_COOKIE_NAME,
+            access_token,
+            max_age=int(settings.NINJA_JWT["ACCESS_TOKEN_LIFETIME"].total_seconds()),
+            httponly=settings.JWT_COOKIE_HTTPONLY,
+            secure=settings.JWT_COOKIE_SECURE,
+            samesite=settings.JWT_COOKIE_SAMESITE,
+            path=settings.JWT_COOKIE_PATH,
+            domain=settings.JWT_COOKIE_DOMAIN,
+        )
+        response.set_cookie(
+            settings.JWT_REFRESH_COOKIE_NAME,
+            str(refresh),
+            max_age=int(settings.NINJA_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds()),
+            httponly=settings.JWT_COOKIE_HTTPONLY,
+            secure=settings.JWT_COOKIE_SECURE,
+            samesite=settings.JWT_COOKIE_SAMESITE,
+            path=settings.JWT_COOKIE_PATH,
+            domain=settings.JWT_COOKIE_DOMAIN,
+        )
+        return response
+
+    @route.post("/token/refresh/", auth=None)
+    def token_refresh(self, request):
+        """Refresh access token using the httpOnly refresh cookie."""
+        refresh_token_value = request.COOKIES.get(settings.JWT_REFRESH_COOKIE_NAME)
+        if not refresh_token_value:
+            raise HttpError(401, "No refresh token")
+
+        try:
+            refresh = RefreshToken(refresh_token_value)
+            access_token = str(refresh.access_token)
+        except Exception:
+            raise HttpError(401, "Invalid refresh token") from None
+
+        response = JsonResponse({"ok": True})
+        response.set_cookie(
+            settings.JWT_COOKIE_NAME,
+            access_token,
+            max_age=int(settings.NINJA_JWT["ACCESS_TOKEN_LIFETIME"].total_seconds()),
+            httponly=settings.JWT_COOKIE_HTTPONLY,
+            secure=settings.JWT_COOKIE_SECURE,
+            samesite=settings.JWT_COOKIE_SAMESITE,
+            path=settings.JWT_COOKIE_PATH,
+            domain=settings.JWT_COOKIE_DOMAIN,
+        )
+        return response
+
+    @route.post("/logout/", auth=None)
+    def logout(self, request):
+        """Clear JWT cookies."""
+        response = JsonResponse({"ok": True})
+        response.delete_cookie(settings.JWT_COOKIE_NAME, path=settings.JWT_COOKIE_PATH)
+        response.delete_cookie(settings.JWT_REFRESH_COOKIE_NAME, path=settings.JWT_COOKIE_PATH)
+        return response
 
     @route.get("/me", response=UserOutSchema, auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
     def me(self, request):

@@ -145,14 +145,14 @@ export default memo(function ActionBar({
   if (maxUnits < 1) return null;
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-30 px-2 pb-2 sm:left-1/2 sm:right-auto sm:w-[min(480px,calc(100vw-1rem))] sm:-translate-x-1/2 sm:px-0 sm:pb-3">
+    <div className="absolute inset-x-0 bottom-0 z-30 px-2 pb-2 sm:left-1/2 sm:right-auto sm:w-[min(480px,calc(100vw-1rem))] sm:-translate-x-1/2 sm:px-0 sm:pb-3 animate-mil-in">
       <div
-        className={`overflow-hidden rounded-xl border bg-card sm:bg-card/90 shadow-lg sm:shadow-[0_-10px_32px_rgba(0,0,0,0.28)] sm:backdrop-blur-xl ${accentClass}`}
+        className={`overflow-hidden rounded-xl border bg-card sm:bg-card/90 shadow-lg sm:shadow-(--shadow-bar) sm:backdrop-blur-xl ${accentClass}`}
       >
         <div className="sm:hidden p-1.5 space-y-1">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{sourceName}</div>
+              <div className="text-caption uppercase tracking-[0.16em] text-muted-foreground">{sourceName}</div>
             </div>
             <button
               onClick={onCancel}
@@ -161,7 +161,7 @@ export default memo(function ActionBar({
             >
               <Image
                 src={getActionAsset("close")}
-                alt=""
+                alt="Anuluj"
                 width={14}
                 height={14}
                 className="h-3.5 w-3.5 object-contain"
@@ -188,13 +188,13 @@ export default memo(function ActionBar({
                 >
                   <Image
                     src={getPlayerUnitAsset(unitType, myCosmetics, unitCfg?.asset_url)}
-                    alt=""
+                    alt={getUnitLabel(unitType)}
                     width={16}
                     height={16}
                     className="h-4 w-4 object-contain"
                   />
-                  <span className="text-[11px] font-medium">{getUnitLabel(unitType)}</span>
-                  <span className={`text-[10px] ${active ? "text-primary/80" : "text-muted-foreground"}`}>
+                  <span className="text-label font-medium">{getUnitLabel(unitType)}</span>
+                  <span className={`text-caption ${active ? "text-primary/80" : "text-muted-foreground"}`}>
                     {displayLabel}
                   </span>
                 </button>
@@ -203,9 +203,10 @@ export default memo(function ActionBar({
           </div>
 
           <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2 py-1.5">
-            <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Wysylasz</span>
+            <span className="text-caption uppercase tracking-[0.14em] text-muted-foreground">Wysylasz</span>
             <input
               type="range"
+              aria-label="Liczba jednostek do wysłania"
               min={minUnits}
               max={maxUnits}
               value={safeTotalUnits}
@@ -223,7 +224,7 @@ export default memo(function ActionBar({
                 <button
                   key={target.regionId}
                   onClick={() => onRemoveTarget(target.regionId)}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] ${
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-label ${
                     target.isAttack
                       ? "border-red-400/10 bg-red-950/25 text-red-100"
                       : "border-cyan-400/10 bg-cyan-950/25 text-cyan-100"
@@ -234,7 +235,7 @@ export default memo(function ActionBar({
                 </button>
               ))
             ) : (
-              <div className="text-[11px] text-muted-foreground">Wybierz cele na mapie</div>
+              <div className="text-label text-muted-foreground">Wybierz cele na mapie</div>
             )}
           </div>
 
@@ -249,7 +250,7 @@ export default memo(function ActionBar({
           >
             <Image
               src={getActionAsset(hasAttack ? "attack" : "move", selectedUnitType)}
-              alt=""
+              alt={hasAttack ? "Atak" : "Ruch"}
               width={14}
               height={14}
               className="mr-1.5 h-3.5 w-3.5 object-contain"
@@ -260,7 +261,7 @@ export default memo(function ActionBar({
 
         <div className="hidden sm:block p-2">
           <div className="mb-2 min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Region zrodlowy</div>
+            <div className="text-caption uppercase tracking-[0.16em] text-muted-foreground">Region zrodlowy</div>
             <div className="truncate font-display text-sm text-foreground">{sourceName}</div>
           </div>
 
@@ -284,15 +285,15 @@ export default memo(function ActionBar({
                   >
                     <Image
                       src={getPlayerUnitAsset(unitType, myCosmetics, unitCfg?.asset_url)}
-                      alt=""
+                      alt={getUnitLabel(unitType)}
                       width={18}
                       height={18}
                       className="h-[18px] w-[18px] object-contain"
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[11px] font-medium leading-none">{getUnitLabel(unitType)}</span>
+                      <span className="block text-label font-medium leading-none">{getUnitLabel(unitType)}</span>
                       <span
-                        className={`mt-1 block text-[10px] leading-none ${active ? "text-primary/80" : "text-muted-foreground"}`}
+                        className={`mt-1 block text-caption leading-none ${active ? "text-primary/80" : "text-muted-foreground"}`}
                       >
                         {displayLabel}
                       </span>
@@ -303,7 +304,7 @@ export default memo(function ActionBar({
             </div>
 
             <div className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
-              <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              <div className="mb-1 flex items-center justify-between text-caption uppercase tracking-[0.14em] text-muted-foreground">
                 <span>Wysylasz</span>
                 <span className="font-display text-xs text-foreground">
                   {safeTotalUnits} / {maxUnits}
@@ -311,6 +312,7 @@ export default memo(function ActionBar({
               </div>
               <input
                 type="range"
+                aria-label="Liczba jednostek do wysłania"
                 min={minUnits}
                 max={maxUnits}
                 value={safeTotalUnits}
@@ -328,7 +330,7 @@ export default memo(function ActionBar({
                       <button
                         key={target.regionId}
                         onClick={() => onRemoveTarget(target.regionId)}
-                        className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-label ${
                           target.isAttack
                             ? "border-red-400/10 bg-red-950/25 text-red-100"
                             : "border-cyan-400/10 bg-cyan-950/25 text-cyan-100"
@@ -339,7 +341,7 @@ export default memo(function ActionBar({
                       </button>
                     ))
                   ) : (
-                    <div className="text-[11px] text-muted-foreground">Wybierz cel na mapie</div>
+                    <div className="text-label text-muted-foreground">Wybierz cel na mapie</div>
                   )}
                 </div>
               </div>
@@ -347,7 +349,7 @@ export default memo(function ActionBar({
               <Button
                 onClick={() => onConfirm({ allocations, unitType: selectedUnitType })}
                 disabled={targets.length === 0}
-                className={`h-8 shrink-0 px-3 text-[11px] uppercase tracking-[0.16em] ${
+                className={`h-8 shrink-0 px-3 text-label uppercase tracking-[0.16em] ${
                   hasAttack
                     ? "bg-red-600 text-white hover:bg-red-500"
                     : "bg-primary text-primary-foreground hover:bg-cyan-400"

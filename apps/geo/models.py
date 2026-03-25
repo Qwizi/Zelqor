@@ -1,6 +1,5 @@
 import uuid
 
-from django.contrib.gis.db import models as gis_models
 from django.db import models
 
 
@@ -8,7 +7,7 @@ class Country(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
     code = models.CharField(max_length=3, unique=True)  # ISO 3166-1 alpha-3
-    geometry = gis_models.MultiPolygonField(srid=4326, null=True, blank=True)
+    geometry = models.JSONField(default=dict, blank=True, help_text="GeoJSON geometry (MultiPolygon)")
 
     class Meta:
         verbose_name_plural = "countries"
@@ -23,8 +22,8 @@ class Region(models.Model):
     name = models.CharField(max_length=200)
     country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="regions")
     map_source_id = models.PositiveIntegerField(null=True, blank=True, db_index=True)
-    geometry = gis_models.MultiPolygonField(srid=4326)
-    centroid = gis_models.PointField(srid=4326, null=True, blank=True)
+    geometry = models.JSONField(default=dict, blank=True, help_text="GeoJSON geometry (MultiPolygon)")
+    centroid = models.JSONField(default=list, blank=True, help_text="[lon, lat] coordinate pair")
     neighbors = models.ManyToManyField("self", symmetrical=True, blank=True)
     is_coastal = models.BooleanField(default=False)
     sea_distances = models.JSONField(default=list, blank=True)
@@ -78,6 +77,4 @@ class Region(models.Model):
         return f"{self.name}, {self.country.name}"
 
     def save(self, *args, **kwargs):
-        if self.geometry and not self.centroid:
-            self.centroid = self.geometry.centroid
         super().save(*args, **kwargs)

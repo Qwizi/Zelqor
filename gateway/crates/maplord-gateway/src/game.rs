@@ -75,45 +75,32 @@ pub async fn ws_game_handler(
         return resp;
     }
 
-    let token = match query.token {
-        Some(t) => t,
-        None => {
-            return Response::builder()
-                .status(401)
-                .body("Missing token".into())
-                .unwrap();
+    // Authenticate via query params: token (JWT) or ticket (one-time Redis ticket).
+    let pre_auth_user_id = if let Some(token) = &query.token {
+        match auth::validate_token(token, &state.config.secret_key) {
+            Ok(uid) => Some(uid),
+            Err(_) => None,
         }
+    } else if let Some(ticket) = &query.ticket {
+        match auth::validate_ticket(
+            ticket,
+            query.nonce.as_deref(),
+            &mut state.redis.clone(),
+        )
+        .await
+        {
+            Ok(uid) => Some(uid),
+            Err(e) => {
+                tracing::warn!("Ticket validation failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
     };
 
-    let user_id = match auth::validate_token(&token, &state.config.secret_key) {
-        Ok(id) => id,
-        Err(_) => {
-            return Response::builder()
-                .status(401)
-                .body("Invalid token".into())
-                .unwrap();
-        }
-    };
-
-    if let Some(ticket) = query.ticket {
-        match auth::validate_ticket(&ticket, query.nonce.as_deref(), &mut state.redis.clone()).await {
-            Ok(ticket_user_id) if ticket_user_id != user_id => {
-                return Response::builder()
-                    .status(401)
-                    .body("Ticket user mismatch".into())
-                    .unwrap();
-            }
-            Err(_) => {
-                return Response::builder()
-                    .status(401)
-                    .body("Invalid or expired ticket".into())
-                    .unwrap();
-            }
-            Ok(_) => {}
-        }
-    }
-
-    ws.on_upgrade(move |socket| handle_game_socket(socket, match_id, user_id, state))
+    ws.max_message_size(64 * 1024)
+        .on_upgrade(move |socket| handle_game_socket(socket, match_id, pre_auth_user_id, state))
 }
 
 pub async fn ws_spectate_handler(
@@ -127,57 +114,64 @@ pub async fn ws_spectate_handler(
         return resp;
     }
 
-    let token = match query.token {
-        Some(t) => t,
-        None => {
-            return Response::builder()
-                .status(401)
-                .body("Missing token".into())
-                .unwrap();
+    // Try to validate a query-param token if one was provided (backward compat).
+    let pre_auth_user_id = if let Some(token) = &query.token {
+        match auth::validate_token(token, &state.config.secret_key) {
+            Ok(uid) => Some(uid),
+            Err(_) => None,
         }
+    } else if let Some(ticket) = &query.ticket {
+        match auth::validate_ticket(
+            ticket,
+            query.nonce.as_deref(),
+            &mut state.redis.clone(),
+        )
+        .await
+        {
+            Ok(uid) => Some(uid),
+            Err(e) => {
+                tracing::warn!("Ticket validation failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
     };
 
-    let user_id = match auth::validate_token(&token, &state.config.secret_key) {
-        Ok(id) => id,
-        Err(_) => {
-            return Response::builder()
-                .status(401)
-                .body("Invalid token".into())
-                .unwrap();
-        }
-    };
-
-    if let Some(ticket) = query.ticket {
-        match auth::validate_ticket(&ticket, query.nonce.as_deref(), &mut state.redis.clone()).await {
-            Ok(ticket_user_id) if ticket_user_id != user_id => {
-                return Response::builder()
-                    .status(401)
-                    .body("Ticket user mismatch".into())
-                    .unwrap();
-            }
-            Err(_) => {
-                return Response::builder()
-                    .status(401)
-                    .body("Invalid or expired ticket".into())
-                    .unwrap();
-            }
-            Ok(_) => {}
-        }
-    }
-
-    ws.on_upgrade(move |socket| handle_spectate_socket(socket, match_id, user_id, state))
+    ws.max_message_size(64 * 1024)
+        .on_upgrade(move |socket| handle_spectate_socket(socket, match_id, pre_auth_user_id, state))
 }
 
 async fn handle_spectate_socket(
     socket: WebSocket,
     match_id: String,
-    user_id: String,
+    pre_auth_user_id: Option<String>,
     state: AppState,
 ) {
     use futures::SinkExt;
     use futures::StreamExt;
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    // Authenticate — either from pre-validated query param or first-message auth frame.
+    let user_id = match crate::ws_auth::authenticate_ws(
+        &mut ws_receiver,
+        pre_auth_user_id,
+        &state.config.secret_key,
+    )
+    .await
+    {
+        Some(uid) => uid,
+        None => {
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4001,
+                    reason: "Authentication failed".into(),
+                })))
+                .await;
+            return;
+        }
+    };
 
     // Verify spectator permission via Django
     match state.django.verify_spectator(&match_id, &user_id).await {
@@ -279,8 +273,35 @@ async fn handle_spectate_socket(
     info!("Spectator {user_id} left match {match_id}");
 }
 
-async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String, state: AppState) {
+async fn handle_game_socket(
+    socket: WebSocket,
+    match_id: String,
+    pre_auth_user_id: Option<String>,
+    state: AppState,
+) {
+    use futures::StreamExt;
     let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    // Authenticate — either from pre-validated query param or first-message auth frame.
+    let user_id = match crate::ws_auth::authenticate_ws(
+        &mut ws_receiver,
+        pre_auth_user_id,
+        &state.config.secret_key,
+    )
+    .await
+    {
+        Some(uid) => uid,
+        None => {
+            use futures::SinkExt;
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4001,
+                    reason: "Authentication failed".into(),
+                })))
+                .await;
+            return;
+        }
+    };
 
     // Verify player membership and account status
     match state.django.verify_player(&match_id, &user_id).await {
@@ -380,14 +401,31 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
     // Create channel for outgoing messages with backpressure
     let (tx, mut rx) = mpsc::channel::<Message>(WS_CHANNEL_BUFFER);
 
-    // Register connection
-    state
-        .game_connections
-        .entry(match_id.clone())
-        .or_insert_with(DashMap::new)
-        .entry(user_id.clone())
-        .or_default()
-        .push(tx.clone());
+    // Register connection — enforce per-user connection limit.
+    const MAX_CONNECTIONS_PER_USER: usize = 3;
+    {
+        let match_conns = state
+            .game_connections
+            .entry(match_id.clone())
+            .or_insert_with(DashMap::new);
+        let mut senders = match_conns
+            .entry(user_id.clone())
+            .or_default();
+
+        // First, prune any already-closed channels.
+        senders.retain(|s| !s.is_closed());
+
+        // If still at the limit, remove the oldest connection to make room.
+        if senders.len() >= MAX_CONNECTIONS_PER_USER {
+            warn!(
+                "User {} reached max connections ({}) for match {} — dropping oldest",
+                user_id, MAX_CONNECTIONS_PER_USER, match_id
+            );
+            senders.remove(0);
+        }
+
+        senders.push(tx.clone());
+    }
 
     // Check game status and handle accordingly
     let meta = state_mgr.get_meta().await.unwrap_or_default();
@@ -465,7 +503,6 @@ async fn handle_game_socket(socket: WebSocket, match_id: String, user_id: String
     }
 
     use futures::SinkExt;
-    use futures::StreamExt;
 
     // Spawn outgoing message forwarder
     let send_task = tokio::spawn(async move {

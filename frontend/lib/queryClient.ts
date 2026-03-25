@@ -1,14 +1,18 @@
 import { QueryClient } from "@tanstack/react-query";
 import { APIError } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
 
 /**
- * Get token from localStorage or throw — prevents unauthenticated queries from firing.
+ * Guard that throws if the user is not authenticated.
+ * Since tokens are now httpOnly cookies (not readable by JS), this checks the
+ * local `isAuthenticated` flag instead of reading a token from localStorage.
+ *
+ * The returned string is an empty sentinel — callers that previously passed
+ * the token to API functions no longer need to: cookies are sent automatically.
  */
 export function requireToken(): string {
-  const token = getAccessToken();
-  if (!token) throw new Error("Not authenticated");
-  return token;
+  if (!isAuthenticated()) throw new Error("Not authenticated");
+  return "";
 }
 
 export function createQueryClient() {

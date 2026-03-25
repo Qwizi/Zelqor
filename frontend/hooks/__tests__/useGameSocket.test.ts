@@ -1,4 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
+import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
@@ -60,7 +62,13 @@ Object.defineProperty(window, "location", {
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/auth", () => ({
-  getAccessToken: vi.fn(() => "test-token"),
+  isAuthenticated: vi.fn(() => true),
+  setAuthenticated: vi.fn(),
+  getAccessToken: vi.fn(() => null),
+  getRefreshToken: vi.fn(() => null),
+  setTokens: vi.fn(),
+  clearTokens: vi.fn(),
+  isLoggedIn: vi.fn(() => true),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -82,6 +90,15 @@ import { type GameState, useGameSocket } from "../useGameSocket";
 
 function getLastWs(): MockWebSocket {
   return MockWebSocket.instances[MockWebSocket.instances.length - 1];
+}
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(QueryClientProvider, { client: queryClient }, children);
+  };
 }
 
 const baseGameState: GameState = {
@@ -137,7 +154,7 @@ describe("useGameSocket", () => {
   // -------------------------------------------------------------------------
 
   it("starts with connected=false, gameState=null, events=[], no chat messages", () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     expect(result.current.connected).toBe(false);
     expect(result.current.gameState).toBeNull();
     expect(result.current.events).toEqual([]);
@@ -148,7 +165,7 @@ describe("useGameSocket", () => {
   });
 
   it("sets connected=true when the WebSocket opens", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -160,7 +177,7 @@ describe("useGameSocket", () => {
   // -------------------------------------------------------------------------
 
   it("game_state message sets gameState", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -177,7 +194,7 @@ describe("useGameSocket", () => {
   // -------------------------------------------------------------------------
 
   it("game_tick merges regions into existing gameState", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -203,7 +220,7 @@ describe("useGameSocket", () => {
   });
 
   it("game_tick updates players from tick payload", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -229,7 +246,7 @@ describe("useGameSocket", () => {
   });
 
   it("game_tick with events appends them to the events array", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -252,7 +269,7 @@ describe("useGameSocket", () => {
   });
 
   it("game_tick with game_over event sets status to finished", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -274,7 +291,7 @@ describe("useGameSocket", () => {
   });
 
   it("game_tick events receive auto-generated __eventKey", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -301,7 +318,7 @@ describe("useGameSocket", () => {
   // -------------------------------------------------------------------------
 
   it("error message adds server_error event (non-fatal)", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -317,7 +334,7 @@ describe("useGameSocket", () => {
   });
 
   it("fatal error message sets match status to cancelled", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -338,7 +355,7 @@ describe("useGameSocket", () => {
   // -------------------------------------------------------------------------
 
   it("capital_selected message does not change gameState", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -361,7 +378,7 @@ describe("useGameSocket", () => {
   // -------------------------------------------------------------------------
 
   it("chat_message adds to matchChatMessages", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -382,7 +399,7 @@ describe("useGameSocket", () => {
   });
 
   it("chat_history replaces matchChatMessages", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -414,7 +431,7 @@ describe("useGameSocket", () => {
   // -------------------------------------------------------------------------
 
   it("voice_token message updates voiceToken and voiceUrl", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -432,7 +449,7 @@ describe("useGameSocket", () => {
   // -------------------------------------------------------------------------
 
   it("send() serialises data as JSON and calls WebSocket.send", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -447,7 +464,7 @@ describe("useGameSocket", () => {
   });
 
   it("send() is a no-op when WebSocket is not open", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     // Wait for the WebSocket to be created
     await vi.waitFor(() => expect(getLastWs()).toBeDefined());
 
@@ -467,7 +484,7 @@ describe("useGameSocket", () => {
   // -------------------------------------------------------------------------
 
   it("selectCapital() sends select_capital action", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -482,7 +499,7 @@ describe("useGameSocket", () => {
   });
 
   it("attack() sends attack action with all fields", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -500,7 +517,7 @@ describe("useGameSocket", () => {
   });
 
   it("move() sends move action", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -515,7 +532,7 @@ describe("useGameSocket", () => {
   });
 
   it("build() sends build action", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -531,7 +548,7 @@ describe("useGameSocket", () => {
   });
 
   it("produceUnit() sends produce_unit action", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -546,7 +563,7 @@ describe("useGameSocket", () => {
   });
 
   it("useAbility() sends use_ability action", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -566,7 +583,7 @@ describe("useGameSocket", () => {
   // -------------------------------------------------------------------------
 
   it("sendChat() sends trimmed chat message", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });
@@ -581,7 +598,7 @@ describe("useGameSocket", () => {
   });
 
   it("sendChat() ignores empty or whitespace-only content", async () => {
-    const { result } = renderHook(() => useGameSocket("match-1"));
+    const { result } = renderHook(() => useGameSocket("match-1"), { wrapper: createWrapper() });
     await act(async () => {
       await Promise.resolve();
     });

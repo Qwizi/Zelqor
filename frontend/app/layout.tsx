@@ -65,8 +65,32 @@ const displayFont = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "MapLord",
-  description: "Real-time strategy game on a world map",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL ?? "https://maplord.pl"),
+  title: {
+    default: "MapLord — Strategiczna gra czasu rzeczywistego",
+    template: "%s | MapLord",
+  },
+  description:
+    "MapLord to strategiczna gra czasu rzeczywistego na mapie świata. Zdobywaj terytoria, buduj armie i rywalizuj z innymi graczami online.",
+  keywords: ["gra strategiczna", "RTS", "mapa świata", "multiplayer", "gra online", "MapLord"],
+  authors: [{ name: "MapLord Team" }],
+  creator: "MapLord",
+  openGraph: {
+    type: "website",
+    siteName: "MapLord",
+    title: "MapLord — Strategiczna gra czasu rzeczywistego",
+    description: "Zdobywaj terytoria, buduj armie i rywalizuj z innymi graczami na mapie świata w czasie rzeczywistym.",
+    locale: "pl_PL",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MapLord — Strategiczna gra czasu rzeczywistego",
+    description: "Zdobywaj terytoria, buduj armie i rywalizuj z innymi graczami na mapie świata w czasie rzeczywistym.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -85,8 +109,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="pl" className="dark">
       <body className={`${uiSans.variable} ${displayFont.variable} antialiased`}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebApplication",
+              name: "MapLord",
+              description:
+                "Strategiczna gra czasu rzeczywistego na mapie świata. Zdobywaj terytoria, buduj armie i rywalizuj online.",
+              applicationCategory: "GameApplication",
+              operatingSystem: "Web",
+              offers: { "@type": "Offer", price: "0", priceCurrency: "PLN" },
+              inLanguage: "pl",
+            }),
+          }}
+        />
         <SerwistProvider swUrl="/serwist/sw.js">
           <QueryProvider>
             <AuthProvider>

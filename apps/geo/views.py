@@ -1,9 +1,6 @@
-import json
 import math
 
-from django.contrib.gis.serializers.geojson import Serializer as GeoJSONSerializer
 from django.core.cache import cache
-from django.db import connection
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from ninja_extra import api_controller, route
@@ -50,7 +47,7 @@ class GeoController:
             {
                 "id": str(r.id),
                 "neighbor_ids": [str(n.id) for n in r.neighbors.all()],
-                "centroid": [r.centroid.x, r.centroid.y] if r.centroid else None,
+                "centroid": r.centroid if isinstance(r.centroid, list) and len(r.centroid) == 2 else None,
             }
             for r in qs
         ]
@@ -166,82 +163,10 @@ class GeoController:
 
     @route.get("/tiles/{z}/{x}/{y}/", auth=None)
     def get_tile(self, z: int, x: int, y: int, match_id: str = None):
-        """Serves MVT vector tiles for the regions layer.
-        MapLibre requests only tiles visible in the current viewport.
-        Pass match_id to filter by that match's map config (country_codes).
-        Tiles are cached in Redis — geometry never changes during a match.
+        """MVT vector tiles endpoint — disabled after PostGIS removal.
+        The game uses Pixi.js canvas rendering (region_shapes) instead.
         """
-        country_codes = self._country_codes_for_match(match_id) if match_id else []
-
-        codes_key = "|".join(sorted(country_codes)) if country_codes else "all"
-        cache_key = f"mvt:{z}:{x}:{y}:{codes_key}"
-        cached = cache.get(cache_key)
-        if cached is not None:
-            response = HttpResponse(cached or b"", content_type="application/x-protobuf", status=200 if cached else 204)
-            response["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=3600"
-            return response
-
-        if country_codes:
-            sql = """
-                SELECT ST_AsMVT(q, 'regions', 4096, 'geom')
-                FROM (
-                    SELECT
-                        r.id::text          AS id,
-                        r.name,
-                        r.is_coastal,
-                        c.code              AS country_code,
-                        c.name              AS country_name,
-                        ST_AsMVTGeom(
-                            ST_Transform(r.geometry, 3857),
-                            ST_TileEnvelope(%s, %s, %s),
-                            4096, 64, true
-                        ) AS geom
-                    FROM geo_region r
-                    JOIN geo_country c ON c.id = r.country_id
-                    WHERE r.geometry && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
-                      AND c.code = ANY(%s)
-                ) q
-                WHERE geom IS NOT NULL
-            """
-            params = [z, x, y, z, x, y, country_codes]
-        else:
-            sql = """
-                SELECT ST_AsMVT(q, 'regions', 4096, 'geom')
-                FROM (
-                    SELECT
-                        r.id::text          AS id,
-                        r.name,
-                        r.is_coastal,
-                        c.code              AS country_code,
-                        c.name              AS country_name,
-                        ST_AsMVTGeom(
-                            ST_Transform(r.geometry, 3857),
-                            ST_TileEnvelope(%s, %s, %s),
-                            4096, 64, true
-                        ) AS geom
-                    FROM geo_region r
-                    JOIN geo_country c ON c.id = r.country_id
-                    WHERE r.geometry && ST_Transform(ST_TileEnvelope(%s, %s, %s), 4326)
-                ) q
-                WHERE geom IS NOT NULL
-            """
-            params = [z, x, y, z, x, y]
-
-        with connection.cursor() as cursor:
-            cursor.execute(sql, params)
-            tile = cursor.fetchone()[0]
-
-        tile_bytes = bytes(tile) if tile else b""
-        # Cache for 24h — geometry is immutable
-        cache.set(cache_key, tile_bytes, timeout=86400)
-
-        if tile_bytes:
-            response = HttpResponse(tile_bytes, content_type="application/x-protobuf")
-        else:
-            response = HttpResponse(b"", content_type="application/x-protobuf", status=204)
-
-        response["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=3600"
-        return response
+        return HttpResponse(b"", content_type="application/x-protobuf", status=204)
 
     @staticmethod
     def _country_codes_for_match(match_id: str) -> list:
@@ -267,33 +192,31 @@ class GeoController:
 
     @route.get("/regions/", auth=None)
     def list_regions(self, country_code: str = None):
-        """Returns regions as GeoJSON FeatureCollection (kept for tooling/debug)."""
+        """Returns regions as GeoJSON-like FeatureCollection."""
         qs = Region.objects.select_related("country").prefetch_related("neighbors")
         if country_code:
             qs = qs.filter(country__code=country_code)
 
-        serializer = GeoJSONSerializer()
-        geojson_str = serializer.serialize(
-            qs,
-            geometry_field="geometry",
-            fields=("name", "is_coastal", "population_weight"),
-        )
-        geojson = json.loads(geojson_str)
+        features = []
+        for region in qs:
+            feature = {
+                "type": "Feature",
+                "id": str(region.id),
+                "geometry": region.geometry if isinstance(region.geometry, dict) else {},
+                "properties": {
+                    "id": str(region.id),
+                    "name": region.name,
+                    "is_coastal": region.is_coastal,
+                    "population_weight": region.population_weight,
+                    "country_code": region.country.code,
+                    "country_name": region.country.name,
+                    "neighbor_ids": [str(n.id) for n in region.neighbors.all()],
+                    "centroid": region.centroid if isinstance(region.centroid, list) else None,
+                },
+            }
+            features.append(feature)
 
-        regions_by_pk = {str(r.pk): r for r in qs}
-        for feature in geojson["features"]:
-            pk = feature["properties"].get("pk") or feature.get("id")
-            region = regions_by_pk.get(str(pk))
-            if region:
-                feature["id"] = str(region.id)
-                feature["properties"]["id"] = str(region.id)
-                feature["properties"]["country_code"] = region.country.code
-                feature["properties"]["country_name"] = region.country.name
-                feature["properties"]["neighbor_ids"] = [str(n.id) for n in region.neighbors.all()]
-                if region.centroid:
-                    feature["properties"]["centroid"] = [region.centroid.x, region.centroid.y]
-
-        return geojson
+        return {"type": "FeatureCollection", "features": features}
 
     @route.get("/regions/{region_id}/", response=RegionOutSchema, auth=None)
     def get_region(self, region_id: str):

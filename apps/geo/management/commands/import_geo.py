@@ -1,7 +1,6 @@
 import json
 import urllib.request
 
-from django.contrib.gis.geos import GEOSGeometry, MultiPolygon, Polygon
 from django.core.management.base import BaseCommand
 
 from apps.geo.models import Country, Region
@@ -20,12 +19,11 @@ def download_geojson(url):
         return json.loads(response.read().decode("utf-8"))
 
 
-def make_multipolygon(geometry_data):
-    """Convert GeoJSON geometry to MultiPolygon."""
-    geom = GEOSGeometry(json.dumps(geometry_data), srid=4326)
-    if isinstance(geom, Polygon):
-        geom = MultiPolygon(geom, srid=4326)
-    return geom
+def normalize_to_multipolygon(geometry_data: dict) -> dict:
+    """Normalize GeoJSON geometry to MultiPolygon format."""
+    if geometry_data.get("type") == "Polygon":
+        return {"type": "MultiPolygon", "coordinates": [geometry_data["coordinates"]]}
+    return geometry_data
 
 
 class Command(BaseCommand):
@@ -40,7 +38,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--skip-neighbors",
             action="store_true",
-            help="Skip neighbor calculation (faster import)",
+            help="Skip neighbor calculation",
         )
         parser.add_argument(
             "--country-codes",
@@ -66,7 +64,12 @@ class Command(BaseCommand):
             self.import_regions(options.get("country_codes"))
 
         if not options["skip_neighbors"]:
-            self.calculate_neighbors()
+            self.stdout.write(
+                self.style.WARNING(
+                    "Neighbor calculation requires PostGIS (ST_Touches). "
+                    "Use import_provinces_v2 with pre-computed neighbors instead."
+                )
+            )
 
         self.stdout.write(self.style.SUCCESS("Import complete!"))
         self.stdout.write(f"Countries: {Country.objects.count()}")
@@ -89,12 +92,7 @@ class Command(BaseCommand):
             if filter_codes and code not in filter_codes:
                 continue
 
-            try:
-                geometry = make_multipolygon(feature["geometry"])
-            except Exception as e:
-                self.stderr.write(f"Error parsing geometry for {name}: {e}")
-                skipped += 1
-                continue
+            geometry = normalize_to_multipolygon(feature["geometry"])
 
             _, was_created = Country.objects.update_or_create(
                 code=code,
@@ -116,14 +114,10 @@ class Command(BaseCommand):
         for feature in data["features"]:
             props = feature["properties"]
             name = props.get("name", props.get("NAME", ""))
-            props.get("iso_a2", "")
-            # Try to find country by various fields
             adm0_a3 = props.get("adm0_a3", props.get("ADM0_A3", ""))
-            props.get("iso_3166_2", "")
 
             country = countries_by_code.get(adm0_a3)
             if not country:
-                # Try other codes
                 for _code, c in countries_by_code.items():
                     if c.name == props.get("admin", ""):
                         country = c
@@ -140,28 +134,38 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
-            try:
-                geometry = make_multipolygon(feature["geometry"])
-            except Exception as e:
-                self.stderr.write(f"Error parsing geometry for {name}: {e}")
-                skipped += 1
-                continue
+            geometry = normalize_to_multipolygon(feature["geometry"])
 
-            # Detect coastal regions (simplified: touches the boundary of the world)
+            # Detect coastal regions (simplified)
             is_coastal = False
             try:
-                # A very simplified check — real coastal detection would use ocean polygons
-                bbox = geometry.extent  # (xmin, ymin, xmax, ymax)
-                is_coastal = bbox[0] < -170 or bbox[2] > 170 or bbox[1] < -80 or bbox[3] > 80
+                coords = geometry.get("coordinates", [])
+                if coords:
+                    all_points = [p for poly in coords for ring in poly for p in ring]
+                    lons = [p[0] for p in all_points]
+                    lats = [p[1] for p in all_points]
+                    is_coastal = min(lons) < -170 or max(lons) > 170 or min(lats) < -80 or max(lats) > 80
             except Exception:
                 pass
 
-            region, was_created = Region.objects.update_or_create(
+            # Compute centroid as average of all coordinates
+            centroid = []
+            try:
+                coords = geometry.get("coordinates", [])
+                all_points = [p for poly in coords for ring in poly for p in ring]
+                if all_points:
+                    avg_lon = sum(p[0] for p in all_points) / len(all_points)
+                    avg_lat = sum(p[1] for p in all_points) / len(all_points)
+                    centroid = [avg_lon, avg_lat]
+            except Exception:
+                pass
+
+            _, was_created = Region.objects.update_or_create(
                 name=name,
                 country=country,
                 defaults={
                     "geometry": geometry,
-                    "centroid": geometry.centroid,
+                    "centroid": centroid,
                     "is_coastal": is_coastal,
                 },
             )
@@ -169,35 +173,3 @@ class Command(BaseCommand):
                 created += 1
 
         self.stdout.write(f"Regions: {created} created, {skipped} skipped, {no_country} without country")
-
-    def calculate_neighbors(self):
-        self.stdout.write("Calculating region neighbors (ST_Touches)...")
-        regions = list(Region.objects.all())
-        total = len(regions)
-        neighbor_count = 0
-
-        # Clear existing neighbors
-        for region in regions:
-            region.neighbors.clear()
-
-        # Use raw SQL for efficiency with PostGIS
-        from django.db import connection
-
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT r1.id, r2.id
-                FROM geo_region r1, geo_region r2
-                WHERE r1.id < r2.id
-                AND ST_Touches(r1.geometry, r2.geometry)
-            """)
-            pairs = cursor.fetchall()
-
-        regions_by_id = {str(r.id): r for r in regions}
-        for id1, id2 in pairs:
-            r1 = regions_by_id.get(str(id1))
-            r2 = regions_by_id.get(str(id2))
-            if r1 and r2:
-                r1.neighbors.add(r2)
-                neighbor_count += 1
-
-        self.stdout.write(f"Calculated {neighbor_count} neighbor pairs for {total} regions")

@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 
-from django.contrib.gis.geos import MultiPolygon, Point, Polygon
 from django.core.management.base import BaseCommand
 
 from apps.geo.models import Country, Region
@@ -57,36 +56,27 @@ def compute_centroid_game(polygons: list[dict]) -> list[float]:
     return [sum(xs) / len(xs), sum(ys) / len(ys)]
 
 
-def build_postgis_multipolygon(polygons: list[dict]) -> MultiPolygon:
-    """
-    Convert game-pixel polygon rings to a PostGIS MultiPolygon (SRID 4326).
-    Each entry in `polygons` produces one Polygon ring.
-    """
-    geos_polygons: list[Polygon] = []
+def build_geojson_multipolygon(polygons: list[dict]) -> dict:
+    """Convert game-pixel polygon rings to a GeoJSON MultiPolygon."""
+    geojson_polygons: list[list[list[list[float]]]] = []
     for poly in polygons:
         points = poly.get("points", [])
         if len(points) < 3:
             continue
-        coords: list[tuple[float, float]] = []
+        coords: list[list[float]] = []
         for raw_pt in points:
             gx, gy = parse_game_point(raw_pt)
             lon, lat = game_to_lonlat(gx, gy)
-            coords.append((lon, lat))
+            coords.append([lon, lat])
         # Close the ring if needed
         if coords[0] != coords[-1]:
             coords.append(coords[0])
-        try:
-            ring = Polygon(coords, srid=4326)
-        except Exception:
-            continue
-        geos_polygons.append(ring)
+        geojson_polygons.append([coords])
 
-    if not geos_polygons:
-        # Degenerate fallback: single-point polygon at origin
-        dummy = Polygon(((0, 0), (0, 0.001), (0.001, 0.001), (0, 0)), srid=4326)
-        return MultiPolygon(dummy, srid=4326)
+    if not geojson_polygons:
+        geojson_polygons = [[[[0, 0], [0, 0.001], [0.001, 0.001], [0, 0]]]]
 
-    return MultiPolygon(*geos_polygons, srid=4326)
+    return {"type": "MultiPolygon", "coordinates": geojson_polygons}
 
 
 # ---------------------------------------------------------------------------
@@ -194,21 +184,25 @@ class Command(BaseCommand):
         capital: dict = province.get("capital", {})
         buildings: dict = province.get("buildings", {})
 
-        # PostGIS geometry
-        geometry = build_postgis_multipolygon(polygons)
+        # GeoJSON geometry
+        geometry = build_geojson_multipolygon(polygons)
 
-        # PostGIS centroid: use capital.position if available, else geometry centroid
-        postgis_centroid: Point | None = None
+        # Centroid [lon, lat]: use capital.position if available
+        centroid: list[float] = []
         capital_position_raw: str = capital.get("position", "")
         if capital_position_raw:
             try:
                 gx, gy = parse_game_point(capital_position_raw)
                 lon, lat = game_to_lonlat(gx, gy)
-                postgis_centroid = Point(lon, lat, srid=4326)
+                centroid = [lon, lat]
             except Exception:
-                postgis_centroid = None
-        if postgis_centroid is None:
-            postgis_centroid = geometry.centroid
+                centroid = []
+        if not centroid:
+            # Compute from polygon average
+            cg = compute_centroid_game(polygons)
+            if cg and cg != [0.0, 0.0]:
+                lon, lat = game_to_lonlat(cg[0], cg[1])
+                centroid = [lon, lat]
 
         # Native game-coord centroid
         centroid_game = compute_centroid_game(polygons)
@@ -230,7 +224,7 @@ class Command(BaseCommand):
             defaults={
                 "map_source_id": province_id,
                 "geometry": geometry,
-                "centroid": postgis_centroid,
+                "centroid": centroid,
                 "is_coastal": bool(province.get("coast", False)),
                 "is_zone": bool(province.get("zone", False)),
                 "is_enabled": bool(province.get("enabled", True)),

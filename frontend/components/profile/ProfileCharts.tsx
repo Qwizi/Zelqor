@@ -187,14 +187,14 @@ export default function ProfileCharts({ matches, userId, currentElo }: ProfileCh
             <div className="flex h-4 md:h-5 rounded-full overflow-hidden bg-secondary">
               {totalWins > 0 && (
                 <div
-                  className="bg-green-400 transition-all"
-                  style={{ width: `${(totalWins / sorted.length) * 100}%` }}
+                  className="bg-green-400 transition-[flex-basis] duration-300"
+                  style={{ flexBasis: `${(totalWins / sorted.length) * 100}%` }}
                 />
               )}
               {totalLosses > 0 && (
                 <div
-                  className="bg-red-500 transition-all"
-                  style={{ width: `${(totalLosses / sorted.length) * 100}%` }}
+                  className="bg-red-500 transition-[flex-basis] duration-300"
+                  style={{ flexBasis: `${(totalLosses / sorted.length) * 100}%` }}
                 />
               )}
             </div>

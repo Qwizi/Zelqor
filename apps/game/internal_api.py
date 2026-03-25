@@ -2,7 +2,7 @@ import logging
 
 from ninja import Schema
 from ninja_extra import ControllerBase, api_controller, route
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from apps.internal_auth import check_internal_secret
 
@@ -31,6 +31,17 @@ class CleanupRequest(Schema):
 
 class StatusUpdateRequest(Schema):
     status: str
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        # Import here to avoid circular imports at module load time.
+        from apps.matchmaking.models import Match
+
+        valid = {choice.value for choice in Match.Status}
+        if v not in valid:
+            raise ValueError(f"Invalid status. Must be one of: {sorted(valid)}")
+        return v
 
 
 class AliveUpdateRequest(Schema):
@@ -254,7 +265,9 @@ class GameInternalController(ControllerBase):
                 "id": str(r.id),
                 "name": r.name,
                 "country_code": r.country.code,
-                "centroid": [float(r.centroid.x), float(r.centroid.y)] if r.centroid else None,
+                "centroid": [float(r.centroid[0]), float(r.centroid[1])]
+                if isinstance(r.centroid, list) and len(r.centroid) == 2
+                else None,
                 "is_coastal": r.is_coastal,
                 "sea_distances": r.sea_distances or [],
             }
