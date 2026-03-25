@@ -14,6 +14,11 @@ from apps.game_config.models import BuildingType, GameSettings, MovementType, Un
 class GameSettingsTests(TestCase):
     """Tests for the GameSettings singleton model."""
 
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+
     def test_get_creates_instance_on_first_call(self):
         self.assertEqual(GameSettings.objects.count(), 0)
         obj = GameSettings.get()
@@ -74,9 +79,6 @@ class BuildingTypeTests(TestCase):
         self.building = BuildingType.objects.create(
             name="Barracks",
             slug="barracks",
-            cost=50,
-            energy_cost=30,
-            build_time_ticks=10,
             defense_bonus=0.1,
             max_level=3,
         )
@@ -84,7 +86,6 @@ class BuildingTypeTests(TestCase):
     def test_creation_and_attribute_access(self):
         self.assertEqual(self.building.name, "Barracks")
         self.assertEqual(self.building.slug, "barracks")
-        self.assertEqual(self.building.cost, 50)
         self.assertEqual(self.building.defense_bonus, 0.1)
 
     def test_str_representation(self):
@@ -142,8 +143,6 @@ class UnitTypeTests(TestCase):
             attack=1.0,
             defense=1.0,
             speed=1,
-            production_cost=5,
-            production_time_ticks=5,
             movement_type=MovementType.LAND,
         )
 

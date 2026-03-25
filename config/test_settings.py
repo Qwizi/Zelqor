@@ -1,27 +1,18 @@
 """
-Test settings for MapLord — removes PostGIS/GDAL dependencies so tests
-can run against a plain PostgreSQL instance.
+Test settings for MapLord — uses SQLite in-memory so tests can run
+without a PostgreSQL/PostGIS server.
 """
 
 from config.settings import *  # noqa: F401, F403
 
-# Use standard PostgreSQL backend instead of PostGIS.
-# DATABASE NAME is 'maplord' — Django will create 'test_maplord' as the test DB.
+# Use plain SQLite in-memory — no external DB needed.
+# Geo migrations are overridden to use TextField instead of spatial fields.
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "maplord",
-        "USER": "maplord",
-        "PASSWORD": "maplord",
-        "HOST": "localhost",
-        "PORT": "5432",
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
     }
 }
-
-# Keep all apps including django.contrib.gis and apps.geo so migration
-# dependency chains resolve. The MIGRATION_MODULES override below redirects
-# geo to test-only migrations that use plain fields instead of PostGIS types.
-# (INSTALLED_APPS is inherited unchanged from config.settings)
 
 # Override geo app migrations to use test-friendly (non-spatial) migrations
 MIGRATION_MODULES = {

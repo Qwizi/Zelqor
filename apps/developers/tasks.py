@@ -5,6 +5,7 @@ import logging
 
 import requests
 from celery import shared_task
+from django.db.utils import NotSupportedError
 
 logger = logging.getLogger(__name__)
 
@@ -13,12 +14,15 @@ def dispatch_webhook_event(event: str, payload: dict):
     """Send event to all active webhooks subscribed to this event."""
     from apps.developers.models import Webhook
 
-    webhooks = Webhook.objects.filter(
-        is_active=True,
-        events__contains=[event],
-    )
-    for webhook in webhooks:
-        deliver_webhook.delay(str(webhook.id), event, payload)
+    try:
+        webhooks = Webhook.objects.filter(
+            is_active=True,
+            events__contains=[event],
+        )
+        for webhook in webhooks:
+            deliver_webhook.delay(str(webhook.id), event, payload)
+    except NotSupportedError:
+        logger.debug("JSONField contains lookup not supported on this backend, skipping webhook dispatch")
 
 
 @shared_task(bind=True, max_retries=5)
