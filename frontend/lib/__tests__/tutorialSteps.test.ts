@@ -13,7 +13,7 @@ function makeGameState(overrides: Record<string, unknown> = {}) {
     players: {},
     regions: {},
     buildings_queue: [],
-    units_queue: [],
+    unit_queue: [],
     ...overrides,
   } as unknown as Parameters<NonNullable<TutorialStep["condition"]>>[0];
 }
@@ -28,8 +28,8 @@ describe("TUTORIAL_STEPS — structure", () => {
     expect(TUTORIAL_STEPS.length).toBeGreaterThan(0);
   });
 
-  it("contains at least 18 steps", () => {
-    expect(TUTORIAL_STEPS.length).toBeGreaterThanOrEqual(18);
+  it("contains at least 21 steps", () => {
+    expect(TUTORIAL_STEPS.length).toBeGreaterThanOrEqual(21);
   });
 
   it("every step has a non-empty string id", () => {
@@ -93,10 +93,13 @@ describe("TUTORIAL_STEPS — required step ids", () => {
     "welcome",
     "select_capital",
     "economy_intro",
+    "ap_intro",
     "attack_neutral",
     "expand",
+    "move_units",
     "buildings_explain",
     "build_action",
+    "produce_unit",
     "abilities_intro",
     "capture_capital",
     "victory",
@@ -124,16 +127,34 @@ describe("TUTORIAL_STEPS — ordering", () => {
     expect(capitalIdx).toBeLessThan(attackIdx);
   });
 
+  it("ap_intro comes before attack_neutral", () => {
+    const apIdx = TUTORIAL_STEPS.findIndex((s) => s.id === "ap_intro");
+    const attackIdx = TUTORIAL_STEPS.findIndex((s) => s.id === "attack_neutral");
+    expect(apIdx).toBeLessThan(attackIdx);
+  });
+
   it("attack_neutral comes before expand", () => {
     const attackIdx = TUTORIAL_STEPS.findIndex((s) => s.id === "attack_neutral");
     const expandIdx = TUTORIAL_STEPS.findIndex((s) => s.id === "expand");
     expect(attackIdx).toBeLessThan(expandIdx);
   });
 
+  it("expand comes before move_units", () => {
+    const expandIdx = TUTORIAL_STEPS.findIndex((s) => s.id === "expand");
+    const moveIdx = TUTORIAL_STEPS.findIndex((s) => s.id === "move_units");
+    expect(expandIdx).toBeLessThan(moveIdx);
+  });
+
   it("buildings steps come before abilities steps", () => {
     const buildIdx = TUTORIAL_STEPS.findIndex((s) => s.id === "buildings_explain");
     const abIdx = TUTORIAL_STEPS.findIndex((s) => s.id === "abilities_intro");
     expect(buildIdx).toBeLessThan(abIdx);
+  });
+
+  it("build_wait comes before produce_unit", () => {
+    const buildWaitIdx = TUTORIAL_STEPS.findIndex((s) => s.id === "build_wait");
+    const produceIdx = TUTORIAL_STEPS.findIndex((s) => s.id === "produce_unit");
+    expect(buildWaitIdx).toBeLessThan(produceIdx);
   });
 
   it("capture_capital comes before victory", () => {
@@ -155,6 +176,16 @@ describe("TUTORIAL_STEPS — manualAdvance steps", () => {
 
   it("victory has manualAdvance: true", () => {
     const step = TUTORIAL_STEPS.find((s) => s.id === "victory")!;
+    expect(step.manualAdvance).toBe(true);
+  });
+
+  it("ap_intro has manualAdvance: true", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "ap_intro")!;
+    expect(step.manualAdvance).toBe(true);
+  });
+
+  it("move_units has manualAdvance: true", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "move_units")!;
     expect(step.manualAdvance).toBe(true);
   });
 
@@ -259,6 +290,49 @@ describe("TUTORIAL_STEPS — condition functions", () => {
   it("capture_capital condition is false when match is still in_progress", () => {
     const step = TUTORIAL_STEPS.find((s) => s.id === "capture_capital")!;
     const state = makeGameState({ meta: { status: "in_progress" } });
+    expect(step.condition?.(state, "user-1")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// produce_unit condition
+// ---------------------------------------------------------------------------
+
+describe("TUTORIAL_STEPS — produce_unit condition", () => {
+  it("is true when a unit is in the queue for the player", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "produce_unit")!;
+    const state = makeGameState({
+      unit_queue: [{ player_id: "user-1", unit_type: "tank", region_id: "r1" }],
+    });
+    expect(step.condition?.(state, "user-1")).toBe(true);
+  });
+
+  it("is true when a region has non-infantry units", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "produce_unit")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1", units: { infantry: 10, tank: 1 } },
+      },
+    });
+    expect(step.condition?.(state, "user-1")).toBe(true);
+  });
+
+  it("is false when player only has infantry", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "produce_unit")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1", units: { infantry: 10 } },
+      },
+      unit_queue: [],
+    });
+    expect(step.condition?.(state, "user-1")).toBe(false);
+  });
+
+  it("is false when units are queued for a different player", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "produce_unit")!;
+    const state = makeGameState({
+      unit_queue: [{ player_id: "enemy-1", unit_type: "tank", region_id: "r2" }],
+    });
     expect(step.condition?.(state, "user-1")).toBe(false);
   });
 });
@@ -414,6 +488,22 @@ describe("TUTORIAL_STEPS — getHighlightRegions additional branches", () => {
     });
     const highlighted = step.getHighlightRegions?.(state, "user-1", {});
     expect(highlighted).toEqual([]);
+  });
+
+  // produce_unit step
+  it("produce_unit getHighlightRegions returns up to 3 own regions", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "produce_unit")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1" },
+        r2: { owner_id: "user-1" },
+        r3: { owner_id: "user-1" },
+        r4: { owner_id: "user-1" },
+      },
+    });
+    const highlighted = step.getHighlightRegions?.(state, "user-1", {});
+    expect(highlighted).toBeDefined();
+    expect(highlighted!.length).toBeLessThanOrEqual(3);
   });
 
   // ability_virus getHighlightRegions

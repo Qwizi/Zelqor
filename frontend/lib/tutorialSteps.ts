@@ -84,7 +84,18 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "economy_intro",
     title: "Krok 2: Zasoby",
     description:
-      "W lewym gornym rogu widzisz: walute (zloto), liczbe regionow i jednostki. Stolica generuje je automatycznie co ture.",
+      "W lewym gornym rogu widzisz: energie (zolta belka), punkty akcji (AP), liczbe regionow i sile armii. Stolica generuje energie i jednostki automatycznie co ture.",
+    uiTarget: "hud",
+    manualAdvance: true,
+    tickMultiplier: 1,
+  },
+
+  // ── AP system ──
+  {
+    id: "ap_intro",
+    title: "Punkty Akcji (AP)",
+    description:
+      "Kazda akcja kosztuje AP: atak 1\u20134 AP (zalezy od % wyslanych jednostek), budowa 1 AP, zdolnosc 3 AP. Masz max 15 AP i regenerujesz +1 co 2 tury. Planuj ruchy madrze!",
     uiTarget: "hud",
     manualAdvance: true,
     tickMultiplier: 1,
@@ -105,18 +116,28 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: "expand",
     title: "Krok 4: Rozszerzaj terytorium",
-    description: "Wiecej regionow = wiecej jednostek i waluty co ture. Zdobadz jeszcze kilka neutralnych regionow!",
+    description: "Wiecej regionow = wiecej jednostek i energii co ture. Zdobadz jeszcze kilka neutralnych regionow!",
     getHighlightRegions: (state, userId, neighborMap) => getNeutralNeighbors(state, userId, neighborMap).slice(0, 5),
     condition: (state, userId) => Object.values(state.regions).filter((r) => r.owner_id === userId).length >= 4,
     tickMultiplier: 3,
   },
 
+  // ── Move units ──
+  {
+    id: "move_units",
+    title: "Krok 5: Przenoszenie jednostek",
+    description:
+      "Mozesz przesuwac jednostki miedzy SWOIMI regionami. Kliknij region zrodlowy, potem kliknij sasiedni SWOJ region i wybierz 'Przenies'. Kosztuje tylko 1 AP \u2014 uzyj tego do wzmacniania granic!",
+    manualAdvance: true,
+    tickMultiplier: 1,
+  },
+
   // ── Buildings ──
   {
     id: "buildings_explain",
-    title: "Krok 5: Budynki",
+    title: "Krok 6: Budynki",
     description:
-      "Mozesz budowac budynki w swoich regionach. Kliknij swoj region \u2014 po prawej pojawi sie panel z opcjami budowy.",
+      "Mozesz budowac budynki w swoich regionach. Kliknij swoj region \u2014 na dole ekranu pojawi sie panel akcji z sekcja 'Budynki'. Kazdy budynek kosztuje 1 AP.",
     manualAdvance: true,
     tickMultiplier: 1,
   },
@@ -124,7 +145,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "buildings_types",
     title: "Typy budynkow",
     description:
-      "Koszary \u2014 przyspieszaja generowanie piechoty. Fabryka \u2014 produkuje czolgi. Wieza obronna \u2014 bonus obronny. Elektrownia \u2014 wiecej waluty. Port \u2014 okrety (wymaga wybrzeza). Lotnisko \u2014 mysliwce.",
+      "Koszary \u2014 przyspieszaja generowanie piechoty. Fabryka \u2014 produkuje czolgi. Wieza \u2014 bonus obronny i wizja. Elektrownia \u2014 wiecej energii. Port \u2014 produkuje okrety (wymaga wybrzeza). Lotnisko \u2014 produkuje mysliwce.",
     manualAdvance: true,
     tickMultiplier: 1,
   },
@@ -132,7 +153,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "build_action",
     title: "Zbuduj cos!",
     description:
-      "Kliknij swoj region (podswietlony), otworz panel po prawej i postaw dowolny budynek. Koszary sa najtansze!",
+      "Kliknij swoj region (podswietlony) \u2014 na dole pojawi sie panel akcji. Znajdz sekcje 'Budynki' i postaw dowolny budynek. Koszary sa najtansze!",
     uiTarget: "build-section",
     getHighlightRegions: (state, userId) => getOwnRegions(state, userId).slice(0, 3),
     condition: (state, userId) =>
@@ -153,12 +174,30 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     tickMultiplier: 5,
   },
 
+  // ── Unit production ──
+  {
+    id: "produce_unit",
+    title: "Krok 7: Produkcja jednostek",
+    description:
+      "Piechota generuje sie automatycznie, ale mozesz tez produkowac specjalne jednostki! Zbuduj fabryke i wyprodukuj czolg \u2014 kliknij region z fabryka, na dole panelu znajdz sekcje 'Produkuj'. Czolgi maja 3x wieksza sile ataku niz piechota.",
+    getHighlightRegions: (state, userId) => getOwnRegions(state, userId).slice(0, 3),
+    condition: (state, userId) =>
+      state.unit_queue.some((u) => u.player_id === userId) ||
+      Object.values(state.regions).some(
+        (r) =>
+          r.owner_id === userId &&
+          r.units &&
+          Object.entries(r.units).some(([type, count]) => type !== "infantry" && count > 0),
+      ),
+    tickMultiplier: 3,
+  },
+
   // ── Abilities: one by one ──
   {
     id: "abilities_intro",
-    title: "Krok 6: Zdolnosci specjalne",
+    title: "Krok 8: Zdolnosci specjalne",
     description:
-      "Po lewej stronie ekranu masz panel zdolnosci. Kazda kosztuje walute i ma cooldown. Uzyj kazdej po kolei zeby zobaczyc jak dzialaja!",
+      "Po lewej stronie ekranu masz panel zdolnosci. Kazda kosztuje energie + 3 AP i ma cooldown. Uzyj kazdej po kolei zeby zobaczyc jak dzialaja!",
     uiTarget: "ability-bar",
     manualAdvance: true,
     tickMultiplier: 2,
@@ -167,7 +206,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "ability_conscription",
     title: "Zdolnosc: Pobor",
     description:
-      "Pobor zbiera procent jednostek z neutralnych sasiadow do Twojego regionu. Kliknij ikone Poboru po lewej, a potem kliknij SWOJ region.",
+      "Pobor zbiera 30% jednostek z neutralnych sasiadow do Twojego regionu. Kliknij ikone Poboru po lewej, a potem kliknij SWOJ region.",
     uiTarget: "ability-bar",
     allowedAbility: "ab_conscription_point",
     condition: (state, userId) => {
@@ -180,7 +219,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "ability_shield",
     title: "Zdolnosc: Tarcza",
     description:
-      "Tarcza blokuje wszystkie ataki na wybrany region przez kilka tur. Kliknij ikone Tarczy, potem kliknij SWOJ region do ochrony.",
+      "Tarcza blokuje wszystkie ataki na wybrany region przez 20 tur. Kliknij ikone Tarczy, potem kliknij SWOJ region do ochrony.",
     uiTarget: "ability-bar",
     allowedAbility: "ab_shield",
     condition: (state, userId) => {
@@ -193,7 +232,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "ability_virus",
     title: "Zdolnosc: Wirus",
     description:
-      "Wirus zabija jednostki wroga i redukuje jego produkcje. Kliknij ikone Wirusa, potem kliknij WROGI region (czerwony).",
+      "Wirus zabija 5% jednostek wroga co ture przez 15 tur i redukuje produkcje o 50%. Moze sie rozprzestrzenic! Kliknij ikone Wirusa, potem kliknij WROGI region.",
     uiTarget: "ability-bar",
     allowedAbility: "ab_virus",
     getHighlightRegions: (state, userId) => getEnemyRegions(state, userId).slice(0, 3),
@@ -205,8 +244,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "ability_submarine",
-    title: "Zdolnosc: Okret podwodny",
-    description: "Ujawnia jednostki wroga w wybranym regionie na kilka tur. Kliknij ikone, potem kliknij WROGI region.",
+    title: "Zdolnosc: Zwiad",
+    description: "Ujawnia ukryte jednostki wroga w wybranym regionie na 10 tur. Kliknij ikone, potem kliknij WROGI region.",
     uiTarget: "ability-bar",
     allowedAbility: "ab_pr_submarine",
     getHighlightRegions: (state, userId) => getEnemyRegions(state, userId).slice(0, 3),
@@ -220,7 +259,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "abilities_nuke",
     title: "Zdolnosc: Nuke",
     description:
-      "Najpotezniejsza zdolnosc! Niszczy prawie wszystkie jednostki w regionie. Kliknij ikone Nuke, potem kliknij WROGI region.",
+      "Najpotezniejsza zdolnosc! Niszczy 50 jednostek w regionie natychmiast. Kliknij ikone Nuke, potem kliknij WROGI region.",
     uiTarget: "ability-bar",
     allowedAbility: "ab_province_nuke",
     getHighlightRegions: (state, userId) => getEnemyRegions(state, userId).slice(0, 3),
@@ -234,8 +273,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   // ── Enemy attack warning ──
   {
     id: "enemy_attack",
-    title: "Krok 7: Uwaga na wroga!",
-    description: "Bot atakuje Twoje regiony. Utrzymuj garnizon na granicach i buduj wieze obronne!",
+    title: "Krok 9: Uwaga na wroga!",
+    description:
+      "Bot atakuje Twoje regiony! Pamietaj: obronca ma +10% bonusu w walce, a po kazdej bitwie jednostki sa zmeczone (mniejsza sila przez kilka tur). Buduj wieze obronne i trzymaj garnizon na granicach!",
     manualAdvance: true,
     tickMultiplier: 2,
   },
@@ -243,7 +283,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   // ── Final objective ──
   {
     id: "capture_capital",
-    title: "Krok 8: Zdobadz stolice wroga!",
+    title: "Krok 10: Zdobadz stolice wroga!",
     description: "Znajdz stolice bota (region z zoltym obrysem/gwiazdka) i wyslij duza armie! To konczy gre.",
     getHighlightRegions: (state, userId) => {
       const cap = getEnemyCapital(state, userId);

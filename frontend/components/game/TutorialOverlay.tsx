@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, SkipForward } from "lucide-react";
+import { ChevronLeft, ChevronRight, GraduationCap, SkipForward } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { TutorialStep } from "@/lib/tutorialSteps";
@@ -87,37 +87,50 @@ export default function TutorialOverlay({
       {step.uiTarget && <TutorialPointer target={step.uiTarget} />}
 
       {/* Floating card at top */}
-      <div className="pointer-events-auto fixed left-1/2 top-3 z-[100] w-[min(460px,calc(100%-1rem))] -translate-x-1/2">
-        <div className="rounded-2xl border border-white/20 bg-slate-900/95 px-5 py-4 shadow-(--shadow-overlay) backdrop-blur-sm">
-          {/* Progress bar */}
-          <div className="mb-3 flex items-center gap-1">
-            {Array.from({ length: totalSteps }, (_, i) => (
-              <div
-                key={i}
-                className={`h-1.5 flex-1 rounded-full transition-colors ${
-                  i < stepIndex ? "bg-emerald-400" : i === stepIndex ? "bg-cyan-400" : "bg-white/10"
-                }`}
-              />
-            ))}
+      <div className="pointer-events-auto fixed left-1/2 top-3 z-[100] w-[min(520px,calc(100%-1rem))] -translate-x-1/2">
+        <div className="rounded-2xl border border-cyan-500/30 bg-slate-900/97 px-5 py-4 shadow-[0_8px_40px_rgba(0,0,0,0.6),0_0_20px_rgba(6,182,212,0.1)] backdrop-blur-md sm:px-6 sm:py-5">
+          {/* Header with icon + progress */}
+          <div className="mb-3 flex items-center gap-2.5">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-500/15">
+              <GraduationCap className="h-4 w-4 text-cyan-400" />
+            </div>
+            <div className="flex flex-1 items-center gap-1">
+              {Array.from({ length: totalSteps }, (_, i) => (
+                <div
+                  key={i}
+                  className={`h-1.5 flex-1 rounded-full transition-colors ${
+                    i < stepIndex ? "bg-emerald-400" : i === stepIndex ? "bg-cyan-400" : "bg-white/10"
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="shrink-0 text-xs tabular-nums text-zinc-500">
+              {stepIndex + 1}/{totalSteps}
+            </span>
           </div>
 
           {/* Title */}
-          <h3 className="text-base font-bold text-white">{step.title}</h3>
+          <h3 className="text-base font-bold leading-snug text-white sm:text-lg">{step.title}</h3>
 
           {/* Description */}
-          <p className="mt-1.5 text-sm leading-relaxed text-zinc-200">{step.description}</p>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-300 sm:text-[15px] sm:leading-relaxed">
+            {step.description}
+          </p>
 
           {/* Actions */}
-          <div className="mt-3 flex items-center justify-between">
+          <div className="mt-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button onClick={onSkip} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
+              <button
+                onClick={onSkip}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300"
+              >
                 <SkipForward className="h-3 w-3" />
                 Pomin
               </button>
               {canGoBack && (
                 <button
                   onClick={onGoBack}
-                  className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200"
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200"
                 >
                   <ChevronLeft className="h-3 w-3" />
                   Wstecz
@@ -129,13 +142,13 @@ export default function TutorialOverlay({
               <Button
                 onClick={onAdvance}
                 size="sm"
-                className="h-8 gap-1.5 rounded-full bg-cyan-500 px-4 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
+                className="h-9 gap-1.5 rounded-full bg-cyan-500 px-5 text-sm font-semibold text-slate-950 shadow-[0_0_12px_rgba(6,182,212,0.3)] hover:bg-cyan-400"
               >
                 {stepIndex === totalSteps - 1 ? "Zakoncz" : "Dalej"}
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight className="h-4 w-4" />
               </Button>
             ) : (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-amber-300">
+              <span className="flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300">
                 <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-400" />
                 Wykonaj akcje...
               </span>

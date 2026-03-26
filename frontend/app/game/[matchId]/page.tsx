@@ -352,9 +352,14 @@ export default function GamePage({ params }: { params: Promise<{ matchId: string
     return m;
   }, [buildings]);
 
+  const effectiveUnits = useMemo(() => {
+    if (!isTutorial) return unitsConfig;
+    return unitsConfig.map((u) => ({ ...u, production_cost: 5, production_time_ticks: 2 }));
+  }, [isTutorial, unitsConfig]);
+
   const unitConfigBySlug = useMemo(() => {
-    return Object.fromEntries(unitsConfig.map((unit) => [unit.slug, unit] as const));
-  }, [unitsConfig]);
+    return Object.fromEntries(effectiveUnits.map((unit) => [unit.slug, unit] as const));
+  }, [effectiveUnits]);
 
   // Guard against double capital selection while waiting for server confirmation
   const hasSelectedCapital = !!gameState?.players[myUserId]?.capital_region_id;
@@ -1312,9 +1317,9 @@ export default function GamePage({ params }: { params: Promise<{ matchId: string
       ? Math.max(0, capitalSelectionEndsAt - Math.floor(nowMs / 1000))
       : 0;
 
-  // Capital selection toast — only after overlay dismissed
+  // Capital selection toast — only after overlay dismissed, skip in tutorial (overlay handles it)
   useEffect(() => {
-    if (status === "selecting" && !showIntro && !hasSelectedCapital) {
+    if (status === "selecting" && !showIntro && !hasSelectedCapital && !isTutorial) {
       const msg =
         capitalSelectionRemaining > 0
           ? `Wybierz stolice! Pozostalo: ${capitalSelectionRemaining}s`
@@ -1326,7 +1331,7 @@ export default function GamePage({ params }: { params: Promise<{ matchId: string
     } else if (status !== "selecting" || hasSelectedCapital) {
       toast.dismiss("capital-selection");
     }
-  }, [status, showIntro, capitalSelectionRemaining, hasSelectedCapital]);
+  }, [status, showIntro, capitalSelectionRemaining, hasSelectedCapital, isTutorial]);
 
   // ── Render ─────────────────────────────────────────────────
 
@@ -1343,7 +1348,7 @@ export default function GamePage({ params }: { params: Promise<{ matchId: string
       {/* Hex tile overlay hidden on mobile for GPU perf */}
       <div className="pointer-events-none absolute inset-0 hidden bg-[url('/assets/ui/hex_bg_tile.webp')] bg-[size:240px] opacity-[0.04] sm:block" />
 
-      {tutorial.isActive && tutorial.currentStep && (
+      {tutorial.isActive && tutorial.currentStep && !showIntro && mapReady && (
         <TutorialOverlay
           step={tutorial.currentStep}
           stepIndex={tutorial.stepIndex}
@@ -1746,7 +1751,7 @@ export default function GamePage({ params }: { params: Promise<{ matchId: string
         queue={buildingsQueue}
         unitQueue={unitQueue}
         buildings={effectiveBuildings}
-        units={unitsConfig}
+        units={effectiveUnits}
         myUserId={myUserId}
         myCosmetics={gameState?.players[myUserId]?.cosmetics}
       />
@@ -1814,7 +1819,7 @@ export default function GamePage({ params }: { params: Promise<{ matchId: string
           onCancel={handleCancelAction}
           buildings={effectiveBuildings}
           buildingQueue={buildingsQueue}
-          units={unitsConfig}
+          units={effectiveUnits}
           onBuild={handleBuild}
           onProduceUnit={handleProduceUnit}
           unlockedBuildings={gameState?.players[myUserId]?.unlocked_buildings}
@@ -1901,7 +1906,7 @@ export default function GamePage({ params }: { params: Promise<{ matchId: string
           myEnergy={myEnergy}
           buildings={effectiveBuildings}
           buildingQueue={buildingsQueue}
-          units={unitsConfig}
+          units={effectiveUnits}
           onBuild={handleBuild}
           onProduceUnit={handleProduceUnit}
           unlockedBuildings={gameState?.players[myUserId]?.unlocked_buildings}

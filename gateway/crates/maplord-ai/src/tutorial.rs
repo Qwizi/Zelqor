@@ -67,7 +67,7 @@ impl BotStrategy for TutorialBotBrain {
             return actions;
         }
 
-        // ── Phase 3 (tick 80): Build barracks on capital ──
+        // ── Phase 3 (tick 80): Build barracks + factory on capital ──
         if current_tick == 80 {
             if let Some(capital_id) = &player.capital_region_id {
                 if let Some(capital) = regions.get(capital_id) {
@@ -93,13 +93,60 @@ impl BotStrategy for TutorialBotBrain {
                             }
                         }
                     }
+                    let factory_count = capital.building_instances
+                        .iter()
+                        .filter(|b| b.building_type == "factory")
+                        .count();
+                    if factory_count < 1 {
+                        if let Some(cfg) = settings.building_types.get("factory") {
+                            if player.energy >= cfg.energy_cost {
+                                actions.push(Action {
+                                    action_type: "build".into(),
+                                    player_id: Some(self.player_id.clone()),
+                                    region_id: Some(capital_id.clone()),
+                                    building_type: Some("factory".into()),
+                                    source_region_id: None,
+                                    target_region_id: None,
+                                    units: None,
+                                    unit_type: None,
+                                    ability_type: None,
+                                    ..Default::default()
+                                });
+                            }
+                        }
+                    }
                 }
             }
             return actions;
         }
 
-        // ── Phase 4 (ticks 80-130): Keep capturing neutrals + one attack on player ──
+        // ── Phase 4 (ticks 80-130): Keep capturing neutrals, produce tank, attack player ──
         if current_tick < 130 {
+            // Produce a tank at tick 90 if factory exists
+            if current_tick == 90 {
+                if let Some(capital_id) = &player.capital_region_id {
+                    if let Some(capital) = regions.get(capital_id) {
+                        let has_factory = capital.building_instances
+                            .iter()
+                            .any(|b| b.building_type == "factory");
+                        if has_factory {
+                            actions.push(Action {
+                                action_type: "produce_unit".into(),
+                                player_id: Some(self.player_id.clone()),
+                                region_id: Some(capital_id.clone()),
+                                unit_type: Some("tank".into()),
+                                source_region_id: None,
+                                target_region_id: None,
+                                units: None,
+                                building_type: None,
+                                ability_type: None,
+                                ..Default::default()
+                            });
+                        }
+                    }
+                }
+            }
+
             // Attack player at tick 110
             if current_tick == 110 {
                 if let Some(action) =
