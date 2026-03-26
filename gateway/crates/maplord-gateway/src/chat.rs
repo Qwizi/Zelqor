@@ -36,45 +36,32 @@ pub async fn ws_chat_handler(
         return resp;
     }
 
-    let token = match query.token {
-        Some(t) => t,
-        None => {
-            return Response::builder()
-                .status(401)
-                .body("Missing token".into())
-                .unwrap();
+    // Authenticate via query params: token (JWT) or ticket (one-time Redis ticket).
+    let pre_auth_user_id = if let Some(token) = &query.token {
+        match auth::validate_token(token, &state.config.secret_key) {
+            Ok(uid) => Some(uid),
+            Err(_) => None,
         }
+    } else if let Some(ticket) = &query.ticket {
+        match crate::auth::validate_ticket(
+            ticket,
+            query.nonce.as_deref(),
+            &mut state.redis.clone(),
+        )
+        .await
+        {
+            Ok(uid) => Some(uid),
+            Err(e) => {
+                tracing::warn!("Ticket validation failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
     };
 
-    let user_id = match auth::validate_token(&token, &state.config.secret_key) {
-        Ok(id) => id,
-        Err(_) => {
-            return Response::builder()
-                .status(401)
-                .body("Invalid token".into())
-                .unwrap();
-        }
-    };
-
-    if let Some(ticket) = query.ticket {
-        match crate::auth::validate_ticket(&ticket, query.nonce.as_deref(), &mut state.redis.clone()).await {
-            Ok(ticket_user_id) if ticket_user_id != user_id => {
-                return Response::builder()
-                    .status(401)
-                    .body("Ticket user mismatch".into())
-                    .unwrap();
-            }
-            Err(_) => {
-                return Response::builder()
-                    .status(401)
-                    .body("Invalid or expired ticket".into())
-                    .unwrap();
-            }
-            Ok(_) => {}
-        }
-    }
-
-    ws.on_upgrade(move |socket| handle_chat_socket(socket, user_id, state))
+    ws.max_message_size(64 * 1024)
+        .on_upgrade(move |socket| handle_chat_socket(socket, pre_auth_user_id, state))
 }
 
 pub async fn resolve_username(state: &AppState, user_id: &str) -> String {
@@ -105,8 +92,28 @@ pub async fn resolve_username(state: &AppState, user_id: &str) -> String {
     }
 }
 
-async fn handle_chat_socket(socket: WebSocket, user_id: String, state: AppState) {
+async fn handle_chat_socket(socket: WebSocket, pre_auth_user_id: Option<String>, state: AppState) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    // Authenticate — either from pre-validated query param or first-message auth frame.
+    let user_id = match crate::ws_auth::authenticate_ws(
+        &mut ws_receiver,
+        pre_auth_user_id,
+        &state.config.secret_key,
+    )
+    .await
+    {
+        Some(uid) => uid,
+        None => {
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4001,
+                    reason: "Authentication failed".into(),
+                })))
+                .await;
+            return;
+        }
+    };
 
     // Check that the chat module is enabled
     match state.django.get_system_modules().await {
@@ -535,6 +542,197 @@ mod tests {
             // Content that is non-empty after trimming should pass.
             let msg = "  hello  ";
             assert!(is_valid_content(msg));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // action dispatch guard (mirrors handle_chat_message early-return)
+    // -----------------------------------------------------------------------
+
+    mod action_dispatch {
+        /// Mirrors the guard at the top of handle_chat_message:
+        ///   let action = content.get("action").and_then(|v| v.as_str()).unwrap_or("");
+        ///   if action != "chat_message" { return; }
+        fn should_process(json_str: &str) -> bool {
+            let val: serde_json::Value =
+                serde_json::from_str(json_str).unwrap_or_default();
+            val.get("action")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                == "chat_message"
+        }
+
+        #[test]
+        fn chat_message_action_is_processed() {
+            assert!(
+                should_process(r#"{"action":"chat_message","content":"hello"}"#),
+                "chat_message action should be processed"
+            );
+        }
+
+        #[test]
+        fn unknown_action_is_skipped() {
+            assert!(
+                !should_process(r#"{"action":"ping"}"#),
+                "unknown action should be skipped"
+            );
+        }
+
+        #[test]
+        fn missing_action_field_is_skipped() {
+            assert!(
+                !should_process(r#"{"content":"hello"}"#),
+                "missing action field should be skipped"
+            );
+        }
+
+        #[test]
+        fn empty_object_is_skipped() {
+            assert!(!should_process("{}"), "empty object should be skipped");
+        }
+
+        #[test]
+        fn non_string_action_value_is_skipped() {
+            // action=42 — as_str() returns None → falls back to "" → skipped.
+            assert!(
+                !should_process(r#"{"action":42}"#),
+                "numeric action should be skipped"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // ChatConnections cleanup — remove_if behaviour
+    // -----------------------------------------------------------------------
+
+    mod cleanup {
+        use super::*;
+
+        #[test]
+        fn remove_if_drops_entry_when_all_senders_closed() {
+            let conns = new_chat_connections();
+            let (tx, rx) = mpsc::unbounded_channel::<Message>();
+
+            conns.entry("user-cleanup".to_string()).or_default().push(tx);
+
+            // Drop the receiver to close the sender.
+            drop(rx);
+
+            // Simulate the cleanup logic from handle_chat_socket.
+            if let Some(mut senders) = conns.get_mut("user-cleanup") {
+                senders.retain(|s| !s.is_closed());
+            }
+            conns.remove_if("user-cleanup", |_, v| v.is_empty());
+
+            assert!(
+                !conns.contains_key("user-cleanup"),
+                "entry should be removed when all senders are closed"
+            );
+        }
+
+        #[test]
+        fn remove_if_retains_entry_when_live_sender_remains() {
+            let conns = new_chat_connections();
+            let (tx1, _rx1) = mpsc::unbounded_channel::<Message>();
+            let (tx2, rx2) = mpsc::unbounded_channel::<Message>();
+
+            {
+                let mut entry = conns.entry("user-partial".to_string()).or_default();
+                entry.push(tx1);
+                entry.push(tx2);
+            }
+
+            // Close only the second sender.
+            drop(rx2);
+
+            if let Some(mut senders) = conns.get_mut("user-partial") {
+                senders.retain(|s| !s.is_closed());
+            }
+            conns.remove_if("user-partial", |_, v| v.is_empty());
+
+            // One live sender remains — entry must be kept.
+            assert!(
+                conns.contains_key("user-partial"),
+                "entry should be retained when at least one live sender exists"
+            );
+            let count = conns.get("user-partial").map(|v| v.len()).unwrap_or(0);
+            assert_eq!(count, 1, "only the live sender should remain after cleanup");
+        }
+
+        #[test]
+        fn remove_if_is_no_op_for_unknown_user() {
+            let conns = new_chat_connections();
+            // Must not panic on a key that does not exist.
+            conns.remove_if("ghost-user", |_, v| v.is_empty());
+            assert!(conns.is_empty());
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // rate limit logic (replicated from handle_chat_message)
+    // -----------------------------------------------------------------------
+
+    mod rate_limit {
+        use dashmap::DashMap;
+        use std::sync::Arc;
+        use std::time::{Duration, Instant};
+
+        /// Returns `true` when the message should be rate-limited (too soon).
+        fn is_rate_limited(
+            limits: &Arc<DashMap<String, Instant>>,
+            user_id: &str,
+        ) -> bool {
+            if let Some(last) = limits.get(user_id) {
+                Instant::now().duration_since(*last).as_secs_f64() < 1.0
+            } else {
+                false
+            }
+        }
+
+        #[test]
+        fn first_message_is_never_rate_limited() {
+            let limits: Arc<DashMap<String, Instant>> = Arc::new(DashMap::new());
+            assert!(
+                !is_rate_limited(&limits, "user-new"),
+                "first message should never be rate-limited"
+            );
+        }
+
+        #[test]
+        fn message_within_one_second_is_rate_limited() {
+            let limits: Arc<DashMap<String, Instant>> = Arc::new(DashMap::new());
+            limits.insert("user-fast".to_string(), Instant::now());
+
+            // No time has passed — within the 1-second window.
+            assert!(
+                is_rate_limited(&limits, "user-fast"),
+                "second message in < 1s should be rate-limited"
+            );
+        }
+
+        #[test]
+        fn message_after_one_second_is_not_rate_limited() {
+            let limits: Arc<DashMap<String, Instant>> = Arc::new(DashMap::new());
+            // Simulate a last-sent timestamp 2 seconds in the past.
+            let old = Instant::now() - Duration::from_secs(2);
+            limits.insert("user-ok".to_string(), old);
+
+            assert!(
+                !is_rate_limited(&limits, "user-ok"),
+                "message sent 2s after the last one should not be rate-limited"
+            );
+        }
+
+        #[test]
+        fn different_users_have_independent_rate_limits() {
+            let limits: Arc<DashMap<String, Instant>> = Arc::new(DashMap::new());
+            limits.insert("user-a".to_string(), Instant::now());
+
+            // user-b has no entry — should not be limited.
+            assert!(
+                !is_rate_limited(&limits, "user-b"),
+                "user-b should not be affected by user-a's rate limit"
+            );
         }
     }
 }

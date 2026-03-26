@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Crown, Medal, Swords, Target, Trophy, Users } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -109,10 +110,13 @@ function LeaderboardContent() {
                     <span className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-widest mb-0.5">#2</span>
                     <div className="flex h-11 w-11 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-full border-2 border-[#C0C0C0] bg-[#C0C0C0]/10 overflow-hidden">
                       {entry.avatar_url ? (
-                        <img
+                        <Image
                           src={entry.avatar_url}
                           alt={entry.username}
+                          width={56}
+                          height={56}
                           className="h-full w-full object-cover rounded-full"
+                          unoptimized
                         />
                       ) : (
                         <span className="font-display text-base md:text-xl font-bold text-[#C0C0C0]">
@@ -145,10 +149,13 @@ function LeaderboardContent() {
                     <Crown className="h-5 w-5 text-[#FFD700] shrink-0" />
                     <div className="flex h-14 w-14 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-full border-2 border-[#FFD700] bg-[#FFD700]/10 overflow-hidden">
                       {entry.avatar_url ? (
-                        <img
+                        <Image
                           src={entry.avatar_url}
                           alt={entry.username}
+                          width={64}
+                          height={64}
                           className="h-full w-full object-cover rounded-full"
+                          unoptimized
                         />
                       ) : (
                         <span className="font-display text-xl md:text-2xl font-bold text-[#FFD700]">
@@ -183,10 +190,13 @@ function LeaderboardContent() {
                     <span className="text-[10px] font-bold text-[#CD7F32] uppercase tracking-widest mb-0.5">#3</span>
                     <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-full border-2 border-[#CD7F32] bg-[#CD7F32]/10 overflow-hidden">
                       {entry.avatar_url ? (
-                        <img
+                        <Image
                           src={entry.avatar_url}
                           alt={entry.username}
+                          width={48}
+                          height={48}
                           className="h-full w-full object-cover rounded-full"
+                          unoptimized
                         />
                       ) : (
                         <span className="font-display text-sm md:text-lg font-bold text-[#CD7F32]">
@@ -236,7 +246,14 @@ function LeaderboardContent() {
                 </div>
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden bg-secondary">
                   {entry.avatar_url ? (
-                    <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover" />
+                    <Image
+                      src={entry.avatar_url}
+                      alt={entry.username}
+                      width={32}
+                      height={32}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
                   ) : (
                     <span className="text-xs font-bold text-muted-foreground">{entry.username[0].toUpperCase()}</span>
                   )}
@@ -324,7 +341,14 @@ function LeaderboardContent() {
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden bg-secondary">
                           {entry.avatar_url ? (
-                            <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover" />
+                            <Image
+                              src={entry.avatar_url}
+                              alt={entry.username}
+                              width={36}
+                              height={36}
+                              className="h-full w-full object-cover"
+                              unoptimized
+                            />
                           ) : (
                             <span className="text-sm font-bold text-muted-foreground">
                               {entry.username[0].toUpperCase()}

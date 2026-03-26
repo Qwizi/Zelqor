@@ -1,5 +1,7 @@
 import hashlib
+import hmac
 
+from django.core.cache import cache
 from django.utils import timezone
 from ninja.errors import HttpError
 from ninja_extra import api_controller, route
@@ -28,9 +30,19 @@ def _verify_client(client_id: str, client_secret: str):
     except DeveloperApp.DoesNotExist:
         return None
     secret_hash = hashlib.sha256(client_secret.encode()).hexdigest()
-    if secret_hash != app.client_secret_hash:
+    if not hmac.compare_digest(secret_hash, app.client_secret_hash):
         return None
     return app
+
+
+def _check_rate_limit(request, key_prefix: str, max_attempts: int = 20, window: int = 60) -> None:
+    """Simple cache-based rate limiter. Raises HttpError 429 when limit is exceeded."""
+    ip = request.META.get("REMOTE_ADDR", "unknown")
+    cache_key = f"ratelimit:{key_prefix}:{ip}"
+    attempts = cache.get(cache_key, 0)
+    if attempts >= max_attempts:
+        raise HttpError(429, "Too many requests. Try again later.")
+    cache.set(cache_key, attempts + 1, timeout=window)
 
 
 def _get_bearer_token(request) -> str | None:
@@ -79,6 +91,7 @@ class OAuthController:
     @route.post("/token/", auth=None)
     def token(self, request, payload: OAuthTokenRequestSchema):
         """Exchange an authorization code (or refresh token) for an access token."""
+        _check_rate_limit(request, "oauth_token")
         if payload.grant_type == "authorization_code":
             return self._grant_authorization_code(payload)
         elif payload.grant_type == "refresh_token":
@@ -107,6 +120,9 @@ class OAuthController:
 
         if auth_code.is_expired:
             raise HttpError(400, "Authorization code has expired.")
+
+        if auth_code.redirect_uri != payload.redirect_uri:
+            raise HttpError(400, "redirect_uri mismatch")
 
         auth_code.used = True
         auth_code.save(update_fields=["used"])

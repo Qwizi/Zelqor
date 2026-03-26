@@ -3,7 +3,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { getWsTicket } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
 import { solveChallenge } from "@/lib/pow";
 import { createSocket } from "@/lib/ws";
 
@@ -83,8 +83,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token || !user) return;
+    if (!isAuthenticated() || !user) return;
 
     let disposed = false;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -95,7 +94,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       let ticket: string | null = null;
       let nonce: string | null = null;
       try {
-        const t = await getWsTicket(token);
+        const t = await getWsTicket();
         ticket = t.ticket;
         nonce = await solveChallenge(t.challenge, t.difficulty);
       } catch {
@@ -103,7 +102,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
       const ws = createSocket(
         "/chat/",
-        token,
+        null,
         (msg) => {
           if (msg.type === "chat_history") {
             setMessages((msg.messages as ChatMessage[]) || []);

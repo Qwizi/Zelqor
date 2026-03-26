@@ -88,7 +88,7 @@ export default function TutorialOverlay({
 
       {/* Floating card at top */}
       <div className="pointer-events-auto fixed left-1/2 top-3 z-[100] w-[min(460px,calc(100%-1rem))] -translate-x-1/2">
-        <div className="rounded-2xl border border-white/20 bg-slate-900/95 px-5 py-4 shadow-[0_8px_32px_rgba(0,0,0,0.7)] backdrop-blur-sm">
+        <div className="rounded-2xl border border-white/20 bg-slate-900/95 px-5 py-4 shadow-(--shadow-overlay) backdrop-blur-sm">
           {/* Progress bar */}
           <div className="mb-3 flex items-center gap-1">
             {Array.from({ length: totalSteps }, (_, i) => (

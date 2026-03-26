@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -176,6 +177,7 @@ function SlotCard({
     const rarity = "common"; // EquippedCosmeticOut doesn't carry rarity — use neutral default
     return (
       <button
+        type="button"
         onClick={onClick}
         className={[
           "group relative flex flex-col items-center gap-1.5 rounded-xl border-2 p-2 text-left transition-all duration-150",
@@ -187,8 +189,14 @@ function SlotCard({
       >
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-background/40">
           {equipped.asset_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={equipped.asset_url} alt={equipped.item_name} className="h-7 w-7 object-contain" />
+            <Image
+              src={equipped.asset_url}
+              alt={equipped.item_name}
+              width={28}
+              height={28}
+              className="h-7 w-7 object-contain"
+              unoptimized
+            />
           ) : (
             <span className="text-xl leading-none select-none">{slotDef.icon}</span>
           )}
@@ -205,6 +213,7 @@ function SlotCard({
 
   return (
     <button
+      type="button"
       onClick={onClick}
       className="group flex flex-col items-center gap-1.5 rounded-xl border-2 border-dashed border-border/50 p-2 text-left transition-all duration-150 hover:border-border hover:bg-muted/30 active:scale-[0.97] cursor-pointer"
       title={`Slot: ${slotDef.label} — kliknij aby założyć`}
@@ -243,6 +252,7 @@ function PickerItem({
 
   return (
     <button
+      type="button"
       onClick={handleClick}
       disabled={loading || isEquipped}
       className={[

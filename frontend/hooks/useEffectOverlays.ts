@@ -125,6 +125,7 @@ export function useEffectOverlays(
         effectLayer.addChild(badge);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeEffects, shapesData, effectLayerRef.current]);
 
   // ── Nuke blackout overlays ─────────────────────────────────
@@ -190,5 +191,6 @@ export function useEffectOverlays(
     return () => {
       app.ticker.remove(tickerFn);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nukeBlackout, shapesData, appRef.current, nukeLayerRef.current]);
 }

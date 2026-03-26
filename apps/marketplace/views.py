@@ -145,7 +145,11 @@ class MarketplaceController:
             fee = int(total_price * config.transaction_fee_percent / 100)
             seller_receives = total_price - fee
 
-            buyer_wallet = get_or_create_wallet(request.user)
+            # Ensure the wallet row exists, then lock it to prevent race conditions.
+            from apps.inventory.models import Wallet
+
+            get_or_create_wallet(request.user)
+            buyer_wallet = Wallet.objects.select_for_update().get(user=request.user)
             if buyer_wallet.gold < total_price:
                 return self.create_response({"error": "Insufficient gold"}, status_code=400)
 

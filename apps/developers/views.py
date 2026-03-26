@@ -1,4 +1,7 @@
+import ipaddress
+import socket
 import uuid
+from urllib.parse import urlparse
 
 from django.core.cache import cache
 from django.http import Http404
@@ -34,6 +37,28 @@ from apps.developers.schemas import (
 )
 from apps.game_config.decorators import require_module_controller
 from apps.pagination import paginate_qs
+
+_BLOCKED_HOSTNAMES = {"localhost", "127.0.0.1", "::1", "0.0.0.0", "metadata.google.internal"}
+
+
+def _validate_webhook_url(url: str) -> None:
+    """Validate that a webhook URL does not target private or internal networks (SSRF guard)."""
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        raise HttpError(400, "Invalid webhook URL")
+
+    if hostname.lower() in _BLOCKED_HOSTNAMES:
+        raise HttpError(400, "Webhook URL cannot target internal addresses")
+
+    try:
+        addr_info = socket.getaddrinfo(hostname, None)
+        for _family, _type, _proto, _canonname, sockaddr in addr_info:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                raise HttpError(400, "Webhook URL cannot target private/internal networks")
+    except socket.gaierror:
+        raise HttpError(400, "Cannot resolve webhook URL hostname") from None
 
 
 @api_controller("/developers", tags=["Developers"], permissions=[IsAuthenticated], auth=ActiveUserJWTAuth())
@@ -170,6 +195,8 @@ class DeveloperController:
         if invalid_events:
             raise HttpError(400, f"Invalid events: {', '.join(invalid_events)}")
 
+        _validate_webhook_url(payload.url)
+
         webhook = Webhook.objects.create(
             app=app,
             url=payload.url,
@@ -202,6 +229,7 @@ class DeveloperController:
 
         update_fields = []
         if payload.url is not None:
+            _validate_webhook_url(payload.url)
             webhook.url = payload.url
             update_fields.append("url")
         if payload.events is not None:

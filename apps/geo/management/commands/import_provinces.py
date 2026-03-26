@@ -2,7 +2,6 @@ import contextlib
 import json
 from pathlib import Path
 
-from django.contrib.gis.geos import GEOSGeometry, MultiPolygon, Point, Polygon
 from django.core.management.base import BaseCommand
 
 from apps.geo.models import Country, Region
@@ -13,11 +12,11 @@ GAME_COUNTRY_CODE = "GAM"
 GAME_COUNTRY_NAME = "Game Map"
 
 
-def make_multipolygon(geometry_data: dict) -> MultiPolygon:
-    geom = GEOSGeometry(json.dumps(geometry_data), srid=4326)
-    if isinstance(geom, Polygon):
-        geom = MultiPolygon(geom, srid=4326)
-    return geom
+def normalize_to_multipolygon(geometry_data: dict) -> dict:
+    """Normalize GeoJSON geometry to MultiPolygon format."""
+    if geometry_data.get("type") == "Polygon":
+        return {"type": "MultiPolygon", "coordinates": [geometry_data["coordinates"]]}
+    return geometry_data
 
 
 class Command(BaseCommand):
@@ -87,26 +86,29 @@ class Command(BaseCommand):
             props = feature["properties"]
             province_id = props["id"]  # numeric 1-144
             s_id = props["s_id"]
-            props["name"]
             is_coastal = props.get("is_coastal", False)
             capital_lonlat = props.get("capital_lonlat")
             neighbor_ids = props.get("neighbors", [])
             sea_distances = props.get("distances", [])
 
-            try:
-                geometry = make_multipolygon(feature["geometry"])
-            except Exception as e:
-                self.stderr.write(f"  Error parsing geometry for {s_id}: {e}")
-                skipped += 1
-                continue
+            geometry = normalize_to_multipolygon(feature["geometry"])
 
-            # Centroid: use capital position if available, else compute from geometry
-            centroid = None
+            # Centroid [lon, lat]: use capital position if available
+            centroid = []
             if capital_lonlat:
                 with contextlib.suppress(Exception):
-                    centroid = Point(capital_lonlat[0], capital_lonlat[1], srid=4326)
-            if centroid is None:
-                centroid = geometry.centroid
+                    centroid = [capital_lonlat[0], capital_lonlat[1]]
+            if not centroid:
+                # Compute from polygon average
+                try:
+                    coords = geometry.get("coordinates", [])
+                    all_points = [p for poly in coords for ring in poly for p in ring]
+                    if all_points:
+                        avg_lon = sum(p[0] for p in all_points) / len(all_points)
+                        avg_lat = sum(p[1] for p in all_points) / len(all_points)
+                        centroid = [avg_lon, avg_lat]
+                except Exception:
+                    pass
 
             region, was_created = Region.objects.update_or_create(
                 name=s_id,

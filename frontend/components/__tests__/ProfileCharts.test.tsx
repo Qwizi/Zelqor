@@ -281,4 +281,142 @@ describe("ProfileCharts", () => {
     );
     expect(screen.getByTestId("chart-container")).toBeTruthy();
   });
+
+  // ── other++ branch (line 84) ──────────────────────────────────────────────
+  // A match is counted as "other" when the user did NOT win and their player
+  // entry either doesn't exist or is_alive is true (not definitively a loss).
+  // The "other" data entry is computed in resultsData but the results view
+  // only displays wins/losses counts — so we verify observable behavior.
+
+  it("counts match as 'other' when player is alive but did not win (line 84 — 0 wins, 0 losses shown)", () => {
+    // User is alive (not eliminated) but someone else won → other++
+    // resultsData: wins=0, losses=0, other=1
+    const otherMatch = makeMatch({
+      id: "m-other",
+      winner_id: "opp",
+      players: [
+        {
+          id: "mp1",
+          user_id: USER_ID,
+          username: "Me",
+          color: "#22d3ee",
+          is_alive: true, // alive → not a loss
+          joined_at: "",
+          is_banned: false,
+        },
+        {
+          id: "mp2",
+          user_id: "opp",
+          username: "Opp",
+          color: "#fbbf24",
+          is_alive: false,
+          joined_at: "",
+          is_banned: false,
+        },
+      ],
+    });
+    render(
+      React.createElement(ProfileCharts, {
+        matches: [otherMatch],
+        userId: USER_ID,
+        currentElo: 1000,
+      }),
+    );
+    fireEvent.click(screen.getByText("W/L"));
+    // Win rate is 0% since user is in "other" bucket, not wins
+    expect(screen.getByText("0%")).toBeTruthy();
+    // Both wins and losses show 0
+    expect(screen.getByText("wygranych")).toBeTruthy();
+    expect(screen.getByText("przegranych")).toBeTruthy();
+  });
+
+  it("computes other++ when user is not in match players list (line 84)", () => {
+    // Match where user is not in players list → myPlayer is undefined → other++
+    // wins=0, losses=0, other=1 → 0% win rate
+    const matchWithoutUser = makeMatch({
+      id: "m-no-user",
+      winner_id: "opp",
+      players: [
+        {
+          id: "mp2",
+          user_id: "opp",
+          username: "Opp",
+          color: "#fbbf24",
+          is_alive: false,
+          joined_at: "",
+          is_banned: false,
+        },
+      ],
+    });
+    render(
+      React.createElement(ProfileCharts, {
+        matches: [matchWithoutUser],
+        userId: USER_ID,
+        currentElo: 1000,
+      }),
+    );
+    fireEvent.click(screen.getByText("W/L"));
+    // 0 wins, 0 losses → 0% win rate (other is not shown in the UI directly)
+    expect(screen.getByText("0%")).toBeTruthy();
+  });
+
+  it("shows 0 losses when match is 'other' type (not a definitive loss)", () => {
+    const otherMatch = makeMatch({
+      id: "m-other",
+      winner_id: "opp",
+      players: [
+        {
+          id: "mp1",
+          user_id: USER_ID,
+          username: "Me",
+          color: "#22d3ee",
+          is_alive: true, // still alive — not a loss
+          joined_at: "",
+          is_banned: false,
+        },
+      ],
+    });
+    render(
+      React.createElement(ProfileCharts, {
+        matches: [otherMatch],
+        userId: USER_ID,
+        currentElo: 1000,
+      }),
+    );
+    fireEvent.click(screen.getByText("W/L"));
+    // totalLosses = 0 (not a loss since is_alive=true)
+    // totalWins = 0 (not a win)
+    expect(screen.getAllByText("0").length).toBeGreaterThan(0);
+  });
+
+  it("correctly separates wins, losses, and other across multiple matches", () => {
+    const winMatch = makeMatch({ id: "m-win" }); // user wins
+    const lossMatch = makeLossMatch({ id: "m-loss" }); // user loses (is_alive=false, not winner)
+    const otherMatch = makeMatch({
+      id: "m-other",
+      winner_id: "opp",
+      players: [
+        {
+          id: "mp1",
+          user_id: USER_ID,
+          username: "Me",
+          color: "#22d3ee",
+          is_alive: true,
+          joined_at: "",
+          is_banned: false,
+        },
+        { id: "mp2", user_id: "opp", username: "Opp", color: "#f00", is_alive: false, joined_at: "", is_banned: false },
+      ],
+    });
+    render(
+      React.createElement(ProfileCharts, {
+        matches: [winMatch, lossMatch, otherMatch],
+        userId: USER_ID,
+        currentElo: 1000,
+      }),
+    );
+    fireEvent.click(screen.getByText("W/L"));
+    // 3 total: 1 win → 33%
+    expect(screen.getByText("33%")).toBeTruthy();
+  });
 });

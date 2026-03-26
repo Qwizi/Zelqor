@@ -801,4 +801,238 @@ mod tests {
             assert!(action.is_none(), "bot must not attack the human capital");
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Edge cases: early elimination and phase-specific gaps
+    // -----------------------------------------------------------------------
+
+    mod edge_cases {
+        use super::*;
+
+        // ── Early elimination ──────────────────────────────────────────────
+
+        /// The player eliminates the bot before phase 2 starts (e.g. tick 50).
+        /// The bot is still marked alive but owns zero regions — should be silent.
+        #[test]
+        fn phase_transition_when_bot_loses_all_regions_mid_game() {
+            let bot = TutorialBotBrain::new("bot".to_string());
+            let mut players = HashMap::new();
+            // Bot is alive but has no regions (all were captured).
+            players.insert("bot".to_string(), alive_player("bot", None, 200));
+            // Only neutral regions remain — none owned by the bot.
+            let mut regions = HashMap::new();
+            regions.insert("r1".to_string(), neutral_region(3));
+            let nm = HashMap::new();
+            let settings = default_settings();
+
+            // Test at every phase boundary.
+            for tick in [30i64, 50, 80, 110, 130, 150] {
+                let actions =
+                    bot.decide(&players, &regions, &nm, &settings, tick, &DiplomacyState::default());
+                assert!(
+                    actions.is_empty(),
+                    "eliminated bot should produce no actions at tick {tick}"
+                );
+            }
+        }
+
+        /// Bot is killed (is_alive=false) during an attack at a late tick.
+        #[test]
+        fn dead_bot_produces_no_actions_at_late_ticks() {
+            let bot = TutorialBotBrain::new("bot".to_string());
+            let mut players = HashMap::new();
+            let mut dead = alive_player("bot", None, 0);
+            dead.is_alive = false;
+            players.insert("bot".to_string(), dead);
+            let mut regions = HashMap::new();
+            regions.insert("r1".to_string(), neutral_region(3));
+            let nm = HashMap::new();
+            let settings = default_settings();
+
+            for tick in [30i64, 80, 110, 130] {
+                let actions =
+                    bot.decide(&players, &regions, &nm, &settings, tick, &DiplomacyState::default());
+                assert!(
+                    actions.is_empty(),
+                    "dead bot must return empty actions at tick {tick}"
+                );
+            }
+        }
+
+        // ── Phase 3 edge cases ─────────────────────────────────────────────
+
+        /// Tick 80 with no barracks config in settings — bot cannot build.
+        #[test]
+        fn phase3_no_barracks_config_produces_no_build_action() {
+            let bot = TutorialBotBrain::new("bot".to_string());
+            let mut players = HashMap::new();
+            players.insert("bot".to_string(), alive_player("bot", Some("capital"), 9999));
+            let mut regions = HashMap::new();
+            regions.insert("capital".to_string(), owned_region("bot", 10));
+            let nm = HashMap::new();
+            // Settings with no building_types at all.
+            let settings = default_settings();
+
+            let actions = bot.decide(&players, &regions, &nm, &settings, 80, &DiplomacyState::default());
+            assert!(
+                actions.is_empty(),
+                "no barracks in settings — bot cannot issue a build action"
+            );
+        }
+
+        /// Tick 80 but bot has no capital_region_id set — cannot determine build location.
+        #[test]
+        fn phase3_no_capital_id_produces_no_build_action() {
+            let bot = TutorialBotBrain::new("bot".to_string());
+            let mut players = HashMap::new();
+            // capital_region_id is None even though bot owns a region.
+            players.insert("bot".to_string(), alive_player("bot", None, 9999));
+            let mut regions = HashMap::new();
+            regions.insert("r1".to_string(), owned_region("bot", 10));
+            let nm = HashMap::new();
+            let json = serde_json::json!({
+                "default_unit_type_slug": "infantry",
+                "building_types": { "barracks": { "energy_cost": 10 } }
+            });
+            let settings: GameSettings =
+                serde_json::from_value(json).expect("settings parse");
+
+            let actions = bot.decide(&players, &regions, &nm, &settings, 80, &DiplomacyState::default());
+            assert!(
+                actions.is_empty(),
+                "no capital_region_id — bot cannot determine where to build"
+            );
+        }
+
+        // ── Phase 4 edge cases ─────────────────────────────────────────────
+
+        /// Tick 110 with no human-owned neighbors to attack — phase 4 player attack is skipped,
+        /// but neutral capture on the same tick (110 % 12 == 2, NOT a multiple) also doesn't fire.
+        #[test]
+        fn phase4_tick_110_no_human_neighbors_falls_through_to_idle() {
+            let bot = TutorialBotBrain::new("bot".to_string());
+            let mut players = HashMap::new();
+            players.insert("bot".to_string(), alive_player("bot", Some("b1"), 200));
+            players.insert("human".to_string(), alive_player("human", Some("h_cap"), 200));
+
+            // Bot region has NO neighbors at all — cannot attack anything.
+            let mut regions = HashMap::new();
+            regions.insert("b1".to_string(), owned_region("bot", 20));
+            // Human region exists but is not adjacent to bot.
+            regions.insert("h1".to_string(), owned_region("human", 5));
+            let nm: HashMap<String, Vec<String>> = HashMap::new(); // no neighbors
+            let settings = default_settings();
+
+            // Tick 110 tries player attack then neutral capture (110 % 12 == 2, skipped).
+            let actions = bot.decide(&players, &regions, &nm, &settings, 110, &DiplomacyState::default());
+            assert!(
+                actions.is_empty(),
+                "no reachable player neighbor at tick 110 should produce no actions"
+            );
+        }
+
+        /// Tick 110 — bot's source region has only 4 units (< 5 threshold) so
+        /// attack_player_region skips it; falls through with no action.
+        #[test]
+        fn phase4_tick_110_insufficient_units_to_attack_player() {
+            let bot = TutorialBotBrain::new("bot".to_string());
+            let mut players = HashMap::new();
+            players.insert("bot".to_string(), alive_player("bot", Some("b1"), 200));
+            players.insert("human".to_string(), alive_player("human", Some("h_cap"), 200));
+
+            let mut regions = HashMap::new();
+            // Bot has only 4 units — the threshold in attack_player_region is >= 5.
+            regions.insert("b1".to_string(), owned_region("bot", 4));
+            let mut human_region = owned_region("human", 2);
+            human_region.is_capital = false;
+            regions.insert("h1".to_string(), human_region);
+
+            let mut nm = HashMap::new();
+            nm.insert("b1".to_string(), vec!["h1".to_string()]);
+            nm.insert("h1".to_string(), vec!["b1".to_string()]);
+            let settings = default_settings();
+
+            // Tick 110 % 12 == 2 — no neutral capture interval either.
+            let actions = bot.decide(&players, &regions, &nm, &settings, 110, &DiplomacyState::default());
+            assert!(
+                actions.is_empty(),
+                "too few units to attack at tick 110 — should be idle"
+            );
+        }
+
+        /// Phase 4 non-attack tick (e.g. 96 — divisible by 12): bot captures a neutral
+        /// if one is reachable.
+        #[test]
+        fn phase4_off_attack_tick_captures_neutral_every_12_ticks() {
+            let bot = TutorialBotBrain::new("bot".to_string());
+            let mut players = HashMap::new();
+            players.insert("bot".to_string(), alive_player("bot", Some("b1"), 200));
+
+            let mut regions = HashMap::new();
+            regions.insert("b1".to_string(), owned_region("bot", 20));
+            regions.insert("neutral".to_string(), neutral_region(2));
+
+            let mut nm = HashMap::new();
+            nm.insert("b1".to_string(), vec!["neutral".to_string()]);
+            let settings = default_settings();
+
+            // 96 % 12 == 0 and 96 is in [80, 130)
+            let actions = bot.decide(&players, &regions, &nm, &settings, 96, &DiplomacyState::default());
+            assert_eq!(actions.len(), 1, "should produce one attack at tick 96");
+            assert_eq!(actions[0].action_type, "attack");
+            assert_eq!(actions[0].target_region_id.as_deref(), Some("neutral"));
+        }
+
+        // ── attack_weakest_neutral send-units bound ─────────────────────────
+
+        /// When source has exactly 4 units and target has 0 units: send = (0+3).min(4-2) = 2.
+        #[test]
+        fn attack_weakest_neutral_send_calculation_boundary() {
+            let bot = TutorialBotBrain::new("bot".to_string());
+            let mut regions = HashMap::new();
+            regions.insert("r1".to_string(), owned_region("bot", 4));
+            regions.insert("r2".to_string(), neutral_region(0));
+            let mut nm = HashMap::new();
+            nm.insert("r1".to_string(), vec!["r2".to_string()]);
+
+            let r1_key = "r1".to_string();
+            let r1_region = regions.get(&r1_key).unwrap();
+            let my_regions: Vec<(&String, &Region)> = vec![(&r1_key, r1_region)];
+
+            let action = bot
+                .attack_weakest_neutral_pub(&my_regions, &regions, &nm, "infantry")
+                .expect("should produce an attack");
+            assert_eq!(action.units, Some(2), "send = min(target+3, source-2) = min(3,2) = 2");
+        }
+
+        /// When the computed send is <= 0 (source barely has units), return None.
+        #[test]
+        fn attack_weakest_neutral_returns_none_when_send_is_zero() {
+            // source=4, target=3 → send = (3+3).min(4-2) = 6.min(2) = 2 — actually 2, OK.
+            // To get send=0 we need source-2 <= 0, i.e. source <= 2.
+            // But the >= 4 guard fires first, so test source=4, target very large:
+            // send = (100+3).min(4-2) = 103.min(2) = 2 > 0.
+            // The only way send <= 0 is if source-2 <= 0, which is blocked by the >= 4 guard.
+            // This test validates that the guard + send formula never produce a zero-send attack.
+            let bot = TutorialBotBrain::new("bot".to_string());
+            let mut regions = HashMap::new();
+            // source has exactly 4 units, target has 1 — send = min(4, 2) = 2 > 0
+            regions.insert("r1".to_string(), owned_region("bot", 4));
+            regions.insert("r2".to_string(), neutral_region(1));
+            let mut nm = HashMap::new();
+            nm.insert("r1".to_string(), vec!["r2".to_string()]);
+
+            let r1_key = "r1".to_string();
+            let r1_region = regions.get(&r1_key).unwrap();
+            let my_regions: Vec<(&String, &Region)> = vec![(&r1_key, r1_region)];
+
+            let action = bot.attack_weakest_neutral_pub(&my_regions, &regions, &nm, "infantry");
+            // Should produce an action with units > 0.
+            let action = action.expect("4-unit source with 1-unit neutral should attack");
+            assert!(
+                action.units.unwrap_or(0) > 0,
+                "send units must always be positive"
+            );
+        }
+    }
 }

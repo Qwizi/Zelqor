@@ -338,7 +338,7 @@ export default function WarDetailPage() {
                   {war.finished_at ? "Zakończono" : "Rozpoczęto"}
                 </p>
                 <p className="text-sm font-semibold text-foreground">
-                  {new Date((war.finished_at ?? war.started_at)!).toLocaleDateString("pl-PL", {
+                  {new Date(war.finished_at ?? war.started_at ?? "").toLocaleDateString("pl-PL", {
                     day: "numeric",
                     month: "short",
                     year: "numeric",

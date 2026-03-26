@@ -792,6 +792,7 @@ export default function ClanDetailPage() {
               .filter((t) => t.show)
               .map((t) => (
                 <button
+                  type="button"
                   key={t.key}
                   onClick={() => setTab(t.key)}
                   className={`shrink-0 flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
@@ -817,6 +818,7 @@ export default function ClanDetailPage() {
             .filter((t) => t.show)
             .map((t) => (
               <button
+                type="button"
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className={`flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-lg font-medium transition-colors ${
@@ -843,6 +845,7 @@ export default function ClanDetailPage() {
             {members.map((m) => (
               <div key={m.id} className="flex items-center gap-3 rounded-xl py-3 px-1 hover-lift">
                 <button
+                  type="button"
                   onClick={() => router.push(`/profile/${m.user.id}`)}
                   className="flex flex-1 min-w-0 items-center gap-3 text-left active:opacity-70 transition-opacity"
                 >
@@ -867,6 +870,7 @@ export default function ClanDetailPage() {
                   <div className="flex items-center gap-0.5 shrink-0">
                     {m.role !== "officer" && m.role !== "leader" && (
                       <button
+                        type="button"
                         onClick={() =>
                           promoteMut.mutate(
                             { clanId, userId: m.user.id },
@@ -888,6 +892,7 @@ export default function ClanDetailPage() {
                     )}
                     {m.role !== "recruit" && m.role !== "leader" && (
                       <button
+                        type="button"
                         onClick={() =>
                           demoteMut.mutate(
                             { clanId, userId: m.user.id },
@@ -908,6 +913,7 @@ export default function ClanDetailPage() {
                       </button>
                     )}
                     <button
+                      type="button"
                       onClick={() =>
                         kickMut.mutate(
                           { clanId, userId: m.user.id },
@@ -1129,7 +1135,10 @@ export default function ClanDetailPage() {
                   <div className="space-y-5">
                     {/* Target clan search */}
                     <div className="space-y-2">
-                      <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">
+                      <label
+                        htmlFor="war-target-search"
+                        className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium"
+                      >
                         Klan przeciwnika
                       </label>
                       <div className="relative">
@@ -1137,6 +1146,7 @@ export default function ClanDetailPage() {
                           <Search className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <Input
+                          id="war-target-search"
                           placeholder="Szukaj klanu..."
                           value={warTargetId ? warTargetName : warTargetSearch}
                           onChange={(e) => {
@@ -1155,6 +1165,7 @@ export default function ClanDetailPage() {
                                 .filter((c) => c.id !== clanId)
                                 .map((c) => (
                                   <button
+                                    type="button"
                                     key={c.id}
                                     onClick={() => {
                                       setWarTargetId(c.id);
@@ -1188,6 +1199,7 @@ export default function ClanDetailPage() {
                         <Swords className="h-4 w-4 text-accent shrink-0" />
                         <span className="text-sm md:text-base text-foreground font-semibold">{warTargetName}</span>
                         <button
+                          type="button"
                           onClick={() => {
                             setWarTargetId("");
                             setWarTargetName("");
@@ -1201,10 +1213,14 @@ export default function ClanDetailPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div className="space-y-2">
-                        <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">
+                        <label
+                          htmlFor="war-wager"
+                          className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium"
+                        >
                           Stawka (złoto)
                         </label>
                         <Input
+                          id="war-wager"
                           type="number"
                           min={100}
                           placeholder="min. 100"
@@ -1217,10 +1233,14 @@ export default function ClanDetailPage() {
                         </p>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">
+                        <label
+                          htmlFor="war-players"
+                          className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium"
+                        >
                           Graczy na stronę
                         </label>
                         <Input
+                          id="war-players"
                           type="number"
                           min={1}
                           max={5}
@@ -1233,9 +1253,9 @@ export default function ClanDetailPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">
+                      <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-medium">
                         Zaplanowana data (opcjonalnie)
-                      </label>
+                      </span>
                       <Popover>
                         <PopoverTrigger
                           className={cn(
@@ -1266,8 +1286,11 @@ export default function ClanDetailPage() {
                             }}
                           />
                           <div className="border-t border-border px-4 py-3 flex items-center gap-2">
-                            <label className="text-xs text-muted-foreground shrink-0">Godzina:</label>
+                            <label htmlFor="war-time" className="text-xs text-muted-foreground shrink-0">
+                              Godzina:
+                            </label>
                             <Input
+                              id="war-time"
                               type="time"
                               className="h-9 w-28 text-sm"
                               value={
@@ -1316,7 +1339,7 @@ export default function ClanDetailPage() {
                           players > 5
                         )
                           return;
-                        const attackerClanId = canDeclareWar ? myOwnClanId! : clanId;
+                        const attackerClanId = canDeclareWar ? (myOwnClanId as string) : clanId;
                         declareWarMut.mutate(
                           {
                             clanId: attackerClanId,
@@ -1479,6 +1502,7 @@ export default function ClanDetailPage() {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
+                          type="button"
                           disabled={busy}
                           onClick={() =>
                             acceptJrMut.mutate(jr.id, {
@@ -1494,6 +1518,7 @@ export default function ClanDetailPage() {
                           <Check size={14} />
                         </button>
                         <button
+                          type="button"
                           disabled={busy}
                           onClick={() =>
                             declineJrMut.mutate(jr.id, {

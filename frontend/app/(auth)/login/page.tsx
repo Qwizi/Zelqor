@@ -84,30 +84,23 @@ function ProfileCard({
   onRemove: (username: string) => void;
 }) {
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(profile)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect(profile);
-        }
-      }}
-      className="group flex w-full cursor-pointer items-center gap-3 md:gap-4 rounded-2xl border border-border bg-secondary p-3.5 md:p-5 text-left transition-all hover:border-border/60 hover:bg-muted active:scale-[0.98]"
-    >
-      <div className="flex h-11 w-11 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-full bg-primary/20 font-display text-lg md:text-2xl text-primary">
-        {profile.username[0].toUpperCase()}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-base md:text-xl font-semibold text-foreground">{profile.username}</div>
-      </div>
+    <div className="group relative flex w-full items-center gap-3 md:gap-4 rounded-2xl border border-border bg-secondary transition-all hover:border-border/60 hover:bg-muted active:scale-[0.98]">
       <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove(profile.username);
-        }}
-        className="rounded-lg p-1.5 text-muted-foreground opacity-100 md:opacity-0 transition-all hover:bg-muted hover:text-destructive group-hover:opacity-100"
+        type="button"
+        onClick={() => onSelect(profile)}
+        className="flex flex-1 min-w-0 cursor-pointer items-center gap-3 md:gap-4 p-3.5 md:p-5 text-left"
+      >
+        <div className="flex h-11 w-11 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-full bg-primary/20 font-display text-lg md:text-2xl text-primary">
+          {profile.username[0].toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-base md:text-xl font-semibold text-foreground">{profile.username}</div>
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={() => onRemove(profile.username)}
+        className="mr-3.5 md:mr-5 rounded-lg p-1.5 text-muted-foreground opacity-100 md:opacity-0 transition-all hover:bg-muted hover:text-destructive group-hover:opacity-100 shrink-0"
         title="Usuń profil"
       >
         <X className="h-4 w-4" />
@@ -363,6 +356,7 @@ function LoginForm() {
         {/* Back link */}
         {savedProfiles.length > 0 && (
           <button
+            type="button"
             onClick={backToProfiles}
             className="flex items-center gap-1.5 md:gap-2 text-sm md:text-sm text-muted-foreground transition-colors hover:text-foreground active:scale-[0.97]"
           >

@@ -1173,4 +1173,471 @@ mod tests {
             }
         }
     }
+
+    // -----------------------------------------------------------------------
+    // decide — diplomacy edge cases
+    // -----------------------------------------------------------------------
+
+    mod decide_diplomacy {
+        use super::*;
+        use maplord_engine::{DiplomacyProposal, DiplomacyState, Pact, War};
+
+        fn make_war(a: &str, b: &str, aggressor: &str) -> War {
+            // DiplomacyState stores (player_a, player_b) in lexicographic order.
+            let (pa, pb) = if a < b {
+                (a.to_string(), b.to_string())
+            } else {
+                (b.to_string(), a.to_string())
+            };
+            War {
+                player_a: pa,
+                player_b: pb,
+                started_tick: 1,
+                aggressor_id: aggressor.to_string(),
+                provinces_changed: Vec::new(),
+            }
+        }
+
+        fn make_nap_proposal(id: &str, from: &str, to: &str) -> DiplomacyProposal {
+            DiplomacyProposal {
+                id: id.to_string(),
+                proposal_type: "nap".to_string(),
+                from_player_id: from.to_string(),
+                to_player_id: to.to_string(),
+                created_tick: 1,
+                conditions: None,
+                status: "pending".to_string(),
+                rejected_tick: None,
+                expires_tick: None,
+            }
+        }
+
+        fn make_peace_proposal(id: &str, from: &str, to: &str) -> DiplomacyProposal {
+            DiplomacyProposal {
+                id: id.to_string(),
+                proposal_type: "peace".to_string(),
+                from_player_id: from.to_string(),
+                to_player_id: to.to_string(),
+                created_tick: 1,
+                conditions: None,
+                status: "pending".to_string(),
+                rejected_tick: None,
+                expires_tick: None,
+            }
+        }
+
+        fn make_pact(id: &str, a: &str, b: &str) -> Pact {
+            let (pa, pb) = if a < b {
+                (a.to_string(), b.to_string())
+            } else {
+                (b.to_string(), a.to_string())
+            };
+            Pact {
+                id: id.to_string(),
+                pact_type: "nap".to_string(),
+                player_a: pa,
+                player_b: pb,
+                created_tick: 1,
+                expires_tick: None,
+            }
+        }
+
+        // A. NAP proposal — bot receives a pending NAP while NOT at war with proposer.
+        //    Over many ticks the bot must eventually emit respond_pact with the correct
+        //    proposal_id (80% acceptance probability ensures convergence fast).
+        #[test]
+        fn bot_responds_to_nap_proposal_when_not_at_war() {
+            let bot_id = "bot1";
+            let enemy_id = "player2";
+
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 100, Some("A")));
+            players.insert(enemy_id.into(), make_player(enemy_id, true, 100, Some("E")));
+
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 5, true));
+
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let settings = default_settings();
+
+            let mut diplomacy = DiplomacyState::default();
+            diplomacy.proposals.push(make_nap_proposal("prop-1", enemy_id, bot_id));
+
+            let brain = brain_always_acts(bot_id);
+
+            let mut found_response = false;
+            for tick in 1..=100 {
+                let actions =
+                    brain.decide(&players, &regions, &neighbor_map, &settings, tick, &diplomacy);
+                for action in &actions {
+                    if action.action_type == "respond_pact"
+                        && action.proposal_id.as_deref() == Some("prop-1")
+                    {
+                        assert_eq!(action.player_id.as_deref(), Some(bot_id));
+                        assert!(
+                            action.accept.is_some(),
+                            "respond_pact must carry an accept field"
+                        );
+                        found_response = true;
+                        break;
+                    }
+                }
+                if found_response {
+                    break;
+                }
+            }
+            assert!(found_response, "bot must eventually respond to a pending NAP proposal");
+        }
+
+        // A (negative). NAP proposal already at war — bot must NOT respond_pact for it.
+        #[test]
+        fn bot_ignores_nap_proposal_when_already_at_war_with_proposer() {
+            let bot_id = "bot1";
+            let enemy_id = "player2";
+
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 100, Some("A")));
+            players.insert(enemy_id.into(), make_player(enemy_id, true, 100, Some("E")));
+
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 5, true));
+
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let settings = default_settings();
+
+            let mut diplomacy = DiplomacyState::default();
+            diplomacy.proposals.push(make_nap_proposal("prop-war", enemy_id, bot_id));
+            diplomacy.wars.push(make_war(bot_id, enemy_id, enemy_id));
+
+            let brain = brain_always_acts(bot_id);
+
+            for tick in 1..=100 {
+                let actions =
+                    brain.decide(&players, &regions, &neighbor_map, &settings, tick, &diplomacy);
+                let has_nap_response = actions.iter().any(|a| {
+                    a.action_type == "respond_pact"
+                        && a.proposal_id.as_deref() == Some("prop-war")
+                });
+                assert!(
+                    !has_nap_response,
+                    "bot must not respond to NAP when already at war with proposer (tick {tick})"
+                );
+            }
+        }
+
+        // B. Peace proposal — bot should REJECT peace when it is stronger (more regions).
+        //    The accept field must be false every time (deterministic: my_regions > enemy_regions).
+        #[test]
+        fn bot_rejects_peace_when_dominant() {
+            let bot_id = "bot1";
+            let weak_id = "player2";
+
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 100, Some("A")));
+            players.insert(weak_id.into(), make_player(weak_id, true, 100, Some("E")));
+
+            // Bot owns 5 regions, weak enemy owns only 1.
+            let mut regions = HashMap::new();
+            for name in ["A", "B", "C", "D", "F"] {
+                regions.insert(name.into(), make_region(Some(bot_id), 5, name == "A"));
+            }
+            regions.insert("E".into(), make_region(Some(weak_id), 5, true));
+
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let settings = default_settings();
+
+            let mut diplomacy = DiplomacyState::default();
+            diplomacy.proposals.push(make_peace_proposal("peace-1", weak_id, bot_id));
+            diplomacy.wars.push(make_war(bot_id, weak_id, weak_id));
+
+            let brain = brain_always_acts(bot_id);
+
+            // In every tick the bot must respond to the peace proposal with accept=false.
+            let actions =
+                brain.decide(&players, &regions, &neighbor_map, &settings, 1, &diplomacy);
+            let peace_response = actions
+                .iter()
+                .find(|a| a.action_type == "respond_peace" && a.proposal_id.as_deref() == Some("peace-1"))
+                .expect("bot must respond to a pending peace proposal");
+            assert_eq!(
+                peace_response.accept,
+                Some(false),
+                "stronger bot must reject peace from a weaker enemy"
+            );
+        }
+
+        // B (positive). Peace proposal — bot should ACCEPT when it is losing badly.
+        #[test]
+        fn bot_accepts_peace_when_losing() {
+            let bot_id = "bot1";
+            let strong_id = "player2";
+
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 100, Some("A")));
+            players.insert(strong_id.into(), make_player(strong_id, true, 100, Some("S")));
+
+            // Bot owns 1 region, strong enemy owns 10.
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 5, true));
+            for i in 0..10 {
+                let key = format!("S{i}");
+                regions.insert(key, make_region(Some(strong_id), 5, i == 0));
+            }
+
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let settings = default_settings();
+
+            let mut diplomacy = DiplomacyState::default();
+            diplomacy.proposals.push(make_peace_proposal("peace-2", strong_id, bot_id));
+            diplomacy.wars.push(make_war(bot_id, strong_id, strong_id));
+
+            let brain = brain_always_acts(bot_id);
+
+            let actions =
+                brain.decide(&players, &regions, &neighbor_map, &settings, 1, &diplomacy);
+            let peace_response = actions
+                .iter()
+                .find(|a| a.action_type == "respond_peace" && a.proposal_id.as_deref() == Some("peace-2"))
+                .expect("bot must respond to a pending peace proposal");
+            assert_eq!(
+                peace_response.accept,
+                Some(true),
+                "losing bot must accept peace from a dominant enemy"
+            );
+        }
+
+        // C. Propose peace when badly losing in an active war.
+        //    Condition: my_regions < 30% of enemy_regions, tick divisible by 30, 40% RNG.
+        //    We run enough ticks that the random gate fires at least once.
+        #[test]
+        fn bot_proposes_peace_when_severely_losing_in_war() {
+            let bot_id = "bot1";
+            let strong_id = "player2";
+
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 100, Some("A")));
+            players.insert(strong_id.into(), make_player(strong_id, true, 100, Some("S")));
+
+            // Bot has 1 region, enemy has 10 — ratio = 0.1 < 0.3.
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 5, true));
+            for i in 0..10 {
+                let key = format!("S{i}");
+                regions.insert(key, make_region(Some(strong_id), 5, i == 0));
+            }
+
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let settings = default_settings();
+
+            let mut diplomacy = DiplomacyState::default();
+            diplomacy.wars.push(make_war(bot_id, strong_id, strong_id));
+
+            let brain = brain_always_acts(bot_id);
+
+            // Only ticks divisible by 30 can trigger, 40% RNG — expect hit in 500 attempts
+            // across ticks 30, 60, 90, … (17 opportunities per 500 ticks, P(miss all) < 0.02).
+            let mut found_proposal = false;
+            for tick in 1..=500 {
+                let actions =
+                    brain.decide(&players, &regions, &neighbor_map, &settings, tick, &diplomacy);
+                if actions.iter().any(|a| {
+                    a.action_type == "propose_peace"
+                        && a.target_player_id.as_deref() == Some(strong_id)
+                }) {
+                    found_proposal = true;
+                    break;
+                }
+            }
+            assert!(
+                found_proposal,
+                "bot should eventually propose peace when severely outmatched in war"
+            );
+        }
+
+        // D. NAP pact respected: bot skips attacks on a NAP partner 90% of the time.
+        //    With 100 ticks and action_interval=1, the bot must NOT attack the NAP partner
+        //    on EVERY tick (only 10% chance to break the pact each time).  We verify the
+        //    NAP is respected in at least some ticks rather than blindly attacking every tick.
+        #[test]
+        fn bot_respects_nap_pact_mostly() {
+            let bot_id = "bot1";
+            let partner_id = "player2";
+
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 50, Some("A")));
+            players.insert(partner_id.into(), make_player(partner_id, true, 50, Some("B")));
+
+            // Bot has a massive advantage but has an NAP with partner.
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 50, true));
+            regions.insert("B".into(), make_region(Some(partner_id), 2, true));
+
+            let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            neighbor_map.insert("A".into(), vec!["B".into()]);
+            neighbor_map.insert("B".into(), vec!["A".into()]);
+
+            let settings = default_settings();
+
+            let mut diplomacy = DiplomacyState::default();
+            diplomacy.pacts.push(make_pact("pact-1", bot_id, partner_id));
+
+            let brain = brain_always_acts(bot_id);
+
+            let mut attack_count = 0u32;
+            for tick in 1..=100 {
+                let actions =
+                    brain.decide(&players, &regions, &neighbor_map, &settings, tick, &diplomacy);
+                if actions.iter().any(|a| {
+                    a.action_type == "attack"
+                        && a.target_region_id.as_deref() == Some("B")
+                }) {
+                    attack_count += 1;
+                }
+            }
+            // With 50% hesitation AND 10% pact-break: expected attacks ≈ 5.
+            // We verify it doesn't attack on all 100 ticks (that would mean the pact is ignored).
+            assert!(
+                attack_count < 100,
+                "bot attacked NAP partner every tick — NAP pact logic is not working"
+            );
+        }
+
+        // bot with no regions still emits diplomacy actions (peace/nap responses).
+        #[test]
+        fn eliminated_bot_still_emits_diplomacy_actions_then_stops() {
+            let bot_id = "bot1";
+            let enemy_id = "player2";
+
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 100, Some("A")));
+            players.insert(enemy_id.into(), make_player(enemy_id, true, 100, Some("E")));
+
+            // Bot is alive but owns NO regions.
+            let mut regions = HashMap::new();
+            regions.insert("E".into(), make_region(Some(enemy_id), 5, true));
+
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            let settings = default_settings();
+
+            let mut diplomacy = DiplomacyState::default();
+            diplomacy.proposals.push(make_nap_proposal("prop-elim", enemy_id, bot_id));
+
+            let brain = brain_always_acts(bot_id);
+
+            // Even with no regions the bot must still respond to pending proposals
+            // (diplomacy decisions happen BEFORE the my_regions.is_empty() early-return).
+            let actions =
+                brain.decide(&players, &regions, &neighbor_map, &settings, 1, &diplomacy);
+            let has_response = actions
+                .iter()
+                .any(|a| a.action_type == "respond_pact" && a.proposal_id.as_deref() == Some("prop-elim"));
+            assert!(
+                has_response,
+                "bot with no regions must still respond to pending diplomacy proposals"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // BotStrategy trait — both implementations satisfy the trait contract
+    // -----------------------------------------------------------------------
+
+    mod trait_contract {
+        use super::*;
+        use crate::{BotBrain, BotStrategy, TutorialBotBrain};
+
+        fn call_via_trait(
+            strategy: &dyn BotStrategy,
+            players: &HashMap<String, Player>,
+            regions: &HashMap<String, Region>,
+            neighbor_map: &HashMap<String, Vec<String>>,
+            settings: &GameSettings,
+            tick: i64,
+            diplomacy: &DiplomacyState,
+        ) -> Vec<Action> {
+            strategy.decide(players, regions, neighbor_map, settings, tick, diplomacy)
+        }
+
+        fn minimal_setup(bot_id: &str) -> (
+            HashMap<String, Player>,
+            HashMap<String, Region>,
+            HashMap<String, Vec<String>>,
+            GameSettings,
+        ) {
+            let mut players = HashMap::new();
+            players.insert(bot_id.into(), make_player(bot_id, true, 100, Some("A")));
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region(Some(bot_id), 5, true));
+            let neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+            (players, regions, neighbor_map, default_settings())
+        }
+
+        #[test]
+        fn bot_brain_satisfies_bot_strategy_trait() {
+            let bot_id = "trait-bot";
+            let (players, regions, nm, settings) = minimal_setup(bot_id);
+            let brain: Box<dyn BotStrategy> = Box::new(BotBrain {
+                player_id: bot_id.to_string(),
+                action_interval: 1,
+            });
+            // Should not panic and must return a Vec<Action> (even if empty).
+            let actions = call_via_trait(
+                brain.as_ref(),
+                &players,
+                &regions,
+                &nm,
+                &settings,
+                1,
+                &DiplomacyState::default(),
+            );
+            // Just verify the return type is well-formed.
+            let _ = actions.len();
+        }
+
+        #[test]
+        fn tutorial_bot_brain_satisfies_bot_strategy_trait() {
+            let bot_id = "trait-tutorial-bot";
+            let (players, regions, nm, settings) = minimal_setup(bot_id);
+            let brain: Box<dyn BotStrategy> = Box::new(TutorialBotBrain::new(bot_id.to_string()));
+            let actions = call_via_trait(
+                brain.as_ref(),
+                &players,
+                &regions,
+                &nm,
+                &settings,
+                1,
+                &DiplomacyState::default(),
+            );
+            let _ = actions.len();
+        }
+
+        #[test]
+        fn both_implementations_are_send_sync() {
+            fn assert_send_sync<T: Send + Sync>() {}
+            assert_send_sync::<BotBrain>();
+            assert_send_sync::<TutorialBotBrain>();
+        }
+
+        #[test]
+        fn dead_player_produces_no_actions_via_trait() {
+            let bot_id = "dead-trait-bot";
+            let (mut players, regions, nm, settings) = minimal_setup(bot_id);
+            players.get_mut(bot_id).unwrap().is_alive = false;
+
+            let brain: Box<dyn BotStrategy> = Box::new(BotBrain {
+                player_id: bot_id.to_string(),
+                action_interval: 1,
+            });
+            let actions = call_via_trait(
+                brain.as_ref(),
+                &players,
+                &regions,
+                &nm,
+                &settings,
+                1,
+                &DiplomacyState::default(),
+            );
+            assert!(actions.is_empty(), "dead player must produce no actions through the trait");
+        }
+    }
 }

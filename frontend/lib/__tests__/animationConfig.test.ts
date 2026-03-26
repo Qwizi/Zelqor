@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { ANIMATION_DEFAULTS, type IconConfig, resolveAnimConfig, type TrailConfig } from "../animationConfig";
+import {
+  ANIMATION_DEFAULTS,
+  ANIMATION_DEFAULTS_KEYS,
+  type AnimationConfig,
+  getEliminationVfx,
+  getVictoryVfx,
+  type IconConfig,
+  resolveAnimConfig,
+  type TrailConfig,
+} from "../animationConfig";
 
 // ---------------------------------------------------------------------------
 // ANIMATION_DEFAULTS structure
@@ -64,16 +73,16 @@ describe("ANIMATION_DEFAULTS — trail config", () => {
     });
   }
 
-  it("fighter trail color is a non-null amber string", () => {
-    expect(ANIMATION_DEFAULTS.fighter.trail.color).toBe("#f59e0b");
+  it("fighter trail color is a non-null silver/grey string", () => {
+    expect(ANIMATION_DEFAULTS.fighter.trail.color).toBe("#c0c0c0");
   });
 
-  it("ship trail color is a non-null blue string", () => {
-    expect(ANIMATION_DEFAULTS.ship.trail.color).toBe("#38bdf8");
+  it("ship trail color is a non-null blue-grey string", () => {
+    expect(ANIMATION_DEFAULTS.ship.trail.color).toBe("#a0c0d0");
   });
 
-  it("tank trail color is null (uses player color)", () => {
-    expect(ANIMATION_DEFAULTS.tank.trail.color).toBeNull();
+  it("tank trail color is a non-null olive/green string", () => {
+    expect(ANIMATION_DEFAULTS.tank.trail.color).toBe("#4a6a3a");
   });
 
   it("infantry trail color is null (uses player color)", () => {
@@ -344,5 +353,224 @@ describe("resolveAnimConfig()", () => {
       },
     });
     expect(cfg.trail.dash_pattern).toEqual(newPattern);
+  });
+
+  it("applies vfx_capture params for capture action type", () => {
+    const cfg = resolveAnimConfig("infantry", "capture", false, {
+      vfx_capture: { params: { trail: { width: 3.3 } } },
+    });
+    expect(cfg.trail.width).toBe(3.3);
+  });
+
+  it("applies vfx_defend params for defend action type", () => {
+    const cfg = resolveAnimConfig("tank", "defend", false, {
+      vfx_defend: { params: { pulse: { rings: 5 } } },
+    });
+    expect(cfg.pulse.rings).toBe(5);
+  });
+
+  it("uses vfxSlotOverride when provided, ignoring isNuke and actionType", () => {
+    const cfg = resolveAnimConfig(
+      "nuke",
+      "attack",
+      true,
+      {
+        custom_slot: { params: { trail: { opacity: 0.11 } } },
+      },
+      "custom_slot",
+    );
+    expect(cfg.trail.opacity).toBe(0.11);
+  });
+
+  it("returns base when vfxSlotOverride points to a missing slot", () => {
+    const cfg = resolveAnimConfig(
+      "fighter",
+      "attack",
+      false,
+      {
+        other_slot: { params: { trail: { opacity: 0.5 } } },
+      },
+      "nonexistent_slot",
+    );
+    expect(cfg.trail.opacity).toBe(ANIMATION_DEFAULTS.fighter.trail.opacity);
+  });
+
+  it("ignores params undefined vfx entry (no params key)", () => {
+    const cfg = resolveAnimConfig("ship", "attack", false, {
+      vfx_attack: { url: "/some/url.png" },
+    });
+    expect(cfg.trail.color).toBe(ANIMATION_DEFAULTS.ship.trail.color);
+  });
+
+  it("falls back to vfx_attack when vfx_nuke is absent for nuke unit", () => {
+    const cfg = resolveAnimConfig("nuke", "attack", true, {
+      vfx_attack: { params: { trail: { width: 8 } } },
+    });
+    expect(cfg.trail.width).toBe(8);
+  });
+
+  it("ignores override key with explicitly undefined value during deepMerge", () => {
+    const cfg = resolveAnimConfig("infantry", "attack", false, {
+      vfx_attack: {
+        params: {
+          trail: { width: undefined as unknown as number, opacity: 0.77 },
+        },
+      },
+    });
+    // width was undefined in override → keeps base value
+    expect(cfg.trail.width).toBe(ANIMATION_DEFAULTS.infantry.trail.width);
+    // opacity was provided → overridden
+    expect(cfg.trail.opacity).toBe(0.77);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ANIMATION_DEFAULTS_KEYS
+// ---------------------------------------------------------------------------
+
+describe("ANIMATION_DEFAULTS_KEYS", () => {
+  it("is a Set containing all expected unit kind strings", () => {
+    expect(ANIMATION_DEFAULTS_KEYS).toBeInstanceOf(Set);
+    expect(ANIMATION_DEFAULTS_KEYS.has("fighter")).toBe(true);
+    expect(ANIMATION_DEFAULTS_KEYS.has("ship")).toBe(true);
+    expect(ANIMATION_DEFAULTS_KEYS.has("tank")).toBe(true);
+    expect(ANIMATION_DEFAULTS_KEYS.has("infantry")).toBe(true);
+    expect(ANIMATION_DEFAULTS_KEYS.has("nuke")).toBe(true);
+    expect(ANIMATION_DEFAULTS_KEYS.has("bomber")).toBe(true);
+  });
+
+  it("does not contain unknown unit kinds", () => {
+    expect(ANIMATION_DEFAULTS_KEYS.has("ghost")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getEliminationVfx / getVictoryVfx
+// ---------------------------------------------------------------------------
+
+describe("getEliminationVfx()", () => {
+  it("returns undefined when playerCosmetics is undefined", () => {
+    expect(getEliminationVfx(undefined)).toBeUndefined();
+  });
+
+  it("returns undefined when vfx_elimination key is absent", () => {
+    expect(getEliminationVfx({})).toBeUndefined();
+  });
+
+  it("returns the vfx_elimination value when present", () => {
+    const cosmetics = { vfx_elimination: "/vfx/elim.webp" };
+    expect(getEliminationVfx(cosmetics)).toBe("/vfx/elim.webp");
+  });
+
+  it("returns object cosmetic value when vfx_elimination is an object", () => {
+    const cosmetics = { vfx_elimination: { url: "/vfx/elim2.webp", params: {} } };
+    expect(getEliminationVfx(cosmetics)).toEqual({ url: "/vfx/elim2.webp", params: {} });
+  });
+});
+
+describe("getVictoryVfx()", () => {
+  it("returns undefined when playerCosmetics is undefined", () => {
+    expect(getVictoryVfx(undefined)).toBeUndefined();
+  });
+
+  it("returns undefined when vfx_victory key is absent", () => {
+    expect(getVictoryVfx({})).toBeUndefined();
+  });
+
+  it("returns the vfx_victory value when present", () => {
+    const cosmetics = { vfx_victory: "/vfx/victory.webp" };
+    expect(getVictoryVfx(cosmetics)).toBe("/vfx/victory.webp");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// bomber unit kind
+// ---------------------------------------------------------------------------
+
+describe("ANIMATION_DEFAULTS — bomber unit", () => {
+  it("bomber has all required top-level keys", () => {
+    const cfg = ANIMATION_DEFAULTS.bomber;
+    expect(cfg).toHaveProperty("trail");
+    expect(cfg).toHaveProperty("icon");
+    expect(cfg).toHaveProperty("pulse");
+    expect(cfg).toHaveProperty("impact_attack");
+    expect(cfg).toHaveProperty("impact_move");
+  });
+
+  it("bomber trail line_style is 'dashed'", () => {
+    expect(ANIMATION_DEFAULTS.bomber.trail.line_style).toBe("dashed");
+  });
+
+  it("bomber trail color is orange", () => {
+    expect(ANIMATION_DEFAULTS.bomber.trail.color).toBe("#f97316");
+  });
+
+  it("bomber icon rotate is true", () => {
+    expect(ANIMATION_DEFAULTS.bomber.icon.rotate).toBe(true);
+  });
+
+  it("bomber pulse is enabled", () => {
+    expect(ANIMATION_DEFAULTS.bomber.pulse.enabled).toBe(true);
+  });
+
+  it("bomber impact_attack has longer duration than standard (1200ms)", () => {
+    expect(ANIMATION_DEFAULTS.bomber.impact_attack.duration).toBe(1200);
+    expect(ANIMATION_DEFAULTS.bomber.impact_attack.duration).toBeGreaterThan(
+      ANIMATION_DEFAULTS.infantry.impact_attack.duration,
+    );
+  });
+
+  it("bomber impact_move has short duration (400ms)", () => {
+    expect(ANIMATION_DEFAULTS.bomber.impact_move.duration).toBe(400);
+  });
+
+  it("resolveAnimConfig returns bomber defaults for 'bomber' kind", () => {
+    const cfg = resolveAnimConfig("bomber", "attack", false);
+    expect(cfg.trail.color).toBe(ANIMATION_DEFAULTS.bomber.trail.color);
+    expect(cfg.trail.line_style).toBe("dashed");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isPlainObject edge cases covered via deepMerge (through resolveAnimConfig)
+// ---------------------------------------------------------------------------
+
+describe("deepMerge — edge cases", () => {
+  it("primitive override replaces primitive base value", () => {
+    const cfg = resolveAnimConfig("tank", "move", false, {
+      vfx_move: {
+        params: {
+          trail: { glow: true },
+        },
+      },
+    });
+    expect(cfg.trail.glow).toBe(true);
+  });
+
+  it("null override replaces non-null base value", () => {
+    const cfg = resolveAnimConfig("fighter", "attack", false, {
+      vfx_attack: {
+        params: {
+          trail: { color: null },
+        },
+      },
+    });
+    expect(cfg.trail.color).toBeNull();
+  });
+
+  it("deeply merges multiple nested levels simultaneously", () => {
+    const partialCfg: Partial<AnimationConfig> = {
+      trail: { opacity: 0.55, width: 3.0 } as TrailConfig,
+      icon: { size: 0.9 } as IconConfig,
+    };
+    const cfg = resolveAnimConfig("ship", "attack", false, {
+      vfx_attack: { params: partialCfg },
+    });
+    expect(cfg.trail.opacity).toBe(0.55);
+    expect(cfg.trail.width).toBe(3.0);
+    expect(cfg.icon.size).toBe(0.9);
+    // Non-overridden fields kept from base
+    expect(cfg.trail.color).toBe(ANIMATION_DEFAULTS.ship.trail.color);
+    expect(cfg.icon.rotate).toBe(ANIMATION_DEFAULTS.ship.icon.rotate);
   });
 });

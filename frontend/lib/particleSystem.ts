@@ -516,8 +516,11 @@ function makeCanvas(size: number): OffscreenCanvas {
 }
 
 function canvasToTexture(canvas: OffscreenCanvas): Texture {
-  // PixiJS 8: create texture from canvas source
-  return Texture.from(canvas as unknown as HTMLCanvasElement);
+  // PixiJS 8: create texture from OffscreenCanvas via ImageBitmap transfer.
+  // Using createImageBitmap avoids the unsafe OffscreenCanvas→HTMLCanvasElement cast
+  // and works correctly with both WebGL and WebGPU renderers.
+  const bitmap = canvas.transferToImageBitmap();
+  return Texture.from({ resource: bitmap, alphaMode: "premultiply-alpha-on-upload" });
 }
 
 // Cache so we never regenerate the same texture twice

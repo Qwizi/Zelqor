@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GameState } from "@/hooks/useGameSocket";
 import { cleanupTutorial, completeTutorial } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
 import { TUTORIAL_STEPS, type TutorialStep } from "@/lib/tutorialSteps";
 
 interface UseTutorialReturn {
@@ -79,10 +79,9 @@ export function useTutorial(
       setIsActive(false);
       setDidFinish(true);
       sendWs({ action: "set_tick_multiplier", multiplier: 1 });
-      const token = getAccessToken();
-      if (token) {
-        completeTutorial(token).catch(() => {});
-        cleanupTutorial(token).catch(() => {});
+      if (isAuthenticated()) {
+        completeTutorial().catch(() => {});
+        cleanupTutorial().catch(() => {});
       }
       router.push("/dashboard");
     }
@@ -106,9 +105,8 @@ export function useTutorial(
     setIsActive(false);
     setDidFinish(true);
     sendWs({ action: "set_tick_multiplier", multiplier: 1 });
-    const token = getAccessToken();
-    if (token) {
-      cleanupTutorial(token).catch(() => {});
+    if (isAuthenticated()) {
+      cleanupTutorial().catch(() => {});
     }
     router.push("/dashboard");
   }, [sendWs, router]);

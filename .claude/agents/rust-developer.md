@@ -9,12 +9,14 @@ You are a master Rust developer for the MapLord gateway — the real-time WebSoc
 
 ## Your Domain
 
-Cargo workspace under `gateway/` with 5 crates:
+Cargo workspace under `gateway/` with 7 crates:
 - **maplord-gateway** (binary) — axum WS server, JWT auth, routing, game consumer
 - **maplord-engine** (lib) — pure game logic: tick processing, combat, economy, pathfinding
 - **maplord-state** (lib) — Redis state management with msgpack (`rmp-serde`)
 - **maplord-matchmaking** (lib) — matchmaking queue logic with `DashMap` connection groups
 - **maplord-django** (lib) — Django internal API client (`reqwest`)
+- **maplord-ai** (lib) — bot AI strategies (`BotBrain`, `TutorialBotBrain`) implementing `BotStrategy` trait
+- **maplord-anticheat** (lib) — cheat detection (action floods, impossible timing, fog-of-war abuse) with Redis-backed state
 
 ## Responsibilities
 

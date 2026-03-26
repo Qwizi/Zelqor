@@ -39,7 +39,7 @@ export default function DesktopChatVoice({
   const hasVoice = Boolean(voiceToken && voiceUrl);
 
   return (
-    <div className="hidden sm:flex absolute left-3 bottom-4 z-10 flex-col items-start gap-2 max-w-[240px]">
+    <div className="hidden sm:flex absolute left-3 bottom-4 z-10 flex-col items-start gap-2 max-w-[220px] lg:max-w-[240px]">
       {/* Voice pill */}
       <VoicePill
         connected={voiceConnected}
@@ -53,7 +53,7 @@ export default function DesktopChatVoice({
       />
 
       {/* Chat panel */}
-      <div className="w-full rounded-xl border border-border bg-card/80 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+      <div className="w-full rounded-xl border border-border bg-card/80 shadow-(--shadow-panel) backdrop-blur-xl">
         <button
           onClick={() => setChatOpen(!chatOpen)}
           className="flex w-full items-center justify-between px-2.5 py-1.5 transition-colors hover:bg-muted/20"
@@ -108,7 +108,7 @@ function VoicePill({
       <button
         onClick={onJoin}
         disabled={disabled}
-        className={`flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors ${disabled ? "opacity-40" : "hover:bg-muted/30"}`}
+        className={`flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1.5 shadow-(--shadow-panel) backdrop-blur-xl transition-colors ${disabled ? "opacity-40" : "hover:bg-muted/30"}`}
       >
         <Phone className="h-3 w-3 text-emerald-400" />
         <span className="text-xs font-semibold text-muted-foreground">{disabled ? "Voice..." : "Dołącz"}</span>
@@ -117,7 +117,7 @@ function VoicePill({
   }
 
   return (
-    <div className="flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2 py-1 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+    <div className="flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2 py-1 shadow-(--shadow-panel) backdrop-blur-xl">
       <button
         onClick={onToggleMic}
         className={`rounded-full p-1 transition-colors ${
@@ -127,7 +127,7 @@ function VoicePill({
       >
         {micEnabled ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
       </button>
-      {peers.length > 0 && <span className="text-[10px] tabular-nums text-muted-foreground">{peers.length}</span>}
+      {peers.length > 0 && <span className="text-caption tabular-nums text-muted-foreground">{peers.length}</span>}
       <button
         onClick={onLeave}
         className="rounded-full p-1 text-red-400 transition-colors hover:bg-red-500/20"

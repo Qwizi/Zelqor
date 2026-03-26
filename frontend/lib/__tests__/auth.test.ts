@@ -1,75 +1,138 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearTokens, getAccessToken, getRefreshToken, isLoggedIn, setTokens } from "../auth";
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  isAuthenticated,
+  isLoggedIn,
+  setAuthenticated,
+  setTokens,
+} from "../auth";
 
 describe("auth utilities", () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  describe("getAccessToken", () => {
-    it("returns null when no token is stored", () => {
-      expect(getAccessToken()).toBeNull();
+  // -------------------------------------------------------------------------
+  // Cookie-based auth flag (primary API)
+  // -------------------------------------------------------------------------
+
+  describe("isAuthenticated / setAuthenticated", () => {
+    it("returns false when no flag is stored", () => {
+      expect(isAuthenticated()).toBe(false);
     });
 
-    it("returns the stored access token", () => {
-      localStorage.setItem("maplord_access", "test-access-token");
-      expect(getAccessToken()).toBe("test-access-token");
-    });
-  });
-
-  describe("getRefreshToken", () => {
-    it("returns null when no refresh token is stored", () => {
-      expect(getRefreshToken()).toBeNull();
+    it("returns true after setAuthenticated(true)", () => {
+      setAuthenticated(true);
+      expect(isAuthenticated()).toBe(true);
     });
 
-    it("returns the stored refresh token", () => {
-      localStorage.setItem("maplord_refresh", "test-refresh-token");
-      expect(getRefreshToken()).toBe("test-refresh-token");
-    });
-  });
-
-  describe("setTokens", () => {
-    it("stores both access and refresh tokens in localStorage", () => {
-      setTokens("my-access", "my-refresh");
-      expect(localStorage.getItem("maplord_access")).toBe("my-access");
-      expect(localStorage.getItem("maplord_refresh")).toBe("my-refresh");
+    it("returns false after setAuthenticated(false)", () => {
+      setAuthenticated(true);
+      setAuthenticated(false);
+      expect(isAuthenticated()).toBe(false);
     });
 
-    it("overwrites previously stored tokens", () => {
-      setTokens("first-access", "first-refresh");
-      setTokens("second-access", "second-refresh");
-      expect(localStorage.getItem("maplord_access")).toBe("second-access");
-      expect(localStorage.getItem("maplord_refresh")).toBe("second-refresh");
+    it("removes the flag key from localStorage on setAuthenticated(false)", () => {
+      setAuthenticated(true);
+      setAuthenticated(false);
+      expect(localStorage.getItem("maplord_authenticated")).toBeNull();
     });
-  });
 
-  describe("clearTokens", () => {
-    it("removes both tokens from localStorage", () => {
-      setTokens("access", "refresh");
-      clearTokens();
+    it("also removes legacy token keys on setAuthenticated(false)", () => {
+      localStorage.setItem("maplord_access", "old-token");
+      localStorage.setItem("maplord_refresh", "old-refresh");
+      setAuthenticated(false);
       expect(localStorage.getItem("maplord_access")).toBeNull();
       expect(localStorage.getItem("maplord_refresh")).toBeNull();
-    });
-
-    it("does not throw when tokens are not present", () => {
-      expect(() => clearTokens()).not.toThrow();
     });
   });
 
   describe("isLoggedIn", () => {
-    it("returns false when no access token is present", () => {
+    it("returns false when not authenticated", () => {
       expect(isLoggedIn()).toBe(false);
     });
 
-    it("returns true when an access token is stored", () => {
-      setTokens("valid-token", "refresh-token");
+    it("returns true when authenticated flag is set", () => {
+      setAuthenticated(true);
       expect(isLoggedIn()).toBe(true);
     });
 
-    it("returns false after tokens are cleared", () => {
-      setTokens("valid-token", "refresh-token");
-      clearTokens();
+    it("returns false after setAuthenticated(false)", () => {
+      setAuthenticated(true);
+      setAuthenticated(false);
       expect(isLoggedIn()).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Deprecated stubs (backward compat — tokens are now httpOnly cookies)
+  // -------------------------------------------------------------------------
+
+  describe("getAccessToken (deprecated stub)", () => {
+    it("always returns null — tokens are in httpOnly cookies", () => {
+      // Even if a legacy key exists in localStorage, the stub ignores it
+      localStorage.setItem("maplord_access", "legacy-token");
+      expect(getAccessToken()).toBeNull();
+    });
+  });
+
+  describe("getRefreshToken (deprecated stub)", () => {
+    it("always returns null — tokens are in httpOnly cookies", () => {
+      localStorage.setItem("maplord_refresh", "legacy-refresh");
+      expect(getRefreshToken()).toBeNull();
+    });
+  });
+
+  describe("setTokens (deprecated stub)", () => {
+    it("sets the authenticated flag to true", () => {
+      setTokens("any-access", "any-refresh");
+      expect(isAuthenticated()).toBe(true);
+    });
+  });
+
+  describe("clearTokens (deprecated stub)", () => {
+    it("sets the authenticated flag to false", () => {
+      setAuthenticated(true);
+      clearTokens();
+      expect(isAuthenticated()).toBe(false);
+    });
+
+    it("does not throw when called without prior auth", () => {
+      expect(() => clearTokens()).not.toThrow();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // SSR branch: typeof window === "undefined" (lines 8 and 13)
+  // In jsdom window exists, so we simulate the SSR guard by temporarily
+  // deleting the global window object.
+  // -------------------------------------------------------------------------
+
+  describe("SSR guard (typeof window === 'undefined')", () => {
+    it("isAuthenticated() returns false when window is undefined", () => {
+      const savedWindow = global.window;
+      // @ts-expect-error intentional: simulate SSR environment
+      delete global.window;
+
+      const result = isAuthenticated();
+      expect(result).toBe(false);
+
+      global.window = savedWindow;
+    });
+
+    it("setAuthenticated() is a no-op when window is undefined", () => {
+      const savedWindow = global.window;
+      // @ts-expect-error intentional: simulate SSR environment
+      delete global.window;
+
+      // Should not throw and should have no observable effect
+      expect(() => setAuthenticated(true)).not.toThrow();
+
+      global.window = savedWindow;
+      // After restoring window, the flag should not have been set
+      expect(isAuthenticated()).toBe(false);
     });
   });
 });

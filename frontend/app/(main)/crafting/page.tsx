@@ -109,6 +109,7 @@ function RecipeRow({
 }) {
   return (
     <button
+      type="button"
       onClick={onSelect}
       className={`hover-lift group w-full rounded-xl border p-3 md:p-4 text-left transition-colors active:scale-[0.98] ${
         active ? "bg-secondary/50 border-primary/30" : "border-border/30 hover:bg-muted/30"
@@ -378,6 +379,7 @@ function CraftingContent() {
             const active = category === c.value;
             return (
               <button
+                type="button"
                 key={c.value}
                 onClick={() => {
                   setCategory(c.value);
@@ -405,6 +407,7 @@ function CraftingContent() {
           <div className="flex gap-1.5 md:gap-2 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] lg:hidden">
             {CATEGORIES.map((c) => (
               <button
+                type="button"
                 key={c.value}
                 onClick={() => {
                   setCategory(c.value);
@@ -435,6 +438,7 @@ function CraftingContent() {
               />
             </div>
             <button
+              type="button"
               onClick={() => setShowOnlyCraftable((v) => !v)}
               className={`flex shrink-0 items-center gap-1 md:gap-1.5 rounded-full md:rounded-xl border px-3 md:px-4 h-10 md:h-11 text-xs md:text-base font-medium transition-colors ${
                 showOnlyCraftable

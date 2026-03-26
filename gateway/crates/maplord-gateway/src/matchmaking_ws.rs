@@ -25,57 +25,68 @@ pub async fn ws_matchmaking_handler(
         return resp;
     }
 
-    let token = match query.token {
-        Some(t) => t,
-        None => {
-            return Response::builder()
-                .status(401)
-                .body("Missing token".into())
-                .unwrap();
+    // Authenticate via query params: token (JWT) or ticket (one-time Redis ticket).
+    let pre_auth_user_id = if let Some(token) = &query.token {
+        // JWT token in query params (backward compat)
+        match auth::validate_token(token, &state.config.secret_key) {
+            Ok(uid) => Some(uid),
+            Err(_) => None,
         }
-    };
-
-    let user_id = match auth::validate_token(&token, &state.config.secret_key) {
-        Ok(id) => id,
-        Err(_) => {
-            return Response::builder()
-                .status(401)
-                .body("Invalid token".into())
-                .unwrap();
-        }
-    };
-
-    if let Some(ticket) = query.ticket {
-        match crate::auth::validate_ticket(&ticket, query.nonce.as_deref(), &mut state.redis.clone()).await {
-            Ok(ticket_user_id) if ticket_user_id != user_id => {
-                return Response::builder()
-                    .status(401)
-                    .body("Ticket user mismatch".into())
-                    .unwrap();
+    } else if let Some(ticket) = &query.ticket {
+        // Ticket-only auth (httpOnly cookie flow — frontend can't send JWT directly)
+        match crate::auth::validate_ticket(
+            ticket,
+            query.nonce.as_deref(),
+            &mut state.redis.clone(),
+        )
+        .await
+        {
+            Ok(uid) => Some(uid),
+            Err(e) => {
+                tracing::warn!("Ticket validation failed: {e}");
+                None
             }
-            Err(_) => {
-                return Response::builder()
-                    .status(401)
-                    .body("Invalid or expired ticket".into())
-                    .unwrap();
-            }
-            Ok(_) => {}
         }
-    }
+    } else {
+        None
+    };
 
     let game_mode_slug = game_mode.map(|p| p.0);
 
-    ws.on_upgrade(move |socket| handle_matchmaking_socket(socket, user_id, game_mode_slug, state))
+    ws.max_message_size(64 * 1024)
+        .on_upgrade(move |socket| {
+            handle_matchmaking_socket(socket, pre_auth_user_id, game_mode_slug, state)
+        })
 }
 
 async fn handle_matchmaking_socket(
     socket: WebSocket,
-    user_id: String,
+    pre_auth_user_id: Option<String>,
     game_mode: Option<String>,
     state: AppState,
 ) {
     use futures::{SinkExt, StreamExt};
     let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    // Authenticate — either from pre-validated query param or first-message auth frame.
+    let user_id = match crate::ws_auth::authenticate_ws(
+        &mut ws_receiver,
+        pre_auth_user_id,
+        &state.config.secret_key,
+    )
+    .await
+    {
+        Some(uid) => uid,
+        None => {
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4001,
+                    reason: "Authentication failed".into(),
+                })))
+                .await;
+            return;
+        }
+    };
 
     // Check that the matchmaking module is enabled
     match state.django.get_system_modules().await {

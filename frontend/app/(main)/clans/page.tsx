@@ -106,6 +106,7 @@ export default function ClansPage() {
       {myClan && myMembership && (
         <div className="px-4 md:px-0">
           <button
+            type="button"
             onClick={() => router.push(`/clans/${myClan.id}`)}
             className="flex w-full items-center justify-between gap-3 rounded-2xl border border-primary/20 md:border-primary/25 bg-primary/5 p-3.5 md:p-5 text-left transition-all hover-lift active:bg-primary/10"
           >
@@ -148,6 +149,7 @@ export default function ClansPage() {
             ].map((t) => (
               <button
                 key={t.key}
+                type="button"
                 onClick={() => setTab(t.key)}
                 className={`shrink-0 gap-1.5 flex items-center rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
                   tab === t.key
@@ -171,6 +173,7 @@ export default function ClansPage() {
           ].map((t) => (
             <button
               key={t.key}
+              type="button"
               onClick={() => setTab(t.key)}
               className={`flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-lg font-medium transition-colors ${
                 tab === t.key
@@ -220,6 +223,7 @@ export default function ClansPage() {
                 {clans.map((clan) => (
                   <button
                     key={clan.id}
+                    type="button"
                     onClick={() => router.push(`/clans/${clan.id}`)}
                     className="flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 hover-lift"
                   >
@@ -370,6 +374,7 @@ export default function ClansPage() {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
+                          type="button"
                           disabled={actionPending}
                           onClick={() =>
                             acceptMut.mutate(inv.id, {
@@ -389,6 +394,7 @@ export default function ClansPage() {
                           )}
                         </button>
                         <button
+                          type="button"
                           disabled={actionPending}
                           onClick={() =>
                             declineMut.mutate(inv.id, {
@@ -511,6 +517,7 @@ export default function ClansPage() {
                     {/* 2nd */}
                     {leaderboard[1] && (
                       <button
+                        type="button"
                         onClick={() => router.push(`/clans/${leaderboard[1].id}`)}
                         className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-border bg-card px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-48 min-h-[132px] md:min-h-0 transition-all hover-lift"
                       >
@@ -531,6 +538,7 @@ export default function ClansPage() {
                     )}
                     {/* 1st */}
                     <button
+                      type="button"
                       onClick={() => router.push(`/clans/${leaderboard[0].id}`)}
                       className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-[#FFD700]/40 bg-[#FFD700]/5 px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-56 min-h-[172px] md:min-h-0 transition-all hover-lift"
                     >
@@ -551,6 +559,7 @@ export default function ClansPage() {
                     {/* 3rd */}
                     {leaderboard[2] && (
                       <button
+                        type="button"
                         onClick={() => router.push(`/clans/${leaderboard[2].id}`)}
                         className="flex flex-col items-center justify-end gap-2 rounded-2xl border border-border bg-card px-3 py-4 md:px-6 md:py-5 flex-1 md:flex-none md:w-48 min-h-[116px] md:min-h-0 transition-all hover-lift"
                       >
@@ -580,6 +589,7 @@ export default function ClansPage() {
                     {leaderboard.slice(3).map((clan, idx) => (
                       <button
                         key={clan.id}
+                        type="button"
                         onClick={() => router.push(`/clans/${clan.id}`)}
                         className="flex w-full items-center gap-3 rounded-xl py-3 px-1 text-left transition-all active:bg-muted/50 hover-lift"
                       >

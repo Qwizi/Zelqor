@@ -1,8 +1,7 @@
 import logging
 
-from ninja import Schema
+from ninja import Query, Schema
 from ninja_extra import ControllerBase, api_controller, route
-from pydantic import Field
 
 from apps.game_config.decorators import require_module_controller
 from apps.internal_auth import check_internal_secret
@@ -61,7 +60,7 @@ class ChatInternalController(ControllerBase):
         }
 
     @route.get("/chat/messages/")
-    def get_global_messages(self, request, limit: int = Field(default=50, le=100)):
+    def get_global_messages(self, request, limit: int = Query(50, ge=1, le=100)):
         if not check_internal_secret(request):
             return self.create_response({"error": "Unauthorized"}, status_code=403)
 
@@ -110,7 +109,7 @@ class ChatInternalController(ControllerBase):
         }
 
     @route.get("/chat/matches/{match_id}/messages/")
-    def get_match_messages(self, request, match_id: str, limit: int = Field(default=50, le=100)):
+    def get_match_messages(self, request, match_id: str, limit: int = Query(50, ge=1, le=100)):
         if not check_internal_secret(request):
             return self.create_response({"error": "Unauthorized"}, status_code=403)
 

@@ -349,10 +349,10 @@ function DevelopersContent() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !token) {
+    if (!user) {
       router.replace("/login");
     }
-  }, [user, authLoading, token, router]);
+  }, [user, authLoading, router]);
 
   const handleCreated = (app: DeveloperAppCreated) => {
     setCreatedApp(app);

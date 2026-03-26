@@ -30,10 +30,8 @@ import { Badge } from "@/components/ui/badge";
 import { BannedBadge } from "@/components/ui/banned-badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useMatch, useMatchResult } from "@/hooks/queries";
+import { useCreateShareLink, useMatch, useMatchResult } from "@/hooks/queries";
 import { useAuth } from "@/hooks/useAuth";
-import { createShareLink } from "@/lib/api";
-import { requireToken } from "@/lib/queryClient";
 
 const MatchCharts = dynamic(() => import("@/components/match/MatchCharts"), { ssr: false });
 
@@ -72,6 +70,7 @@ export default function MatchDetailPage() {
 
   const { data: match, isLoading: matchLoading } = useMatch(id);
   const { data: result } = useMatchResult(id);
+  const shareMutation = useCreateShareLink();
 
   const loading = matchLoading || authLoading;
 
@@ -84,21 +83,26 @@ export default function MatchDetailPage() {
     return <MatchDetailSkeleton />;
   }
 
-  const handleShare = async () => {
+  const handleShare = () => {
     if (!match) return;
     if (shareUrl) {
       setShareUrl(null);
       return;
-    } // toggle
-    setShareLoading(true);
-    try {
-      const link = await createShareLink(requireToken(), "match_result", match.id);
-      setShareUrl(`${window.location.origin}/share/${link.token}`);
-    } catch {
-      toast.error("Nie udało się utworzyć linku.", { id: "match-share-link-error" });
-    } finally {
-      setShareLoading(false);
     }
+    setShareLoading(true);
+    shareMutation.mutate(
+      { resourceType: "match_result", resourceId: match.id },
+      {
+        onSuccess: (link) => {
+          setShareUrl(`${window.location.origin}/share/${link.token}`);
+          setShareLoading(false);
+        },
+        onError: () => {
+          toast.error("Nie udało się utworzyć linku.", { id: "match-share-link-error" });
+          setShareLoading(false);
+        },
+      },
+    );
   };
 
   const handleCopyShareUrl = async () => {
@@ -128,9 +132,14 @@ export default function MatchDetailPage() {
             <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
             <span className="hidden md:inline text-base">Panel</span>
           </Link>
-          <h1 className="font-display text-lg md:hidden text-foreground">Mecz</h1>
+          <span className="font-display text-lg md:hidden text-foreground" aria-hidden="true">
+            Mecz
+          </span>
         </div>
-        <h1 className="hidden md:block font-display text-5xl text-foreground">Szczegóły meczu</h1>
+        <h1 className="font-display text-lg md:text-5xl text-foreground">
+          <span className="md:hidden">Mecz</span>
+          <span className="hidden md:inline">Szczegoly meczu</span>
+        </h1>
 
         {/* Action buttons */}
         <div className="flex gap-2 mt-3 md:mt-4">

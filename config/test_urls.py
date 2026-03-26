@@ -1,5 +1,5 @@
 """
-Test URL configuration — skips apps.geo which requires GDAL/PostGIS.
+Test URL configuration — mirrors production urls.py.
 """
 
 from django.conf import settings
@@ -9,9 +9,14 @@ from django.urls import path
 from ninja_extra import NinjaExtraAPI
 from ninja_jwt.controller import NinjaJWTDefaultController
 
+from apps.accounts.friends_api import FriendsController
+from apps.accounts.messages_api import MessagesController
+from apps.accounts.social_auth import SocialAuthController
+from apps.accounts.steam_auth import SteamAuthController
 from apps.accounts.views import AuthController
 from apps.assets.api import AssetController
 from apps.chat.internal_api import ChatInternalController
+from apps.clans.api import ClanController, ClanGlobalController
 from apps.crafting.views import CraftingController
 from apps.developers.oauth_views import OAuthController
 from apps.developers.public_views import PublicAPIController
@@ -19,10 +24,12 @@ from apps.developers.views import DeveloperController
 from apps.game.internal_api import GameInternalController
 from apps.game.views import GameController, ShareController
 from apps.game_config.views import ConfigController
+from apps.geo.views import GeoController
 from apps.inventory.views import DeckController, InventoryController
 from apps.marketplace.views import MarketplaceController
 from apps.matchmaking.internal_api import LobbyInternalController, MatchmakingInternalController
-from apps.matchmaking.views import MatchController, TutorialController
+from apps.matchmaking.views import MatchController, MatchmakingStatusController, TutorialController
+from apps.notifications.views import NotificationController
 
 api = NinjaExtraAPI(title="MapLord API", version="1.0.0")
 api.register_controllers(
@@ -45,6 +52,15 @@ api.register_controllers(
     PublicAPIController,
     OAuthController,
     AssetController,
+    GeoController,
+    NotificationController,
+    ClanGlobalController,
+    ClanController,
+    FriendsController,
+    MessagesController,
+    SocialAuthController,
+    SteamAuthController,
+    MatchmakingStatusController,
 )
 
 

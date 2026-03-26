@@ -17,7 +17,13 @@ vi.mock("@/lib/api", () => ({
 }));
 
 vi.mock("@/lib/auth", () => ({
+  isAuthenticated: () => mockGetAccessToken() !== null,
+  setAuthenticated: vi.fn(),
   getAccessToken: (...args: unknown[]) => mockGetAccessToken(...args),
+  getRefreshToken: vi.fn(() => null),
+  setTokens: vi.fn(),
+  clearTokens: vi.fn(),
+  isLoggedIn: vi.fn(() => true),
 }));
 
 import { usePushNotifications } from "../usePushNotifications";
@@ -167,7 +173,7 @@ describe("usePushNotifications", () => {
       userVisibleOnly: true,
       applicationServerKey: expect.any(Uint8Array),
     });
-    expect(mockSubscribePush).toHaveBeenCalledWith("access-token", {
+    expect(mockSubscribePush).toHaveBeenCalledWith({
       endpoint: "https://push.example.com/endpoint",
       p256dh: "mock-p256dh",
       auth: "mock-auth",
@@ -251,7 +257,7 @@ describe("usePushNotifications", () => {
       await result.current.unsubscribe();
     });
 
-    expect(mockUnsubscribePush).toHaveBeenCalledWith("access-token", "https://push.example.com/endpoint");
+    expect(mockUnsubscribePush).toHaveBeenCalledWith("https://push.example.com/endpoint");
     expect(sub.unsubscribe).toHaveBeenCalled();
     expect(result.current.subscribed).toBe(false);
   });

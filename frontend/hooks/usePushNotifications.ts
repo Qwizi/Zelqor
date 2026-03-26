@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getVapidKey, subscribePush, unsubscribePush } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -36,8 +36,7 @@ export function usePushNotifications(autoPrompt = false) {
   }, []);
 
   const subscribe = useCallback(async () => {
-    const token = getAccessToken();
-    if (!token) return false;
+    if (!isAuthenticated()) return false;
 
     try {
       const perm = await Notification.requestPermission();
@@ -52,7 +51,7 @@ export function usePushNotifications(autoPrompt = false) {
       });
 
       const json = sub.toJSON();
-      await subscribePush(token, {
+      await subscribePush({
         endpoint: json.endpoint!,
         p256dh: json.keys?.p256dh!,
         auth: json.keys?.auth!,
@@ -67,14 +66,13 @@ export function usePushNotifications(autoPrompt = false) {
   }, []);
 
   const unsubscribe = useCallback(async () => {
-    const token = getAccessToken();
-    if (!token) return;
+    if (!isAuthenticated()) return;
 
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
-        await unsubscribePush(token, sub.endpoint);
+        await unsubscribePush(sub.endpoint);
         await sub.unsubscribe();
       }
       setSubscribed(false);

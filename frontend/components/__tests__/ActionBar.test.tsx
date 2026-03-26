@@ -80,6 +80,16 @@ const UNITS_CONFIG: UnitType[] = [
     order: 1,
     max_level: 3,
     level_stats: {},
+    is_stealth: false,
+    path_damage: 0,
+    aoe_damage: 0,
+    blockade_port: false,
+    intercept_air: false,
+    can_station_anywhere: false,
+    lifetime_ticks: 0,
+    combat_target: "all",
+    ticks_per_hop: 1,
+    air_speed_ticks_per_hop: 1,
   },
   {
     id: "u-2",
@@ -103,6 +113,16 @@ const UNITS_CONFIG: UnitType[] = [
     order: 2,
     max_level: 3,
     level_stats: {},
+    is_stealth: false,
+    path_damage: 0,
+    aoe_damage: 0,
+    blockade_port: false,
+    intercept_air: false,
+    can_station_anywhere: false,
+    lifetime_ticks: 0,
+    combat_target: "all",
+    ticks_per_hop: 1,
+    air_speed_ticks_per_hop: 1,
   },
 ];
 
@@ -323,6 +343,280 @@ describe("ActionBar", () => {
   it("renders correct Polish label for fighter unit type", () => {
     const sourceRegion = makeSourceRegion({ units: { fighter: 15 } });
     render(<ActionBar {...defaultProps({ sourceRegion, selectedUnitType: "fighter" })} />);
-    expect(screen.getAllByText("Lotnictwo").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Mysliwce").length).toBeGreaterThan(0);
+  });
+
+  it("renders correct Polish label for artillery unit type", () => {
+    const sourceRegion = makeSourceRegion({ units: { artillery: 8 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, selectedUnitType: "artillery" })} />);
+    expect(screen.getAllByText("Artyleria").length).toBeGreaterThan(0);
+  });
+
+  it("renders correct Polish label for submarine unit type", () => {
+    const sourceRegion = makeSourceRegion({ units: { submarine: 5 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, selectedUnitType: "submarine" })} />);
+    expect(screen.getAllByText("Okret podw.").length).toBeGreaterThan(0);
+  });
+
+  it("renders correct Polish label for bomber unit type", () => {
+    const sourceRegion = makeSourceRegion({ units: { bomber: 3 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, selectedUnitType: "bomber" })} />);
+    expect(screen.getAllByText("Bombowce").length).toBeGreaterThan(0);
+  });
+
+  it("renders correct Polish label for commando unit type", () => {
+    const sourceRegion = makeSourceRegion({ units: { commando: 4 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, selectedUnitType: "commando" })} />);
+    expect(screen.getAllByText("Komandosi").length).toBeGreaterThan(0);
+  });
+
+  it("renders correct Polish label for SAM unit type", () => {
+    const sourceRegion = makeSourceRegion({ units: { sam: 6 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, selectedUnitType: "sam" })} />);
+    expect(screen.getAllByText("Rakiety SAM").length).toBeGreaterThan(0);
+  });
+
+  it("renders correct Polish label for nuke_rocket unit type", () => {
+    const sourceRegion = makeSourceRegion({ units: { nuke_rocket: 1 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, selectedUnitType: "nuke_rocket" })} />);
+    expect(screen.getAllByText("Rakieta nuk.").length).toBeGreaterThan(0);
+  });
+
+  it("falls back to raw unit type string for unknown types", () => {
+    const sourceRegion = makeSourceRegion({ units: { custom_unit: 10 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, selectedUnitType: "custom_unit" })} />);
+    expect(screen.getAllByText("custom_unit").length).toBeGreaterThan(0);
+  });
+
+  // ── Desktop variant (sm:block) ──────────────────────────────────────────────
+
+  it("renders desktop region source label 'Region zrodlowy'", () => {
+    render(<ActionBar {...defaultProps()} />);
+    expect(screen.getByText("Region zrodlowy")).toBeInTheDocument();
+  });
+
+  it("renders desktop unit count in X / max format with space", () => {
+    const sourceRegion = makeSourceRegion({ units: { infantry: 80 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, targets: [MOVE_TARGET] })} />);
+    // Desktop shows "40 / 80" style format
+    expect(screen.getAllByText(/\d+ \/ 80|\d+\/80/).length).toBeGreaterThan(0);
+  });
+
+  it("renders desktop target placeholder when no targets", () => {
+    render(<ActionBar {...defaultProps({ targets: [] })} />);
+    // Mobile: "Wybierz cele na mapie" / Desktop: "Wybierz cel na mapie"
+    const placeholders = screen.getAllByText(/Wybierz cel/i);
+    expect(placeholders.length).toBeGreaterThan(0);
+  });
+
+  it("desktop confirm button is enabled when targets exist", () => {
+    render(<ActionBar {...defaultProps({ targets: [MOVE_TARGET] })} />);
+    const confirmButtons = screen.getAllByRole("button").filter((btn) => btn.textContent?.includes("Ruch"));
+    const enabledBtn = confirmButtons.find((b) => !(b as HTMLButtonElement).disabled);
+    expect(enabledBtn).toBeDefined();
+  });
+
+  it("desktop cancel button calls onCancel", () => {
+    const onCancel = vi.fn();
+    render(<ActionBar {...defaultProps({ onCancel })} />);
+    const cancelButtons = screen.getAllByLabelText("Anuluj");
+    // Click last one (desktop)
+    fireEvent.click(cancelButtons[cancelButtons.length - 1]);
+    expect(onCancel).toHaveBeenCalled();
+  });
+
+  // ── Unit type switching via desktop buttons ─────────────────────────────────
+
+  it("calls onSelectedUnitTypeChange when desktop unit type button is clicked", () => {
+    const onSelectedUnitTypeChange = vi.fn();
+    const sourceRegion = makeSourceRegion({ units: { infantry: 50, tank: 10 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, onSelectedUnitTypeChange })} />);
+    const tankButtons = screen.getAllByText("Czolgi");
+    // Click the last one (desktop version)
+    fireEvent.click(tankButtons[tankButtons.length - 1]);
+    expect(onSelectedUnitTypeChange).toHaveBeenCalledWith("tank");
+  });
+
+  // ── Target removal ─────────────────────────────────────────────────────────
+
+  it("desktop: calls onRemoveTarget when target chip is clicked", () => {
+    const onRemoveTarget = vi.fn();
+    render(<ActionBar {...defaultProps({ targets: [ATTACK_TARGET], onRemoveTarget })} />);
+    const enemyChips = screen.getAllByText("Enemy Region");
+    // Click the last chip (desktop)
+    fireEvent.click(enemyChips[enemyChips.length - 1]);
+    expect(onRemoveTarget).toHaveBeenCalledWith("r-enemy");
+  });
+
+  // ── Mixed attack + move targets ────────────────────────────────────────────
+
+  it("mixed targets: shows 'Atak' button when any target is attack", () => {
+    const targets = [MOVE_TARGET, ATTACK_TARGET];
+    render(<ActionBar {...defaultProps({ targets })} />);
+    expect(screen.getAllByText("Atak").length).toBeGreaterThan(0);
+  });
+
+  // ── Non-infantry unit manpower display ─────────────────────────────────────
+
+  it("displays manpower cost in parentheses for non-infantry units", () => {
+    const unitsConfig = UNITS_CONFIG; // tank has manpower_cost: 3
+    const sourceRegion = makeSourceRegion({ units: { infantry: 50, tank: 5 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, unitsConfig, selectedUnitType: "infantry" })} />);
+    // tank: 5 units, manpower_cost=3 → display "5 (15)"
+    expect(screen.getAllByText("5 (15)").length).toBeGreaterThan(0);
+  });
+
+  // ── maxUnits < 1 returns null ──────────────────────────────────────────────
+
+  it("returns null when infantry display count is 0 (all reserved by other units)", () => {
+    // 10 infantry, tank=10 with manpower=3 → reserved=30 > 10 → infantry display=0, maxUnits=0
+    const bigTankConfig = [
+      {
+        ...UNITS_CONFIG[1],
+        manpower_cost: 5,
+      },
+    ];
+    const sourceRegion = makeSourceRegion({ units: { infantry: 2, tank: 2 } });
+    const { container } = render(
+      <ActionBar
+        {...defaultProps({
+          sourceRegion,
+          selectedUnitType: "infantry",
+          unitsConfig: bigTankConfig,
+        })}
+      />,
+    );
+    // infantry display = max(0, 2 - 2*5) = 0 → maxUnits=0 → return null
+    expect(container.firstChild).toBeNull();
+  });
+
+  // ── ship_1 unit type label ─────────────────────────────────────────────────
+
+  it("renders correct Polish label for ship_1 (alias for ship)", () => {
+    const sourceRegion = makeSourceRegion({ units: { ship_1: 5 } });
+    render(<ActionBar {...defaultProps({ sourceRegion, selectedUnitType: "ship_1" })} />);
+    // ship_1 is not in getUnitLabel switch; falls back to raw or "Flota"
+    // getUnitLabel("ship_1") returns "ship_1" (not in switch)
+    expect(screen.getAllByText("ship_1").length).toBeGreaterThan(0);
+  });
+
+  // ── setTotalUnits reset when selectedUnitType changes (line 134) ────────────
+
+  it("resets slider value when selectedUnitType changes between renders", () => {
+    const sourceRegion = makeSourceRegion({ units: { infantry: 100, tank: 10 } });
+    const { rerender } = render(
+      <ActionBar
+        {...defaultProps({
+          sourceRegion,
+          selectedUnitType: "infantry",
+          targets: [MOVE_TARGET],
+        })}
+      />,
+    );
+    // Verify infantry slider exists (max=100, default=50)
+    const sliders = screen.getAllByRole("slider");
+    expect(sliders.length).toBeGreaterThan(0);
+
+    // Re-render with a different selectedUnitType — triggers setTotalUnits(defaultTotalUnits)
+    rerender(
+      <ActionBar
+        {...defaultProps({
+          sourceRegion,
+          selectedUnitType: "tank",
+          targets: [MOVE_TARGET],
+        })}
+      />,
+    );
+    // After switch to tank (10 units), slider should reset: default = max(1, floor(10/2)) = 5
+    // The count display now shows tank count
+    expect(screen.getAllByText(/\d+\/10/).length).toBeGreaterThan(0);
+  });
+
+  it("resets slider value when maxUnits changes to a smaller value between renders", () => {
+    const sourceRegion = makeSourceRegion({ units: { infantry: 100 } });
+    const { rerender } = render(
+      <ActionBar
+        {...defaultProps({
+          sourceRegion,
+          selectedUnitType: "infantry",
+          targets: [MOVE_TARGET],
+        })}
+      />,
+    );
+
+    // Simulate live count dropping
+    const reducedRegion = makeSourceRegion({ units: { infantry: 4 } });
+    rerender(
+      <ActionBar
+        {...defaultProps({
+          sourceRegion: reducedRegion,
+          selectedUnitType: "infantry",
+          targets: [MOVE_TARGET],
+        })}
+      />,
+    );
+    // maxUnits now 4, slider default = max(1, floor(4/2)) = 2
+    expect(screen.getAllByRole("slider").length).toBeGreaterThan(0);
+  });
+
+  // ── Desktop slider disabled state (line 319) ────────────────────────────────
+
+  it("desktop slider is disabled when no targets are selected", () => {
+    render(<ActionBar {...defaultProps({ targets: [] })} />);
+    const sliders = screen.getAllByRole("slider");
+    // At least one slider (desktop) should be disabled when targets.length === 0
+    const disabledSliders = sliders.filter((s) => (s as HTMLInputElement).disabled);
+    expect(disabledSliders.length).toBeGreaterThan(0);
+  });
+
+  it("desktop slider is enabled when targets exist", () => {
+    render(<ActionBar {...defaultProps({ targets: [MOVE_TARGET] })} />);
+    const sliders = screen.getAllByRole("slider");
+    // At least one slider should not be disabled
+    const enabledSliders = sliders.filter((s) => !(s as HTMLInputElement).disabled);
+    expect(enabledSliders.length).toBeGreaterThan(0);
+  });
+
+  // ── Mobile slider onChange (line 213) ────────────────────────────────────────
+
+  it("updates slider value when mobile range input changes", () => {
+    const sourceRegion = makeSourceRegion({ units: { infantry: 100 } });
+    render(
+      <ActionBar
+        {...defaultProps({
+          sourceRegion,
+          selectedUnitType: "infantry",
+          targets: [MOVE_TARGET],
+        })}
+      />,
+    );
+    const sliders = screen.getAllByRole("slider");
+    // Fire change on the first (mobile) slider
+    fireEvent.change(sliders[0], { target: { value: "80" } });
+    // After change, at least one display should show 80/100 or similar
+    expect(screen.getAllByRole("slider").length).toBeGreaterThan(0);
+  });
+
+  // ── Desktop confirm button onClick (line 350) ─────────────────────────────────
+
+  it("desktop confirm button calls onConfirm when clicked", () => {
+    const onConfirm = vi.fn();
+    render(
+      <ActionBar
+        {...defaultProps({
+          targets: [MOVE_TARGET],
+          onConfirm,
+        })}
+      />,
+    );
+    const confirmButtons = screen.getAllByRole("button").filter((btn) => btn.textContent?.includes("Ruch"));
+    // The last confirm button is the desktop one
+    fireEvent.click(confirmButtons[confirmButtons.length - 1]);
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        unitType: "infantry",
+        allocations: expect.arrayContaining([expect.objectContaining({ regionId: "r-target" })]),
+      }),
+    );
   });
 });

@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getWsTicket } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
 import type { DiplomacyState } from "@/lib/gameTypes";
 import { solveChallenge } from "@/lib/pow";
 import { queryKeys } from "@/lib/queryKeys";
@@ -384,8 +384,7 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
   const backoffDelayRef = useRef<number>(1000);
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token || !matchId) return;
+    if (!isAuthenticated() || !matchId) return;
 
     let disposed = false;
     let isPageUnload = false;
@@ -400,7 +399,7 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
       let ticket: string | null = null;
       let nonce: string | null = null;
       try {
-        const t = await getWsTicket(token);
+        const t = await getWsTicket();
         ticket = t.ticket;
         nonce = await solveChallenge(t.challenge, t.difficulty);
       } catch {
@@ -410,7 +409,7 @@ export function useGameSocket(matchId: string, options?: { spectator?: boolean }
       if (disposed) return;
       const ws = createSocket(
         isSpectator ? `/game/${matchId}/spectate/` : `/game/${matchId}/`,
-        token,
+        null,
         handleMessage,
         (event: CloseEvent) => {
           if (!disposed) console.warn("[Game WS] closed", { code: event.code, reason: event.reason });

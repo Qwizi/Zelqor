@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { GamePlayer } from "@/hooks/useGameSocket";
 import type { DiplomacyState, War } from "@/lib/gameTypes";
@@ -35,6 +35,40 @@ interface PeaceDialogProps {
 function PeaceDialog({ targetPlayer, war, currentPlayerId, onPropose, onClose }: PeaceDialogProps) {
   const [conditionType, setConditionType] = useState<"status_quo" | "return_provinces">("status_quo");
   const [selectedProvinces, setSelectedProvinces] = useState<Set<string>>(new Set());
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap + Escape to close
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    const focusable = el.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusable.length > 0) focusable[0].focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const conqueredProvinces = useMemo(() => {
     return war.provinces_changed.filter(
@@ -58,8 +92,13 @@ function PeaceDialog({ targetPlayer, war, currentPlayerId, onPropose, onClose }:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Zaproponuj pokój"
+    >
+      <div ref={dialogRef} className="mx-4 w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
         <h3 className="mb-1 font-display text-base font-semibold text-foreground">Zaproponuj pokoj</h3>
         <p className="mb-4 text-xs text-muted-foreground">
           Do:{" "}

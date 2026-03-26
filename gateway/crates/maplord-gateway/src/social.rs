@@ -34,50 +34,60 @@ pub async fn ws_social_handler(
         return resp;
     }
 
-    let token = match query.token {
-        Some(t) => t,
-        None => {
-            return Response::builder()
-                .status(401)
-                .body("Missing token".into())
-                .unwrap();
+    // Authenticate via query params: token (JWT) or ticket (one-time Redis ticket).
+    let pre_auth_user_id = if let Some(token) = &query.token {
+        match auth::validate_token(token, &state.config.secret_key) {
+            Ok(uid) => Some(uid),
+            Err(_) => None,
         }
-    };
-
-    let user_id = match auth::validate_token(&token, &state.config.secret_key) {
-        Ok(id) => id,
-        Err(_) => {
-            return Response::builder()
-                .status(401)
-                .body("Invalid token".into())
-                .unwrap();
-        }
-    };
-
-    if let Some(ticket) = query.ticket {
-        match auth::validate_ticket(&ticket, query.nonce.as_deref(), &mut state.redis.clone()).await
+    } else if let Some(ticket) = &query.ticket {
+        match auth::validate_ticket(
+            ticket,
+            query.nonce.as_deref(),
+            &mut state.redis.clone(),
+        )
+        .await
         {
-            Ok(ticket_user_id) if ticket_user_id != user_id => {
-                return Response::builder()
-                    .status(401)
-                    .body("Ticket user mismatch".into())
-                    .unwrap();
+            Ok(uid) => Some(uid),
+            Err(e) => {
+                tracing::warn!("Ticket validation failed: {e}");
+                None
             }
-            Err(_) => {
-                return Response::builder()
-                    .status(401)
-                    .body("Invalid or expired ticket".into())
-                    .unwrap();
-            }
-            Ok(_) => {}
         }
-    }
+    } else {
+        None
+    };
 
-    ws.on_upgrade(move |socket| handle_social_socket(socket, user_id, state))
+    ws.max_message_size(64 * 1024)
+        .on_upgrade(move |socket| handle_social_socket(socket, pre_auth_user_id, state))
 }
 
-async fn handle_social_socket(socket: WebSocket, user_id: String, state: AppState) {
+async fn handle_social_socket(
+    socket: WebSocket,
+    pre_auth_user_id: Option<String>,
+    state: AppState,
+) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    // Authenticate — either from pre-validated query param or first-message auth frame.
+    let user_id = match crate::ws_auth::authenticate_ws(
+        &mut ws_receiver,
+        pre_auth_user_id,
+        &state.config.secret_key,
+    )
+    .await
+    {
+        Some(uid) => uid,
+        None => {
+            let _ = ws_sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 4001,
+                    reason: "Authentication failed".into(),
+                })))
+                .await;
+            return;
+        }
+    };
 
     info!("Social: user {user_id} connected");
 
@@ -388,6 +398,218 @@ mod tests {
             } else {
                 panic!("expected Text message");
             }
+        }
+
+        #[test]
+        fn send_to_user_silently_skips_closed_senders() {
+            // When the receiver is dropped the sender is closed.
+            // send_to_user must not panic — the send error is intentionally ignored.
+            let conns = new_social_connections();
+            let (tx, rx) = mpsc::unbounded_channel::<Message>();
+            // Drop the receiver immediately so the sender is closed.
+            drop(rx);
+            conns.entry("user-closed".to_string()).or_default().push(tx);
+
+            let payload = serde_json::json!({"type": "notification"});
+            // Must not panic.
+            send_to_user("user-closed", &payload, &conns);
+        }
+
+        #[test]
+        fn send_to_user_delivers_to_live_sender_when_another_is_closed() {
+            let conns = new_social_connections();
+            let (tx_closed, rx_closed) = mpsc::unbounded_channel::<Message>();
+            let (tx_live, mut rx_live) = mpsc::unbounded_channel::<Message>();
+
+            // Close the first sender.
+            drop(rx_closed);
+
+            {
+                let mut entry = conns.entry("user-mixed".to_string()).or_default();
+                entry.push(tx_closed);
+                entry.push(tx_live);
+            }
+
+            let payload = serde_json::json!({"type": "direct_message", "content": "test"});
+            send_to_user("user-mixed", &payload, &conns);
+
+            // The live receiver should still get the message.
+            assert!(
+                rx_live.try_recv().is_ok(),
+                "live sender should receive the message even if another sender is closed"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Social pub/sub envelope structure
+    // -----------------------------------------------------------------------
+
+    mod pubsub_envelope {
+        /// Mirrors the envelope construction in run_social_pubsub_loop.
+        fn build_envelope(event_type: &str, inner_payload: &serde_json::Value) -> serde_json::Value {
+            serde_json::json!({
+                "type": event_type,
+                "payload": inner_payload,
+            })
+        }
+
+        #[test]
+        fn envelope_has_type_field() {
+            let env = build_envelope("notification", &serde_json::json!({"text": "hi"}));
+            assert_eq!(env["type"], "notification");
+        }
+
+        #[test]
+        fn envelope_has_payload_field() {
+            let inner = serde_json::json!({"count": 3});
+            let env = build_envelope("direct_message", &inner);
+            assert_eq!(env["payload"]["count"], 3);
+        }
+
+        #[test]
+        fn envelope_does_not_include_user_id() {
+            // The user_id is used for routing but is NOT forwarded to the client.
+            let env = build_envelope("notification", &serde_json::json!({}));
+            assert!(
+                env.get("user_id").is_none(),
+                "envelope sent to client must not contain user_id"
+            );
+        }
+
+        #[test]
+        fn envelope_serialises_to_valid_json() {
+            let env = build_envelope("match_found", &serde_json::json!({"match_id": "abc-123"}));
+            let text = env.to_string();
+            let reparsed: serde_json::Value =
+                serde_json::from_str(&text).expect("envelope must round-trip through JSON");
+            assert_eq!(reparsed["type"], "match_found");
+            assert_eq!(reparsed["payload"]["match_id"], "abc-123");
+        }
+
+        #[test]
+        fn event_missing_user_id_is_detectable() {
+            // Mirrors the guard: event.get("user_id").and_then(|v| v.as_str())
+            let event = serde_json::json!({"type": "notification", "payload": {}});
+            let user_id = event.get("user_id").and_then(|v| v.as_str());
+            assert!(
+                user_id.is_none(),
+                "event without user_id should produce None from the guard"
+            );
+        }
+
+        #[test]
+        fn event_missing_type_is_detectable() {
+            let event = serde_json::json!({"user_id": "u1", "payload": {}});
+            let event_type = event.get("type").and_then(|v| v.as_str());
+            assert!(
+                event_type.is_none(),
+                "event without type should produce None from the guard"
+            );
+        }
+
+        #[test]
+        fn event_missing_payload_is_detectable() {
+            let event = serde_json::json!({"user_id": "u1", "type": "notification"});
+            let payload = event.get("payload");
+            assert!(
+                payload.is_none(),
+                "event without payload should produce None from the guard"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Redis key naming for set_player_status / clear_player_status
+    // -----------------------------------------------------------------------
+
+    mod status_key_naming {
+        /// Mirrors the key construction used in set_player_status and
+        /// clear_player_status: `player:status:{user_id}`.
+        fn status_key(user_id: &str) -> String {
+            format!("player:status:{user_id}")
+        }
+
+        #[test]
+        fn key_has_correct_prefix() {
+            assert!(status_key("user-42").starts_with("player:status:"));
+        }
+
+        #[test]
+        fn key_ends_with_user_id() {
+            let uid = "user-42";
+            assert!(status_key(uid).ends_with(uid));
+        }
+
+        #[test]
+        fn key_format_is_stable() {
+            assert_eq!(status_key("abc-123"), "player:status:abc-123");
+        }
+
+        #[test]
+        fn key_is_unique_per_user() {
+            assert_ne!(status_key("user-1"), status_key("user-2"));
+        }
+
+        #[test]
+        fn key_works_for_uuid_style_ids() {
+            let uid = "550e8400-e29b-41d4-a716-446655440000";
+            assert_eq!(
+                status_key(uid),
+                "player:status:550e8400-e29b-41d4-a716-446655440000"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // SocialConnections cleanup — remove_if behaviour (mirrors chat cleanup)
+    // -----------------------------------------------------------------------
+
+    mod cleanup {
+        use super::*;
+
+        #[test]
+        fn remove_if_drops_entry_when_all_senders_closed() {
+            let conns = new_social_connections();
+            let (tx, rx) = mpsc::unbounded_channel::<Message>();
+
+            conns.entry("user-gone".to_string()).or_default().push(tx);
+            drop(rx);
+
+            if let Some(mut senders) = conns.get_mut("user-gone") {
+                senders.retain(|s| !s.is_closed());
+            }
+            conns.remove_if("user-gone", |_, v| v.is_empty());
+
+            assert!(
+                !conns.contains_key("user-gone"),
+                "entry should be removed when all senders are closed"
+            );
+        }
+
+        #[test]
+        fn remove_if_retains_entry_when_live_sender_remains() {
+            let conns = new_social_connections();
+            let (tx_live, _rx_live) = mpsc::unbounded_channel::<Message>();
+            let (tx_dead, rx_dead) = mpsc::unbounded_channel::<Message>();
+
+            {
+                let mut entry = conns.entry("user-partial".to_string()).or_default();
+                entry.push(tx_live);
+                entry.push(tx_dead);
+            }
+
+            drop(rx_dead);
+
+            if let Some(mut senders) = conns.get_mut("user-partial") {
+                senders.retain(|s| !s.is_closed());
+            }
+            conns.remove_if("user-partial", |_, v| v.is_empty());
+
+            assert!(
+                conns.contains_key("user-partial"),
+                "entry should be kept when at least one sender is still live"
+            );
         }
     }
 }

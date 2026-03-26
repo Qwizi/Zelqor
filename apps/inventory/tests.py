@@ -2,8 +2,11 @@
 Tests for apps/inventory — Item, ItemCategory, UserInventory, Wallet, Deck, DeckItem, ItemInstance.
 """
 
+import uuid
+
+import pytest
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from ninja_jwt.tokens import RefreshToken
 
 from apps.inventory.models import (
     Deck,
@@ -17,6 +20,11 @@ from apps.inventory.models import (
 )
 
 User = get_user_model()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def make_category(name="Materials", slug="materials"):
@@ -33,31 +41,84 @@ def make_item(category, name="Iron Ore", slug="iron-ore", item_type=Item.ItemTyp
     )
 
 
+def _get_auth_header(user):
+    """Return an Authorization header value with a fresh access token."""
+    refresh = RefreshToken.for_user(user)
+    return f"Bearer {str(refresh.access_token)}"
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def category(db):
+    return make_category()
+
+
+@pytest.fixture
+def item(category):
+    return make_item(category)
+
+
+@pytest.fixture
+def user(db):
+    return User.objects.create_user(
+        email="user@test.com",
+        username="testuser",
+        password="testpass123",
+    )
+
+
+@pytest.fixture
+def other_user(db):
+    return User.objects.create_user(
+        email="other@test.com",
+        username="othertestuser",
+        password="testpass123",
+    )
+
+
+@pytest.fixture
+def auth_header(user):
+    return _get_auth_header(user)
+
+
+BASE = "/api/v1"
+
+
 # ---------------------------------------------------------------------------
 # ItemCategory tests
 # ---------------------------------------------------------------------------
 
 
-class ItemCategoryTests(TestCase):
-    def test_creation(self):
-        cat = make_category("Blueprints", "blueprints")
-        self.assertEqual(cat.name, "Blueprints")
-        self.assertEqual(cat.slug, "blueprints")
+@pytest.mark.django_db
+def test_category_creation():
+    cat = make_category("Blueprints", "blueprints")
+    assert cat.name == "Blueprints"
+    assert cat.slug == "blueprints"
 
-    def test_str_representation(self):
-        cat = make_category("Boosts", "boosts")
-        self.assertEqual(str(cat), "Boosts")
 
-    def test_is_active_default_true(self):
-        cat = make_category()
-        self.assertTrue(cat.is_active)
+@pytest.mark.django_db
+def test_category_str_representation():
+    cat = make_category("Boosts", "boosts")
+    assert str(cat) == "Boosts"
 
-    def test_unique_slug(self):
-        make_category("Mats", "unique-slug")
-        from django.db import IntegrityError
 
-        with self.assertRaises(IntegrityError):
-            make_category("Mats 2", "unique-slug")
+@pytest.mark.django_db
+def test_category_is_active_default_true():
+    cat = make_category()
+    assert cat.is_active is True
+
+
+@pytest.mark.django_db
+def test_category_unique_slug():
+    from django.db import IntegrityError
+
+    make_category("Mats", "unique-slug")
+    with pytest.raises(IntegrityError):
+        make_category("Mats 2", "unique-slug")
 
 
 # ---------------------------------------------------------------------------
@@ -65,66 +126,79 @@ class ItemCategoryTests(TestCase):
 # ---------------------------------------------------------------------------
 
 
-class ItemModelTests(TestCase):
-    def setUp(self):
-        self.category = make_category()
-        self.item = make_item(self.category)
+@pytest.mark.django_db
+def test_item_creation_and_attributes(category, item):
+    assert item.name == "Iron Ore"
+    assert item.slug == "iron-ore"
+    assert item.category == category
+    assert item.item_type == Item.ItemType.MATERIAL
+    assert item.rarity == Item.Rarity.COMMON
 
-    def test_creation_and_attributes(self):
-        self.assertEqual(self.item.name, "Iron Ore")
-        self.assertEqual(self.item.slug, "iron-ore")
-        self.assertEqual(self.item.category, self.category)
-        self.assertEqual(self.item.item_type, Item.ItemType.MATERIAL)
-        self.assertEqual(self.item.rarity, Item.Rarity.COMMON)
 
-    def test_str_representation(self):
-        self.assertIn("Iron Ore", str(self.item))
-        self.assertIn("Common", str(self.item))
+@pytest.mark.django_db
+def test_item_str_representation(item):
+    assert "Iron Ore" in str(item)
+    assert "Common" in str(item)
 
-    def test_is_active_default_true(self):
-        self.assertTrue(self.item.is_active)
 
-    def test_is_stackable_default_true(self):
-        self.assertTrue(self.item.is_stackable)
+@pytest.mark.django_db
+def test_item_is_active_default_true(item):
+    assert item.is_active is True
 
-    def test_is_tradeable_default_true(self):
-        self.assertTrue(self.item.is_tradeable)
 
-    def test_is_consumable_default_false(self):
-        self.assertFalse(self.item.is_consumable)
+@pytest.mark.django_db
+def test_item_is_stackable_default_true(item):
+    assert item.is_stackable is True
 
-    def test_unique_slug_constraint(self):
-        from django.db import IntegrityError
 
-        with self.assertRaises(IntegrityError):
-            make_item(self.category, name="Iron Ore 2", slug="iron-ore")
+@pytest.mark.django_db
+def test_item_is_tradeable_default_true(item):
+    assert item.is_tradeable is True
 
-    def test_rarity_choices(self):
-        for rarity in [
-            Item.Rarity.COMMON,
-            Item.Rarity.UNCOMMON,
-            Item.Rarity.RARE,
-            Item.Rarity.EPIC,
-            Item.Rarity.LEGENDARY,
-        ]:
-            item = Item.objects.create(
-                name=f"Item {rarity}",
-                slug=f"item-{rarity}",
-                category=self.category,
-                item_type=Item.ItemType.MATERIAL,
-                rarity=rarity,
-            )
-            item.refresh_from_db()
-            self.assertEqual(item.rarity, rarity)
 
-    def test_blueprint_item_type(self):
-        bp = make_item(
-            self.category,
-            name="Barracks Blueprint",
-            slug="bp-barracks",
-            item_type=Item.ItemType.BLUEPRINT_BUILDING,
+@pytest.mark.django_db
+def test_item_is_consumable_default_false(item):
+    assert item.is_consumable is False
+
+
+@pytest.mark.django_db
+def test_item_unique_slug_constraint(category):
+    from django.db import IntegrityError
+
+    make_item(category)
+    with pytest.raises(IntegrityError):
+        make_item(category, name="Iron Ore 2", slug="iron-ore")
+
+
+@pytest.mark.django_db
+def test_item_rarity_choices(category):
+    for rarity in [
+        Item.Rarity.COMMON,
+        Item.Rarity.UNCOMMON,
+        Item.Rarity.RARE,
+        Item.Rarity.EPIC,
+        Item.Rarity.LEGENDARY,
+    ]:
+        item = Item.objects.create(
+            name=f"Item {rarity}",
+            slug=f"item-{rarity}",
+            category=category,
+            item_type=Item.ItemType.MATERIAL,
+            rarity=rarity,
         )
-        self.assertEqual(bp.item_type, Item.ItemType.BLUEPRINT_BUILDING)
+        item.refresh_from_db()
+        assert item.rarity == rarity
+
+
+@pytest.mark.django_db
+def test_item_blueprint_item_type(category):
+    bp = make_item(
+        category,
+        name="Barracks Blueprint",
+        slug="bp-barracks",
+        item_type=Item.ItemType.BLUEPRINT_BUILDING,
+    )
+    assert bp.item_type == Item.ItemType.BLUEPRINT_BUILDING
 
 
 # ---------------------------------------------------------------------------
@@ -132,43 +206,42 @@ class ItemModelTests(TestCase):
 # ---------------------------------------------------------------------------
 
 
-class UserInventoryTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            email="inventory@test.com",
-            username="inventoryuser",
-            password="testpass123",
-        )
-        self.category = make_category()
-        self.item = make_item(self.category)
+@pytest.mark.django_db
+def test_userinventory_creation_with_quantity(user, item):
+    inv = UserInventory.objects.create(user=user, item=item, quantity=5)
+    assert inv.quantity == 5
 
-    def test_creation_with_quantity(self):
-        inv = UserInventory.objects.create(user=self.user, item=self.item, quantity=5)
-        self.assertEqual(inv.quantity, 5)
 
-    def test_str_representation(self):
-        inv = UserInventory.objects.create(user=self.user, item=self.item, quantity=3)
-        self.assertIn("inventoryuser", str(inv))
-        self.assertIn("Iron Ore", str(inv))
-        self.assertIn("3", str(inv))
+@pytest.mark.django_db
+def test_userinventory_str_representation(user, item):
+    inv = UserInventory.objects.create(user=user, item=item, quantity=3)
+    assert "testuser" in str(inv)
+    assert "Iron Ore" in str(inv)
+    assert "3" in str(inv)
 
-    def test_unique_together_user_item(self):
-        UserInventory.objects.create(user=self.user, item=self.item, quantity=1)
-        from django.db import IntegrityError
 
-        with self.assertRaises(IntegrityError):
-            UserInventory.objects.create(user=self.user, item=self.item, quantity=2)
+@pytest.mark.django_db
+def test_userinventory_unique_together_user_item(user, item):
+    from django.db import IntegrityError
 
-    def test_quantity_tracking(self):
-        inv = UserInventory.objects.create(user=self.user, item=self.item, quantity=10)
-        inv.quantity -= 3
-        inv.save()
-        inv.refresh_from_db()
-        self.assertEqual(inv.quantity, 7)
+    UserInventory.objects.create(user=user, item=item, quantity=1)
+    with pytest.raises(IntegrityError):
+        UserInventory.objects.create(user=user, item=item, quantity=2)
 
-    def test_related_name_on_user(self):
-        UserInventory.objects.create(user=self.user, item=self.item, quantity=1)
-        self.assertEqual(self.user.inventory.count(), 1)
+
+@pytest.mark.django_db
+def test_userinventory_quantity_tracking(user, item):
+    inv = UserInventory.objects.create(user=user, item=item, quantity=10)
+    inv.quantity -= 3
+    inv.save()
+    inv.refresh_from_db()
+    assert inv.quantity == 7
+
+
+@pytest.mark.django_db
+def test_userinventory_related_name_on_user(user, item):
+    UserInventory.objects.create(user=user, item=item, quantity=1)
+    assert user.inventory.count() == 1
 
 
 # ---------------------------------------------------------------------------
@@ -176,35 +249,34 @@ class UserInventoryTests(TestCase):
 # ---------------------------------------------------------------------------
 
 
-class WalletTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            email="wallet@test.com",
-            username="walletuser",
-            password="testpass123",
-        )
+@pytest.mark.django_db
+def test_wallet_creation_with_gold(user):
+    wallet = Wallet.objects.create(user=user, gold=100)
+    assert wallet.gold == 100
 
-    def test_wallet_creation_with_gold(self):
-        wallet = Wallet.objects.create(user=self.user, gold=100)
-        self.assertEqual(wallet.gold, 100)
 
-    def test_str_representation(self):
-        wallet = Wallet.objects.create(user=self.user, gold=250)
-        self.assertIn("walletuser", str(wallet))
-        self.assertIn("250", str(wallet))
+@pytest.mark.django_db
+def test_wallet_str_representation(user):
+    wallet = Wallet.objects.create(user=user, gold=250)
+    assert "testuser" in str(wallet)
+    assert "250" in str(wallet)
 
-    def test_one_to_one_user_relationship(self):
-        wallet = Wallet.objects.create(user=self.user, gold=0)
-        self.assertEqual(wallet.user, self.user)
 
-    def test_gold_update(self):
-        wallet = Wallet.objects.create(user=self.user, gold=100)
-        wallet.gold += 50
-        wallet.total_earned += 50
-        wallet.save()
-        wallet.refresh_from_db()
-        self.assertEqual(wallet.gold, 150)
-        self.assertEqual(wallet.total_earned, 50)
+@pytest.mark.django_db
+def test_wallet_one_to_one_user_relationship(user):
+    wallet = Wallet.objects.create(user=user, gold=0)
+    assert wallet.user == user
+
+
+@pytest.mark.django_db
+def test_wallet_gold_update(user):
+    wallet = Wallet.objects.create(user=user, gold=100)
+    wallet.gold += 50
+    wallet.total_earned += 50
+    wallet.save()
+    wallet.refresh_from_db()
+    assert wallet.gold == 150
+    assert wallet.total_earned == 50
 
 
 # ---------------------------------------------------------------------------
@@ -212,52 +284,55 @@ class WalletTests(TestCase):
 # ---------------------------------------------------------------------------
 
 
-class DeckModelTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            email="deck@test.com",
-            username="deckuser",
-            password="testpass123",
-        )
-        self.category = make_category()
-        self.item = make_item(self.category)
+@pytest.mark.django_db
+def test_deck_creation(user):
+    deck = Deck.objects.create(user=user, name="My Deck")
+    assert deck.name == "My Deck"
+    assert deck.user == user
 
-    def test_deck_creation(self):
-        deck = Deck.objects.create(user=self.user, name="My Deck")
-        self.assertEqual(deck.name, "My Deck")
-        self.assertEqual(deck.user, self.user)
 
-    def test_str_representation(self):
-        deck = Deck.objects.create(user=self.user, name="Battle Deck")
-        self.assertIn("deckuser", str(deck))
-        self.assertIn("Battle Deck", str(deck))
+@pytest.mark.django_db
+def test_deck_str_representation(user):
+    deck = Deck.objects.create(user=user, name="Battle Deck")
+    assert "testuser" in str(deck)
+    assert "Battle Deck" in str(deck)
 
-    def test_is_default_false_by_default(self):
-        deck = Deck.objects.create(user=self.user, name="Not Default")
-        self.assertFalse(deck.is_default)
 
-    def test_default_deck_flag(self):
-        deck = Deck.objects.create(user=self.user, name="Default", is_default=True)
-        self.assertTrue(deck.is_default)
+@pytest.mark.django_db
+def test_deck_is_default_false_by_default(user):
+    deck = Deck.objects.create(user=user, name="Not Default")
+    assert deck.is_default is False
 
-    def test_only_one_default_deck_per_user(self):
-        """Setting a new deck as default should unset the previous default."""
-        d1 = Deck.objects.create(user=self.user, name="D1", is_default=True)
-        d2 = Deck.objects.create(user=self.user, name="D2", is_default=True)
-        d1.refresh_from_db()
-        self.assertFalse(d1.is_default)
-        self.assertTrue(d2.is_default)
 
-    def test_deck_items_relationship(self):
-        deck = Deck.objects.create(user=self.user, name="Deck with Items")
-        DeckItem.objects.create(deck=deck, item=self.item, quantity=1)
-        self.assertEqual(deck.items.count(), 1)
+@pytest.mark.django_db
+def test_deck_default_flag(user):
+    deck = Deck.objects.create(user=user, name="Default", is_default=True)
+    assert deck.is_default is True
 
-    def test_deck_item_str(self):
-        deck = Deck.objects.create(user=self.user, name="Test Deck")
-        di = DeckItem.objects.create(deck=deck, item=self.item, quantity=2)
-        self.assertIn("Iron Ore", str(di))
-        self.assertIn("2", str(di))
+
+@pytest.mark.django_db
+def test_deck_only_one_default_per_user(user):
+    """Setting a new deck as default should unset the previous default."""
+    d1 = Deck.objects.create(user=user, name="D1", is_default=True)
+    d2 = Deck.objects.create(user=user, name="D2", is_default=True)
+    d1.refresh_from_db()
+    assert d1.is_default is False
+    assert d2.is_default is True
+
+
+@pytest.mark.django_db
+def test_deck_items_relationship(user, item):
+    deck = Deck.objects.create(user=user, name="Deck with Items")
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+    assert deck.items.count() == 1
+
+
+@pytest.mark.django_db
+def test_deck_item_str(user, item):
+    deck = Deck.objects.create(user=user, name="Test Deck")
+    di = DeckItem.objects.create(deck=deck, item=item, quantity=2)
+    assert "Iron Ore" in str(di)
+    assert "2" in str(di)
 
 
 # ---------------------------------------------------------------------------
@@ -265,62 +340,57 @@ class DeckModelTests(TestCase):
 # ---------------------------------------------------------------------------
 
 
-class ItemInstanceTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            email="instance@test.com",
-            username="instanceuser",
-            password="testpass123",
-        )
-        self.category = make_category()
-        self.item = make_item(
-            self.category,
-            name="Tactical Package",
-            slug="tactical-pkg",
-            item_type=Item.ItemType.TACTICAL_PACKAGE,
-        )
-
-    def test_creation(self):
-        inst = ItemInstance.objects.create(item=self.item, owner=self.user)
-        self.assertEqual(inst.item, self.item)
-        self.assertEqual(inst.owner, self.user)
-
-    def test_wear_condition_factory_new(self):
-        inst = ItemInstance.objects.create(item=self.item, owner=self.user, wear=0.0)
-        self.assertEqual(inst.wear_condition, ItemInstance.WearCondition.FACTORY_NEW)
-
-    def test_wear_condition_battle_scarred(self):
-        inst = ItemInstance.objects.create(item=self.item, owner=self.user, wear=0.9)
-        self.assertEqual(inst.wear_condition, ItemInstance.WearCondition.BATTLE_SCARRED)
-
-    def test_is_rare_pattern_true_for_low_seed(self):
-        inst = ItemInstance.objects.create(item=self.item, owner=self.user, pattern_seed=5)
-        self.assertTrue(inst.is_rare_pattern)
-
-    def test_is_rare_pattern_false_for_high_seed(self):
-        inst = ItemInstance.objects.create(item=self.item, owner=self.user, pattern_seed=100)
-        self.assertFalse(inst.is_rare_pattern)
-
-    def test_stattrak_default_false(self):
-        inst = ItemInstance.objects.create(item=self.item, owner=self.user)
-        self.assertFalse(inst.stattrak)
-
-    def test_nametag_default_empty(self):
-        inst = ItemInstance.objects.create(item=self.item, owner=self.user)
-        self.assertEqual(inst.nametag, "")
+@pytest.fixture
+def tactical_item(category):
+    return make_item(
+        category,
+        name="Tactical Package",
+        slug="tactical-pkg",
+        item_type=Item.ItemType.TACTICAL_PACKAGE,
+    )
 
 
-# ---------------------------------------------------------------------------
-# Helper: obtain a JWT Bearer token for a user without touching the network
-# ---------------------------------------------------------------------------
+@pytest.mark.django_db
+def test_iteminstance_creation(tactical_item, user):
+    inst = ItemInstance.objects.create(item=tactical_item, owner=user)
+    assert inst.item == tactical_item
+    assert inst.owner == user
 
 
-def _get_auth_header(user):
-    """Return an Authorization header value with a fresh access token."""
-    from ninja_jwt.tokens import RefreshToken
+@pytest.mark.django_db
+def test_iteminstance_wear_condition_factory_new(tactical_item, user):
+    inst = ItemInstance.objects.create(item=tactical_item, owner=user, wear=0.0)
+    assert inst.wear_condition == ItemInstance.WearCondition.FACTORY_NEW
 
-    refresh = RefreshToken.for_user(user)
-    return f"Bearer {str(refresh.access_token)}"
+
+@pytest.mark.django_db
+def test_iteminstance_wear_condition_battle_scarred(tactical_item, user):
+    inst = ItemInstance.objects.create(item=tactical_item, owner=user, wear=0.9)
+    assert inst.wear_condition == ItemInstance.WearCondition.BATTLE_SCARRED
+
+
+@pytest.mark.django_db
+def test_iteminstance_is_rare_pattern_true_for_low_seed(tactical_item, user):
+    inst = ItemInstance.objects.create(item=tactical_item, owner=user, pattern_seed=5)
+    assert inst.is_rare_pattern is True
+
+
+@pytest.mark.django_db
+def test_iteminstance_is_rare_pattern_false_for_high_seed(tactical_item, user):
+    inst = ItemInstance.objects.create(item=tactical_item, owner=user, pattern_seed=100)
+    assert inst.is_rare_pattern is False
+
+
+@pytest.mark.django_db
+def test_iteminstance_stattrak_default_false(tactical_item, user):
+    inst = ItemInstance.objects.create(item=tactical_item, owner=user)
+    assert inst.stattrak is False
+
+
+@pytest.mark.django_db
+def test_iteminstance_nametag_default_empty(tactical_item, user):
+    inst = ItemInstance.objects.create(item=tactical_item, owner=user)
+    assert inst.nametag == ""
 
 
 # ---------------------------------------------------------------------------
@@ -328,629 +398,652 @@ def _get_auth_header(user):
 # ---------------------------------------------------------------------------
 
 
-class InventoryViewTests(TestCase):
-    """HTTP-level tests for InventoryController and DeckController endpoints."""
+@pytest.fixture
+def view_category(db):
+    return make_category("Materials", "materials-view")
 
-    BASE = "/api/v1"
 
-    def setUp(self):
-        self.user = User.objects.create_user(
-            email="viewtest@test.com",
-            username="viewtestuser",
-            password="testpass123",
-        )
-        self.other_user = User.objects.create_user(
-            email="other@test.com",
-            username="othertestuser",
-            password="testpass123",
-        )
-        self.auth = _get_auth_header(self.user)
-        self.category = make_category("Materials", "materials-view")
-        self.item = make_item(
-            self.category,
-            name="Copper Ore",
-            slug="copper-ore",
-        )
+@pytest.fixture
+def view_item(view_category):
+    return make_item(view_category, name="Copper Ore", slug="copper-ore")
 
-    # --- /inventory/items/ (public) ------------------------------------------
 
-    def test_list_items_public_returns_200(self):
-        resp = self.client.get(f"{self.BASE}/inventory/items/")
-        self.assertEqual(resp.status_code, 200)
+@pytest.fixture
+def view_user(db):
+    return User.objects.create_user(
+        email="viewtest@test.com",
+        username="viewtestuser",
+        password="testpass123",
+    )
 
-    def test_list_items_returns_active_categories_only(self):
-        ItemCategory.objects.create(
-            name="Inactive Cat",
-            slug="inactive-cat",
-            is_active=False,
-        )
-        resp = self.client.get(f"{self.BASE}/inventory/items/")
-        data = resp.json()
-        slugs = [c["slug"] for c in data]
-        self.assertNotIn("inactive-cat", slugs)
 
-    # --- /inventory/my/ (auth required) --------------------------------------
+@pytest.fixture
+def view_other_user(db):
+    return User.objects.create_user(
+        email="other@test.com",
+        username="othertestuser",
+        password="testpass123",
+    )
 
-    def test_my_inventory_unauthenticated_returns_401(self):
-        resp = self.client.get(f"{self.BASE}/inventory/my/")
-        self.assertEqual(resp.status_code, 401)
 
-    def test_my_inventory_empty_for_new_user(self):
-        resp = self.client.get(
-            f"{self.BASE}/inventory/my/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertIn("items", data)
-        self.assertIn("count", data)
-        self.assertEqual(data["count"], 0)
+@pytest.fixture
+def view_auth(view_user):
+    return _get_auth_header(view_user)
 
-    def test_my_inventory_shows_stackable_item(self):
-        UserInventory.objects.create(user=self.user, item=self.item, quantity=7)
-        resp = self.client.get(
-            f"{self.BASE}/inventory/my/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["count"], 1)
-        entry = data["items"][0]
-        self.assertEqual(entry["quantity"], 7)
-        self.assertFalse(entry["is_instance"])
 
-    def test_my_inventory_item_type_filter(self):
-        # Add a blueprint item as well so we can filter it out
-        bp_item = Item.objects.create(
-            name="Barracks BP",
-            slug="bp-barracks-view",
-            category=self.category,
-            item_type=Item.ItemType.BLUEPRINT_BUILDING,
-            rarity=Item.Rarity.UNCOMMON,
-        )
-        UserInventory.objects.create(user=self.user, item=self.item, quantity=3)
-        UserInventory.objects.create(user=self.user, item=bp_item, quantity=1)
+# --- /inventory/items/ (public) ------------------------------------------
 
-        resp = self.client.get(
-            f"{self.BASE}/inventory/my/?item_type=material",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["count"], 1)
-        self.assertEqual(data["items"][0]["item"]["item_type"], "material")
 
-    def test_my_inventory_shows_instance_items(self):
-        non_stackable = Item.objects.create(
-            name="Tactical Pkg",
-            slug="tactical-pkg-view",
-            category=self.category,
-            item_type=Item.ItemType.TACTICAL_PACKAGE,
-            rarity=Item.Rarity.RARE,
-            is_stackable=False,
-        )
-        ItemInstance.objects.create(item=non_stackable, owner=self.user)
-        resp = self.client.get(
-            f"{self.BASE}/inventory/my/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["count"], 1)
-        entry = data["items"][0]
-        self.assertTrue(entry["is_instance"])
-        self.assertIsNotNone(entry["instance"])
+@pytest.mark.django_db
+def test_list_items_public_returns_200(client):
+    resp = client.get(f"{BASE}/inventory/items/")
+    assert resp.status_code == 200
 
-    def test_my_inventory_pagination(self):
-        for i in range(5):
-            item = Item.objects.create(
-                name=f"Ore {i}",
-                slug=f"ore-pag-{i}",
-                category=self.category,
-                item_type=Item.ItemType.MATERIAL,
-                rarity=Item.Rarity.COMMON,
-            )
-            UserInventory.objects.create(user=self.user, item=item, quantity=1)
 
-        resp = self.client.get(
-            f"{self.BASE}/inventory/my/?limit=2&offset=0",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["count"], 5)
-        self.assertEqual(len(data["items"]), 2)
+@pytest.mark.django_db
+def test_list_items_returns_active_categories_only(client, view_item):
+    ItemCategory.objects.create(name="Inactive Cat", slug="inactive-cat", is_active=False)
+    resp = client.get(f"{BASE}/inventory/items/")
+    data = resp.json()
+    slugs = [c["slug"] for c in data]
+    assert "inactive-cat" not in slugs
 
-    # --- /inventory/wallet/ --------------------------------------------------
 
-    def test_wallet_unauthenticated_returns_401(self):
-        resp = self.client.get(f"{self.BASE}/inventory/wallet/")
-        self.assertEqual(resp.status_code, 401)
+# --- /inventory/my/ (auth required) --------------------------------------
 
-    def test_wallet_returns_zero_for_new_user(self):
-        resp = self.client.get(
-            f"{self.BASE}/inventory/wallet/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["gold"], 0)
-        self.assertEqual(data["total_earned"], 0)
-        self.assertEqual(data["total_spent"], 0)
 
-    def test_wallet_reflects_existing_gold(self):
-        Wallet.objects.create(user=self.user, gold=500, total_earned=600)
-        resp = self.client.get(
-            f"{self.BASE}/inventory/wallet/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["gold"], 500)
-        self.assertEqual(data["total_earned"], 600)
+@pytest.mark.django_db
+def test_my_inventory_unauthenticated_returns_401(client):
+    resp = client.get(f"{BASE}/inventory/my/")
+    assert resp.status_code == 401
 
-    # --- /inventory/drops/ ---------------------------------------------------
 
-    def test_drops_unauthenticated_returns_401(self):
-        resp = self.client.get(f"{self.BASE}/inventory/drops/")
-        self.assertEqual(resp.status_code, 401)
+@pytest.mark.django_db
+def test_my_inventory_empty_for_new_user(client, view_user, view_auth):
+    resp = client.get(f"{BASE}/inventory/my/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "items" in data
+    assert "count" in data
+    assert data["count"] == 0
 
-    def test_drops_empty_for_new_user(self):
-        resp = self.client.get(
-            f"{self.BASE}/inventory/drops/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["count"], 0)
 
-    def test_drops_shows_existing_drop_records(self):
-        ItemDrop.objects.create(
-            user=self.user,
-            item=self.item,
-            quantity=3,
-            source=ItemDrop.DropSource.MATCH_REWARD,
-        )
-        resp = self.client.get(
-            f"{self.BASE}/inventory/drops/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["count"], 1)
-        self.assertEqual(data["items"][0]["quantity"], 3)
+@pytest.mark.django_db
+def test_my_inventory_shows_stackable_item(client, view_user, view_item, view_auth):
+    UserInventory.objects.create(user=view_user, item=view_item, quantity=7)
+    resp = client.get(f"{BASE}/inventory/my/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 1
+    entry = data["items"][0]
+    assert entry["quantity"] == 7
+    assert entry["is_instance"] is False
 
-    # --- /inventory/instances/{id}/ ------------------------------------------
 
-    def test_get_instance_unauthenticated_returns_401(self):
-        import uuid
+@pytest.mark.django_db
+def test_my_inventory_item_type_filter(client, view_user, view_item, view_category, view_auth):
+    bp_item = Item.objects.create(
+        name="Barracks BP",
+        slug="bp-barracks-view",
+        category=view_category,
+        item_type=Item.ItemType.BLUEPRINT_BUILDING,
+        rarity=Item.Rarity.UNCOMMON,
+    )
+    UserInventory.objects.create(user=view_user, item=view_item, quantity=3)
+    UserInventory.objects.create(user=view_user, item=bp_item, quantity=1)
+    resp = client.get(f"{BASE}/inventory/my/?item_type=material", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 1
+    assert data["items"][0]["item"]["item_type"] == "material"
 
-        resp = self.client.get(f"{self.BASE}/inventory/instances/{uuid.uuid4()}/")
-        self.assertEqual(resp.status_code, 401)
 
-    def test_get_instance_returns_404_for_missing(self):
-        import uuid
+@pytest.mark.django_db
+def test_my_inventory_shows_instance_items(client, view_user, view_category, view_auth):
+    non_stackable = Item.objects.create(
+        name="Tactical Pkg",
+        slug="tactical-pkg-view",
+        category=view_category,
+        item_type=Item.ItemType.TACTICAL_PACKAGE,
+        rarity=Item.Rarity.RARE,
+        is_stackable=False,
+    )
+    ItemInstance.objects.create(item=non_stackable, owner=view_user)
+    resp = client.get(f"{BASE}/inventory/my/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 1
+    entry = data["items"][0]
+    assert entry["is_instance"] is True
+    assert entry["instance"] is not None
 
-        resp = self.client.get(
-            f"{self.BASE}/inventory/instances/{uuid.uuid4()}/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 404)
 
-    def test_get_instance_returns_details(self):
-        non_stackable = Item.objects.create(
-            name="Special Pkg",
-            slug="special-pkg-inst",
-            category=self.category,
-            item_type=Item.ItemType.TACTICAL_PACKAGE,
-            rarity=Item.Rarity.EPIC,
-            is_stackable=False,
-        )
-        inst = ItemInstance.objects.create(
-            item=non_stackable,
-            owner=self.user,
-            wear=0.05,
-            pattern_seed=3,
-            stattrak=True,
-            nametag="My Special",
-        )
-        resp = self.client.get(
-            f"{self.BASE}/inventory/instances/{inst.id}/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["nametag"], "My Special")
-        self.assertTrue(data["stattrak"])
-        self.assertTrue(data["is_rare_pattern"])
-
-    # --- /inventory/instances/{id}/rename/ -----------------------------------
-
-    def test_rename_instance_success(self):
-        non_stackable = Item.objects.create(
-            name="Rename Pkg",
-            slug="rename-pkg",
-            category=self.category,
-            item_type=Item.ItemType.TACTICAL_PACKAGE,
-            rarity=Item.Rarity.RARE,
-            is_stackable=False,
-        )
-        inst = ItemInstance.objects.create(item=non_stackable, owner=self.user)
-        resp = self.client.post(
-            f"{self.BASE}/inventory/instances/{inst.id}/rename/",
-            data='{"nametag": "Dragon Slayer"}',
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["nametag"], "Dragon Slayer")
-        inst.refresh_from_db()
-        self.assertEqual(inst.nametag, "Dragon Slayer")
-
-    def test_rename_instance_too_long_returns_400(self):
-        non_stackable = Item.objects.create(
-            name="Long Nametag Pkg",
-            slug="long-nametag-pkg",
-            category=self.category,
-            item_type=Item.ItemType.TACTICAL_PACKAGE,
-            rarity=Item.Rarity.RARE,
-            is_stackable=False,
-        )
-        inst = ItemInstance.objects.create(item=non_stackable, owner=self.user)
-        resp = self.client.post(
-            f"{self.BASE}/inventory/instances/{inst.id}/rename/",
-            data='{"nametag": "' + "x" * 51 + '"}',
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 400)
-
-    def test_rename_instance_not_owned_returns_404(self):
-        non_stackable = Item.objects.create(
-            name="Not Mine Pkg",
-            slug="not-mine-pkg",
-            category=self.category,
-            item_type=Item.ItemType.TACTICAL_PACKAGE,
-            rarity=Item.Rarity.RARE,
-            is_stackable=False,
-        )
-        # Instance owned by other_user
-        inst = ItemInstance.objects.create(item=non_stackable, owner=self.other_user)
-        resp = self.client.post(
-            f"{self.BASE}/inventory/instances/{inst.id}/rename/",
-            data='{"nametag": "Stolen"}',
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 404)
-
-    # --- /inventory/decks/ ---------------------------------------------------
-
-    def test_list_decks_unauthenticated_returns_401(self):
-        resp = self.client.get(f"{self.BASE}/inventory/decks/")
-        self.assertEqual(resp.status_code, 401)
-
-    def test_list_decks_empty_for_new_user(self):
-        resp = self.client.get(
-            f"{self.BASE}/inventory/decks/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["count"], 0)
-
-    def test_create_deck_success(self):
-        resp = self.client.post(
-            f"{self.BASE}/inventory/decks/",
-            data='{"name": "My Attack Deck"}',
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["name"], "My Attack Deck")
-        self.assertFalse(data["is_default"])
-        self.assertIn("id", data)
-
-    def test_create_deck_unauthenticated_returns_401(self):
-        resp = self.client.post(
-            f"{self.BASE}/inventory/decks/",
-            data='{"name": "Fail Deck"}',
-            content_type="application/json",
-        )
-        self.assertEqual(resp.status_code, 401)
-
-    def test_get_deck_returns_404_for_wrong_user(self):
-        other_deck = Deck.objects.create(user=self.other_user, name="Secret Deck")
-        resp = self.client.get(
-            f"{self.BASE}/inventory/decks/{other_deck.id}/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 404)
-
-    def test_get_deck_returns_own_deck(self):
-        deck = Deck.objects.create(user=self.user, name="My Deck")
-        resp = self.client.get(
-            f"{self.BASE}/inventory/decks/{deck.id}/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["name"], "My Deck")
-
-    def test_delete_deck_success(self):
-        deck = Deck.objects.create(user=self.user, name="Temp Deck")
-        resp = self.client.delete(
-            f"{self.BASE}/inventory/decks/{deck.id}/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertFalse(Deck.objects.filter(id=deck.id).exists())
-
-    def test_delete_deck_wrong_user_returns_404(self):
-        other_deck = Deck.objects.create(user=self.other_user, name="Not Yours")
-        resp = self.client.delete(
-            f"{self.BASE}/inventory/decks/{other_deck.id}/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 404)
-
-    def test_set_default_deck(self):
-        d1 = Deck.objects.create(user=self.user, name="D1", is_default=True)
-        d2 = Deck.objects.create(user=self.user, name="D2")
-        resp = self.client.post(
-            f"{self.BASE}/inventory/decks/{d2.id}/set-default/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertTrue(data["is_default"])
-        d1.refresh_from_db()
-        self.assertFalse(d1.is_default)
-
-    def test_update_deck_name(self):
-        deck = Deck.objects.create(user=self.user, name="Old Name")
-        resp = self.client.put(
-            f"{self.BASE}/inventory/decks/{deck.id}/",
-            data='{"name": "New Name"}',
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data["name"], "New Name")
-
-    def test_update_deck_with_blueprint_item(self):
-        bp_item = Item.objects.create(
-            name="Barracks Blueprint",
-            slug="bp-barracks-deck",
-            category=self.category,
-            item_type=Item.ItemType.BLUEPRINT_BUILDING,
-            rarity=Item.Rarity.UNCOMMON,
-            is_stackable=True,
-            blueprint_ref="barracks",
-        )
-        UserInventory.objects.create(user=self.user, item=bp_item, quantity=1)
-        deck = Deck.objects.create(user=self.user, name="Blueprint Deck")
-        payload = '{"items": [{"item_slug": "bp-barracks-deck", "quantity": 1}]}'
-        resp = self.client.put(
-            f"{self.BASE}/inventory/decks/{deck.id}/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(len(data["items"]), 1)
-        self.assertEqual(data["items"][0]["item"]["slug"], "bp-barracks-deck")
-
-    def test_update_deck_with_nonexistent_item_returns_400(self):
-        deck = Deck.objects.create(user=self.user, name="Bad Deck")
-        payload = '{"items": [{"item_slug": "does-not-exist", "quantity": 1}]}'
-        resp = self.client.put(
-            f"{self.BASE}/inventory/decks/{deck.id}/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 400)
-
-    def test_update_deck_with_disallowed_item_type_returns_400(self):
-        # Material items are not allowed in decks
-        UserInventory.objects.create(user=self.user, item=self.item, quantity=5)
-        deck = Deck.objects.create(user=self.user, name="Material Deck")
-        payload = f'{{"items": [{{"item_slug": "{self.item.slug}", "quantity": 1}}]}}'
-        resp = self.client.put(
-            f"{self.BASE}/inventory/decks/{deck.id}/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 400)
-
-    def test_update_deck_insufficient_inventory_returns_400(self):
-        consumable = Item.objects.create(
-            name="Speed Boost",
-            slug="boost-speed-deck",
-            category=self.category,
-            item_type=Item.ItemType.BOOST,
-            rarity=Item.Rarity.COMMON,
-            is_stackable=True,
-            is_consumable=True,
-        )
-        # User has 1, deck requests 3
-        UserInventory.objects.create(user=self.user, item=consumable, quantity=1)
-        deck = Deck.objects.create(user=self.user, name="Greedy Deck")
-        payload = '{"items": [{"item_slug": "boost-speed-deck", "quantity": 3}]}'
-        resp = self.client.put(
-            f"{self.BASE}/inventory/decks/{deck.id}/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 400)
-
-    def test_duplicate_blueprint_ref_in_deck_returns_400(self):
-        bp1 = Item.objects.create(
-            name="Barracks Lvl 1",
-            slug="bp-barracks-lvl1",
-            category=self.category,
-            item_type=Item.ItemType.BLUEPRINT_BUILDING,
-            rarity=Item.Rarity.UNCOMMON,
-            blueprint_ref="barracks",
-            level=1,
-        )
-        bp2 = Item.objects.create(
-            name="Barracks Lvl 2",
-            slug="bp-barracks-lvl2",
-            category=self.category,
-            item_type=Item.ItemType.BLUEPRINT_BUILDING,
-            rarity=Item.Rarity.RARE,
-            blueprint_ref="barracks",
-            level=2,
-        )
-        UserInventory.objects.create(user=self.user, item=bp1, quantity=1)
-        UserInventory.objects.create(user=self.user, item=bp2, quantity=1)
-        deck = Deck.objects.create(user=self.user, name="Double Barracks")
-        payload = (
-            '{"items": ['
-            '{"item_slug": "bp-barracks-lvl1", "quantity": 1},'
-            '{"item_slug": "bp-barracks-lvl2", "quantity": 1}'
-            "]}"
-        )
-        resp = self.client.put(
-            f"{self.BASE}/inventory/decks/{deck.id}/",
-            data=payload,
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 400)
-
-    # --- /inventory/cosmetics/equipped/ --------------------------------------
-
-    def test_equipped_cosmetics_unauthenticated_returns_401(self):
-        resp = self.client.get(f"{self.BASE}/inventory/cosmetics/equipped/")
-        self.assertEqual(resp.status_code, 401)
-
-    def test_equipped_cosmetics_empty_by_default(self):
-        resp = self.client.get(
-            f"{self.BASE}/inventory/cosmetics/equipped/",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertEqual(data, [])
-
-    # --- open-crate ----------------------------------------------------------
-
-    def test_open_crate_unauthenticated_returns_401(self):
-        resp = self.client.post(
-            f"{self.BASE}/inventory/open-crate/",
-            data='{"crate_item_slug": "test-crate", "key_item_slug": "test-key"}',
-            content_type="application/json",
-        )
-        self.assertEqual(resp.status_code, 401)
-
-    def test_open_crate_returns_400_when_key_doesnt_match(self):
-        # Create two crates; the key is linked to crate2, not crate1
-        crate1 = Item.objects.create(
-            name="Crate A",
-            slug="crate-a",
-            category=self.category,
-            item_type=Item.ItemType.CRATE,
-            rarity=Item.Rarity.COMMON,
-            crate_loot_table=[{"item_slug": self.item.slug, "weight": 10, "min_qty": 1, "max_qty": 1}],
-        )
-        crate2 = Item.objects.create(
-            name="Crate B",
-            slug="crate-b",
-            category=self.category,
-            item_type=Item.ItemType.CRATE,
+@pytest.mark.django_db
+def test_my_inventory_pagination(client, view_user, view_category, view_auth):
+    for i in range(5):
+        item = Item.objects.create(
+            name=f"Ore {i}",
+            slug=f"ore-pag-{i}",
+            category=view_category,
+            item_type=Item.ItemType.MATERIAL,
             rarity=Item.Rarity.COMMON,
         )
-        key_item = Item.objects.create(
-            name="Key A",
-            slug="key-a",
-            category=self.category,
-            item_type=Item.ItemType.KEY,
-            rarity=Item.Rarity.COMMON,
-            opens_crate=crate2,  # opens crate2, not crate1
-        )
-        UserInventory.objects.create(user=self.user, item=crate1, quantity=1)
-        UserInventory.objects.create(user=self.user, item=key_item, quantity=1)
-        resp = self.client.post(
-            f"{self.BASE}/inventory/open-crate/",
-            data=f'{{"crate_item_slug": "{crate1.slug}", "key_item_slug": "{key_item.slug}"}}',
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 400)
+        UserInventory.objects.create(user=view_user, item=item, quantity=1)
+    resp = client.get(f"{BASE}/inventory/my/?limit=2&offset=0", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 5
+    assert len(data["items"]) == 2
 
-    def test_open_crate_returns_400_when_no_crate_in_inventory(self):
-        crate = Item.objects.create(
-            name="Empty Crate",
-            slug="empty-crate",
-            category=self.category,
-            item_type=Item.ItemType.CRATE,
-            rarity=Item.Rarity.COMMON,
-            crate_loot_table=[{"item_slug": self.item.slug, "weight": 10, "min_qty": 1, "max_qty": 1}],
-        )
-        key_item = Item.objects.create(
-            name="Empty Key",
-            slug="empty-key",
-            category=self.category,
-            item_type=Item.ItemType.KEY,
-            rarity=Item.Rarity.COMMON,
-            opens_crate=crate,
-        )
-        # Do NOT add crate to inventory; add key only
-        UserInventory.objects.create(user=self.user, item=key_item, quantity=1)
-        resp = self.client.post(
-            f"{self.BASE}/inventory/open-crate/",
-            data=f'{{"crate_item_slug": "{crate.slug}", "key_item_slug": "{key_item.slug}"}}',
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 400)
 
-    def test_open_crate_success_drops_items_and_reduces_inventory(self):
-        crate = Item.objects.create(
-            name="Lucky Crate",
-            slug="lucky-crate",
-            category=self.category,
-            item_type=Item.ItemType.CRATE,
-            rarity=Item.Rarity.COMMON,
-            crate_loot_table=[{"item_slug": self.item.slug, "weight": 100, "min_qty": 1, "max_qty": 1}],
-        )
-        key_item = Item.objects.create(
-            name="Lucky Key",
-            slug="lucky-key",
-            category=self.category,
-            item_type=Item.ItemType.KEY,
-            rarity=Item.Rarity.COMMON,
-            opens_crate=crate,
-        )
-        UserInventory.objects.create(user=self.user, item=crate, quantity=1)
-        UserInventory.objects.create(user=self.user, item=key_item, quantity=1)
-        resp = self.client.post(
-            f"{self.BASE}/inventory/open-crate/",
-            data=f'{{"crate_item_slug": "{crate.slug}", "key_item_slug": "{key_item.slug}"}}',
-            content_type="application/json",
-            HTTP_AUTHORIZATION=self.auth,
-        )
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertIn("drops", data)
-        self.assertGreater(len(data["drops"]), 0)
-        # Crate and key should be consumed
-        self.assertFalse(UserInventory.objects.filter(user=self.user, item=crate).exists())
-        self.assertFalse(UserInventory.objects.filter(user=self.user, item=key_item).exists())
-        # Drop records should be created
-        self.assertGreater(
-            ItemDrop.objects.filter(user=self.user, source=ItemDrop.DropSource.CRATE_OPEN).count(),
-            0,
-        )
+# --- /inventory/wallet/ --------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_wallet_unauthenticated_returns_401(client):
+    resp = client.get(f"{BASE}/inventory/wallet/")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_wallet_returns_zero_for_new_user(client, view_user, view_auth):
+    resp = client.get(f"{BASE}/inventory/wallet/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["gold"] == 0
+    assert data["total_earned"] == 0
+    assert data["total_spent"] == 0
+
+
+@pytest.mark.django_db
+def test_wallet_reflects_existing_gold(client, view_user, view_auth):
+    Wallet.objects.create(user=view_user, gold=500, total_earned=600)
+    resp = client.get(f"{BASE}/inventory/wallet/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["gold"] == 500
+    assert data["total_earned"] == 600
+
+
+# --- /inventory/drops/ ---------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_drops_unauthenticated_returns_401(client):
+    resp = client.get(f"{BASE}/inventory/drops/")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_drops_empty_for_new_user(client, view_user, view_auth):
+    resp = client.get(f"{BASE}/inventory/drops/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 0
+
+
+@pytest.mark.django_db
+def test_drops_shows_existing_drop_records(client, view_user, view_item, view_auth):
+    ItemDrop.objects.create(
+        user=view_user,
+        item=view_item,
+        quantity=3,
+        source=ItemDrop.DropSource.MATCH_REWARD,
+    )
+    resp = client.get(f"{BASE}/inventory/drops/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 1
+    assert data["items"][0]["quantity"] == 3
+
+
+# --- /inventory/instances/{id}/ ------------------------------------------
+
+
+@pytest.mark.django_db
+def test_get_instance_unauthenticated_returns_401(client):
+    resp = client.get(f"{BASE}/inventory/instances/{uuid.uuid4()}/")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_get_instance_returns_404_for_missing(client, view_user, view_auth):
+    resp = client.get(
+        f"{BASE}/inventory/instances/{uuid.uuid4()}/",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_get_instance_returns_details(client, view_user, view_category, view_auth):
+    non_stackable = Item.objects.create(
+        name="Special Pkg",
+        slug="special-pkg-inst",
+        category=view_category,
+        item_type=Item.ItemType.TACTICAL_PACKAGE,
+        rarity=Item.Rarity.EPIC,
+        is_stackable=False,
+    )
+    inst = ItemInstance.objects.create(
+        item=non_stackable,
+        owner=view_user,
+        wear=0.05,
+        pattern_seed=3,
+        stattrak=True,
+        nametag="My Special",
+    )
+    resp = client.get(f"{BASE}/inventory/instances/{inst.id}/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["nametag"] == "My Special"
+    assert data["stattrak"] is True
+    assert data["is_rare_pattern"] is True
+
+
+# --- /inventory/instances/{id}/rename/ -----------------------------------
+
+
+@pytest.mark.django_db
+def test_rename_instance_success(client, view_user, view_category, view_auth):
+    non_stackable = Item.objects.create(
+        name="Rename Pkg",
+        slug="rename-pkg",
+        category=view_category,
+        item_type=Item.ItemType.TACTICAL_PACKAGE,
+        rarity=Item.Rarity.RARE,
+        is_stackable=False,
+    )
+    inst = ItemInstance.objects.create(item=non_stackable, owner=view_user)
+    resp = client.post(
+        f"{BASE}/inventory/instances/{inst.id}/rename/",
+        data='{"nametag": "Dragon Slayer"}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["nametag"] == "Dragon Slayer"
+    inst.refresh_from_db()
+    assert inst.nametag == "Dragon Slayer"
+
+
+@pytest.mark.django_db
+def test_rename_instance_too_long_returns_400(client, view_user, view_category, view_auth):
+    non_stackable = Item.objects.create(
+        name="Long Nametag Pkg",
+        slug="long-nametag-pkg",
+        category=view_category,
+        item_type=Item.ItemType.TACTICAL_PACKAGE,
+        rarity=Item.Rarity.RARE,
+        is_stackable=False,
+    )
+    inst = ItemInstance.objects.create(item=non_stackable, owner=view_user)
+    resp = client.post(
+        f"{BASE}/inventory/instances/{inst.id}/rename/",
+        data='{"nametag": "' + "x" * 51 + '"}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_rename_instance_not_owned_returns_404(client, view_user, view_other_user, view_category, view_auth):
+    non_stackable = Item.objects.create(
+        name="Not Mine Pkg",
+        slug="not-mine-pkg",
+        category=view_category,
+        item_type=Item.ItemType.TACTICAL_PACKAGE,
+        rarity=Item.Rarity.RARE,
+        is_stackable=False,
+    )
+    inst = ItemInstance.objects.create(item=non_stackable, owner=view_other_user)
+    resp = client.post(
+        f"{BASE}/inventory/instances/{inst.id}/rename/",
+        data='{"nametag": "Stolen"}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 404
+
+
+# --- /inventory/decks/ ---------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_list_decks_unauthenticated_returns_401(client):
+    resp = client.get(f"{BASE}/inventory/decks/")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_list_decks_empty_for_new_user(client, view_user, view_auth):
+    resp = client.get(f"{BASE}/inventory/decks/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 0
+
+
+@pytest.mark.django_db
+def test_create_deck_success(client, view_user, view_auth):
+    resp = client.post(
+        f"{BASE}/inventory/decks/",
+        data='{"name": "My Attack Deck"}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "My Attack Deck"
+    assert data["is_default"] is False
+    assert "id" in data
+
+
+@pytest.mark.django_db
+def test_create_deck_unauthenticated_returns_401(client):
+    resp = client.post(
+        f"{BASE}/inventory/decks/",
+        data='{"name": "Fail Deck"}',
+        content_type="application/json",
+    )
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_get_deck_returns_404_for_wrong_user(client, view_user, view_other_user, view_auth):
+    other_deck = Deck.objects.create(user=view_other_user, name="Secret Deck")
+    resp = client.get(f"{BASE}/inventory/decks/{other_deck.id}/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_get_deck_returns_own_deck(client, view_user, view_auth):
+    deck = Deck.objects.create(user=view_user, name="My Deck")
+    resp = client.get(f"{BASE}/inventory/decks/{deck.id}/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "My Deck"
+
+
+@pytest.mark.django_db
+def test_delete_deck_success(client, view_user, view_auth):
+    deck = Deck.objects.create(user=view_user, name="Temp Deck")
+    resp = client.delete(f"{BASE}/inventory/decks/{deck.id}/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    assert not Deck.objects.filter(id=deck.id).exists()
+
+
+@pytest.mark.django_db
+def test_delete_deck_wrong_user_returns_404(client, view_user, view_other_user, view_auth):
+    other_deck = Deck.objects.create(user=view_other_user, name="Not Yours")
+    resp = client.delete(f"{BASE}/inventory/decks/{other_deck.id}/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_set_default_deck(client, view_user, view_auth):
+    d1 = Deck.objects.create(user=view_user, name="D1", is_default=True)
+    d2 = Deck.objects.create(user=view_user, name="D2")
+    resp = client.post(f"{BASE}/inventory/decks/{d2.id}/set-default/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["is_default"] is True
+    d1.refresh_from_db()
+    assert d1.is_default is False
+
+
+@pytest.mark.django_db
+def test_update_deck_name(client, view_user, view_auth):
+    deck = Deck.objects.create(user=view_user, name="Old Name")
+    resp = client.put(
+        f"{BASE}/inventory/decks/{deck.id}/",
+        data='{"name": "New Name"}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "New Name"
+
+
+@pytest.mark.django_db
+def test_update_deck_with_blueprint_item(client, view_user, view_category, view_auth):
+    bp_item = Item.objects.create(
+        name="Barracks Blueprint",
+        slug="bp-barracks-deck",
+        category=view_category,
+        item_type=Item.ItemType.BLUEPRINT_BUILDING,
+        rarity=Item.Rarity.UNCOMMON,
+        is_stackable=True,
+        blueprint_ref="barracks",
+    )
+    UserInventory.objects.create(user=view_user, item=bp_item, quantity=1)
+    deck = Deck.objects.create(user=view_user, name="Blueprint Deck")
+    payload = '{"items": [{"item_slug": "bp-barracks-deck", "quantity": 1}]}'
+    resp = client.put(
+        f"{BASE}/inventory/decks/{deck.id}/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["item"]["slug"] == "bp-barracks-deck"
+
+
+@pytest.mark.django_db
+def test_update_deck_with_nonexistent_item_returns_400(client, view_user, view_auth):
+    deck = Deck.objects.create(user=view_user, name="Bad Deck")
+    payload = '{"items": [{"item_slug": "does-not-exist", "quantity": 1}]}'
+    resp = client.put(
+        f"{BASE}/inventory/decks/{deck.id}/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_update_deck_with_disallowed_item_type_returns_400(client, view_user, view_item, view_auth):
+    UserInventory.objects.create(user=view_user, item=view_item, quantity=5)
+    deck = Deck.objects.create(user=view_user, name="Material Deck")
+    payload = f'{{"items": [{{"item_slug": "{view_item.slug}", "quantity": 1}}]}}'
+    resp = client.put(
+        f"{BASE}/inventory/decks/{deck.id}/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_update_deck_insufficient_inventory_returns_400(client, view_user, view_category, view_auth):
+    consumable = Item.objects.create(
+        name="Speed Boost",
+        slug="boost-speed-deck",
+        category=view_category,
+        item_type=Item.ItemType.BOOST,
+        rarity=Item.Rarity.COMMON,
+        is_stackable=True,
+        is_consumable=True,
+    )
+    UserInventory.objects.create(user=view_user, item=consumable, quantity=1)
+    deck = Deck.objects.create(user=view_user, name="Greedy Deck")
+    payload = '{"items": [{"item_slug": "boost-speed-deck", "quantity": 3}]}'
+    resp = client.put(
+        f"{BASE}/inventory/decks/{deck.id}/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_duplicate_blueprint_ref_in_deck_returns_400(client, view_user, view_category, view_auth):
+    bp1 = Item.objects.create(
+        name="Barracks Lvl 1",
+        slug="bp-barracks-lvl1",
+        category=view_category,
+        item_type=Item.ItemType.BLUEPRINT_BUILDING,
+        rarity=Item.Rarity.UNCOMMON,
+        blueprint_ref="barracks",
+        level=1,
+    )
+    bp2 = Item.objects.create(
+        name="Barracks Lvl 2",
+        slug="bp-barracks-lvl2",
+        category=view_category,
+        item_type=Item.ItemType.BLUEPRINT_BUILDING,
+        rarity=Item.Rarity.RARE,
+        blueprint_ref="barracks",
+        level=2,
+    )
+    UserInventory.objects.create(user=view_user, item=bp1, quantity=1)
+    UserInventory.objects.create(user=view_user, item=bp2, quantity=1)
+    deck = Deck.objects.create(user=view_user, name="Double Barracks")
+    payload = (
+        '{"items": [{"item_slug": "bp-barracks-lvl1", "quantity": 1},{"item_slug": "bp-barracks-lvl2", "quantity": 1}]}'
+    )
+    resp = client.put(
+        f"{BASE}/inventory/decks/{deck.id}/",
+        data=payload,
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 400
+
+
+# --- /inventory/cosmetics/equipped/ --------------------------------------
+
+
+@pytest.mark.django_db
+def test_equipped_cosmetics_unauthenticated_returns_401(client):
+    resp = client.get(f"{BASE}/inventory/cosmetics/equipped/")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_equipped_cosmetics_empty_by_default(client, view_user, view_auth):
+    resp = client.get(f"{BASE}/inventory/cosmetics/equipped/", HTTP_AUTHORIZATION=view_auth)
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+# --- open-crate ----------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_open_crate_unauthenticated_returns_401(client):
+    resp = client.post(
+        f"{BASE}/inventory/open-crate/",
+        data='{"crate_item_slug": "test-crate", "key_item_slug": "test-key"}',
+        content_type="application/json",
+    )
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_open_crate_returns_400_when_key_doesnt_match(client, view_user, view_category, view_item, view_auth):
+    crate1 = Item.objects.create(
+        name="Crate A",
+        slug="crate-a",
+        category=view_category,
+        item_type=Item.ItemType.CRATE,
+        rarity=Item.Rarity.COMMON,
+        crate_loot_table=[{"item_slug": view_item.slug, "weight": 10, "min_qty": 1, "max_qty": 1}],
+    )
+    crate2 = Item.objects.create(
+        name="Crate B",
+        slug="crate-b",
+        category=view_category,
+        item_type=Item.ItemType.CRATE,
+        rarity=Item.Rarity.COMMON,
+    )
+    key_item = Item.objects.create(
+        name="Key A",
+        slug="key-a",
+        category=view_category,
+        item_type=Item.ItemType.KEY,
+        rarity=Item.Rarity.COMMON,
+        opens_crate=crate2,
+    )
+    UserInventory.objects.create(user=view_user, item=crate1, quantity=1)
+    UserInventory.objects.create(user=view_user, item=key_item, quantity=1)
+    resp = client.post(
+        f"{BASE}/inventory/open-crate/",
+        data=f'{{"crate_item_slug": "{crate1.slug}", "key_item_slug": "{key_item.slug}"}}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_open_crate_returns_400_when_no_crate_in_inventory(client, view_user, view_category, view_item, view_auth):
+    crate = Item.objects.create(
+        name="Empty Crate",
+        slug="empty-crate",
+        category=view_category,
+        item_type=Item.ItemType.CRATE,
+        rarity=Item.Rarity.COMMON,
+        crate_loot_table=[{"item_slug": view_item.slug, "weight": 10, "min_qty": 1, "max_qty": 1}],
+    )
+    key_item = Item.objects.create(
+        name="Empty Key",
+        slug="empty-key",
+        category=view_category,
+        item_type=Item.ItemType.KEY,
+        rarity=Item.Rarity.COMMON,
+        opens_crate=crate,
+    )
+    UserInventory.objects.create(user=view_user, item=key_item, quantity=1)
+    resp = client.post(
+        f"{BASE}/inventory/open-crate/",
+        data=f'{{"crate_item_slug": "{crate.slug}", "key_item_slug": "{key_item.slug}"}}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_open_crate_success_drops_items_and_reduces_inventory(client, view_user, view_category, view_item, view_auth):
+    crate = Item.objects.create(
+        name="Lucky Crate",
+        slug="lucky-crate",
+        category=view_category,
+        item_type=Item.ItemType.CRATE,
+        rarity=Item.Rarity.COMMON,
+        crate_loot_table=[{"item_slug": view_item.slug, "weight": 100, "min_qty": 1, "max_qty": 1}],
+    )
+    key_item = Item.objects.create(
+        name="Lucky Key",
+        slug="lucky-key",
+        category=view_category,
+        item_type=Item.ItemType.KEY,
+        rarity=Item.Rarity.COMMON,
+        opens_crate=crate,
+    )
+    UserInventory.objects.create(user=view_user, item=crate, quantity=1)
+    UserInventory.objects.create(user=view_user, item=key_item, quantity=1)
+    resp = client.post(
+        f"{BASE}/inventory/open-crate/",
+        data=f'{{"crate_item_slug": "{crate.slug}", "key_item_slug": "{key_item.slug}"}}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=view_auth,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "drops" in data
+    assert len(data["drops"]) > 0
+    assert not UserInventory.objects.filter(user=view_user, item=crate).exists()
+    assert not UserInventory.objects.filter(user=view_user, item=key_item).exists()
+    assert ItemDrop.objects.filter(user=view_user, source=ItemDrop.DropSource.CRATE_OPEN).count() > 0
 
 
 # ---------------------------------------------------------------------------
@@ -958,244 +1051,775 @@ class InventoryViewTests(TestCase):
 # ---------------------------------------------------------------------------
 
 
-class InventoryTaskTests(TestCase):
-    """Tests for helper functions in inventory tasks and views."""
+@pytest.fixture
+def task_user(db):
+    return User.objects.create_user(
+        email="tasktest@test.com",
+        username="tasktestuser",
+        password="testpass123",
+    )
 
-    def setUp(self):
-        self.user = User.objects.create_user(
-            email="tasktest@test.com",
-            username="tasktestuser",
-            password="testpass123",
-        )
-        self.category = make_category("Task Cat", "task-cat")
-        self.item = make_item(self.category, name="Task Ore", slug="task-ore")
 
-    # --- _roll_rarity --------------------------------------------------------
+@pytest.fixture
+def task_category(db):
+    return make_category("Task Cat", "task-cat")
 
-    def test_roll_rarity_returns_available_rarity(self):
-        from apps.inventory.tasks import WINNER_RARITY_WEIGHTS, _roll_rarity
 
-        available = ["common", "uncommon"]
-        for _ in range(20):
-            result = _roll_rarity(WINNER_RARITY_WEIGHTS, available)
-            self.assertIn(result, available)
+@pytest.fixture
+def task_item(task_category):
+    return make_item(task_category, name="Task Ore", slug="task-ore")
 
-    def test_roll_rarity_with_single_option(self):
-        from apps.inventory.tasks import _roll_rarity
 
-        weights = {"common": 100, "rare": 50}
-        result = _roll_rarity(weights, ["rare"])
-        self.assertEqual(result, "rare")
+# --- _roll_rarity --------------------------------------------------------
 
-    def test_roll_rarity_empty_filtered_falls_back(self):
-        from apps.inventory.tasks import _roll_rarity
 
-        # weights has no overlap with available rarities
-        weights = {"epic": 100}
-        result = _roll_rarity(weights, ["common", "rare"])
-        self.assertIn(result, ["common", "rare"])
+@pytest.mark.django_db
+def test_roll_rarity_returns_available_rarity():
+    from apps.inventory.tasks import WINNER_RARITY_WEIGHTS, _roll_rarity
 
-    def test_winner_rarity_weights_sum_to_100(self):
-        from apps.inventory.tasks import WINNER_RARITY_WEIGHTS
+    available = ["common", "uncommon"]
+    for _ in range(20):
+        result = _roll_rarity(WINNER_RARITY_WEIGHTS, available)
+        assert result in available
 
-        self.assertEqual(sum(WINNER_RARITY_WEIGHTS.values()), 100)
 
-    def test_loser_rarity_weights_sum_to_100(self):
-        from apps.inventory.tasks import LOSER_RARITY_WEIGHTS
+@pytest.mark.django_db
+def test_roll_rarity_with_single_option():
+    from apps.inventory.tasks import _roll_rarity
 
-        self.assertEqual(sum(LOSER_RARITY_WEIGHTS.values()), 100)
+    weights = {"common": 100, "rare": 50}
+    result = _roll_rarity(weights, ["rare"])
+    assert result == "rare"
 
-    # --- _roll_crate_loot ----------------------------------------------------
 
-    def test_roll_crate_loot_empty_returns_empty(self):
-        from apps.inventory.views import _roll_crate_loot
+@pytest.mark.django_db
+def test_roll_rarity_empty_filtered_falls_back():
+    from apps.inventory.tasks import _roll_rarity
 
-        result = _roll_crate_loot([])
-        self.assertEqual(result, [])
+    weights = {"epic": 100}
+    result = _roll_rarity(weights, ["common", "rare"])
+    assert result in ["common", "rare"]
 
-    def test_roll_crate_loot_returns_expected_structure(self):
-        from apps.inventory.views import _roll_crate_loot
 
-        loot_table = [
-            {"item_slug": "iron-ore", "weight": 100, "min_qty": 1, "max_qty": 3},
-        ]
-        results = _roll_crate_loot(loot_table, num_rolls=3)
-        self.assertIsInstance(results, list)
-        # All results should be tuples of (str, int)
-        for slug, qty in results:
-            self.assertIsInstance(slug, str)
-            self.assertIsInstance(qty, int)
-            self.assertGreaterEqual(qty, 1)
+@pytest.mark.django_db
+def test_winner_rarity_weights_sum_to_100():
+    from apps.inventory.tasks import WINNER_RARITY_WEIGHTS
 
-    def test_roll_crate_loot_merges_duplicates(self):
-        from apps.inventory.views import _roll_crate_loot
+    assert sum(WINNER_RARITY_WEIGHTS.values()) == 100
 
-        loot_table = [
-            {"item_slug": "iron-ore", "weight": 100, "min_qty": 1, "max_qty": 1},
-        ]
-        # All 3 rolls will pick the same item; they should be merged
-        results = _roll_crate_loot(loot_table, num_rolls=3)
-        slugs = [r[0] for r in results]
-        # No duplicates after merge
-        self.assertEqual(len(slugs), len(set(slugs)))
-        # The merged quantity should be 3
-        self.assertEqual(results[0][1], 3)
 
-    def test_roll_crate_loot_respects_qty_range(self):
-        from apps.inventory.views import _roll_crate_loot
+@pytest.mark.django_db
+def test_loser_rarity_weights_sum_to_100():
+    from apps.inventory.tasks import LOSER_RARITY_WEIGHTS
 
-        loot_table = [
-            {"item_slug": "iron-ore", "weight": 100, "min_qty": 5, "max_qty": 10},
-        ]
-        results = _roll_crate_loot(loot_table, num_rolls=1)
-        self.assertEqual(len(results), 1)
-        slug, qty = results[0]
-        self.assertGreaterEqual(qty, 5)
-        self.assertLessEqual(qty, 10)
+    assert sum(LOSER_RARITY_WEIGHTS.values()) == 100
 
-    # --- add_item_to_inventory / remove_item_from_inventory ------------------
 
-    def test_add_stackable_item_creates_inventory_entry(self):
-        from apps.inventory.views import add_item_to_inventory
+# --- _roll_crate_loot ----------------------------------------------------
 
-        result = add_item_to_inventory(self.user, self.item, 5)
-        self.assertEqual(result.quantity, 5)
 
-    def test_add_stackable_item_increments_existing(self):
-        from apps.inventory.views import add_item_to_inventory
+@pytest.mark.django_db
+def test_roll_crate_loot_empty_returns_empty():
+    from apps.inventory.views import _roll_crate_loot
 
-        UserInventory.objects.create(user=self.user, item=self.item, quantity=3)
-        add_item_to_inventory(self.user, self.item, 4)
-        inv = UserInventory.objects.get(user=self.user, item=self.item)
-        self.assertEqual(inv.quantity, 7)
+    result = _roll_crate_loot([])
+    assert result == []
 
-    def test_add_stackable_item_capped_at_max_stack(self):
-        from apps.inventory.views import add_item_to_inventory
 
-        self.item.max_stack = 10
-        self.item.save()
-        UserInventory.objects.create(user=self.user, item=self.item, quantity=8)
-        add_item_to_inventory(self.user, self.item, 5)
-        inv = UserInventory.objects.get(user=self.user, item=self.item)
-        self.assertEqual(inv.quantity, 10)
+@pytest.mark.django_db
+def test_roll_crate_loot_returns_expected_structure():
+    from apps.inventory.views import _roll_crate_loot
 
-    def test_add_nonstackable_item_creates_instance(self):
-        from apps.inventory.views import add_item_to_inventory
+    loot_table = [{"item_slug": "iron-ore", "weight": 100, "min_qty": 1, "max_qty": 3}]
+    results = _roll_crate_loot(loot_table, num_rolls=3)
+    assert isinstance(results, list)
+    for slug, qty in results:
+        assert isinstance(slug, str)
+        assert isinstance(qty, int)
+        assert qty >= 1
 
-        non_stackable = Item.objects.create(
-            name="NS Item",
-            slug="ns-item-task",
-            category=self.category,
-            item_type=Item.ItemType.TACTICAL_PACKAGE,
-            rarity=Item.Rarity.RARE,
-            is_stackable=False,
-        )
-        result = add_item_to_inventory(self.user, non_stackable, 1)
-        self.assertEqual(result.owner, self.user)
-        self.assertEqual(result.item, non_stackable)
 
-    def test_add_nonstackable_multiple_returns_list(self):
-        from apps.inventory.views import add_item_to_inventory
+@pytest.mark.django_db
+def test_roll_crate_loot_merges_duplicates():
+    from apps.inventory.views import _roll_crate_loot
 
-        non_stackable = Item.objects.create(
-            name="NS Multi",
-            slug="ns-multi",
-            category=self.category,
-            item_type=Item.ItemType.TACTICAL_PACKAGE,
-            rarity=Item.Rarity.RARE,
-            is_stackable=False,
-        )
-        result = add_item_to_inventory(self.user, non_stackable, 3)
-        self.assertIsInstance(result, list)
-        self.assertEqual(len(result), 3)
+    loot_table = [{"item_slug": "iron-ore", "weight": 100, "min_qty": 1, "max_qty": 1}]
+    results = _roll_crate_loot(loot_table, num_rolls=3)
+    slugs = [r[0] for r in results]
+    assert len(slugs) == len(set(slugs))
+    assert results[0][1] == 3
 
-    def test_remove_stackable_item_decrements_quantity(self):
-        from apps.inventory.views import remove_item_from_inventory
 
-        UserInventory.objects.create(user=self.user, item=self.item, quantity=5)
-        ok = remove_item_from_inventory(self.user, self.item, 3)
-        self.assertTrue(ok)
-        inv = UserInventory.objects.get(user=self.user, item=self.item)
-        self.assertEqual(inv.quantity, 2)
+@pytest.mark.django_db
+def test_roll_crate_loot_respects_qty_range():
+    from apps.inventory.views import _roll_crate_loot
 
-    def test_remove_stackable_item_deletes_entry_at_zero(self):
-        from apps.inventory.views import remove_item_from_inventory
+    loot_table = [{"item_slug": "iron-ore", "weight": 100, "min_qty": 5, "max_qty": 10}]
+    results = _roll_crate_loot(loot_table, num_rolls=1)
+    assert len(results) == 1
+    slug, qty = results[0]
+    assert 5 <= qty <= 10
 
-        UserInventory.objects.create(user=self.user, item=self.item, quantity=3)
-        ok = remove_item_from_inventory(self.user, self.item, 3)
-        self.assertTrue(ok)
-        self.assertFalse(UserInventory.objects.filter(user=self.user, item=self.item).exists())
 
-    def test_remove_stackable_item_returns_false_when_insufficient(self):
-        from apps.inventory.views import remove_item_from_inventory
+# --- add_item_to_inventory / remove_item_from_inventory ------------------
 
-        UserInventory.objects.create(user=self.user, item=self.item, quantity=2)
-        ok = remove_item_from_inventory(self.user, self.item, 5)
-        self.assertFalse(ok)
-        # Quantity should be unchanged
-        inv = UserInventory.objects.get(user=self.user, item=self.item)
-        self.assertEqual(inv.quantity, 2)
 
-    def test_remove_stackable_item_returns_false_when_not_owned(self):
-        from apps.inventory.views import remove_item_from_inventory
+@pytest.mark.django_db
+def test_add_stackable_item_creates_inventory_entry(task_user, task_item):
+    from apps.inventory.views import add_item_to_inventory
 
-        ok = remove_item_from_inventory(self.user, self.item, 1)
-        self.assertFalse(ok)
+    result = add_item_to_inventory(task_user, task_item, 5)
+    assert result.quantity == 5
 
-    def test_remove_nonstackable_item_deletes_instance(self):
-        from apps.inventory.views import remove_item_from_inventory
 
-        non_stackable = Item.objects.create(
-            name="NS Del",
-            slug="ns-del",
-            category=self.category,
-            item_type=Item.ItemType.TACTICAL_PACKAGE,
-            rarity=Item.Rarity.RARE,
-            is_stackable=False,
-        )
-        ItemInstance.objects.create(item=non_stackable, owner=self.user)
-        ok = remove_item_from_inventory(self.user, non_stackable, 1)
-        self.assertTrue(ok)
-        self.assertEqual(ItemInstance.objects.filter(owner=self.user, item=non_stackable).count(), 0)
+@pytest.mark.django_db
+def test_add_stackable_item_increments_existing(task_user, task_item):
+    from apps.inventory.views import add_item_to_inventory
 
-    # --- create_item_instance ------------------------------------------------
+    UserInventory.objects.create(user=task_user, item=task_item, quantity=3)
+    add_item_to_inventory(task_user, task_item, 4)
+    inv = UserInventory.objects.get(user=task_user, item=task_item)
+    assert inv.quantity == 7
 
-    def test_create_item_instance_generates_wear_and_seed(self):
-        from apps.inventory.views import create_item_instance
 
-        inst = create_item_instance(self.item, self.user)
-        self.assertGreaterEqual(inst.pattern_seed, 0)
-        self.assertLessEqual(inst.pattern_seed, 999)
-        self.assertGreaterEqual(inst.wear, 0.0)
-        self.assertLessEqual(inst.wear, 1.0)
+@pytest.mark.django_db
+def test_add_stackable_item_capped_at_max_stack(task_user, task_item):
+    from apps.inventory.views import add_item_to_inventory
 
-    def test_create_item_instance_respects_rarity_wear_ranges(self):
-        from apps.inventory.views import create_item_instance
+    task_item.max_stack = 10
+    task_item.save()
+    UserInventory.objects.create(user=task_user, item=task_item, quantity=8)
+    add_item_to_inventory(task_user, task_item, 5)
+    inv = UserInventory.objects.get(user=task_user, item=task_item)
+    assert inv.quantity == 10
 
-        legendary = Item.objects.create(
-            name="Legendary Item",
-            slug="legendary-item-test",
-            category=self.category,
-            item_type=Item.ItemType.MATERIAL,
-            rarity=Item.Rarity.LEGENDARY,
-        )
-        for _ in range(10):
-            inst = create_item_instance(legendary, self.user)
-            self.assertLessEqual(inst.wear, 0.15)
 
-    def test_create_item_instance_forced_stattrak(self):
-        from apps.inventory.views import create_item_instance
+@pytest.mark.django_db
+def test_add_nonstackable_item_creates_instance(task_user, task_category):
+    from apps.inventory.views import add_item_to_inventory
 
-        inst = create_item_instance(self.item, self.user, stattrak=True)
-        self.assertTrue(inst.stattrak)
+    non_stackable = Item.objects.create(
+        name="NS Item",
+        slug="ns-item-task",
+        category=task_category,
+        item_type=Item.ItemType.TACTICAL_PACKAGE,
+        rarity=Item.Rarity.RARE,
+        is_stackable=False,
+    )
+    result = add_item_to_inventory(task_user, non_stackable, 1)
+    assert result.owner == task_user
+    assert result.item == non_stackable
 
-    # --- generate_match_drops ------------------------------------------------
 
-    def test_generate_match_drops_skips_when_no_results(self):
-        """generate_match_drops should not raise when no player results exist."""
-        import uuid
+@pytest.mark.django_db
+def test_add_nonstackable_multiple_returns_list(task_user, task_category):
+    from apps.inventory.views import add_item_to_inventory
 
-        from apps.inventory.tasks import generate_match_drops
+    non_stackable = Item.objects.create(
+        name="NS Multi",
+        slug="ns-multi",
+        category=task_category,
+        item_type=Item.ItemType.TACTICAL_PACKAGE,
+        rarity=Item.Rarity.RARE,
+        is_stackable=False,
+    )
+    result = add_item_to_inventory(task_user, non_stackable, 3)
+    assert isinstance(result, list)
+    assert len(result) == 3
 
-        # Use a random match UUID that has no results — should log warning and return
-        generate_match_drops(str(uuid.uuid4()))
+
+@pytest.mark.django_db
+def test_remove_stackable_item_decrements_quantity(task_user, task_item):
+    from apps.inventory.views import remove_item_from_inventory
+
+    UserInventory.objects.create(user=task_user, item=task_item, quantity=5)
+    ok = remove_item_from_inventory(task_user, task_item, 3)
+    assert ok is True
+    inv = UserInventory.objects.get(user=task_user, item=task_item)
+    assert inv.quantity == 2
+
+
+@pytest.mark.django_db
+def test_remove_stackable_item_deletes_entry_at_zero(task_user, task_item):
+    from apps.inventory.views import remove_item_from_inventory
+
+    UserInventory.objects.create(user=task_user, item=task_item, quantity=3)
+    ok = remove_item_from_inventory(task_user, task_item, 3)
+    assert ok is True
+    assert not UserInventory.objects.filter(user=task_user, item=task_item).exists()
+
+
+@pytest.mark.django_db
+def test_remove_stackable_item_returns_false_when_insufficient(task_user, task_item):
+    from apps.inventory.views import remove_item_from_inventory
+
+    UserInventory.objects.create(user=task_user, item=task_item, quantity=2)
+    ok = remove_item_from_inventory(task_user, task_item, 5)
+    assert ok is False
+    inv = UserInventory.objects.get(user=task_user, item=task_item)
+    assert inv.quantity == 2
+
+
+@pytest.mark.django_db
+def test_remove_stackable_item_returns_false_when_not_owned(task_user, task_item):
+    from apps.inventory.views import remove_item_from_inventory
+
+    ok = remove_item_from_inventory(task_user, task_item, 1)
+    assert ok is False
+
+
+@pytest.mark.django_db
+def test_remove_nonstackable_item_deletes_instance(task_user, task_category):
+    from apps.inventory.views import remove_item_from_inventory
+
+    non_stackable = Item.objects.create(
+        name="NS Del",
+        slug="ns-del",
+        category=task_category,
+        item_type=Item.ItemType.TACTICAL_PACKAGE,
+        rarity=Item.Rarity.RARE,
+        is_stackable=False,
+    )
+    ItemInstance.objects.create(item=non_stackable, owner=task_user)
+    ok = remove_item_from_inventory(task_user, non_stackable, 1)
+    assert ok is True
+    assert ItemInstance.objects.filter(owner=task_user, item=non_stackable).count() == 0
+
+
+# --- create_item_instance ------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_create_item_instance_generates_wear_and_seed(task_item, task_user):
+    from apps.inventory.views import create_item_instance
+
+    inst = create_item_instance(task_item, task_user)
+    assert 0 <= inst.pattern_seed <= 999
+    assert 0.0 <= inst.wear <= 1.0
+
+
+@pytest.mark.django_db
+def test_create_item_instance_respects_rarity_wear_ranges(task_user, task_category):
+    from apps.inventory.views import create_item_instance
+
+    legendary = Item.objects.create(
+        name="Legendary Item",
+        slug="legendary-item-test",
+        category=task_category,
+        item_type=Item.ItemType.MATERIAL,
+        rarity=Item.Rarity.LEGENDARY,
+    )
+    for _ in range(10):
+        inst = create_item_instance(legendary, task_user)
+        assert inst.wear <= 0.15
+
+
+@pytest.mark.django_db
+def test_create_item_instance_forced_stattrak(task_item, task_user):
+    from apps.inventory.views import create_item_instance
+
+    inst = create_item_instance(task_item, task_user, stattrak=True)
+    assert inst.stattrak is True
+
+
+# --- generate_match_drops ------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_generate_match_drops_skips_when_no_results():
+    """generate_match_drops should not raise when no player results exist."""
+    from apps.inventory.tasks import generate_match_drops
+
+    generate_match_drops(str(uuid.uuid4()))
+
+
+# ---------------------------------------------------------------------------
+# generate_match_drops — full run with player results
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def drops_match_setup(db):
+    from apps.game.models import MatchResult, PlayerResult
+    from apps.game_config.models import GameSettings
+    from apps.matchmaking.models import Match, MatchPlayer
+
+    GameSettings.get()
+    winner = User.objects.create_user(email="drops_winner@test.com", username="drops_winner", password="testpass123")
+    loser = User.objects.create_user(email="drops_loser@test.com", username="drops_loser", password="testpass123")
+    match = Match.objects.create(status=Match.Status.FINISHED, max_players=2)
+    MatchPlayer.objects.create(match=match, user=winner, color="#FF0000")
+    MatchPlayer.objects.create(match=match, user=loser, color="#0000FF")
+    result = MatchResult.objects.create(match=match, total_ticks=100)
+    PlayerResult.objects.create(match_result=result, user=winner, placement=1, elo_change=16)
+    PlayerResult.objects.create(match_result=result, user=loser, placement=2, elo_change=-16)
+    return match, winner, loser
+
+
+@pytest.mark.django_db
+def test_generate_match_drops_awards_gold_to_winner(drops_match_setup):
+    from apps.inventory.models import Item, ItemCategory, Wallet
+    from apps.inventory.tasks import WINNER_GOLD, generate_match_drops
+
+    match, winner, _ = drops_match_setup
+    cat = ItemCategory.objects.get_or_create(name="DropsTest", slug="drops-test")[0]
+    Item.objects.create(
+        name="Drops Iron",
+        slug="drops-iron",
+        category=cat,
+        item_type=Item.ItemType.MATERIAL,
+        rarity=Item.Rarity.COMMON,
+    )
+    generate_match_drops(str(match.id))
+    wallet = Wallet.objects.get(user=winner)
+    assert wallet.gold == WINNER_GOLD
+
+
+@pytest.mark.django_db
+def test_generate_match_drops_awards_gold_to_loser(drops_match_setup):
+    from apps.inventory.models import Item, ItemCategory, Wallet
+    from apps.inventory.tasks import LOSER_GOLD, generate_match_drops
+
+    match, _, loser = drops_match_setup
+    cat = ItemCategory.objects.get_or_create(name="DropsTest2", slug="drops-test2")[0]
+    Item.objects.create(
+        name="Drops Steel",
+        slug="drops-steel",
+        category=cat,
+        item_type=Item.ItemType.MATERIAL,
+        rarity=Item.Rarity.COMMON,
+    )
+    generate_match_drops(str(match.id))
+    wallet = Wallet.objects.get(user=loser)
+    assert wallet.gold == LOSER_GOLD
+
+
+@pytest.mark.django_db
+def test_generate_match_drops_creates_item_drop_records(drops_match_setup):
+    from apps.inventory.models import Item, ItemCategory, ItemDrop
+    from apps.inventory.tasks import generate_match_drops
+
+    match, winner, _ = drops_match_setup
+    cat = ItemCategory.objects.get_or_create(name="DropsTest3", slug="drops-test3")[0]
+    Item.objects.create(
+        name="Drops Copper",
+        slug="drops-copper",
+        category=cat,
+        item_type=Item.ItemType.MATERIAL,
+        rarity=Item.Rarity.COMMON,
+    )
+    generate_match_drops(str(match.id))
+    assert ItemDrop.objects.filter(user=winner, source=ItemDrop.DropSource.MATCH_REWARD).exists()
+
+
+@pytest.mark.django_db
+def test_generate_match_drops_skips_bot_players(db):
+    from apps.game.models import MatchResult, PlayerResult
+    from apps.game_config.models import GameSettings
+    from apps.inventory.models import Item, ItemCategory, ItemDrop, Wallet
+    from apps.inventory.tasks import generate_match_drops
+    from apps.matchmaking.models import Match, MatchPlayer
+
+    GameSettings.get()
+    cat = ItemCategory.objects.get_or_create(name="DropsBot", slug="drops-bot")[0]
+    Item.objects.create(
+        name="Bot Ore",
+        slug="bot-ore",
+        category=cat,
+        item_type=Item.ItemType.MATERIAL,
+        rarity=Item.Rarity.COMMON,
+    )
+    bot = User.objects.create_user(
+        email="bot_drops@test.com", username="bot_drops", password="testpass123", is_bot=True
+    )
+    match = Match.objects.create(status=Match.Status.FINISHED, max_players=2)
+    MatchPlayer.objects.create(match=match, user=bot, color="#FF0000")
+    result = MatchResult.objects.create(match=match, total_ticks=50)
+    PlayerResult.objects.create(match_result=result, user=bot, placement=1)
+    generate_match_drops(str(match.id))
+    assert not Wallet.objects.filter(user=bot).exists()
+    assert not ItemDrop.objects.filter(user=bot).exists()
+
+
+@pytest.mark.django_db
+def test_generate_match_drops_skips_when_no_droppable_items(drops_match_setup):
+    """When no droppable items exist, function should log and return cleanly."""
+    from apps.inventory.tasks import generate_match_drops
+
+    match, winner, _ = drops_match_setup
+    # No Item objects exist, function should exit gracefully
+    generate_match_drops(str(match.id))
+
+
+# ---------------------------------------------------------------------------
+# generate_match_drops_task — Celery wrapper
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_generate_match_drops_task_celery_wrapper():
+    from apps.inventory.tasks import generate_match_drops_task
+
+    # Should not raise; no player results exist so it logs and returns
+    generate_match_drops_task(str(uuid.uuid4()))
+
+
+# ---------------------------------------------------------------------------
+# InventoryViewTests — cosmetics equip/unequip
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def cosmetic_setup(db):
+    cat = ItemCategory.objects.get_or_create(name="Cosmetics", slug="cosmetics-test")[0]
+    cosmetic_item = Item.objects.create(
+        name="Cool Skin",
+        slug="cool-skin",
+        category=cat,
+        item_type=Item.ItemType.COSMETIC,
+        rarity=Item.Rarity.RARE,
+        is_stackable=False,
+        cosmetic_slot="infantry",
+    )
+    owner = User.objects.create_user(email="cosm_owner@test.com", username="cosm_owner", password="testpass123")
+    auth = _get_auth_header(owner)
+    inst = ItemInstance.objects.create(item=cosmetic_item, owner=owner, wear=0.1)
+    return owner, cosmetic_item, inst, auth
+
+
+@pytest.mark.django_db
+def test_equip_cosmetic_by_instance_id(client, cosmetic_setup):
+    owner, cosmetic_item, inst, auth = cosmetic_setup
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/equip/",
+        data=f'{{"item_slug": "{cosmetic_item.slug}", "instance_id": "{inst.id}"}}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["slot"] == "infantry"
+
+
+@pytest.mark.django_db
+def test_equip_cosmetic_by_slug(client, cosmetic_setup):
+    owner, cosmetic_item, inst, auth = cosmetic_setup
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/equip/",
+        data=f'{{"item_slug": "{cosmetic_item.slug}"}}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["slot"] == "infantry"
+
+
+@pytest.mark.django_db
+def test_equip_cosmetic_not_in_inventory_returns_404(client, db):
+    owner = User.objects.create_user(email="cosm_empty@test.com", username="cosm_empty", password="testpass123")
+    auth = _get_auth_header(owner)
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/equip/",
+        data='{"item_slug": "does-not-exist"}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_equip_non_cosmetic_item_returns_400(client, db):
+    cat = ItemCategory.objects.get_or_create(name="NonCosm", slug="non-cosm")[0]
+    material = Item.objects.create(
+        name="Rock",
+        slug="rock-equip",
+        category=cat,
+        item_type=Item.ItemType.MATERIAL,
+        rarity=Item.Rarity.COMMON,
+    )
+    owner = User.objects.create_user(email="cosm_mat@test.com", username="cosm_mat", password="testpass123")
+    UserInventory.objects.create(user=owner, item=material, quantity=1)
+    auth = _get_auth_header(owner)
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/equip/",
+        data=f'{{"item_slug": "{material.slug}"}}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_unequip_cosmetic_success(client, cosmetic_setup):
+    from apps.inventory.models import EquippedCosmetic
+
+    owner, cosmetic_item, inst, auth = cosmetic_setup
+    EquippedCosmetic.objects.create(user=owner, slot="infantry", item=cosmetic_item, instance=inst)
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/unequip/",
+        data='{"slot": "infantry"}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 200
+    assert not EquippedCosmetic.objects.filter(user=owner, slot="infantry").exists()
+
+
+@pytest.mark.django_db
+def test_unequip_cosmetic_not_equipped_returns_404(client, db):
+    owner = User.objects.create_user(email="unequip_none@test.com", username="unequip_none", password="testpass123")
+    auth = _get_auth_header(owner)
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/unequip/",
+        data='{"slot": "infantry"}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_unequip_cosmetic_unauthenticated_returns_401(client):
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/unequip/",
+        data='{"slot": "infantry"}',
+        content_type="application/json",
+    )
+    assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# delete_deck — default deck protection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_delete_default_deck_returns_403(client, db):
+    owner = User.objects.create_user(email="del_default@test.com", username="del_default", password="testpass123")
+    auth = _get_auth_header(owner)
+    default_deck = Deck.objects.create(user=owner, name="Default", is_default=True, is_editable=False)
+    resp = client.delete(
+        f"{BASE}/inventory/decks/{default_deck.id}/",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# update_deck — non-editable deck protection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_update_non_editable_deck_returns_403(client, db):
+    owner = User.objects.create_user(email="upd_nonedit@test.com", username="upd_nonedit", password="testpass123")
+    auth = _get_auth_header(owner)
+    locked_deck = Deck.objects.create(user=owner, name="Locked", is_editable=False)
+    resp = client.put(
+        f"{BASE}/inventory/decks/{locked_deck.id}/",
+        data='{"name": "Attempt"}',
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Additional inventory/views.py and inventory/models.py coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_inventory_my_with_item_type_filter(client):
+    """GET /inventory/my/?item_type=... should filter by type."""
+
+    owner = User.objects.create_user(email="myfilter@test.com", username="myfilter", password="testpass123")
+    cat = make_category("Filter Cat", "filter-cat")
+    item_a = make_item(cat, "Mat A", "mat-a", Item.ItemType.MATERIAL)
+    item_a.is_stackable = True
+    item_a.save()
+    UserInventory.objects.create(user=owner, item=item_a, quantity=3)
+
+    auth = _get_auth_header(owner)
+    resp = client.get(
+        f"{BASE}/inventory/my/?item_type=material",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_equip_cosmetic_item_not_in_inventory(client):
+    """equip_cosmetic returns 404 when item is not in user's inventory."""
+    import json
+
+    owner = User.objects.create_user(email="equip404@test.com", username="equip404", password="testpass123")
+    auth = _get_auth_header(owner)
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/equip/",
+        data=json.dumps({"item_slug": "nonexistent-cosmetic", "instance_id": None}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_equip_non_cosmetic_item_with_instance_id_returns_400(client):
+    """equip_cosmetic returns 400 when item is not of type cosmetic (with instance_id=None)."""
+    import json
+
+    owner = User.objects.create_user(email="equip400@test.com", username="equip400", password="testpass123")
+    cat = make_category("Not Cosmetic Cat", "not-cosmetic-cat")
+    material_item = make_item(cat, "Stone", "stone-m", Item.ItemType.MATERIAL)
+    material_item.is_stackable = True
+    material_item.save()
+    UserInventory.objects.create(user=owner, item=material_item, quantity=1)
+
+    auth = _get_auth_header(owner)
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/equip/",
+        data=json.dumps({"item_slug": "stone-m", "instance_id": None}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_open_crate_missing_crate_returns_404(client):
+    """open_crate returns 404 when the crate slug doesn't exist."""
+    import json
+
+    owner = User.objects.create_user(email="crate404@test.com", username="crate404", password="testpass123")
+    auth = _get_auth_header(owner)
+    resp = client.post(
+        f"{BASE}/inventory/crates/open/",
+        data=json.dumps({"crate_slug": "nonexistent-crate", "key_slug": "nonexistent-key"}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_delete_non_editable_deck_returns_403(client):
+    """delete_deck should fail for a non-editable deck."""
+    owner = User.objects.create_user(email="del_nonedit@test.com", username="del_nonedit", password="testpass123")
+    auth = _get_auth_header(owner)
+    locked = Deck.objects.create(user=owner, name="Locked Deck", is_editable=False)
+    resp = client.delete(
+        f"{BASE}/inventory/decks/{locked.id}/",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_item_instance_wear_condition_categories():
+    """ItemInstance.wear_condition should return the right enum for boundary values."""
+    cat = make_category("WC Cat", "wc-cat")
+    item = Item.objects.create(
+        name="Weapon",
+        slug="wc-weapon",
+        category=cat,
+        item_type=Item.ItemType.COSMETIC,
+        rarity=Item.Rarity.RARE,
+    )
+    user = User.objects.create_user(email="wc@test.com", username="wc_user", password="x")
+
+    def make_instance(wear_val):
+        return ItemInstance(item=item, owner=user, wear=wear_val, pattern_seed=42)
+
+    assert make_instance(0.05).wear_condition == ItemInstance.WearCondition.FACTORY_NEW
+    assert make_instance(0.10).wear_condition == ItemInstance.WearCondition.MINIMAL_WEAR
+    assert make_instance(0.25).wear_condition == ItemInstance.WearCondition.FIELD_TESTED
+    assert make_instance(0.42).wear_condition == ItemInstance.WearCondition.WELL_WORN
+    assert make_instance(0.80).wear_condition == ItemInstance.WearCondition.BATTLE_SCARRED
+
+
+@pytest.mark.django_db
+def test_item_instance_is_rare_pattern():
+    """ItemInstance.is_rare_pattern should be True for pattern_seed < 10."""
+    cat = make_category("RP Cat", "rp-cat")
+    item = Item.objects.create(
+        name="Rare Item",
+        slug="rp-item",
+        category=cat,
+        item_type=Item.ItemType.COSMETIC,
+        rarity=Item.Rarity.EPIC,
+    )
+    user = User.objects.create_user(email="rp@test.com", username="rp_user", password="x")
+    inst_rare = ItemInstance(item=item, owner=user, wear=0.1, pattern_seed=5)
+    inst_normal = ItemInstance(item=item, owner=user, wear=0.1, pattern_seed=50)
+    assert inst_rare.is_rare_pattern is True
+    assert inst_normal.is_rare_pattern is False
+
+
+@pytest.mark.django_db
+def test_item_instance_str_with_stattrak_and_nametag():
+    """__str__ of ItemInstance should include StatTrak and nametag."""
+    cat = make_category("ST Cat", "st-cat")
+    item = Item.objects.create(
+        name="Knife",
+        slug="knife-st",
+        category=cat,
+        item_type=Item.ItemType.COSMETIC,
+        rarity=Item.Rarity.LEGENDARY,
+    )
+    user = User.objects.create_user(email="st@test.com", username="st_user", password="x")
+    inst = ItemInstance.objects.create(
+        item=item,
+        owner=user,
+        wear=0.05,
+        pattern_seed=1,
+        stattrak=True,
+        nametag="Custom",
+        first_owner=user,
+    )
+    s = str(inst)
+    assert "StatTrak" in s
+    assert "Custom" in s
+
+
+@pytest.mark.django_db
+def test_equipped_cosmetic_save_sets_slot_from_item():
+    """EquippedCosmetic.save should auto-fill slot from item.cosmetic_slot."""
+    from apps.inventory.models import CosmeticSlot, EquippedCosmetic
+
+    user = User.objects.create_user(email="ec_slot@test.com", username="ec_slot", password="x")
+    cat = make_category("Cosmetic Cat", "cosmetic-cat")
+    # Use a valid CosmeticSlot value
+    valid_slot = CosmeticSlot.UNIT_INFANTRY
+    item = Item.objects.create(
+        name="Infantry Skin Test",
+        slug="infantry-skin-ec-test",
+        category=cat,
+        item_type=Item.ItemType.COSMETIC,
+        rarity=Item.Rarity.COMMON,
+        cosmetic_slot=valid_slot,
+    )
+    ec = EquippedCosmetic(user=user, item=item)
+    ec.save()
+    assert ec.slot == valid_slot
+
+
+@pytest.mark.django_db
+def test_deck_save_clears_other_defaults():
+    """Setting is_default=True on a new deck should clear old default."""
+    owner = User.objects.create_user(email="deck_def@test.com", username="deck_def", password="x")
+    d1 = Deck.objects.create(user=owner, name="D1", is_default=True)
+    d2 = Deck.objects.create(user=owner, name="D2", is_default=True)
+    d1.refresh_from_db()
+    assert d1.is_default is False
+    assert d2.is_default is True
+
+
+@pytest.mark.django_db
+def test_wallet_str():
+    """Wallet.__str__ should include username and gold amount."""
+    owner = User.objects.create_user(email="wallet_str@test.com", username="wallet_str", password="x")
+    w = Wallet.objects.create(user=owner, gold=500)
+    assert "wallet_str" in str(w)
+    assert "500" in str(w)

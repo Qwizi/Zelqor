@@ -13,3 +13,6 @@ tracing = { workspace = true }
 
 redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
 rmp-serde = "1"
+
+[dev-dependencies]
+uuid = { workspace = true }

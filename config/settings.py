@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from decouple import Csv, config
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -24,7 +25,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.gis",
     "corsheaders",
     # Third party
     "ninja_extra",
@@ -77,10 +77,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Database — PostgreSQL + PostGIS
+# Database — PostgreSQL
 DATABASES = {
     "default": {
-        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "ENGINE": "django.db.backends.postgresql",
         "NAME": config("DB_NAME", default="maplord"),
         "USER": config("DB_USER", default="maplord"),
         "PASSWORD": config("DB_PASSWORD", default="maplord"),
@@ -488,3 +488,23 @@ CORS_ALLOWED_ORIGINS = config(
     default="http://localhost,http://localhost:3002",
     cast=Csv(),
 )
+# Required so the browser sends cookies on cross-origin requests (e.g. frontend
+# on :3002 calling backend on :8002).  Must be True whenever cookie-based auth
+# is used from a different origin.
+CORS_ALLOW_CREDENTIALS = True
+
+# JWT Cookie settings
+JWT_COOKIE_NAME = "maplord_access"
+JWT_REFRESH_COOKIE_NAME = "maplord_refresh"
+JWT_COOKIE_SECURE = not DEBUG  # True in production (HTTPS only)
+JWT_COOKIE_HTTPONLY = True
+JWT_COOKIE_SAMESITE = "Lax"  # Lax allows top-level navigations
+JWT_COOKIE_PATH = "/"
+JWT_COOKIE_DOMAIN = config("COOKIE_DOMAIN", default=None)  # None = current domain
+
+# Production safety checks — insecure defaults must never reach a production deployment.
+if not DEBUG and SECRET_KEY.startswith("django-insecure"):
+    raise ImproperlyConfigured("SECRET_KEY must be set to a secure value in production (DEBUG=False)")
+
+if not DEBUG and INTERNAL_SECRET == "dev-internal-secret":
+    raise ImproperlyConfigured("INTERNAL_SECRET must be set to a secure value in production (DEBUG=False)")

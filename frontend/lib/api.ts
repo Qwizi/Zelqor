@@ -4,33 +4,30 @@ const API_BASE =
   (typeof window !== "undefined" ? "/api/v1" : process.env.API_URL || "http://backend:8000/api/v1");
 
 interface FetchOptions extends RequestInit {
+  /** @deprecated Tokens are now httpOnly cookies. Pass only when using a legacy explicit token. */
   token?: string | null;
 }
 
 // Prevent concurrent refresh attempts — share a single in-flight promise
-let _refreshPromise: Promise<string | null> | null = null;
+let _refreshPromise: Promise<boolean> | null = null;
 
-async function tryRefreshToken(): Promise<string | null> {
+async function tryRefreshToken(): Promise<boolean> {
   if (_refreshPromise) return _refreshPromise;
   _refreshPromise = (async () => {
     try {
-      const { getRefreshToken, setTokens, clearTokens } = await import("@/lib/auth");
-      const refresh = getRefreshToken();
-      if (!refresh) return null;
-      const res = await fetch(`${API_BASE}/token/refresh`, {
+      const res = await fetch(`${API_BASE}/auth/token/refresh/`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh }),
       });
       if (!res.ok) {
-        clearTokens();
-        return null;
+        const { setAuthenticated } = await import("@/lib/auth");
+        setAuthenticated(false);
+        return false;
       }
-      const tokens = (await res.json()) as { access: string; refresh: string };
-      setTokens(tokens.access, tokens.refresh);
-      return tokens.access;
+      return true;
     } catch {
-      return null;
+      return false;
     } finally {
       _refreshPromise = null;
     }
@@ -46,18 +43,27 @@ async function fetchAPI<T>(path: string, options: FetchOptions = {}): Promise<T>
     ...((customHeaders as Record<string, string>) || {}),
   };
 
+  // Explicit token provided — keep backward-compat Authorization header.
+  // Normal cookie-based auth does not need this; the browser sends the cookie automatically.
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { headers, ...rest });
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...rest,
+    headers,
+    credentials: "include",
+  });
 
-  // Auto-refresh on 401 if we have a token (authenticated request)
-  if (res.status === 401 && token && typeof window !== "undefined") {
-    const newToken = await tryRefreshToken();
-    if (newToken) {
-      headers.Authorization = `Bearer ${newToken}`;
-      const retryRes = await fetch(`${API_BASE}${path}`, { headers, ...rest });
+  // Auto-refresh on 401 for authenticated requests
+  if (res.status === 401 && typeof window !== "undefined") {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      const retryRes = await fetch(`${API_BASE}${path}`, {
+        ...rest,
+        headers,
+        credentials: "include",
+      });
       if (!retryRes.ok) {
         const body = await retryRes.json().catch(() => ({}));
         throw new APIError(retryRes.status, body.detail || retryRes.statusText, body);
@@ -140,18 +146,32 @@ export class BannedError extends Error {
   }
 }
 
-export async function login(email: string, password: string): Promise<TokenPair> {
-  return fetchAPI<TokenPair>("/token/pair", {
+export interface LoginResponse {
+  user: User;
+}
+
+/** Login via cookie-based auth. Sets httpOnly cookies on the browser. */
+export async function login(email: string, password: string): Promise<LoginResponse> {
+  return fetchAPI<LoginResponse>("/auth/login/", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
 }
 
-export async function refreshToken(refresh: string): Promise<TokenPair> {
-  return fetchAPI<TokenPair>("/token/refresh", {
-    method: "POST",
-    body: JSON.stringify({ refresh }),
-  });
+/** Logout — clears httpOnly cookies on the server. */
+export async function logoutAPI(): Promise<void> {
+  await fetchAPI("/auth/logout/", { method: "POST" });
+}
+
+/**
+ * @deprecated Cookie-based refresh is automatic inside fetchAPI.
+ * Kept for backward compatibility only.
+ */
+export async function refreshToken(_refresh: string): Promise<TokenPair> {
+  // Cookie refresh is handled internally by tryRefreshToken / the httpOnly cookie.
+  // Return a dummy pair so callers that ignore the value still compile.
+  await tryRefreshToken();
+  return { access: "", refresh: "" };
 }
 
 export interface OnlineStats {
@@ -171,8 +191,9 @@ export async function register(data: { username: string; email: string; password
   });
 }
 
-export async function getMe(token: string): Promise<User> {
-  return fetchAPI<User>("/auth/me", { token });
+/** Fetch the current user. Auth is via httpOnly cookie; the token param is ignored but kept for backward compat. */
+export async function getMe(_token?: string | null): Promise<User> {
+  return fetchAPI<User>("/auth/me");
 }
 
 export async function setPassword(token: string, newPassword: string): Promise<{ ok: boolean }> {
@@ -248,7 +269,6 @@ export async function getLinkedSocialAccounts(token: string): Promise<SocialAcco
 }
 
 export async function linkSocialAccount(
-  token: string,
   provider: "google" | "discord",
   code: string,
   redirectUri: string,
@@ -256,7 +276,6 @@ export async function linkSocialAccount(
 ): Promise<SocialAccountOut> {
   return fetchAPI<SocialAccountOut>(`/auth/social/${provider}/link`, {
     method: "POST",
-    token,
     body: JSON.stringify({ code, redirect_uri: redirectUri, state }),
   });
 }
@@ -275,21 +294,16 @@ export async function getVapidKey(): Promise<string> {
   return res.vapid_public_key;
 }
 
-export async function subscribePush(
-  token: string,
-  subscription: { endpoint: string; p256dh: string; auth: string },
-): Promise<void> {
+export async function subscribePush(subscription: { endpoint: string; p256dh: string; auth: string }): Promise<void> {
   await fetchAPI("/auth/push/subscribe/", {
     method: "POST",
-    token,
     body: JSON.stringify(subscription),
   });
 }
 
-export async function unsubscribePush(token: string, endpoint: string): Promise<void> {
+export async function unsubscribePush(endpoint: string): Promise<void> {
   await fetchAPI("/auth/push/unsubscribe/", {
     method: "POST",
-    token,
     body: JSON.stringify({ endpoint, p256dh: "", auth: "" }),
   });
 }
@@ -300,10 +314,10 @@ export interface WsTicketResponse {
   difficulty: number;
 }
 
-export async function getWsTicket(token: string): Promise<WsTicketResponse> {
+/** Get a short-lived WebSocket ticket. Auth is via httpOnly cookie. */
+export async function getWsTicket(_token?: string | null): Promise<WsTicketResponse> {
   return fetchAPI<WsTicketResponse>("/auth/ws-ticket/", {
     method: "POST",
-    token,
   });
 }
 
@@ -649,8 +663,8 @@ export interface MatchmakingStatus {
   max_players?: number;
 }
 
-export async function getMatchmakingStatus(token: string): Promise<MatchmakingStatus> {
-  return fetchAPI<MatchmakingStatus>("/matchmaking/status/", { token });
+export async function getMatchmakingStatus(_token?: string | null): Promise<MatchmakingStatus> {
+  return fetchAPI<MatchmakingStatus>("/matchmaking/status/");
 }
 
 export async function getMyMatches(token: string, limit?: number, offset?: number): Promise<PaginatedResponse<Match>> {
@@ -697,24 +711,21 @@ export async function getSnapshot(token: string, matchId: string, tick: number):
 
 // --- Tutorial ---
 
-export async function startTutorial(token: string): Promise<{ match_id: string }> {
+export async function startTutorial(_token?: string | null): Promise<{ match_id: string }> {
   return fetchAPI<{ match_id: string }>("/matches/tutorial/start/", {
     method: "POST",
-    token,
   });
 }
 
-export async function completeTutorial(token: string): Promise<{ ok: boolean }> {
+export async function completeTutorial(_token?: string | null): Promise<{ ok: boolean }> {
   return fetchAPI<{ ok: boolean }>("/auth/tutorial/complete/", {
     method: "POST",
-    token,
   });
 }
 
-export async function cleanupTutorial(token: string): Promise<{ ok: boolean }> {
+export async function cleanupTutorial(_token?: string | null): Promise<{ ok: boolean }> {
   return fetchAPI<{ ok: boolean }>("/matches/tutorial/cleanup/", {
     method: "POST",
-    token,
   });
 }
 
@@ -733,10 +744,9 @@ export interface SharedMatchData {
   snapshot_ticks: number[];
 }
 
-export async function createShareLink(token: string, resourceType: string, resourceId: string): Promise<ShareLink> {
+export async function createShareLink(resourceType: string, resourceId: string): Promise<ShareLink> {
   return fetchAPI<ShareLink>("/share/create/", {
     method: "POST",
-    token,
     body: JSON.stringify({ resource_type: resourceType, resource_id: resourceId }),
   });
 }
@@ -1331,19 +1341,15 @@ export async function getAppByClientId(clientId: string): Promise<OAuthAppInfo |
   }
 }
 
-export async function oauthAuthorize(
-  token: string,
-  data: {
-    client_id: string;
-    redirect_uri: string;
-    scope: string;
-    state?: string;
-  },
-): Promise<OAuthAuthorizeResult> {
+export async function oauthAuthorize(data: {
+  client_id: string;
+  redirect_uri: string;
+  scope: string;
+  state?: string;
+}): Promise<OAuthAuthorizeResult> {
   return fetchAPI<OAuthAuthorizeResult>("/oauth/authorize/", {
     method: "POST",
     body: JSON.stringify(data),
-    token,
   });
 }
 
@@ -1423,14 +1429,9 @@ export async function removeFriend(token: string, friendshipId: string): Promise
   await fetchAPI(`/friends/${friendshipId}/`, { method: "DELETE", token });
 }
 
-export async function inviteFriendToGame(
-  token: string,
-  friendshipId: string,
-  gameMode: string,
-): Promise<{ lobby_id: string }> {
+export async function inviteFriendToGame(friendshipId: string, gameMode: string): Promise<{ lobby_id: string }> {
   return fetchAPI<{ lobby_id: string }>(`/friends/${friendshipId}/invite-game/`, {
     method: "POST",
-    token,
     body: JSON.stringify({ game_mode: gameMode }),
   });
 }

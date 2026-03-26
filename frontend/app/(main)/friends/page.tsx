@@ -87,10 +87,10 @@ export default function FriendsPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user || !token) {
+    if (!user) {
       router.replace("/login");
     }
-  }, [loading, user, token, router]);
+  }, [loading, user, router]);
 
   async function handleSendRequest() {
     if (!sendUsername.trim()) return;

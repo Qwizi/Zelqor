@@ -70,7 +70,7 @@ function ErrorScreen({ message }: { message: string }) {
 function OAuthAuthorizeInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, loading: authLoading, token } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const clientId = searchParams.get("client_id") ?? "";
   const redirectUri = searchParams.get("redirect_uri") ?? "";
@@ -87,11 +87,11 @@ function OAuthAuthorizeInner() {
   // Redirect to login if unauthenticated
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !token) {
+    if (!user) {
       const currentParams = searchParams.toString();
       router.replace(`/login?next=${encodeURIComponent(`/oauth/authorize?${currentParams}`)}`);
     }
-  }, [user, authLoading, token, router, searchParams]);
+  }, [user, authLoading, router, searchParams]);
 
   // Validate required query params
   useEffect(() => {
@@ -135,10 +135,10 @@ function OAuthAuthorizeInner() {
   }, [clientId, paramError]);
 
   const handleAllow = async () => {
-    if (!token) return;
+    if (!user) return;
     setSubmitting(true);
     try {
-      const result = await oauthAuthorize(token, {
+      const result = await oauthAuthorize({
         client_id: clientId,
         redirect_uri: redirectUri,
         scope: scopeRaw,
@@ -163,7 +163,7 @@ function OAuthAuthorizeInner() {
   if (authLoading) return <Spinner />;
 
   // Not yet redirected (no user), show nothing to avoid flash
-  if (!user || !token) return <Spinner />;
+  if (!user) return <Spinner />;
 
   // Param validation error
   if (paramError) return <ErrorScreen message={paramError} />;

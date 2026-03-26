@@ -1,6 +1,6 @@
 ---
 name: frontend-developer
-description: Master Next.js/React/TypeScript frontend developer. Use for building pages, components, hooks, map rendering (MapLibre GL), WebSocket integration, and UI with shadcn/ui + Tailwind CSS 4.
+description: Master Next.js/React/TypeScript frontend developer. Use for building pages, components, hooks, map rendering (Pixi.js 8), WebSocket integration, and UI with shadcn/ui + Tailwind CSS 4.
 tools: Read, Edit, Write, Bash, Grep, Glob, Skill
 model: sonnet
 ---

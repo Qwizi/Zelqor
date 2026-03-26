@@ -6,6 +6,7 @@ mod matchmaking_ws;
 mod social;
 mod state;
 mod voice;
+mod ws_auth;
 
 use axum::{
     routing::get,
@@ -114,6 +115,7 @@ async fn main() {
         .init();
 
     let config = AppConfig::from_env();
+    config.validate();
     info!("Starting MapLord Gateway on port {}", config.gateway_port);
 
     // Connect to Redis

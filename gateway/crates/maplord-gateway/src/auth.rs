@@ -385,6 +385,139 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
+    // validate_token — additional algorithm / claims edge cases
+    // -----------------------------------------------------------------------
+
+    mod validate_token_extra {
+        use super::*;
+        use jsonwebtoken::{encode, EncodingKey, Header, Algorithm};
+
+        #[test]
+        fn rejects_token_signed_with_hs512() {
+            // Build a token with HS512 instead of the expected HS256.
+            let claims = Claims {
+                user_id: "user-hs512".to_string(),
+                exp: now_secs() + 3600,
+                iat: now_secs(),
+                jti: "jti-hs512".to_string(),
+                token_type: "access".to_string(),
+            };
+            let token = encode(
+                &Header::new(Algorithm::HS512),
+                &claims,
+                &EncodingKey::from_secret(TEST_SECRET.as_bytes()),
+            )
+            .expect("HS512 encoding should succeed in test setup");
+
+            // validate_token only accepts HS256 — HS512 tokens must be rejected.
+            let result = validate_token(&token, TEST_SECRET);
+            assert!(result.is_err(), "HS512-signed token should be rejected by HS256 validator");
+            assert!(
+                result.unwrap_err().contains("JWT validation failed"),
+                "error message should mention JWT validation failure"
+            );
+        }
+
+        #[test]
+        fn rejects_token_missing_user_id_claim() {
+            // Craft a minimal payload that lacks the required `user_id` claim.
+            // We encode a raw JSON object that has `exp` but no `user_id`.
+            #[derive(serde::Serialize)]
+            struct NoUserIdClaims {
+                exp: usize,
+                iat: usize,
+            }
+            let claims = NoUserIdClaims {
+                exp: now_secs() + 3600,
+                iat: now_secs(),
+            };
+            let token = encode(
+                &Header::default(),
+                &claims,
+                &EncodingKey::from_secret(TEST_SECRET.as_bytes()),
+            )
+            .expect("encoding should succeed");
+
+            // validate_token requires `user_id` in required_spec_claims.
+            let result = validate_token(&token, TEST_SECRET);
+            assert!(result.is_err(), "token without user_id should be rejected");
+        }
+
+        #[test]
+        fn rejects_token_missing_exp_claim() {
+            // A token without `exp` violates the required_spec_claims set.
+            #[derive(serde::Serialize)]
+            struct NoExpClaims {
+                user_id: String,
+            }
+            let claims = NoExpClaims {
+                user_id: "user-no-exp".to_string(),
+            };
+            let token = encode(
+                &Header::default(),
+                &claims,
+                &EncodingKey::from_secret(TEST_SECRET.as_bytes()),
+            )
+            .expect("encoding should succeed");
+
+            let result = validate_token(&token, TEST_SECRET);
+            assert!(result.is_err(), "token without exp should be rejected");
+        }
+
+        #[test]
+        fn accepts_token_with_arbitrary_token_type() {
+            // token_type is not validated by validate_token — only user_id matters.
+            let claims = Claims {
+                user_id: "user-refresh".to_string(),
+                exp: now_secs() + 3600,
+                iat: now_secs(),
+                jti: "jti-refresh".to_string(),
+                token_type: "refresh".to_string(),
+            };
+            let token = encode(
+                &Header::default(),
+                &claims,
+                &EncodingKey::from_secret(TEST_SECRET.as_bytes()),
+            )
+            .expect("encoding should succeed");
+
+            // validate_token does not enforce token_type — it just extracts user_id.
+            let result = validate_token(&token, TEST_SECRET);
+            assert!(
+                result.is_ok(),
+                "validate_token does not reject by token_type, got: {:?}",
+                result.unwrap_err()
+            );
+            assert_eq!(result.unwrap(), "user-refresh");
+        }
+
+        #[test]
+        fn rejects_completely_empty_user_id_when_present() {
+            // An empty string user_id is technically valid JSON but semantically
+            // useless — however validate_token returns whatever is in the claim.
+            // This test documents the current behaviour (pass-through).
+            let claims = Claims {
+                user_id: String::new(),
+                exp: now_secs() + 3600,
+                iat: now_secs(),
+                jti: "jti-empty-uid".to_string(),
+                token_type: "access".to_string(),
+            };
+            let token = encode(
+                &Header::default(),
+                &claims,
+                &EncodingKey::from_secret(TEST_SECRET.as_bytes()),
+            )
+            .expect("encoding should succeed");
+
+            // The function extracts the claim as-is; an empty string is returned.
+            let result = validate_token(&token, TEST_SECRET);
+            assert!(result.is_ok(), "validate_token does not enforce non-empty user_id");
+            assert_eq!(result.unwrap(), "");
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // verify_pow
     // -----------------------------------------------------------------------
 

@@ -11,7 +11,7 @@ import {
   useState,
 } from "react";
 import { getMatchmakingStatus, getWsTicket } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
 import { solveChallenge } from "@/lib/pow";
 import { createSocket, type WSMessage } from "@/lib/ws";
 
@@ -379,14 +379,13 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
 
   const connectToQueue = useCallback(
     async (slug: string | null, fb: boolean, ib: boolean, joinedAt: number) => {
-      const token = getAccessToken();
-      if (!token) return;
+      if (!isAuthenticated()) return;
       if (wsRef.current) return;
 
       let ticket: string | null = null;
       let nonce: string | null = null;
       try {
-        const t = await getWsTicket(token);
+        const t = await getWsTicket();
         ticket = t.ticket;
         nonce = await solveChallenge(t.challenge, t.difficulty);
       } catch {
@@ -397,7 +396,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
 
       const ws = createSocket(
         path,
-        token,
+        null,
         handleMessage,
         () => {
           setInQueue(false);
@@ -479,14 +478,12 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     const init = async () => {
-      const token = getAccessToken();
-
       // Fast path: try localStorage first so we can start connecting immediately
       const localSession = loadQueueSession();
 
-      if (token) {
+      if (isAuthenticated()) {
         try {
-          const status = await getMatchmakingStatus(token);
+          const status = await getMatchmakingStatus();
 
           if (cancelled) return;
 
@@ -588,10 +585,9 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
         return;
       }
       // For "joined" or "lobby_update" or "state_sync" — re-fetch from API
-      const token = getAccessToken();
-      if (!token) return;
+      if (!isAuthenticated()) return;
       try {
-        const status = await getMatchmakingStatus(token);
+        const status = await getMatchmakingStatus();
         if (status.state === "in_match" && status.match_id) {
           setActiveMatchId(status.match_id);
           setMatchId(status.match_id);

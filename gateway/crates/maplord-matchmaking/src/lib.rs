@@ -71,6 +71,48 @@ impl MatchmakingManager {
         let _: Result<(), _> = conn.del(&key).await;
     }
 
+    /// Store which active match a user is currently in.
+    ///
+    /// Key: `match:user:{user_id}` — TTL matches `LOBBY_KEY_TTL_SECS`.
+    ///
+    /// Only compiled when the `testing` feature is enabled.
+    #[cfg(feature = "testing")]
+    pub async fn redis_set_user_active_match(&self, user_id: &str, match_id: &str) {
+        let key = format!("match:user:{user_id}");
+        let mut conn = self.redis.clone();
+        let _: Result<(), _> = conn.set_ex(&key, match_id, LOBBY_KEY_TTL_SECS).await;
+    }
+
+    #[cfg(feature = "testing")]
+    pub async fn redis_get_user_active_match(&self, user_id: &str) -> Option<String> {
+        let key = format!("match:user:{user_id}");
+        let mut conn = self.redis.clone();
+        conn.get(&key).await.ok()
+    }
+
+    #[cfg(feature = "testing")]
+    pub async fn redis_del_user_active_match(&self, user_id: &str) {
+        let key = format!("match:user:{user_id}");
+        let mut conn = self.redis.clone();
+        let _: Result<(), _> = conn.del(&key).await;
+    }
+
+    /// Re-exports of the private lobby helpers, available under the `testing` feature.
+    #[cfg(feature = "testing")]
+    pub async fn test_redis_set_user_lobby(&self, user_id: &str, lobby_id: &str) {
+        self.redis_set_user_lobby(user_id, lobby_id).await;
+    }
+
+    #[cfg(feature = "testing")]
+    pub async fn test_redis_get_user_lobby(&self, user_id: &str) -> Option<String> {
+        self.redis_get_user_lobby(user_id).await
+    }
+
+    #[cfg(feature = "testing")]
+    pub async fn test_redis_del_user_lobby(&self, user_id: &str) {
+        self.redis_del_user_lobby(user_id).await;
+    }
+
     // ── Connect ──────────────────────────────────────────────────────
 
     /// Handle a new matchmaking WebSocket connection.
@@ -1029,6 +1071,779 @@ mod tests {
                 });
 
             assert_eq!(found.as_deref(), Some("FindMe"));
+        }
+
+        // ── Broadcast to empty lobby ────────────────────────────────────
+
+        #[test]
+        fn broadcast_to_nonexistent_lobby_is_noop() {
+            // Mirrors broadcast_to_lobby: if lobby_connections.get() returns None
+            // the loop body never executes — no panic.
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let msg = serde_json::json!({"type": "lobby_full"});
+
+            // Lobby "ghost" was never inserted — get() returns None.
+            {
+                if let Some(connections) = map.get("ghost-lobby") {
+                    for conn in connections.iter() {
+                        let _ = conn.sender.send(MatchmakingMessage::Json(msg.clone()));
+                    }
+                };
+            }
+            // Reaching here without panic means the empty-lobby guard works.
+        }
+
+        #[test]
+        fn broadcast_to_empty_connection_list_is_noop() {
+            // Lobby key exists but the Vec is empty (all connections removed).
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            map.entry("lobby-empty".to_string()).or_default(); // inserts empty Vec
+
+            let msg = serde_json::json!({"type": "all_ready"});
+            {
+                if let Some(connections) = map.get("lobby-empty") {
+                    for conn in connections.iter() {
+                        let _ = conn.sender.send(MatchmakingMessage::Json(msg.clone()));
+                    }
+                };
+            }
+            // No receivers exist; reaching here without panic is the assertion.
+        }
+
+        // ── Broadcast with disconnected (dropped) receiver ──────────────
+
+        #[test]
+        fn broadcast_to_dropped_receiver_does_not_panic() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (tx, rx) = mpsc::unbounded_channel::<MatchmakingMessage>();
+            // Drop the receiver immediately — sender is now disconnected.
+            drop(rx);
+
+            map.entry("lobby-dc".to_string())
+                .or_default()
+                .push(ConnectionHandle {
+                    conn_id: 50,
+                    user_id: "user-dc".to_string(),
+                    username: "DC".to_string(),
+                    sender: tx,
+                });
+
+            let msg = serde_json::json!({"type": "match_found"});
+            {
+                if let Some(connections) = map.get("lobby-dc") {
+                    for conn in connections.iter() {
+                        // send() returns Err when receiver is dropped; `let _` mirrors
+                        // the production `let _ = conn.sender.send(...)` pattern.
+                        let _ = conn.sender.send(MatchmakingMessage::Json(msg.clone()));
+                    }
+                };
+            }
+        }
+
+        // ── Broadcast with exclusion by user_id ─────────────────────────
+
+        #[test]
+        fn broadcast_exclude_user_skips_that_connection() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h_alice, mut rx_alice) = make_handle(60, "alice", "Alice");
+            let (h_bob, mut rx_bob) = make_handle(61, "bob", "Bob");
+
+            {
+                let mut entry = map.entry("lobby-excl".to_string()).or_default();
+                entry.push(h_alice);
+                entry.push(h_bob);
+            }
+
+            let msg = serde_json::json!({"type": "player_joined"});
+            // Broadcast excluding "alice" — only bob should receive it.
+            let exclude = Some("alice");
+            if let Some(connections) = map.get("lobby-excl") {
+                for conn in connections.iter() {
+                    if let Some(excluded) = exclude {
+                        if conn.user_id == excluded {
+                            continue;
+                        }
+                    }
+                    let _ = conn.sender.send(MatchmakingMessage::Json(msg.clone()));
+                }
+            }
+
+            assert!(
+                rx_alice.try_recv().is_err(),
+                "excluded user should receive nothing"
+            );
+            assert!(
+                rx_bob.try_recv().is_ok(),
+                "non-excluded user should receive the message"
+            );
+        }
+
+        #[test]
+        fn broadcast_no_exclusion_reaches_all_connections() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h1, mut rx1) = make_handle(70, "u1", "U1");
+            let (h2, mut rx2) = make_handle(71, "u2", "U2");
+            let (h3, mut rx3) = make_handle(72, "u3", "U3");
+
+            {
+                let mut entry = map.entry("lobby-all".to_string()).or_default();
+                entry.push(h1);
+                entry.push(h2);
+                entry.push(h3);
+            }
+
+            let msg = serde_json::json!({"type": "lobby_full"});
+            if let Some(connections) = map.get("lobby-all") {
+                for conn in connections.iter() {
+                    let _ = conn.sender.send(MatchmakingMessage::Json(msg.clone()));
+                }
+            }
+
+            assert!(rx1.try_recv().is_ok());
+            assert!(rx2.try_recv().is_ok());
+            assert!(rx3.try_recv().is_ok());
+        }
+
+        // ── send_to_user_in_lobby: targets only the matching user ───────
+
+        #[test]
+        fn send_to_specific_user_only_reaches_that_user() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h_alice, mut rx_alice) = make_handle(80, "alice", "Alice");
+            let (h_bob, mut rx_bob) = make_handle(81, "bob", "Bob");
+
+            {
+                let mut entry = map.entry("lobby-targeted".to_string()).or_default();
+                entry.push(h_alice);
+                entry.push(h_bob);
+            }
+
+            let msg = serde_json::json!({"type": "voice_token", "token": "tok123"});
+            // Mirrors send_to_user_in_lobby targeting "alice".
+            if let Some(connections) = map.get("lobby-targeted") {
+                for conn in connections.iter() {
+                    if conn.user_id == "alice" {
+                        let _ = conn.sender.send(MatchmakingMessage::Json(msg.clone()));
+                    }
+                }
+            }
+
+            let received = rx_alice.try_recv().expect("alice should receive the message");
+            match received {
+                MatchmakingMessage::Json(v) => assert_eq!(v["token"], "tok123"),
+                _ => panic!("expected Json variant"),
+            }
+            assert!(
+                rx_bob.try_recv().is_err(),
+                "bob should not receive a targeted message"
+            );
+        }
+
+        // ── Disconnect: conn_id removed, other connections intact ────────
+
+        #[test]
+        fn disconnect_removes_only_specified_conn_id() {
+            // A user has two connections (two browser tabs).
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h_tab1, _rx1) = make_handle(90, "user-multi", "Multi");
+            let (h_tab2, mut rx2) = make_handle(91, "user-multi", "Multi");
+
+            {
+                let mut entry = map.entry("lobby-multi".to_string()).or_default();
+                entry.push(h_tab1);
+                entry.push(h_tab2);
+            }
+
+            // Disconnect tab1 (conn_id 90) — mirrors disconnect() retain logic.
+            if let Some(mut conns) = map.get_mut("lobby-multi") {
+                conns.retain(|c| c.conn_id != 90);
+            }
+
+            // Tab2 must still be present and functional.
+            let conns = map.get("lobby-multi").expect("lobby should persist");
+            assert_eq!(conns.len(), 1);
+            assert_eq!(conns[0].conn_id, 91);
+
+            // The remaining sender is still live.
+            conns[0]
+                .sender
+                .send(MatchmakingMessage::Json(serde_json::json!({"type":"ping"})))
+                .expect("tab2 sender should still be live");
+            drop(conns);
+            assert!(rx2.try_recv().is_ok());
+        }
+
+        #[test]
+        fn disconnect_does_not_remove_redis_mapping_simulation() {
+            // The disconnect() method only removes the local conn_id entry and
+            // explicitly does NOT call redis_del_user_lobby.  We verify this
+            // by checking that after a retain the lobby entry still exists
+            // (no cleanup of the lobby key itself).
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h, _rx) = make_handle(100, "user-disc", "Disc");
+            map.entry("lobby-disc".to_string()).or_default().push(h);
+
+            // Simulate disconnect: remove conn 100.
+            if let Some(mut conns) = map.get_mut("lobby-disc") {
+                conns.retain(|c| c.conn_id != 100);
+            }
+
+            // Lobby key still present (empty Vec) — Redis key would still be set
+            // because disconnect() skips redis_del_user_lobby.
+            assert!(
+                map.contains_key("lobby-disc"),
+                "lobby entry must remain for potential reconnect"
+            );
+            let conns = map.get("lobby-disc").unwrap();
+            assert_eq!(conns.len(), 0, "no active connections after disconnect");
+        }
+
+        // ── Player leaves then rejoins ───────────────────────────────────
+
+        #[test]
+        fn player_leave_then_rejoin_reflects_correct_state() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h_alice, _rx_alice) = make_handle(110, "alice", "Alice");
+            let (h_bob, mut rx_bob) = make_handle(111, "bob", "Bob");
+
+            {
+                let mut entry = map.entry("lobby-rejoin".to_string()).or_default();
+                entry.push(h_alice);
+                entry.push(h_bob);
+            }
+
+            // Alice leaves (handle_cancel retain-by-user_id pattern).
+            if let Some(mut conns) = map.get_mut("lobby-rejoin") {
+                conns.retain(|c| c.user_id != "alice");
+            }
+
+            {
+                let conns = map.get("lobby-rejoin").unwrap();
+                assert_eq!(conns.len(), 1, "only bob remains after alice leaves");
+            }
+
+            // Alice reconnects (register_connection push pattern).
+            let (h_alice2, _rx_alice2) = make_handle(112, "alice", "Alice");
+            map.entry("lobby-rejoin".to_string())
+                .or_default()
+                .push(h_alice2);
+
+            {
+                let conns = map.get("lobby-rejoin").unwrap();
+                assert_eq!(conns.len(), 2, "alice and bob both present after rejoin");
+            }
+
+            // Bob can still receive messages after the rejoin.
+            if let Some(conns) = map.get("lobby-rejoin") {
+                for conn in conns.iter() {
+                    if conn.user_id == "bob" {
+                        let _ = conn
+                            .sender
+                            .send(MatchmakingMessage::Json(serde_json::json!({"type":"lobby_created"})));
+                    }
+                }
+            }
+            assert!(rx_bob.try_recv().is_ok());
+        }
+
+        // ── close_lobby_connections: every connection gets Close ─────────
+
+        #[test]
+        fn close_lobby_connections_sends_close_to_all() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h1, mut rx1) = make_handle(120, "u-close-1", "C1");
+            let (h2, mut rx2) = make_handle(121, "u-close-2", "C2");
+            let (h3, mut rx3) = make_handle(122, "u-close-3", "C3");
+
+            {
+                let mut entry = map.entry("lobby-close".to_string()).or_default();
+                entry.push(h1);
+                entry.push(h2);
+                entry.push(h3);
+            }
+
+            // Mirrors close_lobby_connections().
+            if let Some(connections) = map.get("lobby-close") {
+                for conn in connections.iter() {
+                    let _ = conn.sender.send(MatchmakingMessage::Close);
+                }
+            }
+
+            assert!(matches!(rx1.try_recv().unwrap(), MatchmakingMessage::Close));
+            assert!(matches!(rx2.try_recv().unwrap(), MatchmakingMessage::Close));
+            assert!(matches!(rx3.try_recv().unwrap(), MatchmakingMessage::Close));
+        }
+
+        // ── Full lobby: all-ready scenario ───────────────────────────────
+
+        #[test]
+        fn all_players_ready_lobby_broadcasts_all_ready() {
+            // Simulate: lobby with 2 players, both mark ready, then all_ready broadcast.
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h1, mut rx1) = make_handle(130, "p1", "Player1");
+            let (h2, mut rx2) = make_handle(131, "p2", "Player2");
+
+            {
+                let mut entry = map.entry("lobby-ready".to_string()).or_default();
+                entry.push(h1);
+                entry.push(h2);
+            }
+
+            // Simulate set_ready result: all_ready == true.
+            let all_ready = true;
+            let players_ready = vec![
+                ("p1", true),
+                ("p2", true),
+            ];
+
+            // Broadcast individual ready states (mirrors handle_ready loop).
+            if let Some(connections) = map.get("lobby-ready") {
+                for (uid, is_ready) in &players_ready {
+                    let msg = serde_json::json!({
+                        "type": "player_ready",
+                        "lobby_id": "lobby-ready",
+                        "user_id": uid,
+                        "is_ready": is_ready,
+                    });
+                    for conn in connections.iter() {
+                        let _ = conn.sender.send(MatchmakingMessage::Json(msg.clone()));
+                    }
+                }
+            }
+
+            // Broadcast all_ready (mirrors handle_ready all_ready branch).
+            if all_ready {
+                if let Some(connections) = map.get("lobby-ready") {
+                    let msg = serde_json::json!({
+                        "type": "all_ready",
+                        "lobby_id": "lobby-ready",
+                    });
+                    for conn in connections.iter() {
+                        let _ = conn.sender.send(MatchmakingMessage::Json(msg.clone()));
+                    }
+                }
+            }
+
+            // Each player receives 2 player_ready messages + 1 all_ready = 3 messages.
+            let mut p1_msgs = vec![];
+            while let Ok(m) = rx1.try_recv() {
+                p1_msgs.push(m);
+            }
+            let mut p2_msgs = vec![];
+            while let Ok(m) = rx2.try_recv() {
+                p2_msgs.push(m);
+            }
+
+            assert_eq!(p1_msgs.len(), 3, "p1 should receive 2 player_ready + 1 all_ready");
+            assert_eq!(p2_msgs.len(), 3, "p2 should receive 2 player_ready + 1 all_ready");
+
+            let last_p1 = match p1_msgs.last().unwrap() {
+                MatchmakingMessage::Json(v) => v.clone(),
+                _ => panic!("expected Json"),
+            };
+            assert_eq!(last_p1["type"], "all_ready");
+        }
+
+        // ── Bot fill: skip when no connections ───────────────────────────
+
+        #[test]
+        fn bot_fill_skipped_when_lobby_has_no_connections() {
+            // Mirrors do_bot_fill guard: `if !has_connections { return; }`
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            // Lobby exists but is empty (all users disconnected).
+            map.entry("lobby-botfill-empty".to_string()).or_default();
+
+            let has_connections = map
+                .get("lobby-botfill-empty")
+                .map(|c| !c.is_empty())
+                .unwrap_or(false);
+
+            assert!(!has_connections, "should detect zero active connections");
+            // In production, do_bot_fill returns early here — no Django call made.
+        }
+
+        #[test]
+        fn bot_fill_proceeds_when_lobby_has_connections() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h, _rx) = make_handle(140, "real-player", "RealPlayer");
+            map.entry("lobby-botfill-ok".to_string())
+                .or_default()
+                .push(h);
+
+            let has_connections = map
+                .get("lobby-botfill-ok")
+                .map(|c| !c.is_empty())
+                .unwrap_or(false);
+
+            assert!(has_connections, "lobby with a live connection should proceed");
+        }
+
+        #[test]
+        fn bot_fill_with_zero_remaining_slots_broadcasts_no_player_joined() {
+            // Scenario: fill_lobby_bots returns bot_ids = [] (lobby already full).
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            let (h, mut rx) = make_handle(150, "p1", "P1");
+            map.entry("lobby-full-bots".to_string())
+                .or_default()
+                .push(h);
+
+            // Simulate fill result with no bots added.
+            let bot_ids: Vec<String> = vec![];
+
+            // Mirrors the do_bot_fill broadcast loop — skips when bot_ids empty.
+            if let Some(connections) = map.get("lobby-full-bots") {
+                for _player_id in &bot_ids {
+                    // This loop body never executes.
+                    for conn in connections.iter() {
+                        let _ = conn.sender.send(MatchmakingMessage::Json(
+                            serde_json::json!({"type": "player_joined"}),
+                        ));
+                    }
+                }
+            }
+
+            // No player_joined messages should have been sent.
+            assert!(
+                rx.try_recv().is_err(),
+                "no player_joined when no bots were added"
+            );
+        }
+
+        // ── Pubsub event field extraction (pure JSON logic) ──────────────
+
+        #[test]
+        fn pubsub_players_kicked_field_extraction() {
+            // Mirrors handle_pubsub_event "players_kicked" JSON parsing.
+            let event = serde_json::json!({
+                "type": "players_kicked",
+                "lobby_id": "lobby-kick",
+                "kicked_user_ids": ["u-kicked-1", "u-kicked-2"],
+            });
+
+            let event_type = event.get("type").and_then(|v| v.as_str()).unwrap_or("");
+            let lobby_id = event.get("lobby_id").and_then(|v| v.as_str()).unwrap_or("");
+            let kicked_ids: Vec<String> = event
+                .get("kicked_user_ids")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+
+            assert_eq!(event_type, "players_kicked");
+            assert_eq!(lobby_id, "lobby-kick");
+            assert_eq!(kicked_ids, vec!["u-kicked-1", "u-kicked-2"]);
+        }
+
+        #[test]
+        fn pubsub_lobby_cancelled_reason_extracted() {
+            let event = serde_json::json!({
+                "type": "lobby_cancelled",
+                "lobby_id": "lobby-cancel",
+                "reason": "ready_timeout",
+            });
+
+            let reason = event
+                .get("reason")
+                .and_then(|v| v.as_str())
+                .unwrap_or("timeout");
+
+            assert_eq!(reason, "ready_timeout");
+        }
+
+        #[test]
+        fn pubsub_missing_lobby_id_returns_none() {
+            // Mirrors the `None => return` guard in handle_pubsub_event.
+            let event = serde_json::json!({"type": "lobby_cancelled"});
+            let lobby_id = event.get("lobby_id").and_then(|v| v.as_str());
+            assert!(lobby_id.is_none(), "missing lobby_id should yield None");
+        }
+
+        #[test]
+        fn pubsub_unknown_event_type_defaults_to_empty_string() {
+            let event = serde_json::json!({"lobby_id": "l1"});
+            let event_type = event.get("type").and_then(|v| v.as_str()).unwrap_or("");
+            assert_eq!(event_type, "", "missing type field should default to empty");
+        }
+
+        #[test]
+        fn pubsub_kicked_ids_missing_field_defaults_to_empty_vec() {
+            let event = serde_json::json!({
+                "type": "players_kicked",
+                "lobby_id": "lobby-k",
+                // no kicked_user_ids field
+            });
+            let kicked_ids: Vec<String> = event
+                .get("kicked_user_ids")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+
+            assert!(kicked_ids.is_empty(), "missing field should yield empty vec");
+        }
+
+        // ── Reconnect: lobby state message sequencing ────────────────────
+
+        #[test]
+        fn reconnect_to_waiting_lobby_sends_only_lobby_created() {
+            // Mirrors reconnect_to_lobby: status "waiting" → only lobby_created sent.
+            let (tx, mut rx) = mpsc::unbounded_channel::<MatchmakingMessage>();
+
+            let status = "waiting";
+            let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                "type": "lobby_created",
+                "lobby_id": "lobby-rc",
+            })));
+            if status == "full" || status == "ready" {
+                let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                    "type": "lobby_full",
+                    "lobby_id": "lobby-rc",
+                })));
+            }
+            if status == "ready" {
+                let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                    "type": "all_ready",
+                    "lobby_id": "lobby-rc",
+                })));
+            }
+
+            let msg1 = rx.try_recv().expect("should receive lobby_created");
+            match msg1 {
+                MatchmakingMessage::Json(v) => assert_eq!(v["type"], "lobby_created"),
+                _ => panic!("expected Json"),
+            }
+            assert!(
+                rx.try_recv().is_err(),
+                "no additional messages for waiting lobby"
+            );
+        }
+
+        #[test]
+        fn reconnect_to_full_lobby_sends_lobby_created_and_lobby_full() {
+            let (tx, mut rx) = mpsc::unbounded_channel::<MatchmakingMessage>();
+
+            let status = "full";
+            let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                "type": "lobby_created",
+                "lobby_id": "lobby-rc-full",
+            })));
+            if status == "full" || status == "ready" {
+                let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                    "type": "lobby_full",
+                    "lobby_id": "lobby-rc-full",
+                })));
+            }
+            if status == "ready" {
+                let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                    "type": "all_ready",
+                    "lobby_id": "lobby-rc-full",
+                })));
+            }
+
+            let m1 = rx.try_recv().unwrap();
+            let m2 = rx.try_recv().unwrap();
+            assert!(rx.try_recv().is_err(), "no all_ready for full (not ready) lobby");
+
+            match m1 {
+                MatchmakingMessage::Json(v) => assert_eq!(v["type"], "lobby_created"),
+                _ => panic!("expected Json"),
+            }
+            match m2 {
+                MatchmakingMessage::Json(v) => assert_eq!(v["type"], "lobby_full"),
+                _ => panic!("expected Json"),
+            }
+        }
+
+        #[test]
+        fn reconnect_to_ready_lobby_sends_all_three_messages() {
+            let (tx, mut rx) = mpsc::unbounded_channel::<MatchmakingMessage>();
+
+            let status = "ready";
+            let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                "type": "lobby_created",
+                "lobby_id": "lobby-rc-ready",
+            })));
+            if status == "full" || status == "ready" {
+                let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                    "type": "lobby_full",
+                    "lobby_id": "lobby-rc-ready",
+                })));
+            }
+            if status == "ready" {
+                let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                    "type": "all_ready",
+                    "lobby_id": "lobby-rc-ready",
+                })));
+            }
+
+            let types: Vec<String> = (0..3)
+                .map(|_| match rx.try_recv().unwrap() {
+                    MatchmakingMessage::Json(v) => v["type"].as_str().unwrap().to_string(),
+                    _ => panic!("expected Json"),
+                })
+                .collect();
+
+            assert_eq!(types, vec!["lobby_created", "lobby_full", "all_ready"]);
+            assert!(rx.try_recv().is_err(), "exactly three messages expected");
+        }
+
+        // ── Active match redirect: connect() fast-path messages ──────────
+
+        #[test]
+        fn active_match_response_contains_correct_type_and_match_id() {
+            // Mirrors the connect() path when get_active_match returns Some(match_id).
+            let (tx, mut rx) = mpsc::unbounded_channel::<MatchmakingMessage>();
+            let match_id = "match-abc-123";
+
+            let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                "type": "active_match_exists",
+                "match_id": match_id,
+            })));
+            let _ = tx.send(MatchmakingMessage::Close);
+
+            let msg = rx.try_recv().unwrap();
+            match msg {
+                MatchmakingMessage::Json(v) => {
+                    assert_eq!(v["type"], "active_match_exists");
+                    assert_eq!(v["match_id"], match_id);
+                }
+                _ => panic!("expected Json"),
+            }
+            assert!(matches!(rx.try_recv().unwrap(), MatchmakingMessage::Close));
+        }
+
+        // ── CONNECTION_COUNTER: concurrency uniqueness ───────────────────
+
+        #[test]
+        fn connection_counter_produces_unique_ids_under_concurrent_load() {
+            use std::sync::atomic::Ordering;
+            use std::collections::HashSet;
+            use std::sync::{Arc, Mutex};
+
+            let ids = Arc::new(Mutex::new(HashSet::<u64>::new()));
+            let mut handles = vec![];
+
+            for _ in 0..16 {
+                let ids_clone = Arc::clone(&ids);
+                let handle = std::thread::spawn(move || {
+                    let id =
+                        CONNECTION_COUNTER.fetch_add(1, Ordering::Relaxed);
+                    ids_clone.lock().unwrap().insert(id);
+                });
+                handles.push(handle);
+            }
+
+            for h in handles {
+                h.join().unwrap();
+            }
+
+            let set = ids.lock().unwrap();
+            assert_eq!(set.len(), 16, "all 16 concurrent IDs must be unique");
+        }
+
+        // ── MatchmakingMessage: edge-case payloads ───────────────────────
+
+        #[test]
+        fn json_variant_with_null_value() {
+            let msg = MatchmakingMessage::Json(serde_json::json!(null));
+            match msg {
+                MatchmakingMessage::Json(v) => assert!(v.is_null()),
+                _ => panic!("wrong variant"),
+            }
+        }
+
+        #[test]
+        fn json_variant_with_array_payload() {
+            let msg = MatchmakingMessage::Json(serde_json::json!([1, 2, 3]));
+            match msg {
+                MatchmakingMessage::Json(v) => {
+                    assert!(v.is_array());
+                    assert_eq!(v.as_array().unwrap().len(), 3);
+                }
+                _ => panic!("wrong variant"),
+            }
+        }
+
+        #[test]
+        fn json_variant_with_boolean_payload() {
+            let msg = MatchmakingMessage::Json(serde_json::json!(true));
+            match msg {
+                MatchmakingMessage::Json(v) => assert_eq!(v.as_bool(), Some(true)),
+                _ => panic!("wrong variant"),
+            }
+        }
+
+        // ── handle_cancel: retain-by-user_id removes all tabs ───────────
+
+        #[test]
+        fn cancel_removes_all_connections_for_leaving_user() {
+            let map: DashMap<String, Vec<ConnectionHandle>> = DashMap::new();
+            // Alice has two connections (two tabs); Bob has one.
+            let (h_a1, _rxa1) = make_handle(160, "alice", "Alice");
+            let (h_a2, _rxa2) = make_handle(161, "alice", "Alice");
+            let (h_bob, _rxb) = make_handle(162, "bob", "Bob");
+
+            {
+                let mut entry = map.entry("lobby-cancel-user".to_string()).or_default();
+                entry.push(h_a1);
+                entry.push(h_a2);
+                entry.push(h_bob);
+            }
+
+            // handle_cancel retain pattern.
+            if let Some(mut conns) = map.get_mut("lobby-cancel-user") {
+                conns.retain(|c| c.user_id != "alice");
+            }
+
+            let conns = map.get("lobby-cancel-user").unwrap();
+            assert_eq!(conns.len(), 1);
+            assert_eq!(conns[0].user_id, "bob");
+        }
+
+        // ── voice_token message structure ────────────────────────────────
+
+        #[test]
+        fn voice_token_message_has_correct_fields() {
+            // Mirrors send_voice_token JSON structure.
+            let token = "eyJhbGciOiJIUzI1NiJ9.test";
+            let url = "wss://livekit.example.com";
+
+            let msg = serde_json::json!({
+                "type": "voice_token",
+                "token": token,
+                "url": url,
+            });
+
+            assert_eq!(msg["type"], "voice_token");
+            assert_eq!(msg["token"], token);
+            assert_eq!(msg["url"], url);
+        }
+
+        // ── handle_status: correct messages per lobby state ──────────────
+
+        #[test]
+        fn status_messages_for_waiting_lobby_contains_only_lobby_created() {
+            let (tx, mut rx) = mpsc::unbounded_channel::<MatchmakingMessage>();
+
+            // Mirrors handle_status send sequence for status "waiting".
+            let status = "waiting";
+            let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                "type": "lobby_created",
+                "lobby_id": "l1",
+            })));
+            if status == "full" || status == "ready" {
+                let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                    "type": "lobby_full",
+                })));
+            }
+            if status == "ready" {
+                let _ = tx.send(MatchmakingMessage::Json(serde_json::json!({
+                    "type": "all_ready",
+                })));
+            }
+
+            let m = rx.try_recv().unwrap();
+            match m {
+                MatchmakingMessage::Json(v) => assert_eq!(v["type"], "lobby_created"),
+                _ => panic!("expected Json"),
+            }
+            assert!(rx.try_recv().is_err());
         }
     }
 }

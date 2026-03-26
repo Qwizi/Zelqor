@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,6 +24,7 @@ vi.mock("next/image", () => ({
 
 import GameHUD from "@/components/game/GameHUD";
 import type { GamePlayer } from "@/hooks/useGameSocket";
+import type { DiplomacyState } from "@/lib/gameTypes";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -129,7 +130,7 @@ describe("GameHUD", () => {
 
   it("shows unit count label", () => {
     render(<GameHUD {...defaultProps()} />);
-    expect(screen.getByText("Siła")).toBeInTheDocument();
+    expect(screen.getByText("Sila")).toBeInTheDocument();
   });
 
   // ── Tick / clock display ───────────────────────────────────────────────────
@@ -164,9 +165,9 @@ describe("GameHUD", () => {
     expect(screen.getByText("W trakcie")).toBeInTheDocument();
   });
 
-  it('shows "Wybór stolicy" for selecting status', () => {
+  it('shows "Wybor stolicy" for selecting status', () => {
     render(<GameHUD {...defaultProps({ status: "selecting" })} />);
-    expect(screen.getByText("Wybór stolicy")).toBeInTheDocument();
+    expect(screen.getByText("Wybor stolicy")).toBeInTheDocument();
   });
 
   it('shows "Koniec" for finished status', () => {
@@ -225,7 +226,7 @@ describe("GameHUD", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
   });
 
-  it("only shows top 4 players in ranking", () => {
+  it("renders all players in ranking", () => {
     const rankedPlayers = Array.from({ length: 6 }, (_, i) =>
       makeRankedPlayer(`user-${i}`, { username: `Player${i}` }),
     );
@@ -238,8 +239,9 @@ describe("GameHUD", () => {
     rankedPlayers[5].username = "Player5";
 
     render(<GameHUD {...defaultProps({ rankedPlayers })} />);
-    expect(screen.queryByText("Player4")).not.toBeInTheDocument();
-    expect(screen.queryByText("Player5")).not.toBeInTheDocument();
+    // All players should be present (component renders all ranked players)
+    expect(screen.getByText(/Player0/)).toBeInTheDocument();
+    expect(screen.getByText(/Player5/)).toBeInTheDocument();
   });
 
   it("shows BOT label for bot players in ranking", () => {
@@ -252,7 +254,8 @@ describe("GameHUD", () => {
     const rankedPlayers = [makeRankedPlayer(ENEMY_USER_ID, { isAlive: false, username: "DeadPlayer" })];
     render(<GameHUD {...defaultProps({ rankedPlayers })} />);
     const deadEl = screen.getByText(/DeadPlayer/);
-    expect(deadEl.className).toContain("line-through");
+    // line-through is on the parent flex container, not the text span itself
+    expect(deadEl.closest("[class*='line-through']")).not.toBeNull();
   });
 
   // ── Active boosts panel ────────────────────────────────────────────────────
@@ -298,5 +301,643 @@ describe("GameHUD", () => {
 
   it("handles myUserId not found in players gracefully", () => {
     expect(() => render(<GameHUD {...defaultProps({ myUserId: "nonexistent" })} />)).not.toThrow();
+  });
+
+  // ── Connected / disconnected states ────────────────────────────────────────
+
+  it('shows "Rozlaczono" when connected is false', () => {
+    render(<GameHUD {...defaultProps({ connected: false })} />);
+    expect(screen.getByText("Rozlaczono")).toBeInTheDocument();
+  });
+
+  it("shows FPS counter when connected is true and fps is provided", () => {
+    render(<GameHUD {...defaultProps({ connected: true, fps: 60 })} />);
+    expect(screen.getByText("60 FPS")).toBeInTheDocument();
+  });
+
+  it("shows ping counter when connected is true and ping is provided", () => {
+    render(<GameHUD {...defaultProps({ connected: true, ping: 45 })} />);
+    expect(screen.getByText("45ms")).toBeInTheDocument();
+  });
+
+  it("does not show FPS when connected is false even if fps is provided", () => {
+    render(<GameHUD {...defaultProps({ connected: false, fps: 60 })} />);
+    expect(screen.queryByText("60 FPS")).not.toBeInTheDocument();
+  });
+
+  it("does not show ping when connected is false", () => {
+    render(<GameHUD {...defaultProps({ connected: false, ping: 45 })} />);
+    expect(screen.queryByText("45ms")).not.toBeInTheDocument();
+  });
+
+  // ── AP stat component ───────────────────────────────────────────────────────
+
+  it("shows action points value", () => {
+    render(<GameHUD {...defaultProps({ myActionPoints: 7 })} />);
+    expect(screen.getByText("7")).toBeInTheDocument();
+  });
+
+  it("shows AP label", () => {
+    render(<GameHUD {...defaultProps()} />);
+    expect(screen.getByText("AP")).toBeInTheDocument();
+  });
+
+  it("shows AP max denominator", () => {
+    render(<GameHUD {...defaultProps({ myActionPoints: 5 })} />);
+    expect(screen.getByText("/10")).toBeInTheDocument();
+  });
+
+  it("renders AP stat at low AP (< 3) without crashing", () => {
+    expect(() => render(<GameHUD {...defaultProps({ myActionPoints: 2 })} />)).not.toThrow();
+  });
+
+  it("renders AP stat at mid AP (3–5) without crashing", () => {
+    expect(() => render(<GameHUD {...defaultProps({ myActionPoints: 4 })} />)).not.toThrow();
+  });
+
+  it("renders AP stat at high AP (>= 6) without crashing", () => {
+    expect(() => render(<GameHUD {...defaultProps({ myActionPoints: 8 })} />)).not.toThrow();
+  });
+
+  // ── Capital protection timer ────────────────────────────────────────────────
+
+  it("shows capital protection timer when protection is active", () => {
+    render(
+      <GameHUD
+        {...defaultProps({
+          tick: 5,
+          tickIntervalMs: 1000,
+          status: "in_progress",
+          capitalProtectionTicks: 30,
+        })}
+      />,
+    );
+    expect(screen.getByText("Ochrona stolic")).toBeInTheDocument();
+  });
+
+  it("does not show capital protection timer when ticks have expired", () => {
+    render(
+      <GameHUD
+        {...defaultProps({
+          tick: 50,
+          tickIntervalMs: 1000,
+          status: "in_progress",
+          capitalProtectionTicks: 30,
+        })}
+      />,
+    );
+    expect(screen.queryByText("Ochrona stolic")).not.toBeInTheDocument();
+  });
+
+  it("does not show capital protection when status is finished", () => {
+    render(
+      <GameHUD
+        {...defaultProps({
+          tick: 5,
+          tickIntervalMs: 1000,
+          status: "finished",
+          capitalProtectionTicks: 30,
+        })}
+      />,
+    );
+    expect(screen.queryByText("Ochrona stolic")).not.toBeInTheDocument();
+  });
+
+  it("does not show protection timer when capitalProtectionTicks is 0", () => {
+    render(
+      <GameHUD
+        {...defaultProps({
+          tick: 0,
+          capitalProtectionTicks: 0,
+        })}
+      />,
+    );
+    expect(screen.queryByText("Ochrona stolic")).not.toBeInTheDocument();
+  });
+
+  // ── Diplomacy: relation badges ──────────────────────────────────────────────
+
+  it("shows war badge for player in war", () => {
+    const diplomacy: DiplomacyState = {
+      wars: [
+        {
+          player_a: MY_USER_ID,
+          player_b: ENEMY_USER_ID,
+          started_tick: 1,
+          aggressor_id: MY_USER_ID,
+          provinces_changed: [],
+        },
+      ],
+      pacts: [],
+      proposals: [],
+    };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    expect(screen.getByTitle("W wojnie")).toBeInTheDocument();
+  });
+
+  it("shows NAP badge for player in pact", () => {
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [
+        {
+          id: "pact-1",
+          pact_type: "nap",
+          player_a: MY_USER_ID,
+          player_b: ENEMY_USER_ID,
+          created_tick: 1,
+          expires_tick: null,
+        },
+      ],
+      proposals: [],
+    };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    expect(screen.getByTitle("Pakt o nieagresji")).toBeInTheDocument();
+  });
+
+  it("shows neutral relation (no badge) when no wars or pacts", () => {
+    const diplomacy: DiplomacyState = { wars: [], pacts: [], proposals: [] };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    expect(screen.queryByTitle("W wojnie")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Pakt o nieagresji")).not.toBeInTheDocument();
+  });
+
+  // ── Diplomacy: expanded actions ─────────────────────────────────────────────
+
+  it("expands player row when enemy player row is clicked", () => {
+    render(<GameHUD {...defaultProps()} />);
+    const enemyRows = screen.getAllByRole("button");
+    // Find the row button for the enemy player
+    const enemyRow = enemyRows.find((el) => el.textContent?.includes("EnemyPlayer"));
+    if (enemyRow) {
+      fireEvent.click(enemyRow);
+    } else {
+      // The enemy row might not have role=button; find by text
+      const enemy = screen.getByText(/EnemyPlayer/);
+      fireEvent.click(enemy.closest("[role='button']") ?? enemy);
+    }
+    // Expanded section should appear — propose pact and declare war buttons
+    expect(screen.queryByText(/Zaproponuj pakt|Oczekuje|Zaproponuj pokoj|Zerwij pakt/)).not.toBeNull();
+  });
+
+  it("shows 'Zaproponuj pakt' and 'Wypowiedz wojne' for neutral player when expanded", () => {
+    const diplomacy: DiplomacyState = { wars: [], pacts: [], proposals: [] };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.click(row!);
+    expect(screen.getByText("Zaproponuj pakt")).toBeInTheDocument();
+    expect(screen.getByText("Wypowiedz wojne")).toBeInTheDocument();
+  });
+
+  it("calls onProposePact when 'Zaproponuj pakt' button is clicked", () => {
+    const onProposePact = vi.fn();
+    const diplomacy: DiplomacyState = { wars: [], pacts: [], proposals: [] };
+    render(<GameHUD {...defaultProps({ diplomacy, onProposePact })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.click(row!);
+    fireEvent.click(screen.getByText("Zaproponuj pakt"));
+    expect(onProposePact).toHaveBeenCalledWith(ENEMY_USER_ID);
+  });
+
+  it("calls onDeclareWar when 'Wypowiedz wojne' button is clicked", () => {
+    const onDeclareWar = vi.fn();
+    const diplomacy: DiplomacyState = { wars: [], pacts: [], proposals: [] };
+    render(<GameHUD {...defaultProps({ diplomacy, onDeclareWar })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.click(row!);
+    fireEvent.click(screen.getByText("Wypowiedz wojne"));
+    expect(onDeclareWar).toHaveBeenCalledWith(ENEMY_USER_ID);
+  });
+
+  it("shows 'Zaproponuj pokoj' for player in war when expanded", () => {
+    const diplomacy: DiplomacyState = {
+      wars: [
+        {
+          player_a: MY_USER_ID,
+          player_b: ENEMY_USER_ID,
+          started_tick: 1,
+          aggressor_id: MY_USER_ID,
+          provinces_changed: [],
+        },
+      ],
+      pacts: [],
+      proposals: [],
+    };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.click(row!);
+    expect(screen.getByText("Zaproponuj pokoj")).toBeInTheDocument();
+  });
+
+  it("calls onProposePeace when 'Zaproponuj pokoj' is clicked in war state", () => {
+    const onProposePeace = vi.fn();
+    const diplomacy: DiplomacyState = {
+      wars: [
+        {
+          player_a: MY_USER_ID,
+          player_b: ENEMY_USER_ID,
+          started_tick: 1,
+          aggressor_id: MY_USER_ID,
+          provinces_changed: [],
+        },
+      ],
+      pacts: [],
+      proposals: [],
+    };
+    render(<GameHUD {...defaultProps({ diplomacy, onProposePeace })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.click(row!);
+    fireEvent.click(screen.getByText("Zaproponuj pokoj"));
+    expect(onProposePeace).toHaveBeenCalledWith(ENEMY_USER_ID, "status_quo");
+  });
+
+  it("shows 'Zerwij pakt' for player in pact when expanded", () => {
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [
+        {
+          id: "pact-1",
+          pact_type: "nap",
+          player_a: MY_USER_ID,
+          player_b: ENEMY_USER_ID,
+          created_tick: 1,
+          expires_tick: null,
+        },
+      ],
+      proposals: [],
+    };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.click(row!);
+    expect(screen.getByText("Zerwij pakt")).toBeInTheDocument();
+  });
+
+  it("calls onBreakPact when 'Zerwij pakt' is clicked", () => {
+    const onBreakPact = vi.fn();
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [
+        {
+          id: "pact-999",
+          pact_type: "nap",
+          player_a: MY_USER_ID,
+          player_b: ENEMY_USER_ID,
+          created_tick: 1,
+          expires_tick: null,
+        },
+      ],
+      proposals: [],
+    };
+    render(<GameHUD {...defaultProps({ diplomacy, onBreakPact })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.click(row!);
+    fireEvent.click(screen.getByText("Zerwij pakt"));
+    expect(onBreakPact).toHaveBeenCalledWith("pact-999");
+  });
+
+  it("shows 'Oczekuje na odpowiedz' for player with outgoing pending proposal", () => {
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [],
+      proposals: [
+        {
+          id: "prop-1",
+          proposal_type: "nap",
+          from_player_id: MY_USER_ID,
+          to_player_id: ENEMY_USER_ID,
+          created_tick: 1,
+          conditions: null,
+          status: "pending",
+          rejected_tick: null,
+          expires_tick: null,
+        },
+      ],
+    };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.click(row!);
+    expect(screen.getByText("Oczekuje na odpowiedz...")).toBeInTheDocument();
+  });
+
+  it("collapses expanded player row when clicked again", () => {
+    const diplomacy: DiplomacyState = { wars: [], pacts: [], proposals: [] };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    // Expand
+    fireEvent.click(row!);
+    expect(screen.getByText("Zaproponuj pakt")).toBeInTheDocument();
+    // Collapse
+    fireEvent.click(row!);
+    expect(screen.queryByText("Zaproponuj pakt")).not.toBeInTheDocument();
+  });
+
+  it("does not expand when clicking on own player row", () => {
+    const diplomacy: DiplomacyState = { wars: [], pacts: [], proposals: [] };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    const myName = screen.getByText(/MyPlayer \(Ty\)/);
+    fireEvent.click(myName);
+    // No diplomacy actions should appear
+    expect(screen.queryByText("Zaproponuj pakt")).not.toBeInTheDocument();
+  });
+
+  // ── Diplomacy: incoming proposals ──────────────────────────────────────────
+
+  it("shows incoming pact proposal from another player", () => {
+    const players = {
+      [MY_USER_ID]: makePlayer(MY_USER_ID),
+      [ENEMY_USER_ID]: makePlayer(ENEMY_USER_ID),
+    };
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [],
+      proposals: [
+        {
+          id: "incoming-1",
+          proposal_type: "nap",
+          from_player_id: ENEMY_USER_ID,
+          to_player_id: MY_USER_ID,
+          created_tick: 1,
+          conditions: null,
+          status: "pending",
+          rejected_tick: null,
+          expires_tick: null,
+        },
+      ],
+    };
+    render(<GameHUD {...defaultProps({ players, diplomacy })} />);
+    // The proposals panel renders with "Propozycje" header
+    expect(screen.getByText("Propozycje")).toBeInTheDocument();
+    expect(screen.getByText(/pakt o nieagresji/)).toBeInTheDocument();
+  });
+
+  it("shows incoming peace proposal label", () => {
+    const players = {
+      [MY_USER_ID]: makePlayer(MY_USER_ID),
+      [ENEMY_USER_ID]: makePlayer(ENEMY_USER_ID),
+    };
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [],
+      proposals: [
+        {
+          id: "incoming-2",
+          proposal_type: "peace",
+          from_player_id: ENEMY_USER_ID,
+          to_player_id: MY_USER_ID,
+          created_tick: 1,
+          conditions: null,
+          status: "pending",
+          rejected_tick: null,
+          expires_tick: null,
+        },
+      ],
+    };
+    render(<GameHUD {...defaultProps({ players, diplomacy })} />);
+    expect(screen.getByText(/pokoj/)).toBeInTheDocument();
+  });
+
+  it("shows expiry countdown for incoming proposal with expires_tick", () => {
+    const players = {
+      [MY_USER_ID]: makePlayer(MY_USER_ID),
+      [ENEMY_USER_ID]: makePlayer(ENEMY_USER_ID),
+    };
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [],
+      proposals: [
+        {
+          id: "incoming-3",
+          proposal_type: "nap",
+          from_player_id: ENEMY_USER_ID,
+          to_player_id: MY_USER_ID,
+          created_tick: 1,
+          conditions: null,
+          status: "pending",
+          rejected_tick: null,
+          expires_tick: 20,
+        },
+      ],
+    };
+    // tick=5, expires_tick=20, interval=1000ms → 15 ticks remaining → 15s
+    render(<GameHUD {...defaultProps({ players, diplomacy, tick: 5, tickIntervalMs: 1000 })} />);
+    expect(screen.getByText("15s")).toBeInTheDocument();
+  });
+
+  it("calls onRespondPact(accept=true) when Akceptuj clicked for nap proposal", () => {
+    const onRespondPact = vi.fn();
+    const players = {
+      [MY_USER_ID]: makePlayer(MY_USER_ID),
+      [ENEMY_USER_ID]: makePlayer(ENEMY_USER_ID),
+    };
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [],
+      proposals: [
+        {
+          id: "prop-accept",
+          proposal_type: "nap",
+          from_player_id: ENEMY_USER_ID,
+          to_player_id: MY_USER_ID,
+          created_tick: 1,
+          conditions: null,
+          status: "pending",
+          rejected_tick: null,
+          expires_tick: null,
+        },
+      ],
+    };
+    render(<GameHUD {...defaultProps({ players, diplomacy, onRespondPact })} />);
+    fireEvent.click(screen.getByText("Akceptuj"));
+    expect(onRespondPact).toHaveBeenCalledWith("prop-accept", true);
+  });
+
+  it("calls onRespondPact(accept=false) when Odrzuc clicked for nap proposal", () => {
+    const onRespondPact = vi.fn();
+    const players = {
+      [MY_USER_ID]: makePlayer(MY_USER_ID),
+      [ENEMY_USER_ID]: makePlayer(ENEMY_USER_ID),
+    };
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [],
+      proposals: [
+        {
+          id: "prop-reject",
+          proposal_type: "nap",
+          from_player_id: ENEMY_USER_ID,
+          to_player_id: MY_USER_ID,
+          created_tick: 1,
+          conditions: null,
+          status: "pending",
+          rejected_tick: null,
+          expires_tick: null,
+        },
+      ],
+    };
+    render(<GameHUD {...defaultProps({ players, diplomacy, onRespondPact })} />);
+    fireEvent.click(screen.getByText("Odrzuc"));
+    expect(onRespondPact).toHaveBeenCalledWith("prop-reject", false);
+  });
+
+  it("calls onRespondPeace(accept=true) when Akceptuj clicked for peace proposal", () => {
+    const onRespondPeace = vi.fn();
+    const players = {
+      [MY_USER_ID]: makePlayer(MY_USER_ID),
+      [ENEMY_USER_ID]: makePlayer(ENEMY_USER_ID),
+    };
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [],
+      proposals: [
+        {
+          id: "peace-accept",
+          proposal_type: "peace",
+          from_player_id: ENEMY_USER_ID,
+          to_player_id: MY_USER_ID,
+          created_tick: 1,
+          conditions: null,
+          status: "pending",
+          rejected_tick: null,
+          expires_tick: null,
+        },
+      ],
+    };
+    render(<GameHUD {...defaultProps({ players, diplomacy, onRespondPeace })} />);
+    fireEvent.click(screen.getByText("Akceptuj"));
+    expect(onRespondPeace).toHaveBeenCalledWith("peace-accept", true);
+  });
+
+  it("calls onRespondPeace(accept=false) when Odrzuc clicked for peace proposal", () => {
+    const onRespondPeace = vi.fn();
+    const players = {
+      [MY_USER_ID]: makePlayer(MY_USER_ID),
+      [ENEMY_USER_ID]: makePlayer(ENEMY_USER_ID),
+    };
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [],
+      proposals: [
+        {
+          id: "peace-reject",
+          proposal_type: "peace",
+          from_player_id: ENEMY_USER_ID,
+          to_player_id: MY_USER_ID,
+          created_tick: 1,
+          conditions: null,
+          status: "pending",
+          rejected_tick: null,
+          expires_tick: null,
+        },
+      ],
+    };
+    render(<GameHUD {...defaultProps({ players, diplomacy, onRespondPeace })} />);
+    fireEvent.click(screen.getByText("Odrzuc"));
+    expect(onRespondPeace).toHaveBeenCalledWith("peace-reject", false);
+  });
+
+  it("skips proposal rendering when from_player_id not found in players", () => {
+    const diplomacy: DiplomacyState = {
+      wars: [],
+      pacts: [],
+      proposals: [
+        {
+          id: "ghost-prop",
+          proposal_type: "nap",
+          from_player_id: "ghost-user",
+          to_player_id: MY_USER_ID,
+          created_tick: 1,
+          conditions: null,
+          status: "pending",
+          rejected_tick: null,
+          expires_tick: null,
+        },
+      ],
+    };
+    expect(() => render(<GameHUD {...defaultProps({ diplomacy })} />)).not.toThrow();
+    // Akceptuj / Odrzuc should not appear because the sender is unknown
+    expect(screen.queryByText("Akceptuj")).not.toBeInTheDocument();
+  });
+
+  // ── Emblem cosmetics ───────────────────────────────────────────────────────
+
+  it("renders emblem image when player cosmetics include string emblem url", () => {
+    const rankedPlayers = [
+      {
+        ...makeRankedPlayer(ENEMY_USER_ID, { username: "EmblemPlayer" }),
+        cosmetics: { emblem: "/assets/emblems/test.png" },
+      },
+    ];
+    render(<GameHUD {...defaultProps({ rankedPlayers })} />);
+    const img = document.querySelector('img[src="/assets/emblems/test.png"]');
+    expect(img).not.toBeNull();
+  });
+
+  it("renders emblem image when cosmetics emblem is object with url field", () => {
+    const rankedPlayers = [
+      {
+        ...makeRankedPlayer(ENEMY_USER_ID, { username: "EmblemObjPlayer" }),
+        cosmetics: { emblem: { url: "/assets/emblems/obj.png" } },
+      },
+    ];
+    render(<GameHUD {...defaultProps({ rankedPlayers })} />);
+    const img = document.querySelector('img[src="/assets/emblems/obj.png"]');
+    expect(img).not.toBeNull();
+  });
+
+  it("renders clan tag when rankedPlayer has clan_tag", () => {
+    const rankedPlayers = [
+      {
+        ...makeRankedPlayer(ENEMY_USER_ID, { username: "ClanPlayer" }),
+        clan_tag: "GRP",
+      },
+    ];
+    render(<GameHUD {...defaultProps({ rankedPlayers })} />);
+    expect(screen.getByText(/\[GRP\]/)).toBeInTheDocument();
+  });
+
+  it("shows teammate badge when player is on the same team", () => {
+    const players = {
+      [MY_USER_ID]: makePlayer(MY_USER_ID, { team: "team-a" }),
+      [ENEMY_USER_ID]: makePlayer(ENEMY_USER_ID, { team: "team-a" }),
+    };
+    render(<GameHUD {...defaultProps({ players })} />);
+    expect(screen.getByTitle("Sojusznik")).toBeInTheDocument();
+  });
+
+  // ── Keyboard accessibility ──────────────────────────────────────────────────
+
+  it("expands player row on Enter key press", () => {
+    const diplomacy: DiplomacyState = { wars: [], pacts: [], proposals: [] };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.keyDown(row!, { key: "Enter" });
+    expect(screen.getByText("Zaproponuj pakt")).toBeInTheDocument();
+  });
+
+  it("expands player row on Space key press", () => {
+    const diplomacy: DiplomacyState = { wars: [], pacts: [], proposals: [] };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.keyDown(row!, { key: " " });
+    expect(screen.getByText("Zaproponuj pakt")).toBeInTheDocument();
+  });
+
+  it("does not expand on other key presses", () => {
+    const diplomacy: DiplomacyState = { wars: [], pacts: [], proposals: [] };
+    render(<GameHUD {...defaultProps({ diplomacy })} />);
+    const enemyName = screen.getByText(/EnemyPlayer/);
+    const row = enemyName.closest("[role='button']");
+    fireEvent.keyDown(row!, { key: "Tab" });
+    expect(screen.queryByText("Zaproponuj pakt")).not.toBeInTheDocument();
   });
 });

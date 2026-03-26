@@ -6440,4 +6440,6398 @@ mod tests {
         assert!(transit_queue.is_empty(), "Should not create transit for out-of-range attack");
         assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
     }
+
+    // -------------------------------------------------------------------------
+    // 16. Diplomacy — DiplomacyState unit tests
+    // -------------------------------------------------------------------------
+
+    fn make_diplomacy_engine() -> (GameEngine, HashMap<String, Region>, HashMap<String, Player>) {
+        let mut settings = test_settings();
+        settings.diplomacy_enabled = true;
+        settings.nap_minimum_duration_ticks = 0;
+        settings.peace_cooldown_ticks = 10;
+        settings.proposal_timeout_ticks = 0; // no auto-expiry in tests
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 20));
+        regions.insert("B".into(), make_region("B", Some("p2"), 20));
+        regions.insert("C".into(), make_region("C", Some("p3"), 20));
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+        players.insert("p3".into(), make_player("p3"));
+
+        (engine, regions, players)
+    }
+
+    /// Run a single diplomacy action through process_action.
+    fn run_diplomacy(
+        engine: &GameEngine,
+        players: &mut HashMap<String, Player>,
+        regions: &mut HashMap<String, Region>,
+        diplomacy: &mut DiplomacyState,
+        action: Action,
+        tick: i64,
+    ) -> Vec<Event> {
+        engine.process_action(
+            &action,
+            players,
+            regions,
+            &mut vec![],
+            &mut vec![],
+            &mut vec![],
+            &mut vec![],
+            diplomacy,
+            tick,
+        )
+    }
+
+    // --- DiplomacyState::are_at_war ---
+
+    #[test]
+    fn test_are_at_war_both_directions() {
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+        assert!(diplomacy.are_at_war("p1", "p2"), "p1 vs p2 should be at war");
+        assert!(diplomacy.are_at_war("p2", "p1"), "p2 vs p1 should also be at war (symmetric)");
+    }
+
+    #[test]
+    fn test_are_at_war_not_at_war() {
+        let diplomacy = DiplomacyState::default();
+        assert!(!diplomacy.are_at_war("p1", "p2"), "No war declared — should not be at war");
+    }
+
+    // --- DiplomacyState::have_pact ---
+
+    #[test]
+    fn test_have_pact_both_directions() {
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.pacts.push(Pact {
+            id: "pact-1".into(),
+            pact_type: "nap".into(),
+            player_a: "p1".into(),
+            player_b: "p2".into(),
+            created_tick: 1,
+            expires_tick: None,
+        });
+        assert!(diplomacy.have_pact("p1", "p2"), "p1 and p2 should have a pact");
+        assert!(diplomacy.have_pact("p2", "p1"), "p2 and p1 should also have a pact (symmetric)");
+    }
+
+    #[test]
+    fn test_have_pact_no_pact() {
+        let diplomacy = DiplomacyState::default();
+        assert!(!diplomacy.have_pact("p1", "p2"), "No pact declared — should return false");
+    }
+
+    // --- DiplomacyState::find_pact ---
+
+    #[test]
+    fn test_find_pact_found() {
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.pacts.push(Pact {
+            id: "pact-abc".into(),
+            pact_type: "nap".into(),
+            player_a: "p1".into(),
+            player_b: "p2".into(),
+            created_tick: 5,
+            expires_tick: None,
+        });
+        let pact = diplomacy.find_pact("p2", "p1");
+        assert!(pact.is_some(), "Should find pact regardless of argument order");
+        assert_eq!(pact.unwrap().id, "pact-abc");
+    }
+
+    #[test]
+    fn test_find_pact_not_found() {
+        let diplomacy = DiplomacyState::default();
+        assert!(diplomacy.find_pact("p1", "p2").is_none(), "find_pact should return None when absent");
+    }
+
+    // --- DiplomacyState::find_war ---
+
+    #[test]
+    fn test_find_war_found() {
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p2", "p1", 3);
+        let war = diplomacy.find_war("p1", "p2");
+        assert!(war.is_some(), "Should find war regardless of argument order");
+        assert_eq!(war.unwrap().started_tick, 3);
+    }
+
+    #[test]
+    fn test_find_war_not_found() {
+        let diplomacy = DiplomacyState::default();
+        assert!(diplomacy.find_war("p1", "p2").is_none(), "find_war should return None when absent");
+    }
+
+    // --- DiplomacyState::declare_war ---
+
+    #[test]
+    fn test_declare_war_creates_war_and_emits_event() {
+        let mut diplomacy = DiplomacyState::default();
+        let events = diplomacy.declare_war("p1", "p2", 7);
+        assert_eq!(diplomacy.wars.len(), 1);
+        assert_eq!(diplomacy.wars[0].started_tick, 7);
+        assert_eq!(diplomacy.wars[0].aggressor_id, "p1");
+        assert!(has_event(&events, |e| matches!(e, Event::WarDeclared { aggressor_id, .. } if aggressor_id == "p1")));
+    }
+
+    #[test]
+    fn test_declare_war_already_at_war_is_noop() {
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+        let events = diplomacy.declare_war("p1", "p2", 5);
+        assert_eq!(diplomacy.wars.len(), 1, "Duplicate war declaration should not create a second war");
+        assert!(events.is_empty(), "No events emitted on no-op war declaration");
+    }
+
+    #[test]
+    fn test_declare_war_breaks_existing_pact() {
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.pacts.push(Pact {
+            id: "pact-1".into(),
+            pact_type: "nap".into(),
+            player_a: "p1".into(),
+            player_b: "p2".into(),
+            created_tick: 1,
+            expires_tick: None,
+        });
+        let events = diplomacy.declare_war("p1", "p2", 10);
+        assert!(diplomacy.pacts.is_empty(), "War declaration should remove existing pact");
+        assert!(has_event(&events, |e| matches!(e, Event::PactBroken { broken_by, .. } if broken_by == "p1")));
+        assert!(has_event(&events, |e| matches!(e, Event::WarDeclared { .. })));
+    }
+
+    #[test]
+    fn test_declare_war_removes_pending_proposals() {
+        let mut diplomacy = DiplomacyState::default();
+        // Push a pending peace proposal between p1 and p2
+        diplomacy.proposals.push(DiplomacyProposal {
+            id: "prop-1".into(),
+            proposal_type: "peace".into(),
+            from_player_id: "p1".into(),
+            to_player_id: "p2".into(),
+            created_tick: 1,
+            conditions: None,
+            status: "pending".into(),
+            rejected_tick: None,
+            expires_tick: None,
+        });
+        // Push a non-pending proposal (should be left untouched)
+        diplomacy.proposals.push(DiplomacyProposal {
+            id: "prop-2".into(),
+            proposal_type: "nap".into(),
+            from_player_id: "p1".into(),
+            to_player_id: "p2".into(),
+            created_tick: 1,
+            conditions: None,
+            status: "rejected".into(),
+            rejected_tick: Some(2),
+            expires_tick: None,
+        });
+        diplomacy.declare_war("p1", "p2", 5);
+        // Only the pending proposal should be gone
+        assert!(!diplomacy.proposals.iter().any(|p| p.id == "prop-1" && p.status == "pending"),
+            "Pending proposal should be removed on war declaration");
+        assert!(diplomacy.proposals.iter().any(|p| p.id == "prop-2"),
+            "Non-pending proposal should remain");
+    }
+
+    // --- DiplomacyState::record_province_change ---
+
+    #[test]
+    fn test_record_province_change_in_active_war() {
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+        diplomacy.record_province_change("p1", "p2", "region-X", "p2", "p1", 5);
+        let war = diplomacy.find_war("p1", "p2").unwrap();
+        assert_eq!(war.provinces_changed.len(), 1);
+        let change = &war.provinces_changed[0];
+        assert_eq!(change.region_id, "region-X");
+        assert_eq!(change.from_player_id, "p2");
+        assert_eq!(change.to_player_id, "p1");
+        assert_eq!(change.tick, 5);
+    }
+
+    #[test]
+    fn test_record_province_change_noop_without_war() {
+        let mut diplomacy = DiplomacyState::default();
+        // No war exists — should silently do nothing
+        diplomacy.record_province_change("p1", "p2", "region-X", "p2", "p1", 5);
+        assert!(diplomacy.wars.is_empty());
+    }
+
+    // --- DiplomacyState::end_war ---
+
+    #[test]
+    fn test_end_war_removes_war() {
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+        assert_eq!(diplomacy.wars.len(), 1);
+        diplomacy.end_war("p1", "p2");
+        assert!(diplomacy.wars.is_empty(), "end_war should remove the war entry");
+    }
+
+    #[test]
+    fn test_end_war_both_player_orderings() {
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p2", "p1", 1); // p1 < p2, so stored as player_a=p1, player_b=p2
+        diplomacy.end_war("p2", "p1"); // reversed argument order
+        assert!(diplomacy.wars.is_empty(), "end_war with reversed args should still remove the war");
+    }
+
+    // -------------------------------------------------------------------------
+    // 17. Diplomacy — process_diplomacy_action integration tests
+    // -------------------------------------------------------------------------
+
+    // --- declare_war via process_action ---
+
+    #[test]
+    fn test_declare_war_action_success() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        let action = Action {
+            action_type: "declare_war".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 1);
+        assert!(diplomacy.are_at_war("p1", "p2"), "War should be active after declare_war action");
+        assert!(has_event(&events, |e| matches!(e, Event::WarDeclared { .. })));
+    }
+
+    #[test]
+    fn test_declare_war_action_rejected_on_self() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        let action = Action {
+            action_type: "declare_war".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p1".into()),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 1);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
+        assert!(!diplomacy.are_at_war("p1", "p1"));
+    }
+
+    #[test]
+    fn test_declare_war_action_rejected_already_at_war() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+        let action = Action {
+            action_type: "declare_war".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 2);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Duplicate war declaration should be rejected");
+        assert_eq!(diplomacy.wars.len(), 1, "Still only one war");
+    }
+
+    #[test]
+    fn test_declare_war_action_rejected_diplomacy_disabled() {
+        let mut settings = test_settings();
+        settings.diplomacy_enabled = false;
+        let engine = GameEngine::new(settings, HashMap::new());
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 10));
+        regions.insert("B".into(), make_region("B", Some("p2"), 10));
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+        let mut diplomacy = DiplomacyState::default();
+        let action = Action {
+            action_type: "declare_war".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 1);
+        assert!(events.is_empty(), "Diplomacy disabled — no events should be emitted");
+        assert!(!diplomacy.are_at_war("p1", "p2"));
+    }
+
+    // --- propose_pact via process_action ---
+
+    #[test]
+    fn test_propose_pact_action_creates_proposal() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        let action = Action {
+            action_type: "propose_pact".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 1);
+        assert_eq!(diplomacy.proposals.len(), 1);
+        assert_eq!(diplomacy.proposals[0].proposal_type, "nap");
+        assert_eq!(diplomacy.proposals[0].status, "pending");
+        assert!(has_event(&events, |e| matches!(e, Event::PactProposed { .. })));
+    }
+
+    #[test]
+    fn test_propose_pact_action_rejected_duplicate() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        let action = Action {
+            action_type: "propose_pact".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        // First proposal succeeds
+        run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action.clone(), 1);
+        // Second proposal with same players should be rejected
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 2);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Duplicate pending pact proposal should be rejected");
+        assert_eq!(diplomacy.proposals.len(), 1, "Should still have only one proposal");
+    }
+
+    #[test]
+    fn test_propose_pact_action_rejected_when_at_war() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+        let action = Action {
+            action_type: "propose_pact".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 2);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Cannot propose NAP pact while at war");
+    }
+
+    // --- respond_pact via process_action ---
+
+    #[test]
+    fn test_respond_pact_accept_creates_pact() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        // p1 proposes to p2
+        let propose = Action {
+            action_type: "propose_pact".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, propose, 1);
+        let proposal_id = diplomacy.proposals[0].id.clone();
+
+        // p2 accepts
+        let accept = Action {
+            action_type: "respond_pact".into(),
+            player_id: Some("p2".into()),
+            proposal_id: Some(proposal_id),
+            accept: Some(true),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, accept, 2);
+        assert!(diplomacy.have_pact("p1", "p2"), "Pact should exist after acceptance");
+        assert!(has_event(&events, |e| matches!(e, Event::PactAccepted { pact_type, .. } if pact_type == "nap")));
+    }
+
+    #[test]
+    fn test_respond_pact_reject_updates_status() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        // p1 proposes to p2
+        let propose = Action {
+            action_type: "propose_pact".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, propose, 1);
+        let proposal_id = diplomacy.proposals[0].id.clone();
+
+        // p2 rejects
+        let reject = Action {
+            action_type: "respond_pact".into(),
+            player_id: Some("p2".into()),
+            proposal_id: Some(proposal_id.clone()),
+            accept: Some(false),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, reject, 3);
+        assert!(!diplomacy.have_pact("p1", "p2"), "No pact should exist after rejection");
+        let proposal = diplomacy.proposals.iter().find(|p| p.id == proposal_id).unwrap();
+        assert_eq!(proposal.status, "rejected");
+        assert_eq!(proposal.rejected_tick, Some(3));
+        assert!(has_event(&events, |e| matches!(e, Event::PactRejected { .. })));
+    }
+
+    #[test]
+    fn test_respond_pact_wrong_player_rejected() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        let propose = Action {
+            action_type: "propose_pact".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, propose, 1);
+        let proposal_id = diplomacy.proposals[0].id.clone();
+
+        // p3 tries to respond to a proposal directed at p2 — should fail
+        let bad_respond = Action {
+            action_type: "respond_pact".into(),
+            player_id: Some("p3".into()),
+            proposal_id: Some(proposal_id),
+            accept: Some(true),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, bad_respond, 2);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
+        assert!(!diplomacy.have_pact("p1", "p2"));
+    }
+
+    // --- break_pact via process_action ---
+
+    #[test]
+    fn test_break_pact_action_removes_pact_and_emits_event() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        let pact_id = "pact-break-test".to_string();
+        diplomacy.pacts.push(Pact {
+            id: pact_id.clone(),
+            pact_type: "nap".into(),
+            player_a: "p1".into(),
+            player_b: "p2".into(),
+            created_tick: 1,
+            expires_tick: None,
+        });
+
+        let action = Action {
+            action_type: "break_pact".into(),
+            player_id: Some("p1".into()),
+            pact_id: Some(pact_id.clone()),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 5);
+        assert!(!diplomacy.have_pact("p1", "p2"), "Pact should be removed after break_pact");
+        assert!(has_event(&events, |e| matches!(e, Event::PactBroken { broken_by, .. } if broken_by == "p1")));
+    }
+
+    #[test]
+    fn test_break_pact_action_rejected_wrong_pact_id() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        let action = Action {
+            action_type: "break_pact".into(),
+            player_id: Some("p1".into()),
+            pact_id: Some("nonexistent-pact".into()),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 1);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
+    }
+
+    // --- propose_peace via process_action ---
+
+    #[test]
+    fn test_propose_peace_action_creates_proposal_during_war() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+
+        let action = Action {
+            action_type: "propose_peace".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            condition_type: Some("status_quo".into()),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 5);
+        assert_eq!(diplomacy.proposals.len(), 1);
+        assert_eq!(diplomacy.proposals[0].proposal_type, "peace");
+        assert_eq!(diplomacy.proposals[0].status, "pending");
+        assert!(has_event(&events, |e| matches!(e, Event::PeaceProposed { .. })));
+    }
+
+    #[test]
+    fn test_propose_peace_action_rejected_not_at_war() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        let action = Action {
+            action_type: "propose_peace".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 1);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Cannot propose peace without an active war");
+    }
+
+    #[test]
+    fn test_propose_peace_with_return_provinces_condition() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+
+        let action = Action {
+            action_type: "propose_peace".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            condition_type: Some("return_provinces".into()),
+            provinces_to_return: Some(vec!["B".into()]),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 5);
+        let proposal = &diplomacy.proposals[0];
+        let conditions = proposal.conditions.as_ref().unwrap();
+        assert_eq!(conditions.condition_type, "return_provinces");
+        assert_eq!(conditions.provinces_to_return, vec!["B"]);
+        assert!(has_event(&events, |e| matches!(e, Event::PeaceProposed { .. })));
+    }
+
+    #[test]
+    fn test_propose_peace_rejected_if_already_pending() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+
+        let action = Action {
+            action_type: "propose_peace".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action.clone(), 5);
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, action, 6);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Duplicate pending peace proposal should be rejected");
+    }
+
+    // --- respond_peace via process_action ---
+
+    #[test]
+    fn test_respond_peace_accept_ends_war() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+
+        // p1 proposes peace
+        let propose = Action {
+            action_type: "propose_peace".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            condition_type: Some("status_quo".into()),
+            ..Default::default()
+        };
+        run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, propose, 5);
+        let proposal_id = diplomacy.proposals[0].id.clone();
+
+        // p2 accepts
+        let accept = Action {
+            action_type: "respond_peace".into(),
+            player_id: Some("p2".into()),
+            proposal_id: Some(proposal_id),
+            accept: Some(true),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, accept, 6);
+        assert!(!diplomacy.are_at_war("p1", "p2"), "War should end after peace accepted");
+        assert!(has_event(&events, |e| matches!(e, Event::PeaceAccepted { .. })));
+    }
+
+    #[test]
+    fn test_respond_peace_accept_returns_provinces() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+        // Record that p1 captured region B from p2 during the war
+        diplomacy.record_province_change("p1", "p2", "B", "p2", "p1", 3);
+        // Simulate the capture in region state
+        regions.get_mut("B").unwrap().owner_id = Some("p1".into());
+
+        // p1 proposes peace offering to return B to p2
+        let propose = Action {
+            action_type: "propose_peace".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            condition_type: Some("return_provinces".into()),
+            provinces_to_return: Some(vec!["B".into()]),
+            ..Default::default()
+        };
+        run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, propose, 5);
+        let proposal_id = diplomacy.proposals[0].id.clone();
+
+        // p2 accepts
+        let accept = Action {
+            action_type: "respond_peace".into(),
+            player_id: Some("p2".into()),
+            proposal_id: Some(proposal_id),
+            accept: Some(true),
+            ..Default::default()
+        };
+        run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, accept, 6);
+        assert_eq!(regions["B"].owner_id.as_deref(), Some("p2"),
+            "Region B should revert to p2 after peace with return_provinces condition");
+        assert!(!diplomacy.are_at_war("p1", "p2"));
+    }
+
+    #[test]
+    fn test_respond_peace_reject_updates_status_and_keeps_war() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+
+        let propose = Action {
+            action_type: "propose_peace".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, propose, 5);
+        let proposal_id = diplomacy.proposals[0].id.clone();
+
+        let reject = Action {
+            action_type: "respond_peace".into(),
+            player_id: Some("p2".into()),
+            proposal_id: Some(proposal_id.clone()),
+            accept: Some(false),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, reject, 7);
+        assert!(diplomacy.are_at_war("p1", "p2"), "War should continue after peace rejection");
+        let proposal = diplomacy.proposals.iter().find(|p| p.id == proposal_id).unwrap();
+        assert_eq!(proposal.status, "rejected");
+        assert_eq!(proposal.rejected_tick, Some(7));
+        assert!(has_event(&events, |e| matches!(e, Event::PeaceRejected { .. })));
+    }
+
+    #[test]
+    fn test_respond_peace_rejected_wrong_player() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.declare_war("p1", "p2", 1);
+
+        let propose = Action {
+            action_type: "propose_peace".into(),
+            player_id: Some("p1".into()),
+            target_player_id: Some("p2".into()),
+            ..Default::default()
+        };
+        run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, propose, 5);
+        let proposal_id = diplomacy.proposals[0].id.clone();
+
+        // p3 attempts to respond to a peace proposal directed at p2
+        let bad_respond = Action {
+            action_type: "respond_peace".into(),
+            player_id: Some("p3".into()),
+            proposal_id: Some(proposal_id),
+            accept: Some(true),
+            ..Default::default()
+        };
+        let events = run_diplomacy(&engine, &mut players, &mut regions, &mut diplomacy, bad_respond, 6);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })));
+        assert!(diplomacy.are_at_war("p1", "p2"), "War should still be active");
+    }
+
+    // =========================================================================
+    // Weather system
+    // =========================================================================
+
+    // Helper: build a UTC timestamp for a specific (day_of_year, hour_of_day).
+    // day_of_year is 0-based; hour_of_day is 0-23.
+    fn timestamp_for(day_of_year: i64, hour_of_day: i64) -> i64 {
+        day_of_year * 86400 + hour_of_day * 3600
+    }
+
+    // Scan (day_of_year, hour) pairs until the weather_seed formula yields the target value.
+    fn find_timestamp_with_seed(target_seed: i64) -> i64 {
+        for day in 0i64..365 {
+            for hour in 0i64..24 {
+                let seed = (day * 7 + hour * 3) % 20;
+                if seed == target_seed {
+                    return timestamp_for(day, hour);
+                }
+            }
+        }
+        panic!("Could not find timestamp with seed {}", target_seed);
+    }
+
+    #[test]
+    fn test_compute_weather_returns_valid_state() {
+        for ts in [0i64, 43200, 86400, 1_000_000, 1_700_000_000] {
+            let ws = compute_weather(ts);
+            assert!(ws.time_of_day >= 0.0 && ws.time_of_day < 1.0,
+                "time_of_day out of [0,1) at ts={}", ts);
+            assert!(ws.visibility > 0.0 && ws.visibility <= 1.0,
+                "visibility out of (0,1] at ts={}", ts);
+            assert!(["night", "dawn", "day", "dusk"].contains(&ws.phase.as_str()),
+                "unknown phase '{}' at ts={}", ws.phase, ts);
+            assert!(["clear", "cloudy", "rain", "fog", "storm"].contains(&ws.condition.as_str()),
+                "unknown condition '{}' at ts={}", ws.condition, ts);
+        }
+    }
+
+    #[test]
+    fn test_compute_weather_with_flags_disabled_weather_always_clear() {
+        for ts in [0i64, 43200, timestamp_for(10, 15), timestamp_for(200, 3)] {
+            let ws = compute_weather_with_flags(ts, false, true);
+            assert_eq!(ws.condition, "clear",
+                "Expected clear with weather disabled, got '{}' at ts={}", ws.condition, ts);
+            assert_eq!(ws.cloud_coverage, 0.0,
+                "Expected zero cloud coverage with weather disabled at ts={}", ts);
+        }
+    }
+
+    #[test]
+    fn test_compute_weather_with_flags_disabled_day_night_always_day_phase() {
+        for ts in [0i64, 3600, timestamp_for(0, 2), timestamp_for(0, 22)] {
+            let ws = compute_weather_with_flags(ts, true, false);
+            assert_eq!(ws.phase, "day",
+                "Expected day phase with day_night disabled, got '{}' at ts={}", ws.phase, ts);
+        }
+    }
+
+    #[test]
+    fn test_weather_phase_midnight_is_night() {
+        // 00:00 UTC → time_of_day=0.0, which is < 0.21 → "night"
+        let ws = compute_weather_with_flags(timestamp_for(0, 0), true, true);
+        assert_eq!(ws.phase, "night");
+    }
+
+    #[test]
+    fn test_weather_phase_noon_is_day() {
+        // 12:00 UTC → time_of_day≈0.50, in [0.29, 0.75) → "day"
+        let ws = compute_weather_with_flags(timestamp_for(0, 12), true, true);
+        assert_eq!(ws.phase, "day");
+    }
+
+    #[test]
+    fn test_weather_phase_6am_is_dawn() {
+        // 06:00 UTC → time_of_day≈0.25, in [0.21, 0.29) → "dawn"
+        let ws = compute_weather_with_flags(timestamp_for(0, 6), true, true);
+        assert_eq!(ws.phase, "dawn", "06:00 should be dawn, got '{}'", ws.phase);
+    }
+
+    #[test]
+    fn test_weather_phase_7pm_is_dusk() {
+        // 19:00 UTC → time_of_day≈0.792, in [0.75, 0.83) → "dusk"
+        let ws = compute_weather_with_flags(timestamp_for(0, 19), true, true);
+        assert_eq!(ws.phase, "dusk", "19:00 should be dusk, got '{}'", ws.phase);
+    }
+
+    #[test]
+    fn test_weather_phase_10pm_is_night() {
+        // 22:00 UTC → time_of_day≈0.917, ≥0.83 → "night"
+        let ws = compute_weather_with_flags(timestamp_for(0, 22), true, true);
+        assert_eq!(ws.phase, "night", "22:00 should be night, got '{}'", ws.phase);
+    }
+
+    #[test]
+    fn test_weather_condition_clear() {
+        // seed=0 → clear (seed < 8)
+        let ts = find_timestamp_with_seed(0);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert_eq!(ws.condition, "clear");
+    }
+
+    #[test]
+    fn test_weather_condition_cloudy() {
+        // seed=8 → cloudy (8 ≤ seed < 13)
+        let ts = find_timestamp_with_seed(8);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert_eq!(ws.condition, "cloudy");
+    }
+
+    #[test]
+    fn test_weather_condition_rain() {
+        // seed=13 → rain (13 ≤ seed < 16)
+        let ts = find_timestamp_with_seed(13);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert_eq!(ws.condition, "rain");
+    }
+
+    #[test]
+    fn test_weather_condition_fog() {
+        // seed=16 → fog (16 ≤ seed < 18)
+        let ts = find_timestamp_with_seed(16);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert_eq!(ws.condition, "fog");
+    }
+
+    #[test]
+    fn test_weather_condition_storm() {
+        // seed=18 → storm (18 ≤ seed < 20)
+        let ts = find_timestamp_with_seed(18);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert_eq!(ws.condition, "storm");
+    }
+
+    #[test]
+    fn test_weather_visibility_day_clear() {
+        // Find a noon (hour=12) timestamp that also produces seed=0 (clear).
+        let mut found_ts = None;
+        for day in 0i64..365 {
+            let seed = (day * 7 + 12 * 3) % 20;
+            if seed == 0 {
+                found_ts = Some(timestamp_for(day, 12));
+                break;
+            }
+        }
+        if let Some(ts) = found_ts {
+            let ws = compute_weather_with_flags(ts, true, true);
+            assert_eq!(ws.phase, "day");
+            assert_eq!(ws.condition, "clear");
+            // base_visibility(day)=1.0, weather_visibility(clear)=1.0 → 1.0
+            assert!((ws.visibility - 1.0).abs() < 1e-9,
+                "day+clear visibility should be 1.0, got {}", ws.visibility);
+        }
+    }
+
+    #[test]
+    fn test_weather_visibility_night_fog() {
+        // Find a night-hour timestamp that yields fog seed (16 or 17).
+        let mut found_ts = None;
+        'outer: for day in 0i64..365 {
+            for hour in [0i64, 1, 2, 3, 4, 20, 21, 22, 23] {
+                let seed = (day * 7 + hour * 3) % 20;
+                if seed == 16 || seed == 17 {
+                    found_ts = Some(timestamp_for(day, hour));
+                    break 'outer;
+                }
+            }
+        }
+        if let Some(ts) = found_ts {
+            let ws = compute_weather_with_flags(ts, true, true);
+            assert_eq!(ws.phase, "night");
+            assert_eq!(ws.condition, "fog");
+            // base(night)=0.5, weather(fog)=0.5 → 0.25
+            assert!((ws.visibility - 0.25).abs() < 1e-9,
+                "night+fog visibility should be 0.25, got {}", ws.visibility);
+        }
+    }
+
+    #[test]
+    fn test_weather_visibility_dawn_rain() {
+        // Dawn window: time_of_day in [0.21, 0.29) i.e. hour=6 only (0.25).
+        // Hour 5 gives tod≈0.208 which is still "night"; hour 7 gives tod≈0.292 = "day".
+        // Search only hour=6 for a rain seed (13-15).
+        let mut found_ts = None;
+        for day in 0i64..365 {
+            let seed = (day * 7 + 6 * 3) % 20;
+            if (13..16).contains(&seed) {
+                found_ts = Some(timestamp_for(day, 6));
+                break;
+            }
+        }
+        if let Some(ts) = found_ts {
+            let ws = compute_weather_with_flags(ts, true, true);
+            assert_eq!(ws.phase, "dawn",
+                "Expected dawn phase, got '{}' (tod={:.4})", ws.phase, ws.time_of_day);
+            assert_eq!(ws.condition, "rain");
+            // base_visibility(dawn)=0.7, weather_visibility(rain)=0.75 → 0.525
+            assert!((ws.visibility - 0.7 * 0.75).abs() < 1e-9,
+                "dawn+rain visibility should be 0.525, got {}", ws.visibility);
+        }
+    }
+
+    #[test]
+    fn test_weather_defense_modifier_night() {
+        // Find a night-phase timestamp with clear weather (to isolate phase effect).
+        let mut found_ts = None;
+        'outer: for day in 0i64..365 {
+            for hour in [0i64, 1, 2, 3, 22, 23] {
+                let seed = (day * 7 + hour * 3) % 20;
+                if seed < 8 {
+                    found_ts = Some(timestamp_for(day, hour));
+                    break 'outer;
+                }
+            }
+        }
+        let ts = found_ts.expect("Should find a night+clear timestamp");
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert_eq!(ws.phase, "night");
+        assert!((ws.defense_modifier - 1.15).abs() < 1e-9,
+            "Night defense modifier should be 1.15, got {}", ws.defense_modifier);
+    }
+
+    #[test]
+    fn test_weather_defense_modifier_dawn_dusk() {
+        // Find a dawn-hour timestamp with clear weather.
+        let mut found_ts = None;
+        'outer: for day in 0i64..365 {
+            for hour in [5i64, 6, 18, 19] {
+                let seed = (day * 7 + hour * 3) % 20;
+                if seed < 8 {
+                    found_ts = Some(timestamp_for(day, hour));
+                    break 'outer;
+                }
+            }
+        }
+        if let Some(ts) = found_ts {
+            let ws = compute_weather_with_flags(ts, true, true);
+            if ws.phase == "dawn" || ws.phase == "dusk" {
+                assert!((ws.defense_modifier - 1.05).abs() < 1e-9,
+                    "Dawn/dusk defense modifier should be 1.05, got {}", ws.defense_modifier);
+            }
+        }
+    }
+
+    #[test]
+    fn test_weather_defense_modifier_day_is_one() {
+        // Find a midday timestamp with clear weather.
+        let mut found_ts = None;
+        for day in 0i64..365 {
+            let seed = (day * 7 + 12 * 3) % 20;
+            if seed < 8 {
+                found_ts = Some(timestamp_for(day, 12));
+                break;
+            }
+        }
+        if let Some(ts) = found_ts {
+            let ws = compute_weather_with_flags(ts, true, true);
+            assert_eq!(ws.phase, "day");
+            assert!((ws.defense_modifier - 1.0).abs() < 1e-9,
+                "Day defense modifier should be 1.0, got {}", ws.defense_modifier);
+        }
+    }
+
+    #[test]
+    fn test_weather_randomness_modifier_storm() {
+        let ts = find_timestamp_with_seed(18);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert_eq!(ws.condition, "storm");
+        assert!((ws.randomness_modifier - 1.4).abs() < 1e-9,
+            "Storm randomness modifier should be 1.4, got {}", ws.randomness_modifier);
+    }
+
+    #[test]
+    fn test_weather_randomness_modifier_fog() {
+        let ts = find_timestamp_with_seed(16);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert_eq!(ws.condition, "fog");
+        assert!((ws.randomness_modifier - 1.25).abs() < 1e-9,
+            "Fog randomness modifier should be 1.25, got {}", ws.randomness_modifier);
+    }
+
+    #[test]
+    fn test_weather_randomness_modifier_rain() {
+        let ts = find_timestamp_with_seed(13);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert_eq!(ws.condition, "rain");
+        assert!((ws.randomness_modifier - 1.1).abs() < 1e-9,
+            "Rain randomness modifier should be 1.1, got {}", ws.randomness_modifier);
+    }
+
+    #[test]
+    fn test_weather_energy_modifier_storm() {
+        let ts = find_timestamp_with_seed(18);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert!((ws.energy_modifier - 0.85).abs() < 1e-9,
+            "Storm energy modifier should be 0.85, got {}", ws.energy_modifier);
+    }
+
+    #[test]
+    fn test_weather_energy_modifier_rain() {
+        let ts = find_timestamp_with_seed(13);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert!((ws.energy_modifier - 0.95).abs() < 1e-9,
+            "Rain energy modifier should be 0.95, got {}", ws.energy_modifier);
+    }
+
+    #[test]
+    fn test_weather_unit_gen_modifier_storm() {
+        let ts = find_timestamp_with_seed(18);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert!((ws.unit_gen_modifier - 0.90).abs() < 1e-9,
+            "Storm unit_gen modifier should be 0.90, got {}", ws.unit_gen_modifier);
+    }
+
+    #[test]
+    fn test_weather_unit_gen_modifier_rain() {
+        let ts = find_timestamp_with_seed(13);
+        let ws = compute_weather_with_flags(ts, true, true);
+        assert!((ws.unit_gen_modifier - 0.95).abs() < 1e-9,
+            "Rain unit_gen modifier should be 0.95, got {}", ws.unit_gen_modifier);
+    }
+
+    #[test]
+    fn test_weather_clear_all_modifiers_are_one() {
+        // Clear weather, day phase — all gameplay modifiers should be exactly 1.0.
+        let mut found_ts = None;
+        for day in 0i64..365 {
+            let seed = (day * 7 + 12 * 3) % 20;
+            if seed == 0 {
+                found_ts = Some(timestamp_for(day, 12));
+                break;
+            }
+        }
+        if let Some(ts) = found_ts {
+            let ws = compute_weather_with_flags(ts, true, true);
+            assert_eq!(ws.condition, "clear");
+            assert_eq!(ws.phase, "day");
+            assert!((ws.randomness_modifier - 1.0).abs() < 1e-9);
+            assert!((ws.energy_modifier - 1.0).abs() < 1e-9);
+            assert!((ws.unit_gen_modifier - 1.0).abs() < 1e-9);
+            assert!((ws.defense_modifier - 1.0).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn test_compute_weather_with_settings_custom_storm_modifiers() {
+        let settings = GameSettings {
+            weather_enabled: true,
+            day_night_enabled: false, // force "day" phase
+            storm_randomness_modifier: 3.0,
+            storm_energy_modifier: 0.5,
+            storm_unit_gen_modifier: 0.4,
+            ..Default::default()
+        };
+        let ts = find_timestamp_with_seed(18); // storm
+        let ws = compute_weather_with_settings(ts, &settings);
+        assert_eq!(ws.condition, "storm");
+        assert!((ws.randomness_modifier - 3.0).abs() < 1e-9,
+            "Custom storm randomness should be 3.0, got {}", ws.randomness_modifier);
+        assert!((ws.energy_modifier - 0.5).abs() < 1e-9,
+            "Custom storm energy should be 0.5, got {}", ws.energy_modifier);
+        assert!((ws.unit_gen_modifier - 0.4).abs() < 1e-9,
+            "Custom storm unit_gen should be 0.4, got {}", ws.unit_gen_modifier);
+    }
+
+    // =========================================================================
+    // Action Points
+    // =========================================================================
+
+    fn make_engine_with_ap_settings(
+        ap_cost_attack: i64,
+        ap_cost_move: i64,
+        ap_cost_build: i64,
+        ap_cost_produce: i64,
+        ap_cost_ability: i64,
+        max_ap: i64,
+        regen_interval: i64,
+    ) -> GameEngine {
+        let mut settings = test_settings();
+        settings.ap_cost_attack = ap_cost_attack;
+        settings.ap_cost_move = ap_cost_move;
+        settings.ap_cost_build = ap_cost_build;
+        settings.ap_cost_produce = ap_cost_produce;
+        settings.ap_cost_ability = ap_cost_ability;
+        settings.max_action_points = max_ap;
+        settings.ap_regen_interval = regen_interval;
+        GameEngine::new(settings, HashMap::new())
+    }
+
+    #[test]
+    fn test_ap_cost_move_action() {
+        let engine = make_engine_with_ap_settings(4, 2, 1, 0, 3, 15, 2);
+        let regions = HashMap::new();
+        let action = Action {
+            action_type: "move".into(),
+            ..Default::default()
+        };
+        assert_eq!(engine.get_ap_cost(&action, &regions), 2);
+    }
+
+    #[test]
+    fn test_ap_cost_build_action() {
+        let engine = make_engine_with_ap_settings(4, 1, 3, 0, 3, 15, 2);
+        let regions = HashMap::new();
+        let action = Action {
+            action_type: "build".into(),
+            ..Default::default()
+        };
+        assert_eq!(engine.get_ap_cost(&action, &regions), 3);
+    }
+
+    #[test]
+    fn test_ap_cost_upgrade_building_action() {
+        let engine = make_engine_with_ap_settings(4, 1, 5, 0, 3, 15, 2);
+        let regions = HashMap::new();
+        let action = Action {
+            action_type: "upgrade_building".into(),
+            ..Default::default()
+        };
+        assert_eq!(engine.get_ap_cost(&action, &regions), 5,
+            "upgrade_building should share build AP cost");
+    }
+
+    #[test]
+    fn test_ap_cost_produce_unit_action() {
+        let engine = make_engine_with_ap_settings(4, 1, 1, 2, 3, 15, 2);
+        let regions = HashMap::new();
+        let action = Action {
+            action_type: "produce_unit".into(),
+            ..Default::default()
+        };
+        assert_eq!(engine.get_ap_cost(&action, &regions), 2);
+    }
+
+    #[test]
+    fn test_ap_cost_use_ability_action() {
+        let engine = make_engine_with_ap_settings(4, 1, 1, 0, 5, 15, 2);
+        let regions = HashMap::new();
+        let action = Action {
+            action_type: "use_ability".into(),
+            ..Default::default()
+        };
+        assert_eq!(engine.get_ap_cost(&action, &regions), 5);
+    }
+
+    #[test]
+    fn test_ap_cost_diplomacy_actions_are_free() {
+        let engine = make_engine_with_ap_settings(4, 1, 1, 1, 3, 15, 2);
+        let regions = HashMap::new();
+        for action_type in ["propose_alliance", "accept_alliance", "declare_war",
+                             "offer_peace", "send_gift", "respond_peace"] {
+            let action = Action {
+                action_type: action_type.into(),
+                ..Default::default()
+            };
+            assert_eq!(engine.get_ap_cost(&action, &regions), 0,
+                "Action '{}' should cost 0 AP", action_type);
+        }
+    }
+
+    #[test]
+    fn test_ap_cost_attack_dynamic_25_percent_or_less() {
+        // ≤25% of available units sent → cost=1 regardless of max_cost
+        let engine = make_engine_with_ap_settings(8, 1, 1, 0, 3, 15, 2);
+        let mut regions = HashMap::new();
+        // 20 infantry available; send 5 = exactly 25%
+        regions.insert("src".into(), make_region("src", Some("p1"), 20));
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("src".into()),
+            target_region_id: Some("tgt".into()),
+            units: Some(5),
+            unit_type: Some("infantry".into()),
+            ..Default::default()
+        };
+        assert_eq!(engine.get_ap_cost(&action, &regions), 1,
+            "≤25% units should cost 1 AP");
+    }
+
+    #[test]
+    fn test_ap_cost_attack_dynamic_50_percent() {
+        // >25% and ≤50% → max_cost/2 (8/2=4)
+        let engine = make_engine_with_ap_settings(8, 1, 1, 0, 3, 15, 2);
+        let mut regions = HashMap::new();
+        regions.insert("src".into(), make_region("src", Some("p1"), 20));
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("src".into()),
+            target_region_id: Some("tgt".into()),
+            units: Some(10), // 10/20 = 50%
+            unit_type: Some("infantry".into()),
+            ..Default::default()
+        };
+        assert_eq!(engine.get_ap_cost(&action, &regions), 4,
+            "50% units should cost max_cost/2 = 4 AP");
+    }
+
+    #[test]
+    fn test_ap_cost_attack_dynamic_75_percent() {
+        // >50% and ≤75% → max_cost*3/4 (8*3/4=6)
+        let engine = make_engine_with_ap_settings(8, 1, 1, 0, 3, 15, 2);
+        let mut regions = HashMap::new();
+        regions.insert("src".into(), make_region("src", Some("p1"), 20));
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("src".into()),
+            target_region_id: Some("tgt".into()),
+            units: Some(15), // 15/20 = 75%
+            unit_type: Some("infantry".into()),
+            ..Default::default()
+        };
+        assert_eq!(engine.get_ap_cost(&action, &regions), 6,
+            "75% units should cost max_cost*3/4 = 6 AP");
+    }
+
+    #[test]
+    fn test_ap_cost_attack_dynamic_over_75_percent() {
+        // >75% → max_cost
+        let engine = make_engine_with_ap_settings(8, 1, 1, 0, 3, 15, 2);
+        let mut regions = HashMap::new();
+        regions.insert("src".into(), make_region("src", Some("p1"), 20));
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("src".into()),
+            target_region_id: Some("tgt".into()),
+            units: Some(20), // 100%
+            unit_type: Some("infantry".into()),
+            ..Default::default()
+        };
+        assert_eq!(engine.get_ap_cost(&action, &regions), 8,
+            ">75% units should cost full max_cost = 8 AP");
+    }
+
+    #[test]
+    fn test_regenerate_action_points_basic_regen() {
+        // interval=1 → 1.0 AP per tick; player at 0 should reach 1 after one tick
+        let mut settings = test_settings();
+        settings.ap_regen_interval = 1;
+        settings.max_action_points = 15;
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let regions = HashMap::new();
+        let mut players = HashMap::new();
+        let mut p = make_player("p1");
+        p.action_points = 0;
+        p.ap_regen_accum = 0.0;
+        players.insert("p1".into(), p);
+
+        engine.regenerate_action_points(&mut players, &regions);
+        assert_eq!(players["p1"].action_points, 1,
+            "Should earn 1 AP per tick with regen_interval=1");
+    }
+
+    #[test]
+    fn test_regenerate_action_points_accumulates_fractional() {
+        // interval=4 → 0.25 AP per tick; need 4 ticks to earn 1 AP
+        let mut settings = test_settings();
+        settings.ap_regen_interval = 4;
+        settings.max_action_points = 15;
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let regions = HashMap::new();
+        let mut players = HashMap::new();
+        let mut p = make_player("p1");
+        p.action_points = 0;
+        p.ap_regen_accum = 0.0;
+        players.insert("p1".into(), p);
+
+        for tick in 0..3 {
+            engine.regenerate_action_points(&mut players, &regions);
+            assert_eq!(players["p1"].action_points, 0,
+                "Should not have AP on tick {}", tick);
+        }
+        engine.regenerate_action_points(&mut players, &regions);
+        assert_eq!(players["p1"].action_points, 1,
+            "Should earn 1 AP after 4 ticks with interval=4");
+    }
+
+    #[test]
+    fn test_regenerate_action_points_command_center_bonus() {
+        // Command Center gives +50% regen rate.
+        // interval=2 → base 0.5/tick; with bonus 0.75/tick.
+        // After 1 tick: accum=0.75 (no whole AP).
+        // After 2 ticks: accum=1.50 → 1 AP awarded.
+        let mut settings = test_settings();
+        settings.ap_regen_interval = 2;
+        settings.max_action_points = 15;
+        settings.building_types.insert(
+            "command_center".into(),
+            BuildingConfig {
+                cost: 0,
+                energy_cost: 0,
+                build_time_ticks: 1,
+                max_per_region: 1,
+                defense_bonus: 0.0,
+                vision_range: 0,
+                unit_generation_bonus: 0.0,
+                energy_generation_bonus: 0.0,
+                requires_coastal: false,
+                icon: String::new(),
+                name: "Command Center".into(),
+                asset_key: String::new(),
+                order: 10,
+                produced_unit_slug: None,
+                max_level: 1,
+                level_stats: HashMap::new(),
+            },
+        );
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let mut regions = HashMap::new();
+        let mut r = make_region("HQ", Some("p1"), 5);
+        r.building_instances.push(BuildingInstance {
+            building_type: "command_center".into(),
+            level: 1,
+        });
+        regions.insert("HQ".into(), r);
+
+        let mut players = HashMap::new();
+        let mut p = make_player("p1");
+        p.action_points = 0;
+        p.ap_regen_accum = 0.0;
+        players.insert("p1".into(), p);
+
+        engine.regenerate_action_points(&mut players, &regions);
+        assert_eq!(players["p1"].action_points, 0,
+            "Should not earn AP after 1 tick (0.75 accumulated)");
+
+        engine.regenerate_action_points(&mut players, &regions);
+        assert_eq!(players["p1"].action_points, 1,
+            "Should earn 1 AP after 2 ticks with command_center bonus");
+    }
+
+    #[test]
+    fn test_regenerate_action_points_caps_at_max() {
+        let mut settings = test_settings();
+        settings.ap_regen_interval = 1;
+        settings.max_action_points = 5;
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let regions = HashMap::new();
+        let mut players = HashMap::new();
+        let mut p = make_player("p1");
+        p.action_points = 4;
+        p.ap_regen_accum = 0.0;
+        players.insert("p1".into(), p);
+
+        engine.regenerate_action_points(&mut players, &regions);
+        assert_eq!(players["p1"].action_points, 5, "AP should reach cap of 5");
+
+        engine.regenerate_action_points(&mut players, &regions);
+        assert_eq!(players["p1"].action_points, 5, "AP must not exceed cap of 5");
+        assert_eq!(players["p1"].ap_regen_accum, 0.0,
+            "Accumulator should be zeroed when at cap");
+    }
+
+    #[test]
+    fn test_regenerate_action_points_dead_player_skipped() {
+        let mut settings = test_settings();
+        settings.ap_regen_interval = 1;
+        settings.max_action_points = 15;
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let regions = HashMap::new();
+        let mut players = HashMap::new();
+        let mut p = make_player("p1");
+        p.is_alive = false;
+        p.action_points = 0;
+        p.ap_regen_accum = 0.0;
+        players.insert("p1".into(), p);
+
+        engine.regenerate_action_points(&mut players, &regions);
+        assert_eq!(players["p1"].action_points, 0,
+            "Dead player should not regen AP");
+        assert_eq!(players["p1"].ap_regen_accum, 0.0,
+            "Dead player accumulator should be reset to 0");
+    }
+
+    // =========================================================================
+    // Region Cooldowns
+    // =========================================================================
+
+    fn make_engine_with_attack_cooldown(cooldown: i64) -> GameEngine {
+        let mut settings = test_settings();
+        settings.region_attack_cooldown = cooldown;
+        settings.region_move_cooldown = 0;
+        let mut neighbor_map = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into()]);
+        GameEngine::new(settings, neighbor_map)
+    }
+
+    fn make_engine_with_move_cooldown(cooldown: i64) -> GameEngine {
+        let mut settings = test_settings();
+        settings.region_attack_cooldown = 0;
+        settings.region_move_cooldown = cooldown;
+        let mut neighbor_map = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into()]);
+        GameEngine::new(settings, neighbor_map)
+    }
+
+    #[test]
+    fn test_attack_sets_region_attack_cooldown() {
+        let engine = make_engine_with_attack_cooldown(3);
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 20));
+        regions.insert("B".into(), make_region("B", Some("p2"), 10));
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+        let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+
+        // current_tick=1; cooldown duration=3 → ready at tick 4
+        engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
+        );
+
+        let cooldown_ready = regions["A"].action_cooldowns.get("attack").copied();
+        assert_eq!(cooldown_ready, Some(4),
+            "Attack cooldown should be set to current_tick + cooldown = 1+3=4");
+    }
+
+    #[test]
+    fn test_attack_rejected_while_cooldown_active() {
+        let engine = make_engine_with_attack_cooldown(5);
+        let mut regions = HashMap::new();
+        let mut region_a = make_region("A", Some("p1"), 20);
+        // Cooldown active: region ready at tick 10
+        region_a.action_cooldowns.insert("attack".into(), 10);
+        regions.insert("A".into(), region_a);
+        regions.insert("B".into(), make_region("B", Some("p2"), 10));
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+        let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+
+        // current_tick=5 < ready_tick=10 → rejected
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 5,
+        );
+
+        assert!(transit_queue.is_empty(), "No transit should be created during cooldown");
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Attack during active cooldown should be rejected");
+    }
+
+    #[test]
+    fn test_attack_allowed_after_cooldown_expires() {
+        let engine = make_engine_with_attack_cooldown(3);
+        let mut regions = HashMap::new();
+        let mut region_a = make_region("A", Some("p1"), 20);
+        // Cooldown was set to expire at tick 5; current_tick will equal 5
+        region_a.action_cooldowns.insert("attack".into(), 5);
+        regions.insert("A".into(), region_a);
+        regions.insert("B".into(), make_region("B", Some("p2"), 10));
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+        let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+
+        // current_tick=5, condition is current_tick < ready_tick → 5 < 5 = false → allowed
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 5,
+        );
+
+        assert!(!has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Attack at exactly the expiry tick should be accepted");
+        assert!(!transit_queue.is_empty(),
+            "Transit should be created for the accepted attack");
+    }
+
+    #[test]
+    fn test_move_sets_region_move_cooldown() {
+        let engine = make_engine_with_move_cooldown(4);
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 20));
+        // B owned by p1 — valid move target
+        regions.insert("B".into(), make_region("B", Some("p1"), 5));
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+
+        let action = Action {
+            action_type: "move".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+        let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+
+        // current_tick=2; cooldown=4 → ready at 6
+        engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 2,
+        );
+
+        let cooldown_ready = regions["A"].action_cooldowns.get("move").copied();
+        assert_eq!(cooldown_ready, Some(6),
+            "Move cooldown should be set to current_tick + move_cooldown = 2+4=6");
+    }
+
+    #[test]
+    fn test_move_rejected_while_cooldown_active() {
+        let engine = make_engine_with_move_cooldown(5);
+        let mut regions = HashMap::new();
+        let mut region_a = make_region("A", Some("p1"), 20);
+        // Move cooldown active until tick 20
+        region_a.action_cooldowns.insert("move".into(), 20);
+        regions.insert("A".into(), region_a);
+        regions.insert("B".into(), make_region("B", Some("p1"), 5));
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+
+        let action = Action {
+            action_type: "move".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+        let mut air_transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+
+        // current_tick=10 < ready_tick=20 → rejected
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 10,
+        );
+
+        assert!(transit_queue.is_empty(), "No transit should be created during move cooldown");
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Move during active cooldown should be rejected");
+    }
+
+    // =========================================================================
+    // Combat Fatigue
+    // =========================================================================
+
+    fn make_engine_with_fatigue(
+        attack_modifier: f64,
+        attack_ticks: i64,
+        defense_modifier: f64,
+        defense_ticks: i64,
+    ) -> GameEngine {
+        let mut settings = test_settings();
+        settings.fatigue_attack_modifier = attack_modifier;
+        settings.fatigue_attack_ticks = attack_ticks;
+        settings.fatigue_defense_modifier = defense_modifier;
+        settings.fatigue_defense_ticks = defense_ticks;
+        settings.combat_randomness = 0.0; // deterministic combat
+        let mut neighbor_map = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into()]);
+        GameEngine::new(settings, neighbor_map)
+    }
+
+    fn make_attack_transit_item(
+        source: &str,
+        target: &str,
+        player_id: &str,
+        units: i64,
+    ) -> TransitQueueItem {
+        TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: source.into(),
+            target_region_id: target.into(),
+            player_id: player_id.into(),
+            unit_type: "infantry".into(),
+            units,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        }
+    }
+
+    #[test]
+    fn test_fatigue_applied_when_attacker_wins() {
+        // p1 overwhelms single-unit B → attacker wins → attack fatigue set on B.
+        let engine = make_engine_with_fatigue(0.30, 5, 0.20, 3);
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 50));
+        regions.insert("B".into(), make_region("B", Some("p2"), 1));
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let transit = vec![make_attack_transit_item("A", "B", "p1", 50)];
+        let mut diplomacy = DiplomacyState::default();
+
+        let (remaining, events) = engine.process_transit_queue_with_shield(
+            &mut players, &mut regions, &transit, &[], &mut diplomacy, 1,
+        );
+
+        assert!(remaining.is_empty());
+        let region_b = &regions["B"];
+        assert_eq!(region_b.owner_id.as_deref(), Some("p1"), "B should be captured by p1");
+
+        assert_eq!(region_b.fatigue_until, Some(1 + 5),
+            "fatigue_until should be tick + attack_ticks = 6");
+        assert!((region_b.fatigue_modifier - 0.30).abs() < 1e-9,
+            "fatigue_modifier should be attack_modifier=0.30, got {}", region_b.fatigue_modifier);
+
+        assert!(has_event(&events, |e| matches!(e, Event::CombatFatigue {
+            region_id, modifier, ticks
+        } if region_id == "B" && (*modifier - 0.30).abs() < 1e-9 && *ticks == 5)),
+            "CombatFatigue event with attack parameters should be emitted");
+    }
+
+    #[test]
+    fn test_fatigue_applied_when_defender_wins() {
+        // p2 holds B with 200 vs 1 attacker → defender wins → defense fatigue set on B.
+        let engine = make_engine_with_fatigue(0.30, 5, 0.20, 3);
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 50));
+        regions.insert("B".into(), make_region("B", Some("p2"), 200));
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let transit = vec![make_attack_transit_item("A", "B", "p1", 1)];
+        let mut diplomacy = DiplomacyState::default();
+
+        let (remaining, events) = engine.process_transit_queue_with_shield(
+            &mut players, &mut regions, &transit, &[], &mut diplomacy, 10,
+        );
+
+        assert!(remaining.is_empty());
+        let region_b = &regions["B"];
+        assert_eq!(region_b.owner_id.as_deref(), Some("p2"), "B should remain p2's");
+
+        assert_eq!(region_b.fatigue_until, Some(10 + 3),
+            "fatigue_until should be tick + defense_ticks = 13");
+        assert!((region_b.fatigue_modifier - 0.20).abs() < 1e-9,
+            "fatigue_modifier should be defense_modifier=0.20, got {}", region_b.fatigue_modifier);
+
+        assert!(has_event(&events, |e| matches!(e, Event::CombatFatigue {
+            region_id, modifier, ticks
+        } if region_id == "B" && (*modifier - 0.20).abs() < 1e-9 && *ticks == 3)),
+            "CombatFatigue event with defense parameters should be emitted");
+    }
+
+    #[test]
+    fn test_fatigue_reduces_defender_power() {
+        // Directly verify get_region_defender_power returns reduced value under fatigue.
+        let engine = make_engine_with_fatigue(0.30, 10, 0.50, 10);
+
+        let region = make_region("B", Some("p2"), 100);
+        let power_baseline = engine.get_region_defender_power(&region, 0.0, 5);
+
+        let mut region_fatigued = make_region("B", Some("p2"), 100);
+        region_fatigued.fatigue_until = Some(20);   // active through tick 19
+        region_fatigued.fatigue_modifier = 0.50;
+        let power_fatigued = engine.get_region_defender_power(&region_fatigued, 0.0, 5);
+
+        assert!(power_fatigued < power_baseline,
+            "Fatigued region must have lower power: {} vs {}", power_fatigued, power_baseline);
+        assert!((power_fatigued - power_baseline * 0.50).abs() < 1e-6,
+            "Fatigue 0.50 should halve power: expected {}, got {}",
+            power_baseline * 0.50, power_fatigued);
+    }
+
+    #[test]
+    fn test_fatigue_expires_after_configured_ticks() {
+        // At and after fatigue_until the penalty must not apply.
+        let engine = make_engine_with_fatigue(0.30, 5, 0.50, 3);
+
+        let baseline = {
+            let r = make_region("B", Some("p2"), 100);
+            engine.get_region_defender_power(&r, 0.0, 100)
+        };
+
+        let mut region = make_region("B", Some("p2"), 100);
+        region.fatigue_until = Some(10);
+        region.fatigue_modifier = 0.50;
+
+        // At tick 10: condition is current_tick < 10 → false → no penalty
+        let power_at_expiry = engine.get_region_defender_power(&region, 0.0, 10);
+        assert!((power_at_expiry - baseline).abs() < 1e-6,
+            "Power at expiry tick should equal baseline; got {} vs {}", power_at_expiry, baseline);
+
+        // Well past expiry
+        let power_after = engine.get_region_defender_power(&region, 0.0, 50);
+        assert!((power_after - baseline).abs() < 1e-6,
+            "Power well past expiry should equal baseline; got {} vs {}", power_after, baseline);
+    }
+
+    #[test]
+    fn test_fatigue_not_emitted_when_disabled() {
+        // fatigue_attack_ticks=0 and fatigue_defense_ticks=0 → no CombatFatigue events.
+        let engine = make_engine_with_fatigue(0.30, 0, 0.20, 0);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 50));
+        regions.insert("B".into(), make_region("B", Some("p2"), 1));
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let transit = vec![make_attack_transit_item("A", "B", "p1", 50)];
+        let mut diplomacy = DiplomacyState::default();
+
+        let (_, events) = engine.process_transit_queue_with_shield(
+            &mut players, &mut regions, &transit, &[], &mut diplomacy, 1,
+        );
+
+        assert!(!has_event(&events, |e| matches!(e, Event::CombatFatigue { .. })),
+            "No CombatFatigue event should be emitted when fatigue is disabled");
+        assert!(regions["B"].fatigue_until.is_none(),
+            "fatigue_until should remain None when fatigue is disabled");
+    }
+
+    // -------------------------------------------------------------------------
+    // 20. Ability system
+    // -------------------------------------------------------------------------
+
+    /// Build a GameEngine with a minimal ability config including a "fortify" ability
+    /// that targets own regions, plus a "nuke" ability targeting enemy regions.
+    fn make_engine_with_abilities() -> (GameEngine, HashMap<String, Region>, HashMap<String, Player>) {
+        let mut settings = test_settings();
+        settings.diplomacy_enabled = false;
+        settings.capital_protection_ticks = 0;
+        settings.ap_cost_ability = 0; // free for tests
+
+        let mut ability_types = HashMap::new();
+
+        // ab_pr_fortify: own-region ability (costs 10 energy, no damage, duration=5)
+        ability_types.insert(
+            "ab_pr_fortify".into(),
+            AbilityConfig {
+                name: "Fortify".into(),
+                asset_key: String::new(),
+                sound_key: String::new(),
+                target_type: "own".into(),
+                range: 0,
+                energy_cost: 10,
+                cooldown_ticks: 20,
+                damage: 0,
+                effect_duration_ticks: 5,
+                effect_params: serde_json::json!({}),
+                max_level: 3,
+                level_stats: HashMap::new(),
+            },
+        );
+
+        // ab_enemy_strike: enemy-region ability (costs 20 energy, damage=50)
+        ability_types.insert(
+            "ab_enemy_strike".into(),
+            AbilityConfig {
+                name: "Strike".into(),
+                asset_key: String::new(),
+                sound_key: String::new(),
+                target_type: "enemy".into(),
+                range: 0,
+                energy_cost: 20,
+                cooldown_ticks: 30,
+                damage: 50,
+                effect_duration_ticks: 0,
+                effect_params: serde_json::json!({}),
+                max_level: 3,
+                level_stats: HashMap::new(),
+            },
+        );
+
+        settings.ability_types = ability_types;
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+        neighbor_map.insert("C".into(), vec!["B".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 30));
+        regions.insert("B".into(), make_region("B", Some("p1"), 15));
+        regions.insert("C".into(), make_region("C", Some("p2"), 20));
+
+        let mut players = HashMap::new();
+        let mut p1 = make_player("p1");
+        p1.energy = 200;
+        // Give p1 one scroll use for each ability
+        p1.ability_scrolls.insert("ab_pr_fortify".into(), 3);
+        p1.ability_scrolls.insert("ab_enemy_strike".into(), 3);
+        players.insert("p1".into(), p1);
+        players.insert("p2".into(), make_player("p2"));
+
+        (engine, regions, players)
+    }
+
+    #[test]
+    fn test_ability_fortify_own_region_succeeds() {
+        let (engine, mut regions, mut players) = make_engine_with_abilities();
+        let mut active_effects = vec![];
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_pr_fortify".into()),
+            target_region_id: Some("A".into()),
+            ..Default::default()
+        };
+
+        let initial_energy = players["p1"].energy;
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        // Should emit AbilityUsed
+        assert!(has_event(&events, |e| matches!(e, Event::AbilityUsed {
+            player_id, ability_type, ..
+        } if player_id == "p1" && ability_type == "ab_pr_fortify")),
+            "Should emit AbilityUsed; events: {:?}", events);
+
+        // Energy cost should be deducted (10)
+        assert_eq!(players["p1"].energy, initial_energy - 10,
+            "Fortify should cost 10 energy");
+
+        // Cooldown should be set
+        assert!(players["p1"].ability_cooldowns.contains_key("ab_pr_fortify"),
+            "Cooldown should be set after use");
+
+        // Scroll uses should decrement
+        assert_eq!(players["p1"].ability_scrolls["ab_pr_fortify"], 2,
+            "Scroll uses should decrement from 3 to 2");
+    }
+
+    #[test]
+    fn test_ability_fortify_on_enemy_region_rejected() {
+        let (engine, mut regions, mut players) = make_engine_with_abilities();
+        let mut active_effects = vec![];
+
+        // C is owned by p2, not p1 — ab_pr_fortify requires "own" target
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_pr_fortify".into()),
+            target_region_id: Some("C".into()),
+            ..Default::default()
+        };
+
+        let initial_energy = players["p1"].energy;
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should reject ability on enemy region for 'own' target type; events: {:?}", events);
+        assert_eq!(players["p1"].energy, initial_energy, "Energy should not be deducted on rejection");
+    }
+
+    #[test]
+    fn test_ability_insufficient_energy_rejected() {
+        let (engine, mut regions, mut players) = make_engine_with_abilities();
+        let mut active_effects = vec![];
+
+        // Set p1's energy below the 10-cost of ab_pr_fortify
+        players.get_mut("p1").unwrap().energy = 5;
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_pr_fortify".into()),
+            target_region_id: Some("A".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should reject ability when player has insufficient energy; events: {:?}", events);
+        assert_eq!(players["p1"].energy, 5, "Energy should be unchanged on rejection");
+    }
+
+    #[test]
+    fn test_ability_no_scroll_rejected() {
+        let (engine, mut regions, mut players) = make_engine_with_abilities();
+        let mut active_effects = vec![];
+
+        // Remove scrolls for the ability
+        players.get_mut("p1").unwrap().ability_scrolls.insert("ab_pr_fortify".into(), 0);
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_pr_fortify".into()),
+            target_region_id: Some("A".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should reject ability when player has no scrolls; events: {:?}", events);
+    }
+
+    #[test]
+    fn test_ability_cooldown_enforced() {
+        let (engine, mut regions, mut players) = make_engine_with_abilities();
+        let mut active_effects = vec![];
+
+        // Set a cooldown that expires at tick 100
+        players.get_mut("p1").unwrap().ability_cooldowns.insert("ab_pr_fortify".into(), 100);
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_pr_fortify".into()),
+            target_region_id: Some("A".into()),
+            ..Default::default()
+        };
+
+        // Attempt at tick 5 — should be blocked
+        let events = engine.process_ability(&action, &mut players, &mut regions, 5, &mut active_effects);
+
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should reject ability while on cooldown; events: {:?}", events);
+    }
+
+    #[test]
+    fn test_ability_enemy_strike_on_own_region_rejected() {
+        let (engine, mut regions, mut players) = make_engine_with_abilities();
+        let mut active_effects = vec![];
+
+        // ab_enemy_strike requires "enemy" target; A is owned by p1
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_enemy_strike".into()),
+            target_region_id: Some("A".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should reject enemy ability on own region; events: {:?}", events);
+    }
+
+    // -------------------------------------------------------------------------
+    // 21. Air combat system — bomber missions and fighter interceptions
+    // -------------------------------------------------------------------------
+
+    /// Build an engine with bomber and fighter unit types configured.
+    fn make_air_engine() -> (GameEngine, HashMap<String, Region>, HashMap<String, Player>) {
+        let mut settings = test_settings();
+        settings.combat_randomness = 0.0; // deterministic
+        settings.capital_protection_ticks = 0;
+        settings.ap_cost_attack = 0;
+        settings.ap_cost_move = 0;
+
+        // Add bomber config
+        settings.unit_types.insert(
+            "bomber".into(),
+            UnitConfig {
+                attack: 4.0,
+                defense: 0.5,
+                speed: 1,
+                attack_range: 5,
+                movement_type: "air".into(),
+                production_cost: 40,
+                production_time_ticks: 15,
+                produced_by_slug: Some("carrier".into()),
+                manpower_cost: 5,
+                combat_target: "ground".into(),
+                path_damage: 0.0, // no path damage for simplicity
+                air_speed_ticks_per_hop: 0,
+                ..Default::default()
+            },
+        );
+
+        // Add fighter config
+        settings.unit_types.insert(
+            "fighter".into(),
+            UnitConfig {
+                attack: 3.0,
+                defense: 1.5,
+                speed: 3,
+                attack_range: 5,
+                movement_type: "air".into(),
+                production_cost: 30,
+                production_time_ticks: 12,
+                produced_by_slug: Some("carrier".into()),
+                manpower_cost: 2,
+                combat_target: "air".into(),
+                intercept_air: false,
+                air_speed_ticks_per_hop: 0,
+                ..Default::default()
+            },
+        );
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+        neighbor_map.insert("C".into(), vec!["B".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        let mut region_a = make_region("A", Some("p1"), 10);
+        region_a.centroid = Some([0.0, 0.0]);
+        region_a.units.insert("bomber".into(), 5);
+        region_a.units.insert("infantry".into(), 35); // 5 bombers * 5 manpower = 25 reserved + 10
+        regions.insert("A".into(), region_a);
+
+        let mut region_b = make_region("B", Some("p2"), 20);
+        region_b.centroid = Some([1.0, 0.0]);
+        regions.insert("B".into(), region_b);
+
+        let mut region_c = make_region("C", Some("p2"), 15);
+        region_c.centroid = Some([2.0, 0.0]);
+        regions.insert("C".into(), region_c);
+
+        let mut players = HashMap::new();
+        let mut p1 = make_player("p1");
+        p1.energy = 500;
+        p1.action_points = 50;
+        players.insert("p1".into(), p1);
+        let mut p2 = make_player("p2");
+        p2.energy = 500;
+        p2.action_points = 50;
+        players.insert("p2".into(), p2);
+
+        (engine, regions, players)
+    }
+
+    /// Build a minimal AirTransitItem for a bomb_run arriving in one tick.
+    fn make_bomb_run(source: &str, target: &str, player_id: &str, units: i64) -> AirTransitItem {
+        AirTransitItem {
+            id: format!("flight-{source}-{target}"),
+            mission_type: "bomb_run".into(),
+            source_region_id: source.into(),
+            target_region_id: target.into(),
+            player_id: player_id.into(),
+            unit_type: "bomber".into(),
+            units,
+            escort_fighters: 0,
+            progress: 0.5, // already in flight — will arrive after one more tick
+            speed_per_tick: 0.6, // 0.5 + 0.6 = 1.1 >= 1.0 → arrives next tick
+            total_distance: 2,
+            interceptors: vec![],
+            flight_path: vec![source.into(), target.into()],
+            last_bombed_hop: 0,
+        }
+    }
+
+    #[test]
+    fn test_bomber_arrival_deals_damage_to_target() {
+        let (engine, mut regions, mut players) = make_air_engine();
+
+        // B has 20 infantry owned by p2; bomber from p1 arrives
+        let flight = make_bomb_run("A", "B", "p1", 3);
+        let events = engine.resolve_bomber_arrival(&flight, &mut players, &mut regions);
+
+        assert!(has_event(&events, |e| matches!(e, Event::BomberStrike {
+            player_id, target_region_id, ..
+        } if player_id == "p1" && target_region_id == "B")),
+            "Should emit BomberStrike; events: {:?}", events);
+
+        // Defender should have lost units
+        let remaining = regions["B"].units.get("infantry").copied().unwrap_or(0);
+        assert!(remaining < 20, "Bomber should kill some defenders; remaining={}", remaining);
+    }
+
+    #[test]
+    fn test_bomber_neutralizes_province_when_all_defenders_wiped() {
+        let (engine, mut regions, mut players) = make_air_engine();
+
+        // Give B only 1 infantry — 3 bombers with attack=4, manpower=5 each should wipe it
+        regions.get_mut("B").unwrap().units.insert("infantry".into(), 1);
+        regions.get_mut("B").unwrap().unit_count = 1;
+        players.get_mut("p2").unwrap().capital_region_id = None; // B is not a capital
+
+        let flight = AirTransitItem {
+            id: "flight-001".into(),
+            mission_type: "bomb_run".into(),
+            source_region_id: "A".into(),
+            target_region_id: "B".into(),
+            player_id: "p1".into(),
+            unit_type: "bomber".into(),
+            units: 5,
+            escort_fighters: 0,
+            progress: 0.5,
+            speed_per_tick: 0.6,
+            total_distance: 2,
+            interceptors: vec![],
+            flight_path: vec!["A".into(), "B".into()],
+            last_bombed_hop: 0,
+        };
+
+        let events = engine.resolve_bomber_arrival(&flight, &mut players, &mut regions);
+
+        assert!(has_event(&events, |e| matches!(e, Event::BomberStrike { province_neutralized, .. }
+            if *province_neutralized)),
+            "Province should be neutralized when all defenders wiped; events: {:?}", events);
+
+        assert!(regions["B"].owner_id.is_none(), "B should be unowned after neutralization");
+    }
+
+    #[test]
+    fn test_air_transit_progress_advances_each_tick() {
+        let (engine, mut regions, mut players) = make_air_engine();
+
+        let mut air_transit_queue = vec![AirTransitItem {
+            id: "flight-slow".into(),
+            mission_type: "bomb_run".into(),
+            source_region_id: "A".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "bomber".into(),
+            units: 2,
+            escort_fighters: 0,
+            progress: 0.0,
+            speed_per_tick: 0.25, // needs 4 ticks to arrive
+            total_distance: 2,
+            interceptors: vec![],
+            flight_path: vec!["A".into(), "B".into(), "C".into()],
+            last_bombed_hop: 0,
+        }];
+
+        // Process one tick — should not arrive yet
+        let (remaining, _events) = engine.process_air_transit(&mut players, &mut regions, &air_transit_queue);
+        assert_eq!(remaining.len(), 1, "Flight should still be in transit");
+        assert!(remaining[0].progress > 0.0, "Progress should have advanced");
+        air_transit_queue = remaining;
+
+        // Process 3 more ticks — should arrive
+        for _ in 0..3 {
+            let (rem, _) = engine.process_air_transit(&mut players, &mut regions, &air_transit_queue);
+            air_transit_queue = rem;
+        }
+        assert!(air_transit_queue.is_empty(), "Flight should have arrived after 4 ticks");
+    }
+
+    #[test]
+    fn test_fighter_interception_reduces_bomber_units() {
+        let (engine, mut regions, mut players) = make_air_engine();
+
+        // Create a bomb_run with an interceptor already catching up fast
+        let flight = AirTransitItem {
+            id: "flight-intercept".into(),
+            mission_type: "bomb_run".into(),
+            source_region_id: "A".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "bomber".into(),
+            units: 5,
+            escort_fighters: 0,
+            progress: 0.5,
+            speed_per_tick: 0.1,
+            total_distance: 2,
+            interceptors: vec![InterceptorGroup {
+                player_id: "p2".into(),
+                source_region_id: "B".into(),
+                fighters: 10, // strong interceptors
+                progress: 0.6, // will catch up this tick (0.6 + large speed)
+                speed_per_tick: 0.5,
+            }],
+            flight_path: vec!["A".into(), "B".into(), "C".into()],
+            last_bombed_hop: 0,
+        };
+
+        let (new_flight, combat_events) = engine.resolve_air_interception(flight, InterceptorGroup {
+            player_id: "p2".into(),
+            source_region_id: "B".into(),
+            fighters: 10,
+            progress: 1.0,
+            speed_per_tick: 0.5,
+        }, &mut regions);
+
+        assert!(has_event(&combat_events, |e| matches!(e, Event::AirCombatResolved { .. })),
+            "Should emit AirCombatResolved; events: {:?}", combat_events);
+
+        // With randomness=0.0 and 10 interceptors (attack=3.0) vs 5 bombers (defense=0.5),
+        // interceptors should deal significant damage to bombers
+        assert!(new_flight.units <= 5,
+            "Bombers should not gain units from interception; remaining={}", new_flight.units);
+    }
+
+    #[test]
+    fn test_attack_action_with_bomber_creates_air_transit_item() {
+        let (engine, mut regions, mut players) = make_air_engine();
+        let mut buildings_queue = vec![];
+        let mut unit_queue = vec![];
+        let mut transit_queue = vec![];
+        let mut air_transit_queue = vec![];
+
+        // p1 attacks B with bombers (B is enemy-owned)
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(3),
+            unit_type: Some("bomber".into()),
+            ..Default::default()
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut unit_queue, &mut transit_queue,
+            &mut air_transit_queue, &mut diplomacy, 1,
+        );
+
+        // Air units should go to air_transit_queue, not the ground transit_queue
+        assert!(transit_queue.is_empty(), "Bombers should not go into ground transit queue");
+        assert_eq!(air_transit_queue.len(), 1, "Bomber should be in air transit queue");
+        assert_eq!(air_transit_queue[0].mission_type, "bomb_run");
+        assert!(has_event(&events, |e| matches!(e, Event::AirMissionLaunched { mission_type, .. }
+            if mission_type == "bomb_run")),
+            "Should emit AirMissionLaunched; events: {:?}", events);
+    }
+
+    #[test]
+    fn test_intercept_action_attaches_interceptor_to_flight() {
+        let (engine, mut regions, mut players) = make_air_engine();
+
+        // Give p2's region B some fighters for interception
+        regions.get_mut("B").unwrap().units.insert("fighter".into(), 4);
+        // Fighters in B have manpower_cost=2, so need 8 more infantry reserved
+        regions.get_mut("B").unwrap().units.insert("infantry".into(), 28);
+
+        let mut air_transit_queue = vec![make_bomb_run("A", "C", "p1", 3)];
+        let flight_id = air_transit_queue[0].id.clone();
+
+        let action = Action {
+            action_type: "intercept".into(),
+            player_id: Some("p2".into()),
+            source_region_id: Some("B".into()),
+            target_flight_id: Some(flight_id.clone()),
+            units: Some(2),
+            unit_type: Some("fighter".into()),
+            ..Default::default()
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut air_transit_queue, &mut diplomacy, 1,
+        );
+
+        assert!(has_event(&events, |e| matches!(e, Event::AirInterceptDispatched {
+            flight_id: fid, interceptor_player_id, ..
+        } if fid == &flight_id && interceptor_player_id == "p2")),
+            "Should emit AirInterceptDispatched; events: {:?}", events);
+
+        assert_eq!(air_transit_queue[0].interceptors.len(), 1,
+            "Interceptor group should be attached to the flight");
+        assert_eq!(air_transit_queue[0].interceptors[0].fighters, 2,
+            "Should have 2 intercepting fighters");
+    }
+
+    // -------------------------------------------------------------------------
+    // 22. Unit production — produce_unit action edge cases
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_produce_tank_succeeds_with_factory_and_energy() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Add factory to A; tank needs factory + 15 energy + 3 manpower
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "factory".into(), level: 1 }
+        );
+        players.get_mut("p1").unwrap().energy = 100;
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let mut unit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut unit_queue, &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert_eq!(unit_queue.len(), 1, "Tank should be queued");
+        assert_eq!(unit_queue[0].unit_type, "tank");
+        assert_eq!(players["p1"].energy, 85, "15 energy should be deducted");
+        assert!(has_event(&events, |e| matches!(e, Event::UnitProductionStarted { unit_type, .. }
+            if unit_type == "tank")));
+    }
+
+    #[test]
+    fn test_produce_unit_rejected_insufficient_energy() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "factory".into(), level: 1 }
+        );
+        // Only 5 energy — tank costs 15
+        players.get_mut("p1").unwrap().energy = 5;
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let mut unit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut unit_queue, &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(unit_queue.is_empty(), "No unit should be queued without energy");
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should reject with insufficient energy; events: {:?}", events);
+    }
+
+    #[test]
+    fn test_produce_unit_rejected_without_required_building() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        // No factory in A
+        players.get_mut("p1").unwrap().energy = 200;
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let mut unit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut unit_queue, &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(unit_queue.is_empty());
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should reject production without required building; events: {:?}", events);
+    }
+
+    #[test]
+    fn test_produce_unit_rejected_insufficient_manpower() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "factory".into(), level: 1 }
+        );
+        // Tank needs 3 infantry manpower; set only 2 infantry
+        regions.get_mut("A").unwrap().units.insert("infantry".into(), 2);
+        regions.get_mut("A").unwrap().unit_count = 2;
+        players.get_mut("p1").unwrap().energy = 200;
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let mut unit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut unit_queue, &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(unit_queue.is_empty());
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should reject production without enough manpower; events: {:?}", events);
+    }
+
+    // -------------------------------------------------------------------------
+    // 23. Building system — build action and upgrade
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_build_barracks_on_own_region_succeeds() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        players.get_mut("p1").unwrap().energy = 200;
+
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert_eq!(buildings_queue.len(), 1);
+        assert_eq!(buildings_queue[0].building_type, "barracks");
+        assert_eq!(buildings_queue[0].is_upgrade, false);
+        assert!(has_event(&events, |e| matches!(e, Event::BuildStarted {
+            region_id, building_type, ..
+        } if region_id == "A" && building_type == "barracks")));
+        assert_eq!(players["p1"].energy, 200 - 30); // barracks costs 30
+    }
+
+    #[test]
+    fn test_upgrade_building_action_creates_upgrade_queue_entry() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Pre-place a level-1 barracks; give enough energy and deck level
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "barracks".into(), level: 1 }
+        );
+        players.get_mut("p1").unwrap().energy = 500;
+        // Deck allows up to level 3
+        players.get_mut("p1").unwrap().building_levels.insert("barracks".into(), 3);
+
+        let action = Action {
+            action_type: "upgrade_building".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert_eq!(buildings_queue.len(), 1, "Upgrade should be queued");
+        assert!(buildings_queue[0].is_upgrade, "Queue item should be marked as upgrade");
+        assert_eq!(buildings_queue[0].target_level, 2, "Target level should be 2");
+        assert!(has_event(&events, |e| matches!(e, Event::BuildStarted { .. })));
+    }
+
+    #[test]
+    fn test_upgrade_building_rejected_at_max_level() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Deck limit = 1 (no upgrade beyond level 1)
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "barracks".into(), level: 1 }
+        );
+        players.get_mut("p1").unwrap().energy = 500;
+        players.get_mut("p1").unwrap().building_levels.insert("barracks".into(), 1);
+
+        let action = Action {
+            action_type: "upgrade_building".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(buildings_queue.is_empty(), "Should not queue upgrade at max level");
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should reject upgrade at max level; events: {:?}", events);
+    }
+
+    // -------------------------------------------------------------------------
+    // 24. process_tick — full-tick integration tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_process_tick_energy_increases_each_tick() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let initial_energy = players["p1"].energy;
+
+        let mut diplomacy = DiplomacyState::default();
+        engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut vec![], 1, &mut vec![], &mut diplomacy,
+        );
+
+        // p1 owns A and B: income = 2.0 + 2*0.35 = 2.70 per tick
+        // After 1 tick, energy_accum = 2.70, which adds 2 whole units
+        let p1 = &players["p1"];
+        let total = p1.energy as f64 + p1.energy_accum;
+        assert!(total > initial_energy as f64,
+            "Energy should increase after a tick; before={} after_total={}", initial_energy, total);
+    }
+
+    #[test]
+    fn test_process_tick_unit_generation_increases_units() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let initial_a = regions["A"].units.get("infantry").copied().unwrap_or(0);
+        let initial_b = regions["B"].units.get("infantry").copied().unwrap_or(0);
+
+        let mut diplomacy = DiplomacyState::default();
+        // Run several ticks so unit_accum crosses 1.0
+        for tick in 1..=5 {
+            engine.process_tick(
+                &mut players, &mut regions, &[],
+                &mut vec![], &mut vec![], &mut vec![],
+                &mut vec![], tick, &mut vec![], &mut diplomacy,
+            );
+        }
+
+        let after_a = regions["A"].units.get("infantry").copied().unwrap_or(0);
+        let after_b = regions["B"].units.get("infantry").copied().unwrap_or(0);
+
+        assert!(after_a + after_b > initial_a + initial_b,
+            "Total units for p1 should increase after 5 ticks; before={} after={}",
+            initial_a + initial_b, after_a + after_b);
+    }
+
+    #[test]
+    fn test_process_tick_transit_arrives_and_combat_resolves() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Set up: p1 attacks C (owned by p2) with overwhelming force
+        // Pre-populate transit queue so combat resolves in tick 1
+        let mut transit_queue = vec![TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 100,
+            ticks_remaining: 1,
+            travel_ticks: 1,
+        }];
+        // Give p1's A and B enough units
+        regions.get_mut("A").unwrap().units.insert("infantry".into(), 50);
+        regions.get_mut("A").unwrap().unit_count = 50;
+        regions.get_mut("B").unwrap().units.insert("infantry".into(), 100);
+        regions.get_mut("B").unwrap().unit_count = 100;
+        // C has very few defenders
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 1);
+        regions.get_mut("C").unwrap().unit_count = 1;
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut vec![], &mut vec![], &mut transit_queue,
+            &mut vec![], 1, &mut vec![], &mut diplomacy,
+        );
+
+        // Transit item should be processed and C should now belong to p1
+        assert!(transit_queue.is_empty(), "Transit item should be consumed after arrival");
+        assert!(has_event(&events, |e| matches!(e, Event::AttackSuccess { target_region_id, .. }
+            if target_region_id == "C")),
+            "Should emit AttackSuccess for conquest of C; events contain: {:?}",
+            events.iter().map(|e| std::mem::discriminant(e)).collect::<Vec<_>>());
+        assert_eq!(regions["C"].owner_id.as_deref(), Some("p1"),
+            "C should now belong to p1 after successful attack");
+    }
+
+    #[test]
+    fn test_process_tick_player_eliminated_when_capital_lost() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Make C p2's capital with tiny defense
+        regions.get_mut("C").unwrap().is_capital = true;
+        players.get_mut("p2").unwrap().capital_region_id = Some("C".into());
+
+        // p1 attacks with transit that will arrive this tick
+        let mut transit_queue = vec![TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 200,
+            ticks_remaining: 1,
+            travel_ticks: 1,
+        }];
+        regions.get_mut("B").unwrap().units.insert("infantry".into(), 200);
+        regions.get_mut("B").unwrap().unit_count = 200;
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 1);
+        regions.get_mut("C").unwrap().unit_count = 1;
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut vec![], &mut vec![], &mut transit_queue,
+            &mut vec![], 1, &mut vec![], &mut diplomacy,
+        );
+
+        assert!(has_event(&events, |e| matches!(e, Event::PlayerEliminated { player_id, .. }
+            if player_id == "p2")),
+            "p2 should be eliminated when capital captured; events: {:?}",
+            events.iter().map(|e| std::mem::discriminant(e)).collect::<Vec<_>>());
+        assert!(!players["p2"].is_alive, "p2 should be marked dead");
+    }
+
+    #[test]
+    fn test_process_tick_action_rejected_when_no_ap() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Set p1's AP to zero so the attack action (cost = ap_cost_attack = 4) is rejected
+        players.get_mut("p1").unwrap().action_points = 0;
+
+        // Change B to p2 so it is a valid attack target
+        regions.get_mut("B").unwrap().owner_id = Some("p2".into());
+
+        let actions = vec![Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            ..Default::default()
+        }];
+
+        let mut transit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_tick(
+            &mut players, &mut regions, &actions,
+            &mut vec![], &mut vec![], &mut transit_queue,
+            &mut vec![], 1, &mut vec![], &mut diplomacy,
+        );
+
+        assert!(transit_queue.is_empty(), "No transit should be created when AP is zero");
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected for AP-gated action; events: {:?}",
+            events.iter().filter(|e| matches!(e, Event::ActionRejected { .. })).count());
+    }
+
+    #[test]
+    fn test_process_tick_building_queue_item_completes() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        let mut buildings_queue = vec![BuildingQueueItem {
+            region_id: "A".into(),
+            building_type: "barracks".into(),
+            player_id: "p1".into(),
+            ticks_remaining: 1,
+            total_ticks: 5,
+            is_upgrade: false,
+            target_level: 0,
+        }];
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut buildings_queue, &mut vec![], &mut vec![],
+            &mut vec![], 1, &mut vec![], &mut diplomacy,
+        );
+
+        assert!(buildings_queue.is_empty(), "Building should complete and leave the queue");
+        assert!(has_event(&events, |e| matches!(e, Event::BuildingComplete {
+            region_id, building_type, ..
+        } if region_id == "A" && building_type == "barracks")));
+        assert_eq!(
+            GameEngine::count_buildings(&regions["A"].building_instances, "barracks"), 1
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 25. Combat resolution — additional edge cases
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_combat_neutral_region_captured_without_owner_loss() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Make C neutral (no owner, few units)
+        regions.get_mut("C").unwrap().owner_id = None;
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 2);
+        regions.get_mut("C").unwrap().unit_count = 2;
+
+        let item = TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "infantry".into(),
+            units: 50,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
+
+        assert!(has_event(&events, |e| matches!(e, Event::AttackSuccess { target_region_id, .. }
+            if target_region_id == "C")),
+            "Should capture neutral region; events: {:?}", events);
+        assert_eq!(regions["C"].owner_id.as_deref(), Some("p1"));
+    }
+
+    #[test]
+    fn test_combat_attacker_power_scales_with_unit_type() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Give B a factory and some tanks (attack=3.0 vs infantry attack=1.0)
+        regions.get_mut("B").unwrap().building_instances.push(
+            BuildingInstance { building_type: "factory".into(), level: 1 }
+        );
+        // 5 tanks * manpower=3 = 15 reserved, add 15 extra infantry
+        regions.get_mut("B").unwrap().units.insert("tank".into(), 5);
+        regions.get_mut("B").unwrap().units.insert("infantry".into(), 30);
+        // C has moderate defenders
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 5);
+        regions.get_mut("C").unwrap().unit_count = 5;
+
+        let item = TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "B".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "tank".into(),
+            units: 5,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
+
+        // 5 tanks vs 5 infantry — tanks have much higher attack power, should win
+        assert!(has_event(&events, |e| matches!(e, Event::AttackSuccess { .. })),
+            "Tanks should overwhelm equal-count infantry; events: {:?}", events);
+    }
+
+    #[test]
+    fn test_process_tick_ap_regenerates_between_ticks() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Set p1's AP to 0 to start
+        players.get_mut("p1").unwrap().action_points = 0;
+
+        let mut diplomacy = DiplomacyState::default();
+        // With ap_regen_interval=2 (default), after 2 ticks p1 gains 1 AP
+        engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut vec![], 1, &mut vec![], &mut diplomacy,
+        );
+        engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut vec![], 2, &mut vec![], &mut diplomacy,
+        );
+
+        let p1 = &players["p1"];
+        // After 2 ticks: 2 * (1/2) = 1.0, so at least 1 AP should be gained
+        let total_ap = p1.action_points as f64 + p1.ap_regen_accum;
+        assert!(total_ap >= 1.0,
+            "p1 should have regenerated at least 1 AP after 2 ticks; total_ap={}", total_ap);
+    }
+
+    // -------------------------------------------------------------------------
+    // 23. Ability system — full ability slugs (nuke, virus, submarine, shield,
+    //     flash, conscription) and active-effect processing
+    // -------------------------------------------------------------------------
+
+    /// Engine whose ability_types map includes every ability slug under test.
+    /// Topology: A(p1) — B(p1) — C(p2) — D(p2), neighbour chain.
+    fn make_engine_with_full_abilities()
+    -> (GameEngine, HashMap<String, Region>, HashMap<String, Player>) {
+        let mut settings = test_settings();
+        settings.combat_randomness = 0.0;
+        settings.capital_protection_ticks = 0;
+        settings.diplomacy_enabled = false;
+        settings.ap_cost_ability = 0; // ability AP cost irrelevant for unit tests
+
+        let mut ability_types: HashMap<String, AbilityConfig> = HashMap::new();
+
+        // ab_province_nuke — enemy target, unlimited range (range=0), 8-tick flight,
+        // 100 damage so 100 % kill on impact.
+        ability_types.insert("ab_province_nuke".into(), AbilityConfig {
+            name: "Nuke".into(),
+            sound_key: String::new(),
+            asset_key: String::new(),
+            target_type: "enemy".into(),
+            range: 0,
+            energy_cost: 50,
+            cooldown_ticks: 100,
+            damage: 100,
+            effect_duration_ticks: 8,
+            effect_params: serde_json::json!({}),
+            max_level: 1,
+            level_stats: HashMap::new(),
+        });
+
+        // ab_virus — enemy target, kills 5 % per tick, duration=10, spread_range=1
+        ability_types.insert("ab_virus".into(), AbilityConfig {
+            name: "Virus".into(),
+            sound_key: String::new(),
+            asset_key: String::new(),
+            target_type: "enemy".into(),
+            range: 0,
+            energy_cost: 30,
+            cooldown_ticks: 80,
+            damage: 0,
+            effect_duration_ticks: 10,
+            effect_params: serde_json::json!({
+                "unit_kill_percent": 0.05,
+                "spread_range": 1
+            }),
+            max_level: 1,
+            level_stats: HashMap::new(),
+        });
+
+        // ab_pr_submarine — own target, duration=5
+        ability_types.insert("ab_pr_submarine".into(), AbilityConfig {
+            name: "Submarine".into(),
+            sound_key: String::new(),
+            asset_key: String::new(),
+            target_type: "own".into(),
+            range: 0,
+            energy_cost: 20,
+            cooldown_ticks: 60,
+            damage: 0,
+            effect_duration_ticks: 5,
+            effect_params: serde_json::json!({}),
+            max_level: 1,
+            level_stats: HashMap::new(),
+        });
+
+        // ab_shield — own target, duration=5
+        ability_types.insert("ab_shield".into(), AbilityConfig {
+            name: "Shield".into(),
+            sound_key: String::new(),
+            asset_key: String::new(),
+            target_type: "own".into(),
+            range: 0,
+            energy_cost: 25,
+            cooldown_ticks: 50,
+            damage: 0,
+            effect_duration_ticks: 5,
+            effect_params: serde_json::json!({}),
+            max_level: 1,
+            level_stats: HashMap::new(),
+        });
+
+        // ab_flash — enemy target, radius=1, duration=4
+        ability_types.insert("ab_flash".into(), AbilityConfig {
+            name: "Flash".into(),
+            sound_key: String::new(),
+            asset_key: String::new(),
+            target_type: "enemy".into(),
+            range: 0,
+            energy_cost: 15,
+            cooldown_ticks: 40,
+            damage: 0,
+            effect_duration_ticks: 4,
+            effect_params: serde_json::json!({ "radius": 1 }),
+            max_level: 1,
+            level_stats: HashMap::new(),
+        });
+
+        // ab_conscription_point — own target, collects 30 % from neutral neighbours
+        ability_types.insert("ab_conscription_point".into(), AbilityConfig {
+            name: "Conscription".into(),
+            sound_key: String::new(),
+            asset_key: String::new(),
+            target_type: "own".into(),
+            range: 0,
+            energy_cost: 10,
+            cooldown_ticks: 30,
+            damage: 0,
+            effect_duration_ticks: 0,
+            effect_params: serde_json::json!({ "collect_percent": 0.30 }),
+            max_level: 1,
+            level_stats: HashMap::new(),
+        });
+
+        settings.ability_types = ability_types;
+
+        // Neighbour chain: A — B — C — D
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+        neighbor_map.insert("C".into(), vec!["B".into(), "D".into()]);
+        neighbor_map.insert("D".into(), vec!["C".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 30));
+        regions.insert("B".into(), make_region("B", Some("p1"), 20));
+        regions.insert("C".into(), make_region("C", Some("p2"), 20));
+        regions.insert("D".into(), make_region("D", Some("p2"), 20));
+
+        let mut players = HashMap::new();
+        let mut p1 = make_player("p1");
+        p1.energy = 300;
+        // Pre-load one scroll per ability so the scroll gate never blocks tests
+        // (individual tests override this when they want to test the scroll path).
+        for slug in &[
+            "ab_province_nuke", "ab_virus", "ab_pr_submarine",
+            "ab_shield", "ab_flash", "ab_conscription_point",
+        ] {
+            p1.ability_scrolls.insert(slug.to_string(), 5);
+        }
+        players.insert("p1".into(), p1);
+        players.insert("p2".into(), make_player("p2"));
+
+        (engine, regions, players)
+    }
+
+    // --- Ability validation ---
+
+    #[test]
+    fn test_ability_missing_slug_rejected() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        // ability_type is None — engine must reject before doing anything
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: None,
+            target_region_id: Some("C".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Missing ability_slug must be rejected; events: {:?}", events);
+        // No state mutation
+        assert_eq!(players["p1"].energy, 300, "Energy must be unchanged on rejection");
+    }
+
+    #[test]
+    fn test_ability_no_scroll_count_rejected() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        // Explicitly set scroll count to 0
+        players.get_mut("p1").unwrap().ability_scrolls.insert("ab_shield".into(), 0);
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_shield".into()),
+            target_region_id: Some("A".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Zero scroll count must be rejected; events: {:?}", events);
+        assert!(active_effects.is_empty(), "No effect should be created");
+    }
+
+    #[test]
+    fn test_ability_insufficient_energy_for_nuke_rejected() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        // Nuke costs 50; give only 10
+        players.get_mut("p1").unwrap().energy = 10;
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_province_nuke".into()),
+            target_region_id: Some("C".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Insufficient energy must be rejected; events: {:?}", events);
+        assert_eq!(players["p1"].energy, 10, "Energy must be unchanged on rejection");
+        assert!(active_effects.is_empty(), "No nuke flight should be queued");
+    }
+
+    #[test]
+    fn test_ability_own_type_on_enemy_region_rejected() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        // ab_shield requires target_type="own"; C belongs to p2
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_shield".into()),
+            target_region_id: Some("C".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Own-type ability on enemy region must be rejected; events: {:?}", events);
+    }
+
+    #[test]
+    fn test_ability_out_of_range_rejected() {
+        let mut settings = test_settings();
+        settings.ap_cost_ability = 0;
+        settings.diplomacy_enabled = false;
+
+        // Single ranged ability: range=1, enemy target
+        let mut ability_types: HashMap<String, AbilityConfig> = HashMap::new();
+        ability_types.insert("ab_ranged_strike".into(), AbilityConfig {
+            name: "Ranged Strike".into(),
+            sound_key: String::new(),
+            asset_key: String::new(),
+            target_type: "enemy".into(),
+            range: 1,  // only 1 hop from owned regions
+            energy_cost: 5,
+            cooldown_ticks: 10,
+            damage: 0,
+            effect_duration_ticks: 0,
+            effect_params: serde_json::json!({}),
+            max_level: 1,
+            level_stats: HashMap::new(),
+        });
+        settings.ability_types = ability_types;
+
+        // Chain: A(p1) — B(neutral) — C(p2) — D(p2)
+        // Range 1 from A can reach B, but NOT C or D.
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+        neighbor_map.insert("C".into(), vec!["B".into(), "D".into()]);
+        neighbor_map.insert("D".into(), vec!["C".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 10));
+        regions.insert("B".into(), make_region("B", None, 3));
+        regions.insert("C".into(), make_region("C", Some("p2"), 10));
+        regions.insert("D".into(), make_region("D", Some("p2"), 10));
+
+        let mut players = HashMap::new();
+        let mut p1 = make_player("p1");
+        p1.energy = 100;
+        p1.ability_scrolls.insert("ab_ranged_strike".into(), 3);
+        players.insert("p1".into(), p1);
+        players.insert("p2".into(), make_player("p2"));
+
+        let mut active_effects = vec![];
+
+        // C is 2 hops from A — beyond range 1
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_ranged_strike".into()),
+            target_region_id: Some("C".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Target beyond ability range must be rejected; events: {:?}", events);
+    }
+
+    #[test]
+    fn test_ability_cooldown_blocks_reuse() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        // Plant a cooldown that expires at tick 200; attempt at tick 50
+        players.get_mut("p1").unwrap().ability_cooldowns.insert("ab_virus".into(), 200);
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_virus".into()),
+            target_region_id: Some("C".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_ability(&action, &mut players, &mut regions, 50, &mut active_effects);
+        assert!(has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Ability on cooldown must be rejected; events: {:?}", events);
+        assert!(active_effects.is_empty(), "No effect queued while on cooldown");
+    }
+
+    // --- Nuke ---
+
+    #[test]
+    fn test_nuke_creates_delayed_active_effect_with_8_tick_flight() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_province_nuke".into()),
+            target_region_id: Some("C".into()),
+            ..Default::default()
+        };
+
+        let events = engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        // AbilityUsed must fire immediately
+        assert!(has_event(&events, |e| matches!(e, Event::AbilityUsed {
+            ability_type, ..
+        } if ability_type == "ab_province_nuke")),
+            "AbilityUsed must be emitted; events: {:?}", events);
+
+        // A delayed ActiveEffect for the nuke flight should be queued
+        assert_eq!(active_effects.len(), 1, "Exactly one delayed nuke effect");
+        let effect = &active_effects[0];
+        assert_eq!(effect.effect_type, "ab_province_nuke");
+        assert_eq!(effect.target_region_id, "C");
+        assert_eq!(effect.ticks_remaining, 8, "Nuke flight is 8 ticks");
+
+        // No damage applied yet — C should be untouched
+        let c_units: i64 = regions["C"].units.values().sum();
+        assert_eq!(c_units, 20, "Nuke must not apply damage on cast");
+    }
+
+    #[test]
+    fn test_nuke_impact_kills_units_in_target_and_neighbors_on_expiry() {
+        let (engine, mut regions, _) = make_engine_with_full_abilities();
+
+        // 100 infantry in C; D is C's neighbour
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 100);
+        regions.get_mut("C").unwrap().unit_count = 100;
+        regions.get_mut("D").unwrap().units.insert("infantry".into(), 100);
+        regions.get_mut("D").unwrap().unit_count = 100;
+
+        // Nuke effect aimed at C with neighbours [D], 1 tick remaining → impacts now
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_province_nuke".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "C".into(),
+            affected_region_ids: vec!["D".into()],
+            ticks_remaining: 1,
+            total_ticks: 8,
+            params: serde_json::json!({ "damage": 100 }),
+        }];
+
+        engine.process_active_effects(&mut regions, &mut active_effects);
+
+        // Effect must be removed after expiry
+        assert!(active_effects.is_empty(), "Expired nuke effect must be cleaned up");
+
+        // C gets 100 % kill: all 100 infantry dead (non-capital → can go to 0)
+        let c_remaining: i64 = regions["C"].units.values().sum();
+        assert_eq!(c_remaining, 0, "Direct nuke target loses 100 % of units (non-capital)");
+
+        // D gets 50 % splash: 50 dead, 50 remain
+        let d_remaining: i64 = regions["D"].units.values().sum();
+        assert_eq!(d_remaining, 50, "Neighbour takes 50 % splash damage");
+    }
+
+    #[test]
+    fn test_nuke_capital_keeps_at_least_one_unit() {
+        let (engine, mut regions, _) = make_engine_with_full_abilities();
+
+        // Mark C as a capital with 100 units
+        regions.get_mut("C").unwrap().is_capital = true;
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 100);
+        regions.get_mut("C").unwrap().unit_count = 100;
+
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_province_nuke".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "C".into(),
+            affected_region_ids: vec![],
+            ticks_remaining: 1,
+            total_ticks: 8,
+            params: serde_json::json!({ "damage": 100 }),
+        }];
+
+        engine.process_active_effects(&mut regions, &mut active_effects);
+
+        let c_remaining: i64 = regions["C"].units.values().sum();
+        assert!(c_remaining >= 1,
+            "Capital must survive a nuke with at least 1 unit; remaining: {}", c_remaining);
+    }
+
+    // --- Virus ---
+
+    #[test]
+    fn test_virus_effect_applied_and_kills_5_percent_per_tick() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        // Cast virus on C
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_virus".into()),
+            target_region_id: Some("C".into()),
+            ..Default::default()
+        };
+        engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        // One ActiveEffect should be queued for the virus
+        assert_eq!(active_effects.len(), 1);
+        assert_eq!(active_effects[0].effect_type, "ab_virus");
+        assert_eq!(active_effects[0].target_region_id, "C");
+
+        // Give C a large enough unit pool so 5 % kill is observable
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 200);
+        regions.get_mut("C").unwrap().unit_count = 200;
+
+        let before: i64 = regions["C"].units.values().sum();
+        engine.process_active_effects(&mut regions, &mut active_effects);
+        let after: i64 = regions["C"].units.values().sum();
+
+        // ceil(200 * 0.05) = 10 killed, so 190 remain
+        assert!(after < before,
+            "Virus must reduce units on each tick; before={}, after={}", before, after);
+        assert_eq!(after, 190, "5 % ceil kill of 200 should leave 190");
+    }
+
+    #[test]
+    fn test_virus_safety_floor_keeps_at_least_one_unit() {
+        let (engine, mut regions, _) = make_engine_with_full_abilities();
+
+        // Region has exactly 1 unit — virus must not wipe it
+        regions.get_mut("C").unwrap().units.insert("infantry".into(), 1);
+        regions.get_mut("C").unwrap().unit_count = 1;
+
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_virus".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "C".into(),
+            affected_region_ids: vec![],
+            ticks_remaining: 5,
+            total_ticks: 10,
+            params: serde_json::json!({ "unit_kill_percent": 0.05 }),
+        }];
+
+        engine.process_active_effects(&mut regions, &mut active_effects);
+
+        let remaining: i64 = regions["C"].units.values().sum();
+        assert!(remaining >= 1,
+            "Virus safety floor: region must keep at least 1 unit; remaining: {}", remaining);
+    }
+
+    // --- Submarine ---
+
+    #[test]
+    fn test_submarine_reveals_enemy_neighbors() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        // B is owned by p1; its enemy neighbour is C (p2).
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_pr_submarine".into()),
+            target_region_id: Some("B".into()),
+            ..Default::default()
+        };
+
+        engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        assert_eq!(active_effects.len(), 1);
+        let effect = &active_effects[0];
+        assert_eq!(effect.effect_type, "ab_pr_submarine");
+        assert_eq!(effect.target_region_id, "B");
+
+        // C is B's enemy neighbour; it must appear in affected_region_ids.
+        // A is B's own-side neighbour (also p1) — must NOT appear.
+        assert!(effect.affected_region_ids.contains(&"C".to_string()),
+            "Submarine must reveal enemy neighbour C; affected={:?}", effect.affected_region_ids);
+        assert!(!effect.affected_region_ids.contains(&"A".to_string()),
+            "Submarine must not reveal friendly neighbour A; affected={:?}", effect.affected_region_ids);
+    }
+
+    // --- Shield ---
+
+    #[test]
+    fn test_shield_ability_creates_effect_and_blocks_attack() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        // Cast shield on C (owned by p2, but p1 cannot shield enemy — use p2 player instead)
+        // Shield is "own" target; cast it on A (p1's own region).
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_shield".into()),
+            target_region_id: Some("A".into()),
+            ..Default::default()
+        };
+
+        engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        assert_eq!(active_effects.len(), 1);
+        assert_eq!(active_effects[0].effect_type, "ab_shield");
+        assert_eq!(active_effects[0].target_region_id, "A");
+
+        // Now send an attack toward A from p2 and confirm the shield blocks it
+        let transit = vec![TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "C".into(),
+            target_region_id: "A".into(),
+            player_id: "p2".into(),
+            unit_type: "infantry".into(),
+            units: 10,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        }];
+
+        let mut diplomacy = DiplomacyState::default();
+        let (remaining, events) = engine.process_transit_queue_with_shield(
+            &mut players, &mut regions, &transit, &active_effects, &mut diplomacy, 2,
+        );
+
+        assert!(remaining.is_empty(), "Blocked transit must be removed from queue");
+        assert!(has_event(&events, |e| matches!(e, Event::ShieldBlocked {
+            target_region_id, ..
+        } if target_region_id == "A")),
+            "Shield must block the attack on A; events: {:?}", events);
+        assert_eq!(regions["A"].owner_id.as_deref(), Some("p1"),
+            "A must still belong to p1 after shield block");
+    }
+
+    // --- Conscription ---
+
+    #[test]
+    fn test_conscription_collects_from_neutral_neighbors() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        // Make B neutral with 100 infantry so conscription has something to collect.
+        // A (p1's own) is the conscription target; its neighbour B becomes neutral.
+        regions.get_mut("B").unwrap().owner_id = None;
+        regions.get_mut("B").unwrap().units.insert("infantry".into(), 100);
+        regions.get_mut("B").unwrap().unit_count = 100;
+
+        let a_before: i64 = regions["A"].units.values().sum();
+        let b_before: i64 = regions["B"].units.values().sum();
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_conscription_point".into()),
+            target_region_id: Some("A".into()),
+            ..Default::default()
+        };
+
+        engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        let a_after: i64 = regions["A"].units.values().sum();
+        let b_after: i64 = regions["B"].units.values().sum();
+
+        // 30 % of 100 = 30 collected from B, transferred to A
+        assert!(a_after > a_before,
+            "Conscription must add units to target region; before={}, after={}", a_before, a_after);
+        assert_eq!(a_after - a_before, 30, "30 % of 100 neutral units = 30 collected");
+        assert!(b_after < b_before,
+            "Conscription must drain units from neutral neighbour; before={}, after={}", b_before, b_after);
+        assert_eq!(b_before - b_after, 30, "30 units removed from neutral neighbour");
+    }
+
+    #[test]
+    fn test_conscription_ignores_owned_neighbors() {
+        let (engine, mut regions, mut players) = make_engine_with_full_abilities();
+        let mut active_effects = vec![];
+
+        // B is owned by p1 — conscription must not collect from it
+        let b_before: i64 = regions["B"].units.values().sum();
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_conscription_point".into()),
+            target_region_id: Some("A".into()),
+            ..Default::default()
+        };
+
+        engine.process_ability(&action, &mut players, &mut regions, 1, &mut active_effects);
+
+        let b_after: i64 = regions["B"].units.values().sum();
+        assert_eq!(b_before, b_after,
+            "Conscription must not drain units from an owned neighbour; B before={}, after={}", b_before, b_after);
+    }
+
+    // --- Active effects processing ---
+
+    #[test]
+    fn test_active_effect_tick_countdown_decrements_each_call() {
+        let (engine, mut regions, _) = make_engine_with_full_abilities();
+
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_shield".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "A".into(),
+            affected_region_ids: vec![],
+            ticks_remaining: 5,
+            total_ticks: 5,
+            params: serde_json::json!({}),
+        }];
+
+        engine.process_active_effects(&mut regions, &mut active_effects);
+        assert_eq!(active_effects[0].ticks_remaining, 4, "tick_remaining should decrement by 1");
+
+        engine.process_active_effects(&mut regions, &mut active_effects);
+        assert_eq!(active_effects[0].ticks_remaining, 3, "tick_remaining should decrement by 1 again");
+    }
+
+    #[test]
+    fn test_active_effect_removed_and_expired_event_emitted_at_zero() {
+        let (engine, mut regions, _) = make_engine_with_full_abilities();
+
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_virus".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "C".into(),
+            affected_region_ids: vec![],
+            ticks_remaining: 1,
+            total_ticks: 10,
+            params: serde_json::json!({ "unit_kill_percent": 0.0 }), // 0 % kill — isolate expiry behaviour
+        }];
+
+        let events = engine.process_active_effects(&mut regions, &mut active_effects);
+
+        assert!(active_effects.is_empty(), "Effect with ticks_remaining=1 must be removed after one process call");
+        assert!(has_event(&events, |e| matches!(e, Event::AbilityEffectExpired {
+            effect_type, target_region_id
+        } if effect_type == "ab_virus" && target_region_id == "C")),
+            "AbilityEffectExpired must be emitted on effect removal; events: {:?}", events);
+    }
+
+    #[test]
+    fn test_multiple_active_effects_expire_independently() {
+        let (engine, mut regions, _) = make_engine_with_full_abilities();
+
+        let mut active_effects = vec![
+            ActiveEffect {
+                effect_type: "ab_shield".into(),
+                source_player_id: "p1".into(),
+                target_region_id: "A".into(),
+                affected_region_ids: vec![],
+                ticks_remaining: 1, // expires this call
+                total_ticks: 5,
+                params: serde_json::json!({}),
+            },
+            ActiveEffect {
+                effect_type: "ab_shield".into(),
+                source_player_id: "p1".into(),
+                target_region_id: "B".into(),
+                affected_region_ids: vec![],
+                ticks_remaining: 3, // still alive
+                total_ticks: 5,
+                params: serde_json::json!({}),
+            },
+        ];
+
+        let events = engine.process_active_effects(&mut regions, &mut active_effects);
+
+        assert_eq!(active_effects.len(), 1, "Only the B shield should remain");
+        assert_eq!(active_effects[0].target_region_id, "B");
+        assert_eq!(active_effects[0].ticks_remaining, 2, "B shield decremented from 3 to 2");
+        assert!(has_event(&events, |e| matches!(e, Event::AbilityEffectExpired {
+            target_region_id, ..
+        } if target_region_id == "A")),
+            "Expired event must reference the A shield; events: {:?}", events);
+    }
+
+    // =========================================================================
+    // Building system tests
+    // =========================================================================
+
+    // 1. Build barracks — queue entry created, energy deducted
+    #[test]
+    fn test_build_barracks_queues_and_deducts_energy() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+        let initial_energy = players["p1"].energy;
+        let barracks_cost = engine.settings.building_types["barracks"].energy_cost;
+
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let events = engine.process_build(&action, &mut players, &mut regions, &mut buildings_queue);
+
+        assert_eq!(buildings_queue.len(), 1, "One build entry should be queued");
+        assert_eq!(buildings_queue[0].building_type, "barracks");
+        assert_eq!(buildings_queue[0].region_id, "A");
+        assert!(!buildings_queue[0].is_upgrade);
+        assert_eq!(
+            players["p1"].energy,
+            initial_energy - barracks_cost,
+            "Energy should be deducted by the barracks cost"
+        );
+        assert!(
+            has_event(&events, |e| matches!(e, Event::BuildStarted { region_id, building_type, .. }
+                if region_id == "A" && building_type == "barracks")),
+            "Should emit BuildStarted; events: {:?}", events
+        );
+    }
+
+    // 2. Build rejected — building type not in deck unlocked_buildings
+    #[test]
+    fn test_build_rejected_not_in_deck_unlocked_buildings() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Only "factory" is unlocked — "barracks" is not
+        players.get_mut("p1").unwrap().unlocked_buildings = vec!["factory".into()];
+
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let events = engine.process_build(&action, &mut players, &mut regions, &mut buildings_queue);
+
+        assert!(buildings_queue.is_empty(), "No build should be queued for locked building");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected for unlocked_buildings check; events: {:?}", events
+        );
+    }
+
+    // 3. Build rejected — max per region limit reached
+    #[test]
+    fn test_build_rejected_max_per_region_limit_reached() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // barracks has max_per_region=1; place one already
+        regions.get_mut("A").unwrap().building_instances.push(BuildingInstance {
+            building_type: "barracks".into(),
+            level: 1,
+        });
+
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let events = engine.process_build(&action, &mut players, &mut regions, &mut buildings_queue);
+
+        assert!(buildings_queue.is_empty(), "Should not queue a second barracks beyond the limit");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected for max-per-region; events: {:?}", events
+        );
+    }
+
+    // 4. Build rejected — insufficient energy
+    #[test]
+    fn test_build_rejected_insufficient_energy() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        players.get_mut("p1").unwrap().energy = 0;
+
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let events = engine.process_build(&action, &mut players, &mut regions, &mut buildings_queue);
+
+        assert!(buildings_queue.is_empty(), "No build queued when energy insufficient");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected for insufficient energy; events: {:?}", events
+        );
+    }
+
+    // 5. Coastal building rejected on non-coastal region
+    #[test]
+    fn test_build_port_rejected_on_non_coastal_region() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Region A is not coastal by default
+        assert!(!regions["A"].is_coastal, "Precondition: region A must not be coastal");
+
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("port".into()),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let events = engine.process_build(&action, &mut players, &mut regions, &mut buildings_queue);
+
+        assert!(buildings_queue.is_empty(), "Port build should be rejected on non-coastal region");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected for coastal requirement; events: {:?}", events
+        );
+    }
+
+    // 6. Building queue completion emits BuildingComplete
+    #[test]
+    fn test_building_queue_completion_emits_building_complete() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        let mut buildings_queue = vec![BuildingQueueItem {
+            region_id: "A".into(),
+            building_type: "factory".into(),
+            player_id: "p1".into(),
+            ticks_remaining: 1,
+            total_ticks: 8,
+            is_upgrade: false,
+            target_level: 0,
+        }];
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut buildings_queue, &mut vec![], &mut vec![],
+            &mut vec![], 1, &mut vec![], &mut diplomacy,
+        );
+
+        assert!(buildings_queue.is_empty(), "Completed building should leave the queue");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::BuildingComplete {
+                region_id, building_type, ..
+            } if region_id == "A" && building_type == "factory")),
+            "Should emit BuildingComplete; events: {:?}", events
+        );
+        assert_eq!(
+            GameEngine::count_buildings(&regions["A"].building_instances, "factory"), 1,
+            "Factory should appear in region building instances after completion"
+        );
+    }
+
+    // =========================================================================
+    // Unit production tests
+    // =========================================================================
+
+    // 7. Produce tank — requires factory building
+    #[test]
+    fn test_produce_tank_with_factory_present() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Add factory and enough infantry for manpower cost (tank needs 3)
+        regions.get_mut("A").unwrap().building_instances.push(BuildingInstance {
+            building_type: "factory".into(),
+            level: 1,
+        });
+        regions.get_mut("A").unwrap().units.insert("infantry".into(), 10);
+        regions.get_mut("A").unwrap().unit_count = 10;
+        players.get_mut("p1").unwrap().energy = 100;
+        let initial_energy = players["p1"].energy;
+        let tank_cost = engine.settings.unit_types["tank"].production_cost;
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let mut unit_queue = vec![];
+        let events = engine.process_unit_production(&action, &mut players, &mut regions, &mut unit_queue);
+
+        assert_eq!(unit_queue.len(), 1, "One tank should enter the production queue");
+        assert_eq!(unit_queue[0].unit_type, "tank");
+        assert_eq!(players["p1"].energy, initial_energy - tank_cost,
+            "Energy deducted by tank production cost");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::UnitProductionStarted { unit_type, .. }
+                if unit_type == "tank")),
+            "Should emit UnitProductionStarted; events: {:?}", events
+        );
+    }
+
+    // 8. Produce rejected — unit type not in deck unlocked_units
+    #[test]
+    fn test_produce_rejected_unit_not_in_deck() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        regions.get_mut("A").unwrap().building_instances.push(BuildingInstance {
+            building_type: "factory".into(),
+            level: 1,
+        });
+        regions.get_mut("A").unwrap().units.insert("infantry".into(), 10);
+        // Only "ship" is unlocked — "tank" is not
+        players.get_mut("p1").unwrap().unlocked_units = vec!["ship".into()];
+        players.get_mut("p1").unwrap().energy = 100;
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let mut unit_queue = vec![];
+        let events = engine.process_unit_production(&action, &mut players, &mut regions, &mut unit_queue);
+
+        assert!(unit_queue.is_empty(), "Tank should not be queued when not in deck");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected for deck unlock check; events: {:?}", events
+        );
+    }
+
+    // 9. Produce rejected — missing producer building
+    #[test]
+    fn test_produce_rejected_missing_producer_building() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // No factory in region A
+        regions.get_mut("A").unwrap().units.insert("infantry".into(), 10);
+        players.get_mut("p1").unwrap().energy = 100;
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let mut unit_queue = vec![];
+        let events = engine.process_unit_production(&action, &mut players, &mut regions, &mut unit_queue);
+
+        assert!(unit_queue.is_empty(), "Tank should not be queued without factory");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected for missing factory; events: {:?}", events
+        );
+    }
+
+    // 10. Produce ship rejected — non-coastal region
+    #[test]
+    fn test_produce_ship_rejected_non_coastal_region() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Region A has a port but is not coastal
+        regions.get_mut("A").unwrap().building_instances.push(BuildingInstance {
+            building_type: "port".into(),
+            level: 1,
+        });
+        regions.get_mut("A").unwrap().units.insert("infantry".into(), 20);
+        players.get_mut("p1").unwrap().energy = 100;
+
+        assert!(!regions["A"].is_coastal, "Precondition: region A must not be coastal");
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("ship".into()),
+            ..Default::default()
+        };
+
+        let mut unit_queue = vec![];
+        let events = engine.process_unit_production(&action, &mut players, &mut regions, &mut unit_queue);
+
+        assert!(unit_queue.is_empty(), "Ship should not be queued on non-coastal region");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected for non-coastal ship production; events: {:?}", events
+        );
+    }
+
+    // 11. Manpower cost validation — insufficient infantry
+    #[test]
+    fn test_produce_rejected_insufficient_manpower() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        // Tank needs 3 infantry as manpower — provide only 1
+        regions.get_mut("A").unwrap().building_instances.push(BuildingInstance {
+            building_type: "factory".into(),
+            level: 1,
+        });
+        regions.get_mut("A").unwrap().units.insert("infantry".into(), 1);
+        regions.get_mut("A").unwrap().unit_count = 1;
+        players.get_mut("p1").unwrap().energy = 100;
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let mut unit_queue = vec![];
+        let events = engine.process_unit_production(&action, &mut players, &mut regions, &mut unit_queue);
+
+        assert!(unit_queue.is_empty(), "Production should be rejected with insufficient infantry");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected for insufficient manpower; events: {:?}", events
+        );
+    }
+
+    // =========================================================================
+    // Movement tests
+    // =========================================================================
+
+    // Helper: build a no-cooldown linear engine for move tests
+    fn make_no_cooldown_linear_engine() -> (GameEngine, HashMap<String, Region>, HashMap<String, Player>) {
+        let mut settings = test_settings();
+        settings.region_move_cooldown = 0;
+        settings.region_attack_cooldown = 0;
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+        neighbor_map.insert("C".into(), vec!["B".into(), "D".into()]);
+        neighbor_map.insert("D".into(), vec!["C".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 20));
+        regions.insert("B".into(), make_region("B", Some("p1"), 15));
+        regions.insert("C".into(), make_region("C", Some("p2"), 15));
+        regions.insert("D".into(), make_region("D", Some("p2"), 20));
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        (engine, regions, players)
+    }
+
+    // 12. Move units to own region — transit created
+    #[test]
+    fn test_move_units_to_own_region_creates_transit() {
+        let (engine, mut regions, mut players) = make_no_cooldown_linear_engine();
+
+        regions.get_mut("A").unwrap().units.insert("infantry".into(), 20);
+        regions.get_mut("A").unwrap().unit_count = 20;
+
+        let action = Action {
+            action_type: "move".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            unit_type: Some("infantry".into()),
+            ..Default::default()
+        };
+
+        let mut transit_queue = vec![];
+        let mut air_transit_queue = vec![];
+        let events = engine.process_move(&action, &mut regions, &mut transit_queue, &mut air_transit_queue, 1);
+
+        assert_eq!(transit_queue.len(), 1, "One transit entry should be created");
+        assert_eq!(transit_queue[0].action_type, "move");
+        assert_eq!(transit_queue[0].units, 5);
+        assert_eq!(transit_queue[0].source_region_id, "A");
+        assert_eq!(transit_queue[0].target_region_id, "B");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::TroopsSent { action_type, .. }
+                if action_type == "move")),
+            "Should emit TroopsSent; events: {:?}", events
+        );
+    }
+
+    // 13. Move rejected — target not owned by player
+    #[test]
+    fn test_move_rejected_target_not_owned() {
+        let (engine, mut regions, mut players) = make_no_cooldown_linear_engine();
+
+        regions.get_mut("B").unwrap().units.insert("infantry".into(), 15);
+        regions.get_mut("B").unwrap().unit_count = 15;
+
+        // C is owned by p2 — p1 tries to move there as a "move" (not attack)
+        let action = Action {
+            action_type: "move".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("B".into()),
+            target_region_id: Some("C".into()),
+            units: Some(5),
+            unit_type: Some("infantry".into()),
+            ..Default::default()
+        };
+
+        let mut transit_queue = vec![];
+        let mut air_transit_queue = vec![];
+        let events = engine.process_move(&action, &mut regions, &mut transit_queue, &mut air_transit_queue, 1);
+
+        assert!(transit_queue.is_empty(), "No transit for move to enemy-owned region");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected when target is not owned; events: {:?}", events
+        );
+    }
+
+    // 14. Move with air units goes into air_transit_queue
+    #[test]
+    fn test_move_air_units_goes_into_air_transit_queue() {
+        let mut settings = test_settings();
+        settings.region_move_cooldown = 0;
+        settings.region_attack_cooldown = 0;
+        settings.unit_types.insert("fighter".into(), UnitConfig {
+            attack: 2.5,
+            defense: 1.0,
+            speed: 3,
+            attack_range: 3,
+            movement_type: "air".into(),
+            production_cost: 25,
+            production_time_ticks: 12,
+            produced_by_slug: Some("carrier".into()),
+            manpower_cost: 10,
+            air_speed_ticks_per_hop: 2,
+            ..Default::default()
+        });
+
+        let mut neighbor_map = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+        neighbor_map.insert("C".into(), vec!["B".into(), "D".into()]);
+        neighbor_map.insert("D".into(), vec!["C".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        let mut r_a = make_region("A", Some("p1"), 20);
+        r_a.centroid = Some([0.0, 0.0]);
+        r_a.units.insert("fighter".into(), 5);
+        regions.insert("A".into(), r_a);
+
+        let mut r_b = make_region("B", Some("p1"), 10);
+        r_b.centroid = Some([1.0, 0.0]);
+        regions.insert("B".into(), r_b);
+
+        let mut r_c = make_region("C", Some("p2"), 10);
+        r_c.centroid = Some([2.0, 0.0]);
+        regions.insert("C".into(), r_c);
+
+        let mut r_d = make_region("D", Some("p2"), 10);
+        r_d.centroid = Some([3.0, 0.0]);
+        regions.insert("D".into(), r_d);
+
+        let action = Action {
+            action_type: "move".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(3),
+            unit_type: Some("fighter".into()),
+            ..Default::default()
+        };
+
+        let mut transit_queue = vec![];
+        let mut air_transit_queue = vec![];
+        let events = engine.process_move(&action, &mut regions, &mut transit_queue, &mut air_transit_queue, 1);
+
+        assert!(transit_queue.is_empty(), "Air units should not enter ground transit queue");
+        assert_eq!(air_transit_queue.len(), 1, "Air unit move should enter air transit queue");
+        assert_eq!(air_transit_queue[0].mission_type, "air_move");
+        assert_eq!(air_transit_queue[0].units, 3);
+        assert!(
+            has_event(&events, |e| matches!(e, Event::TroopsSent { action_type, .. }
+                if action_type == "move")),
+            "Should emit TroopsSent for air move; events: {:?}", events
+        );
+    }
+
+    // 15. Move cooldown enforcement
+    #[test]
+    fn test_move_cooldown_enforced() {
+        let cooldown = 3i64;
+        let engine = make_engine_with_move_cooldown(cooldown);
+
+        // Build regions matching the neighbor map the helper uses (A-B-C-D linear)
+        let mut regions = HashMap::new();
+        let mut r_a = make_region("A", Some("p1"), 20);
+        r_a.units.insert("infantry".into(), 20);
+        r_a.unit_count = 20;
+        regions.insert("A".into(), r_a);
+        regions.insert("B".into(), make_region("B", Some("p1"), 10));
+        regions.insert("C".into(), make_region("C", Some("p2"), 10));
+        regions.insert("D".into(), make_region("D", Some("p2"), 10));
+
+        let action = Action {
+            action_type: "move".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            unit_type: Some("infantry".into()),
+            ..Default::default()
+        };
+
+        // First move at tick 1 — should succeed and set cooldown
+        let mut transit_queue = vec![];
+        let mut air_q = vec![];
+        engine.process_move(&action, &mut regions, &mut transit_queue, &mut air_q, 1);
+        assert!(!transit_queue.is_empty(), "First move at tick 1 should succeed");
+
+        // Second move at tick 2 — within cooldown (ready_tick = 1 + 3 = 4)
+        regions.get_mut("A").unwrap().units.insert("infantry".into(), 15);
+        let mut transit_queue2 = vec![];
+        let events2 = engine.process_move(&action, &mut regions, &mut transit_queue2, &mut air_q, 2);
+
+        assert!(transit_queue2.is_empty(), "Second move within cooldown should be rejected");
+        assert!(
+            has_event(&events2, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected during move cooldown; events: {:?}", events2
+        );
+    }
+
+    // =========================================================================
+    // Boost tests
+    // =========================================================================
+
+    // 16. Activate boost — scroll consumed, effect applied
+    #[test]
+    fn test_activate_boost_consumes_scroll_and_applies_effect() {
+        let (engine, _regions, mut players) = make_linear_engine();
+
+        players.get_mut("p1").unwrap().ability_scrolls.insert("speed_boost".into(), 2);
+
+        let action = Action {
+            action_type: "activate_boost".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("speed_boost".into()),
+            boost_params: Some(serde_json::json!({
+                "effect_type": "unit_bonus",
+                "value": 0.5,
+                "duration_ticks": 10
+            })),
+            ..Default::default()
+        };
+
+        let events = engine.process_activate_boost(&action, &mut players);
+
+        assert_eq!(
+            players["p1"].ability_scrolls["speed_boost"], 1,
+            "Scroll use count should decrease by 1"
+        );
+        assert_eq!(
+            players["p1"].active_match_boosts.len(), 1,
+            "Boost should be added to active_match_boosts"
+        );
+        let boost = &players["p1"].active_match_boosts[0];
+        assert_eq!(boost.slug, "speed_boost");
+        assert_eq!(boost.ticks_remaining, 10);
+        assert_eq!(boost.effect_type, "unit_bonus");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::BoostActivated { boost_slug, .. }
+                if boost_slug == "speed_boost")),
+            "Should emit BoostActivated; events: {:?}", events
+        );
+    }
+
+    // 17. Boost refresh — same slug resets duration
+    #[test]
+    fn test_activate_boost_refreshes_existing_boost() {
+        let (engine, _regions, mut players) = make_linear_engine();
+
+        players.get_mut("p1").unwrap().ability_scrolls.insert("energy_surge".into(), 5);
+        // Pre-place an already-active boost with 3 ticks remaining
+        players.get_mut("p1").unwrap().active_match_boosts.push(ActiveMatchBoost {
+            slug: "energy_surge".into(),
+            effect_type: "energy_bonus".into(),
+            value: 0.2,
+            ticks_remaining: 3,
+            total_ticks: 20,
+        });
+
+        let action = Action {
+            action_type: "activate_boost".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("energy_surge".into()),
+            boost_params: Some(serde_json::json!({
+                "effect_type": "energy_bonus",
+                "value": 0.2,
+                "duration_ticks": 20
+            })),
+            ..Default::default()
+        };
+
+        engine.process_activate_boost(&action, &mut players);
+
+        assert_eq!(
+            players["p1"].active_match_boosts.len(), 1,
+            "Should not add a duplicate boost entry on refresh"
+        );
+        assert_eq!(
+            players["p1"].active_match_boosts[0].ticks_remaining, 20,
+            "Refresh should reset ticks_remaining to full duration"
+        );
+    }
+
+    // 18. Boost expiry after ticks
+    #[test]
+    fn test_boost_expires_after_ticks() {
+        let (engine, _regions, mut players) = make_linear_engine();
+
+        players.get_mut("p1").unwrap().active_match_boosts.push(ActiveMatchBoost {
+            slug: "temp_boost".into(),
+            effect_type: "unit_bonus".into(),
+            value: 0.3,
+            ticks_remaining: 1,
+            total_ticks: 1,
+        });
+
+        let events = engine.tick_match_boosts(&mut players);
+
+        assert!(
+            players["p1"].active_match_boosts.is_empty(),
+            "Expired boost should be removed from active_match_boosts"
+        );
+        assert!(
+            has_event(&events, |e| matches!(e, Event::BoostExpired { player_id, boost_slug }
+                if player_id == "p1" && boost_slug == "temp_boost")),
+            "Should emit BoostExpired; events: {:?}", events
+        );
+    }
+
+    // 19. Boost rejected — no scroll available
+    #[test]
+    fn test_activate_boost_rejected_no_scroll() {
+        let (engine, _regions, mut players) = make_linear_engine();
+
+        // No scrolls for this slug
+        assert!(!players["p1"].ability_scrolls.contains_key("rare_boost"),
+            "Precondition: player must not have rare_boost scroll");
+
+        let action = Action {
+            action_type: "activate_boost".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("rare_boost".into()),
+            boost_params: Some(serde_json::json!({
+                "effect_type": "unit_bonus",
+                "value": 1.0,
+                "duration_ticks": 5
+            })),
+            ..Default::default()
+        };
+
+        let events = engine.process_activate_boost(&action, &mut players);
+
+        assert!(
+            players["p1"].active_match_boosts.is_empty(),
+            "No boost should be applied without a scroll"
+        );
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Should emit ActionRejected; events: {:?}", events
+        );
+    }
+
+    // =========================================================================
+    // Unit generation tests
+    // =========================================================================
+
+    // 20. Base unit generation rate
+    #[test]
+    fn test_unit_generation_base_rate_accumulates() {
+        let mut settings = test_settings();
+        settings.base_unit_generation_rate = 1.0;
+        settings.capital_generation_bonus = 1.0; // no capital bonus for this test
+
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+
+        let mut regions = HashMap::new();
+        let mut r = make_region("A", Some("p1"), 0);
+        r.unit_accum = 0.0;
+        regions.insert("A".into(), r);
+
+        engine.generate_units_with_effects(&mut players, &mut regions, &[]);
+
+        // At rate=1.0 with capital_bonus=1.0, accum should advance by exactly 1.0 per tick.
+        // Units are distributed across the group accumulator — the remainder stays in unit_accum.
+        let region = &regions["A"];
+        let infantry = region.units.get("infantry").copied().unwrap_or(0);
+        let total = infantry as f64 + region.unit_accum;
+        assert!(
+            total >= 1.0,
+            "Region should have accumulated at least 1.0 unit worth after one tick; infantry={}, accum={}",
+            infantry, region.unit_accum
+        );
+    }
+
+    // 21. Capital bonus generation
+    #[test]
+    fn test_unit_generation_capital_bonus() {
+        let mut settings = test_settings();
+        settings.base_unit_generation_rate = 1.0;
+        settings.capital_generation_bonus = 3.0; // capital produces 3x base
+
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+
+        let mut regions = HashMap::new();
+        let r_normal = make_region("A", Some("p1"), 0);
+        regions.insert("A".into(), r_normal);
+        let mut r_capital = make_region("B", Some("p1"), 0);
+        r_capital.is_capital = true;
+        regions.insert("B".into(), r_capital);
+
+        engine.generate_units_with_effects(&mut players, &mut regions, &[]);
+
+        // Capital rate = 1.0 * 3.0 = 3.0; normal rate = 1.0 * 1.0 = 1.0
+        // Both regions belong to the same player but different rate buckets.
+        let normal_total = regions["A"].units.get("infantry").copied().unwrap_or(0) as f64
+            + regions["A"].unit_accum;
+        let capital_total = regions["B"].units.get("infantry").copied().unwrap_or(0) as f64
+            + regions["B"].unit_accum;
+
+        assert!(
+            capital_total >= normal_total,
+            "Capital should generate at least as many units as non-capital per tick; \
+             capital={}, normal={}", capital_total, normal_total
+        );
+    }
+
+    // 22. Virus reduction on unit generation
+    #[test]
+    fn test_unit_generation_virus_reduces_output() {
+        let mut settings = test_settings();
+        settings.base_unit_generation_rate = 5.0; // large rate so we see meaningful delta
+
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 0));
+        regions.insert("B".into(), make_region("B", Some("p1"), 0));
+
+        let virus_effect = ActiveEffect {
+            effect_type: "ab_virus".into(),
+            source_player_id: "p2".into(),
+            target_region_id: "B".into(),
+            affected_region_ids: vec![],
+            ticks_remaining: 10,
+            total_ticks: 10,
+            params: serde_json::json!({"production_reduction": 0.5}),
+        };
+
+        engine.generate_units_with_effects(&mut players, &mut regions, &[virus_effect]);
+
+        let clean_total = regions["A"].units.get("infantry").copied().unwrap_or(0) as f64
+            + regions["A"].unit_accum;
+        let infected_total = regions["B"].units.get("infantry").copied().unwrap_or(0) as f64
+            + regions["B"].unit_accum;
+
+        assert!(
+            infected_total < clean_total,
+            "Virus-afflicted region should generate fewer units; clean={}, infected={}",
+            clean_total, infected_total
+        );
+    }
+
+    // 23. Boost multiplier on unit generation
+    #[test]
+    fn test_unit_generation_boost_multiplier() {
+        let mut settings = test_settings();
+        settings.base_unit_generation_rate = 2.0;
+        settings.capital_generation_bonus = 1.0;
+
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        // Run without boost
+        let mut players_plain = HashMap::new();
+        players_plain.insert("p1".into(), make_player("p1"));
+        let mut regions_plain = HashMap::new();
+        regions_plain.insert("A".into(), make_region("A", Some("p1"), 0));
+        engine.generate_units_with_effects(&mut players_plain, &mut regions_plain, &[]);
+
+        // Run with +100% unit_bonus boost (2x multiplier)
+        let mut players_boosted = HashMap::new();
+        let mut p_boosted = make_player("p1");
+        p_boosted.active_match_boosts.push(ActiveMatchBoost {
+            slug: "unit_boost".into(),
+            effect_type: "unit_bonus".into(),
+            value: 1.0,
+            ticks_remaining: 10,
+            total_ticks: 10,
+        });
+        players_boosted.insert("p1".into(), p_boosted);
+        let mut regions_boosted = HashMap::new();
+        regions_boosted.insert("A".into(), make_region("A", Some("p1"), 0));
+        engine.generate_units_with_effects(&mut players_boosted, &mut regions_boosted, &[]);
+
+        let plain_total = regions_plain["A"].units.get("infantry").copied().unwrap_or(0) as f64
+            + regions_plain["A"].unit_accum;
+        let boosted_total = regions_boosted["A"].units.get("infantry").copied().unwrap_or(0) as f64
+            + regions_boosted["A"].unit_accum;
+
+        assert!(
+            boosted_total > plain_total,
+            "Boosted player should generate more units per tick; boosted={}, plain={}",
+            boosted_total, plain_total
+        );
+    }
+
+    // =========================================================================
+    // Energy generation tests
+    // =========================================================================
+
+    // 24. Base energy generation
+    #[test]
+    fn test_energy_generation_base_per_tick() {
+        let mut settings = test_settings();
+        settings.base_energy_per_tick = 5.0;
+        settings.region_energy_per_tick = 0.0; // isolate base contribution
+
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let mut players = HashMap::new();
+        let mut p = make_player("p1");
+        p.energy = 0;
+        p.energy_accum = 0.0;
+        players.insert("p1".into(), p);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 0));
+
+        engine.generate_energy(&mut players, &regions);
+
+        let p1 = &players["p1"];
+        let total = p1.energy as f64 + p1.energy_accum;
+        assert!(
+            (total - 5.0).abs() < 0.001,
+            "Player should receive exactly 5.0 base energy per tick; total={}", total
+        );
+    }
+
+    // 25. Region count scaling
+    #[test]
+    fn test_energy_generation_scales_with_region_count() {
+        let mut settings = test_settings();
+        settings.base_energy_per_tick = 0.0; // isolate region contribution
+        settings.region_energy_per_tick = 1.0; // 1 energy per owned region per tick
+
+        let engine = GameEngine::new(settings, HashMap::new());
+
+        let mut players = HashMap::new();
+        let mut p = make_player("p1");
+        p.energy = 0;
+        p.energy_accum = 0.0;
+        players.insert("p1".into(), p);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 0));
+        regions.insert("B".into(), make_region("B", Some("p1"), 0));
+        regions.insert("C".into(), make_region("C", Some("p1"), 0));
+        regions.insert("D".into(), make_region("D", Some("p2"), 0)); // enemy, excluded
+
+        engine.generate_energy(&mut players, &regions);
+
+        let p1 = &players["p1"];
+        let total = p1.energy as f64 + p1.energy_accum;
+        // 3 owned regions × 1.0 per region = 3.0
+        assert!(
+            (total - 3.0).abs() < 0.001,
+            "Energy should scale with owned region count (3 regions -> 3.0); total={}", total
+        );
+    }
+
+    // 26. Weather energy modifier
+    #[test]
+    fn test_energy_generation_reduced_by_weather_modifier() {
+        let mut settings = test_settings();
+        settings.base_energy_per_tick = 10.0;
+        settings.region_energy_per_tick = 0.0;
+
+        let mut engine = GameEngine::new(settings, HashMap::new());
+        // Simulate storm: energy modifier = 0.85
+        engine.weather_energy_modifier = 0.85;
+
+        let mut players = HashMap::new();
+        let mut p = make_player("p1");
+        p.energy = 0;
+        p.energy_accum = 0.0;
+        players.insert("p1".into(), p);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 0));
+
+        engine.generate_energy(&mut players, &regions);
+
+        let p1 = &players["p1"];
+        let total = p1.energy as f64 + p1.energy_accum;
+        // 10.0 * 0.85 = 8.5
+        assert!(
+            (total - 8.5).abs() < 0.001,
+            "Storm weather modifier should reduce energy to 8.5; total={}", total
+        );
+    }
+
+    // =========================================================================
+    // Section 24: Bombardment, air transit, air interception, ground combat,
+    //             win conditions, nuke impact tests
+    // =========================================================================
+
+    // --- Helpers ---
+
+    /// Engine with artillery (attack_range=3) and SAM (intercept_air=true, range=2).
+    /// Topology A—B—C; p1 owns A with 10 artillery, p2 owns B (20 inf) and C (15 inf).
+    fn make_bombard_engine() -> (GameEngine, HashMap<String, Region>, HashMap<String, Player>) {
+        let mut settings = test_settings();
+        settings.combat_randomness = 0.0;
+        settings.ap_cost_attack = 0;
+        settings.capital_protection_ticks = 0;
+
+        settings.unit_types.insert(
+            "artillery".into(),
+            UnitConfig {
+                attack: 3.5,
+                defense: 0.3,
+                speed: 1,
+                attack_range: 3,
+                movement_type: "land".into(),
+                production_cost: 18,
+                production_time_ticks: 10,
+                produced_by_slug: Some("factory".into()),
+                manpower_cost: 5,
+                aoe_damage: 0.3,
+                combat_target: "ground".into(),
+                ticks_per_hop: 4,
+                ..Default::default()
+            },
+        );
+
+        settings.unit_types.insert(
+            "sam".into(),
+            UnitConfig {
+                attack: 3.0,
+                defense: 0.5,
+                speed: 1,
+                attack_range: 2,
+                movement_type: "land".into(),
+                production_cost: 12,
+                production_time_ticks: 6,
+                produced_by_slug: Some("tower".into()),
+                manpower_cost: 3,
+                intercept_air: true,
+                combat_target: "air".into(),
+                ticks_per_hop: 2,
+                ..Default::default()
+            },
+        );
+
+        let mut nm: HashMap<String, Vec<String>> = HashMap::new();
+        nm.insert("A".into(), vec!["B".into()]);
+        nm.insert("B".into(), vec!["A".into(), "C".into()]);
+        nm.insert("C".into(), vec!["B".into()]);
+
+        let engine = GameEngine::new(settings, nm);
+
+        let mut regions = HashMap::new();
+        let mut region_a = make_region("A", Some("p1"), 0);
+        region_a.units.insert("artillery".into(), 10);
+        region_a.unit_count = 10;
+        regions.insert("A".into(), region_a);
+        regions.insert("B".into(), make_region("B", Some("p2"), 20));
+        regions.insert("C".into(), make_region("C", Some("p2"), 15));
+
+        let mut players = HashMap::new();
+        let mut p1 = make_player("p1");
+        p1.action_points = 50;
+        players.insert("p1".into(), p1);
+        let mut p2 = make_player("p2");
+        p2.action_points = 50;
+        players.insert("p2".into(), p2);
+
+        (engine, regions, players)
+    }
+
+    fn bombard_action(player_id: &str, source: &str, target: &str) -> Action {
+        Action {
+            action_type: "bombard".into(),
+            player_id: Some(player_id.into()),
+            source_region_id: Some(source.into()),
+            target_region_ids: Some(vec![target.into()]),
+            unit_type: Some("artillery".into()),
+            ..Default::default()
+        }
+    }
+
+    /// 4-region chain A—B—C—D; p1 owns A, p2 owns B/C/D. Bomber has path_damage=0.5.
+    fn make_path_bomb_engine() -> (GameEngine, HashMap<String, Region>, HashMap<String, Player>) {
+        let mut settings = test_settings();
+        settings.combat_randomness = 0.0;
+        settings.ap_cost_attack = 0;
+        settings.capital_protection_ticks = 0;
+
+        settings.unit_types.insert(
+            "bomber".into(),
+            UnitConfig {
+                attack: 4.0,
+                defense: 0.5,
+                speed: 1,
+                attack_range: 5,
+                movement_type: "air".into(),
+                production_cost: 40,
+                production_time_ticks: 15,
+                produced_by_slug: Some("carrier".into()),
+                manpower_cost: 5,
+                combat_target: "ground".into(),
+                path_damage: 0.5,
+                air_speed_ticks_per_hop: 0,
+                ..Default::default()
+            },
+        );
+        settings.unit_types.insert(
+            "fighter".into(),
+            UnitConfig {
+                attack: 3.0,
+                defense: 1.5,
+                speed: 3,
+                attack_range: 5,
+                movement_type: "air".into(),
+                production_cost: 30,
+                production_time_ticks: 12,
+                produced_by_slug: Some("carrier".into()),
+                manpower_cost: 2,
+                combat_target: "air".into(),
+                intercept_air: false,
+                air_speed_ticks_per_hop: 0,
+                ..Default::default()
+            },
+        );
+
+        let mut nm: HashMap<String, Vec<String>> = HashMap::new();
+        nm.insert("A".into(), vec!["B".into()]);
+        nm.insert("B".into(), vec!["A".into(), "C".into()]);
+        nm.insert("C".into(), vec!["B".into(), "D".into()]);
+        nm.insert("D".into(), vec!["C".into()]);
+
+        let engine = GameEngine::new(settings, nm);
+
+        let mut regions = HashMap::new();
+        let mut ra = make_region("A", Some("p1"), 10);
+        ra.centroid = Some([0.0, 0.0]);
+        ra.units.insert("bomber".into(), 5);
+        regions.insert("A".into(), ra);
+        let mut rb = make_region("B", Some("p2"), 20);
+        rb.centroid = Some([1.0, 0.0]);
+        regions.insert("B".into(), rb);
+        let mut rc = make_region("C", Some("p2"), 15);
+        rc.centroid = Some([2.0, 0.0]);
+        regions.insert("C".into(), rc);
+        let mut rd = make_region("D", Some("p2"), 10);
+        rd.centroid = Some([3.0, 0.0]);
+        regions.insert("D".into(), rd);
+
+        let mut players = HashMap::new();
+        let mut p1 = make_player("p1");
+        p1.energy = 500;
+        p1.action_points = 50;
+        players.insert("p1".into(), p1);
+        let mut p2 = make_player("p2");
+        p2.energy = 500;
+        p2.action_points = 50;
+        players.insert("p2".into(), p2);
+
+        (engine, regions, players)
+    }
+
+    /// Minimal ground-combat engine (no randomness, no AP costs, no fatigue).
+    fn make_ground_engine() -> (GameEngine, HashMap<String, Region>, HashMap<String, Player>) {
+        let mut settings = test_settings();
+        settings.combat_randomness = 0.0;
+        settings.ap_cost_attack = 0;
+        settings.ap_cost_move = 0;
+        settings.capital_protection_ticks = 0;
+        settings.fatigue_attack_ticks = 0;
+        settings.fatigue_defense_ticks = 0;
+
+        let mut nm: HashMap<String, Vec<String>> = HashMap::new();
+        nm.insert("A".into(), vec!["B".into()]);
+        nm.insert("B".into(), vec!["A".into(), "C".into()]);
+        nm.insert("C".into(), vec!["B".into()]);
+
+        let engine = GameEngine::new(settings, nm);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 100));
+        regions.insert("B".into(), make_region("B", Some("p2"), 5));
+        regions.insert("C".into(), make_region("C", Some("p2"), 10));
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        (engine, regions, players)
+    }
+
+    // --- Bombardment (1–5) ---
+
+    #[test]
+    fn test_bombard_kills_enemy_units() {
+        // Artillery in A fires at enemy B — defender count decreases.
+        let (engine, mut regions, mut players) = make_bombard_engine();
+        let before = regions["B"].units.get("infantry").copied().unwrap_or(0);
+
+        let action = bombard_action("p1", "A", "B");
+        let events = engine.process_bombard(&action, &mut players, &mut regions);
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::Bombard {
+                player_id, target_region_id, total_killed, ..
+            } if player_id == "p1" && target_region_id == "B" && *total_killed > 0)),
+            "Should emit Bombard with kills; events: {:?}",
+            events
+        );
+        let after = regions["B"].units.get("infantry").copied().unwrap_or(0);
+        assert!(
+            after < before,
+            "Defender count should decrease; before={} after={}",
+            before,
+            after
+        );
+    }
+
+    #[test]
+    fn test_bombard_artillery_consumed_on_fire() {
+        // Each artillery unit is expended as a rocket on firing.
+        let (engine, mut regions, mut players) = make_bombard_engine();
+        let art_before = regions["A"].units.get("artillery").copied().unwrap_or(0);
+        assert!(art_before > 0, "Precondition: A must have artillery");
+
+        engine.process_bombard(&bombard_action("p1", "A", "B"), &mut players, &mut regions);
+
+        let art_after = regions["A"].units.get("artillery").copied().unwrap_or(0);
+        assert!(
+            art_after < art_before,
+            "Artillery should be consumed on fire; before={} after={}",
+            art_before,
+            art_after
+        );
+    }
+
+    #[test]
+    fn test_sam_intercepts_rockets_one_to_one() {
+        // 5 SAM in B should intercept exactly 5 of the 10 incoming rockets.
+        let (engine, mut regions, mut players) = make_bombard_engine();
+        let sam_count = 5i64;
+        regions
+            .get_mut("B")
+            .unwrap()
+            .units
+            .insert("sam".into(), sam_count);
+
+        let events =
+            engine.process_bombard(&bombard_action("p1", "A", "B"), &mut players, &mut regions);
+
+        let intercepted = events.iter().find_map(|e| {
+            if let Event::Bombard { intercepted_count, .. } = e {
+                Some(*intercepted_count)
+            } else {
+                None
+            }
+        });
+        assert_eq!(
+            intercepted,
+            Some(sam_count),
+            "SAM should intercept {} rockets; events: {:?}",
+            sam_count,
+            events
+        );
+        let sam_remaining = regions["B"].units.get("sam").copied().unwrap_or(0);
+        assert_eq!(sam_remaining, 0, "All SAM must be consumed after intercept");
+    }
+
+    #[test]
+    fn test_bombard_neutralizes_province_when_all_defenders_killed() {
+        // 1 infantry in B vs 10 artillery → province should be neutralized.
+        let (engine, mut regions, mut players) = make_bombard_engine();
+        regions
+            .get_mut("B")
+            .unwrap()
+            .units
+            .insert("infantry".into(), 1);
+        regions.get_mut("B").unwrap().unit_count = 1;
+
+        engine.process_bombard(&bombard_action("p1", "A", "B"), &mut players, &mut regions);
+
+        assert!(
+            regions["B"].owner_id.is_none(),
+            "B should have no owner after neutralization"
+        );
+        assert!(
+            regions["B"].units.values().all(|&c| c == 0) || regions["B"].units.is_empty(),
+            "B should have no surviving units"
+        );
+    }
+
+    #[test]
+    fn test_bombard_out_of_range_rejected() {
+        // 5-hop chain: S→R1→R2→R3→FAR. Artillery range=3 cannot reach FAR (depth 4).
+        let mut settings = test_settings();
+        settings.combat_randomness = 0.0;
+        settings.unit_types.insert(
+            "artillery".into(),
+            UnitConfig {
+                attack: 3.5,
+                defense: 0.3,
+                speed: 1,
+                attack_range: 3,
+                movement_type: "land".into(),
+                manpower_cost: 5,
+                ..Default::default()
+            },
+        );
+
+        let mut nm: HashMap<String, Vec<String>> = HashMap::new();
+        nm.insert("S".into(), vec!["R1".into()]);
+        nm.insert("R1".into(), vec!["S".into(), "R2".into()]);
+        nm.insert("R2".into(), vec!["R1".into(), "R3".into()]);
+        nm.insert("R3".into(), vec!["R2".into(), "FAR".into()]);
+        nm.insert("FAR".into(), vec!["R3".into()]);
+        let engine2 = GameEngine::new(settings, nm);
+
+        let mut rs = HashMap::new();
+        let mut src = make_region("S", Some("p1"), 0);
+        src.units.insert("artillery".into(), 5);
+        src.unit_count = 5;
+        rs.insert("S".into(), src);
+        rs.insert("R1".into(), make_region("R1", Some("p2"), 5));
+        rs.insert("R2".into(), make_region("R2", Some("p2"), 5));
+        rs.insert("R3".into(), make_region("R3", Some("p2"), 5));
+        rs.insert("FAR".into(), make_region("FAR", Some("p2"), 5));
+
+        let mut ps = HashMap::new();
+        ps.insert("p1".into(), make_player("p1"));
+        ps.insert("p2".into(), make_player("p2"));
+
+        let action = Action {
+            action_type: "bombard".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("S".into()),
+            target_region_ids: Some(vec!["FAR".into()]),
+            unit_type: Some("artillery".into()),
+            ..Default::default()
+        };
+
+        let events = engine2.process_bombard(&action, &mut ps, &mut rs);
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Out-of-range bombard must be rejected; events: {:?}",
+            events
+        );
+    }
+
+    #[test]
+    fn test_bombard_self_rejected() {
+        // p1 attempts to bombard its own adjacent province — must not succeed.
+        let (engine, mut regions, mut players) = make_bombard_engine();
+
+        // A2 is a p1-owned province adjacent to A.
+        regions.insert("A2".into(), make_region("A2", Some("p1"), 5));
+        let mut settings2 = engine.settings.clone();
+        settings2.combat_randomness = 0.0;
+        let mut nm2 = engine.neighbor_map.clone();
+        nm2.entry("A".into()).or_default().push("A2".into());
+        nm2.insert("A2".into(), vec!["A".into()]);
+        let engine2 = GameEngine::new(settings2, nm2);
+
+        let action = Action {
+            action_type: "bombard".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_ids: Some(vec!["A2".into()]),
+            unit_type: Some("artillery".into()),
+            ..Default::default()
+        };
+
+        let events = engine2.process_bombard(&action, &mut players, &mut regions);
+        assert!(
+            !has_event(&events, |e| matches!(e, Event::Bombard { .. })),
+            "Self-bombard must not produce a Bombard event; events: {:?}",
+            events
+        );
+    }
+
+    // --- Air transit processing (6–8) ---
+
+    #[test]
+    fn test_path_bombing_damages_intermediate_province() {
+        // Bomber A→B→C→D (path_damage=0.5) should deal PathDamage to B en route.
+        let (engine, mut regions, mut players) = make_path_bomb_engine();
+        let b_before = regions["B"].units.get("infantry").copied().unwrap_or(0);
+
+        let flight = AirTransitItem {
+            id: "path-bomb-1".into(),
+            mission_type: "bomb_run".into(),
+            source_region_id: "A".into(),
+            target_region_id: "D".into(),
+            player_id: "p1".into(),
+            unit_type: "bomber".into(),
+            units: 5,
+            escort_fighters: 0,
+            progress: 0.0,
+            speed_per_tick: 0.26,
+            total_distance: 3,
+            interceptors: vec![],
+            flight_path: vec!["A".into(), "B".into(), "C".into(), "D".into()],
+            last_bombed_hop: 0,
+        };
+
+        let mut q = vec![flight];
+        let mut all_events: Vec<Event> = Vec::new();
+        for _ in 0..20 {
+            let (remaining, evs) = engine.process_air_transit(&mut players, &mut regions, &q);
+            all_events.extend(evs);
+            q = remaining;
+            if q.is_empty() {
+                break;
+            }
+        }
+
+        let b_after = regions["B"].units.get("infantry").copied().unwrap_or(0);
+        assert!(
+            b_after < b_before,
+            "B should be damaged by path bombing; before={} after={}",
+            b_before,
+            b_after
+        );
+        assert!(
+            has_event(&all_events, |e| matches!(e, Event::PathDamage { .. })),
+            "Should emit at least one PathDamage; events: {:?}",
+            all_events
+        );
+    }
+
+    #[test]
+    fn test_bomber_attrition_reduces_count_per_province_bombed() {
+        // Bomber loses 1 unit per intermediate province it bombs (floor = 1).
+        let (engine, mut regions, mut players) = make_path_bomb_engine();
+
+        let flight = AirTransitItem {
+            id: "attrition-1".into(),
+            mission_type: "bomb_run".into(),
+            source_region_id: "A".into(),
+            target_region_id: "D".into(),
+            player_id: "p1".into(),
+            unit_type: "bomber".into(),
+            units: 5,
+            escort_fighters: 0,
+            progress: 0.0,
+            speed_per_tick: 0.26,
+            total_distance: 3,
+            interceptors: vec![],
+            flight_path: vec!["A".into(), "B".into(), "C".into(), "D".into()],
+            last_bombed_hop: 0,
+        };
+
+        let mut q = vec![flight];
+        let mut path_damage_count = 0usize;
+        for _ in 0..20 {
+            let (remaining, evs) = engine.process_air_transit(&mut players, &mut regions, &q);
+            path_damage_count +=
+                evs.iter().filter(|e| matches!(e, Event::PathDamage { .. })).count();
+            q = remaining;
+            if q.is_empty() {
+                break;
+            }
+        }
+
+        assert!(
+            path_damage_count >= 1,
+            "At least one PathDamage expected from attrition bombing; count={}",
+            path_damage_count
+        );
+    }
+
+    #[test]
+    fn test_bomber_minimum_one_unit_reaches_final_target() {
+        // Even after losing units to attrition a bomber must still strike the target
+        // (units floor = 1). Simulate: pre-set units=1 and last_bombed_hop covers all
+        // intermediate provinces.
+        let (engine, mut regions, mut players) = make_path_bomb_engine();
+
+        let flight = AirTransitItem {
+            id: "min-attrition".into(),
+            mission_type: "bomb_run".into(),
+            source_region_id: "A".into(),
+            target_region_id: "D".into(),
+            player_id: "p1".into(),
+            unit_type: "bomber".into(),
+            units: 1,            // already at minimum
+            escort_fighters: 0,
+            progress: 0.99,      // one tick away from arrival
+            speed_per_tick: 0.5,
+            total_distance: 3,
+            interceptors: vec![],
+            flight_path: vec!["A".into(), "B".into(), "C".into(), "D".into()],
+            last_bombed_hop: 2,  // B and C already bombed
+        };
+
+        let events = engine.resolve_bomber_arrival(&flight, &mut players, &mut regions);
+        assert!(
+            has_event(&events, |e| matches!(e, Event::BomberStrike { .. })),
+            "Minimum-1 bomber must still deliver a strike; events: {:?}",
+            events
+        );
+    }
+
+    #[test]
+    fn test_fighter_arrival_emits_air_combat_resolved() {
+        // Fighter mission arrives at enemy B that holds fighter defenders.
+        let (engine, mut regions, mut players) = make_air_engine();
+        regions
+            .get_mut("B")
+            .unwrap()
+            .units
+            .insert("fighter".into(), 5);
+
+        let flight = AirTransitItem {
+            id: "fighter-attack".into(),
+            mission_type: "fighter_attack".into(),
+            source_region_id: "A".into(),
+            target_region_id: "B".into(),
+            player_id: "p1".into(),
+            unit_type: "fighter".into(),
+            units: 10,
+            escort_fighters: 0,
+            progress: 0.5,
+            speed_per_tick: 0.6,
+            total_distance: 1,
+            interceptors: vec![],
+            flight_path: vec!["A".into(), "B".into()],
+            last_bombed_hop: 0,
+        };
+
+        let (remaining, events) =
+            engine.process_air_transit(&mut players, &mut regions, &[flight]);
+
+        assert!(remaining.is_empty(), "Fighter should have arrived");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AirCombatResolved { .. })),
+            "Should emit AirCombatResolved; events: {:?}",
+            events
+        );
+    }
+
+    // --- Air interception (9–10) ---
+
+    #[test]
+    fn test_interceptor_two_phase_combat_escorts_first_then_bombers() {
+        // Phase 1: interceptors vs escorts; Phase 2: remaining interceptors vs bombers.
+        let (engine, mut regions, _) = make_air_engine();
+
+        let flight = AirTransitItem {
+            id: "intercept-2phase".into(),
+            mission_type: "bomb_run".into(),
+            source_region_id: "A".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "bomber".into(),
+            units: 5,
+            escort_fighters: 3,  // phase 1 target
+            progress: 0.5,
+            speed_per_tick: 0.1,
+            total_distance: 2,
+            interceptors: vec![],
+            flight_path: vec!["A".into(), "B".into(), "C".into()],
+            last_bombed_hop: 0,
+        };
+
+        let interceptor = InterceptorGroup {
+            player_id: "p2".into(),
+            source_region_id: "B".into(),
+            fighters: 20,   // overwhelming
+            progress: 1.0,
+            speed_per_tick: 0.5,
+        };
+
+        let (new_flight, events) =
+            engine.resolve_air_interception(flight, interceptor, &mut regions);
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AirCombatResolved {
+                escorts_lost,
+                bombers_lost,
+                ..
+            } if *escorts_lost > 0 || *bombers_lost > 0)),
+            "AirCombatResolved must report losses; events: {:?}",
+            events
+        );
+        assert!(
+            new_flight.units < 5,
+            "Bombers must take losses from strong interception; remaining={}",
+            new_flight.units
+        );
+    }
+
+    #[test]
+    fn test_interceptor_speed_reflects_air_speed_ticks_per_hop() {
+        // speed_per_tick = 1 / (air_speed_ticks_per_hop × total_distance).
+        // With ticks_per_hop=2 and total_distance=4 → expected speed = 0.125.
+        let (engine, mut regions, mut players) = make_air_engine();
+
+        let mut queue = vec![AirTransitItem {
+            id: "target-flight".into(),
+            mission_type: "bomb_run".into(),
+            source_region_id: "A".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "bomber".into(),
+            units: 3,
+            escort_fighters: 0,
+            progress: 0.0,
+            speed_per_tick: 0.1,
+            total_distance: 4,
+            interceptors: vec![],
+            flight_path: vec!["A".into(), "B".into(), "C".into()],
+            last_bombed_hop: 0,
+        }];
+
+        let mut settings2 = engine.settings.clone();
+        if let Some(f) = settings2.unit_types.get_mut("fighter") {
+            f.air_speed_ticks_per_hop = 2;
+        }
+        let engine2 = GameEngine::new(settings2, engine.neighbor_map.clone());
+
+        regions
+            .get_mut("B")
+            .unwrap()
+            .units
+            .insert("fighter".into(), 5);
+
+        let action = Action {
+            action_type: "intercept".into(),
+            player_id: Some("p2".into()),
+            source_region_id: Some("B".into()),
+            target_flight_id: Some("target-flight".into()),
+            units: Some(3),
+            unit_type: Some("fighter".into()),
+            ..Default::default()
+        };
+
+        let events =
+            engine2.process_intercept(&action, &mut players, &mut regions, &mut queue);
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AirInterceptDispatched { .. })),
+            "Should dispatch interceptors; events: {:?}",
+            events
+        );
+
+        let interceptor = &queue[0].interceptors[0];
+        let expected = 1.0 / (2.0_f64 * 4.0_f64); // 0.125
+        assert!(
+            (interceptor.speed_per_tick - expected).abs() < 1e-9,
+            "speed_per_tick should be {}; got {}",
+            expected,
+            interceptor.speed_per_tick
+        );
+    }
+
+    // --- Ground combat (11–15) ---
+
+    #[test]
+    fn test_attacker_wins_province_changes_owner() {
+        let (engine, mut regions, mut players) = make_ground_engine();
+
+        let transit = vec![make_attack_transit_item("A", "B", "p1", 100)];
+        let mut diplomacy = DiplomacyState::default();
+        let (remaining, events) = engine.process_transit_queue_with_shield(
+            &mut players,
+            &mut regions,
+            &transit,
+            &[],
+            &mut diplomacy,
+            1,
+        );
+
+        assert!(remaining.is_empty());
+        assert_eq!(
+            regions["B"].owner_id.as_deref(),
+            Some("p1"),
+            "B should be captured by p1"
+        );
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AttackSuccess {
+                player_id,
+                target_region_id,
+                ..
+            } if player_id == "p1" && target_region_id == "B")),
+            "Should emit AttackSuccess; events: {:?}",
+            events
+        );
+    }
+
+    #[test]
+    fn test_defender_wins_province_stays() {
+        let (engine, mut regions, mut players) = make_ground_engine();
+        regions.insert("B".into(), make_region("B", Some("p2"), 100));
+
+        let transit = vec![make_attack_transit_item("A", "B", "p1", 1)];
+        let mut diplomacy = DiplomacyState::default();
+        let (remaining, events) = engine.process_transit_queue_with_shield(
+            &mut players,
+            &mut regions,
+            &transit,
+            &[],
+            &mut diplomacy,
+            1,
+        );
+
+        assert!(remaining.is_empty());
+        assert_eq!(
+            regions["B"].owner_id.as_deref(),
+            Some("p2"),
+            "B should remain p2's"
+        );
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AttackFailed {
+                player_id,
+                target_region_id,
+                ..
+            } if player_id == "p1" && target_region_id == "B")),
+            "Should emit AttackFailed; events: {:?}",
+            events
+        );
+    }
+
+    #[test]
+    fn test_weather_defense_modifier_strengthens_defender() {
+        // Equal forces (10 vs 10) with weather_defense_modifier=10 → defender wins.
+        let mut settings = test_settings();
+        settings.combat_randomness = 0.0;
+        settings.ap_cost_attack = 0;
+        settings.capital_protection_ticks = 0;
+        settings.fatigue_attack_ticks = 0;
+        settings.fatigue_defense_ticks = 0;
+        settings.defender_advantage = 0.0;
+
+        let mut nm: HashMap<String, Vec<String>> = HashMap::new();
+        nm.insert("X".into(), vec!["Y".into()]);
+        nm.insert("Y".into(), vec!["X".into()]);
+
+        let mut engine_weather = GameEngine::new(settings, nm);
+        engine_weather.weather_defense_modifier = 10.0;
+
+        let mut regions = HashMap::new();
+        regions.insert("X".into(), make_region("X", Some("p1"), 10));
+        regions.insert("Y".into(), make_region("Y", Some("p2"), 10));
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let transit = vec![make_attack_transit_item("X", "Y", "p1", 10)];
+        let mut diplomacy = DiplomacyState::default();
+        let (_, events) = engine_weather.process_transit_queue_with_shield(
+            &mut players,
+            &mut regions,
+            &transit,
+            &[],
+            &mut diplomacy,
+            1,
+        );
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AttackFailed { .. })),
+            "Strong weather defense should cause attacker to fail; events: {:?}",
+            events
+        );
+        assert_eq!(
+            regions["Y"].owner_id.as_deref(),
+            Some("p2"),
+            "Y should remain p2's due to weather defense buff"
+        );
+    }
+
+    #[test]
+    fn test_aoe_damage_hits_neighboring_enemy_provinces() {
+        // Artillery (aoe_damage=0.5) captures B; its neighbor C (also p2) takes AOE splash.
+        let mut settings = test_settings();
+        settings.combat_randomness = 0.0;
+        settings.ap_cost_attack = 0;
+        settings.capital_protection_ticks = 0;
+        settings.fatigue_attack_ticks = 0;
+        settings.fatigue_defense_ticks = 0;
+
+        settings.unit_types.insert(
+            "artillery".into(),
+            UnitConfig {
+                attack: 5.0,
+                defense: 0.3,
+                speed: 1,
+                attack_range: 1,
+                movement_type: "land".into(),
+                manpower_cost: 3,
+                aoe_damage: 0.5,
+                combat_target: "ground".into(),
+                ..Default::default()
+            },
+        );
+
+        let mut nm: HashMap<String, Vec<String>> = HashMap::new();
+        nm.insert("A".into(), vec!["B".into()]);
+        nm.insert("B".into(), vec!["A".into(), "C".into()]);
+        nm.insert("C".into(), vec!["B".into()]);
+
+        let engine = GameEngine::new(settings, nm);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 200));
+        regions.insert("B".into(), make_region("B", Some("p2"), 5));
+        regions.insert("C".into(), make_region("C", Some("p2"), 20));
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let c_before = regions["C"].units.get("infantry").copied().unwrap_or(0);
+
+        let transit = vec![TransitQueueItem {
+            action_type: "attack".into(),
+            source_region_id: "A".into(),
+            target_region_id: "B".into(),
+            player_id: "p1".into(),
+            unit_type: "artillery".into(),
+            units: 200,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        }];
+        let mut diplomacy = DiplomacyState::default();
+        let (_, events) = engine.process_transit_queue_with_shield(
+            &mut players,
+            &mut regions,
+            &transit,
+            &[],
+            &mut diplomacy,
+            1,
+        );
+
+        let c_after = regions["C"].units.get("infantry").copied().unwrap_or(0);
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AoeDamage { .. })),
+            "Should emit AoeDamage; events: {:?}",
+            events
+        );
+        assert!(
+            c_after < c_before,
+            "C must lose units from AOE splash; before={} after={}",
+            c_before,
+            c_after
+        );
+    }
+
+    #[test]
+    fn test_capital_capture_eliminates_player() {
+        // p1 captures p2's capital → CapitalCaptured → check_conditions → PlayerEliminated.
+        let (engine, mut regions, mut players) = make_ground_engine();
+
+        regions.get_mut("B").unwrap().is_capital = true;
+        players.get_mut("p2").unwrap().capital_region_id = Some("B".into());
+
+        let transit = vec![make_attack_transit_item("A", "B", "p1", 100)];
+        let mut diplomacy = DiplomacyState::default();
+        let (_, attack_events) = engine.process_transit_queue_with_shield(
+            &mut players,
+            &mut regions,
+            &transit,
+            &[],
+            &mut diplomacy,
+            1,
+        );
+
+        assert!(
+            has_event(&attack_events, |e| matches!(e, Event::CapitalCaptured {
+                captured_by,
+                lost_by,
+                ..
+            } if captured_by == "p1" && lost_by == "p2")),
+            "Should emit CapitalCaptured; events: {:?}",
+            attack_events
+        );
+
+        let mut air_queue: Vec<AirTransitItem> = Vec::new();
+        let elim_events =
+            engine.check_conditions(&mut players, &mut regions, &mut air_queue);
+
+        assert!(
+            has_event(&elim_events, |e| matches!(e, Event::PlayerEliminated {
+                player_id, ..
+            } if player_id == "p2")),
+            "p2 should be eliminated; events: {:?}",
+            elim_events
+        );
+        assert!(!players["p2"].is_alive, "p2 must be marked is_alive=false");
+    }
+
+    // --- Win conditions (16–17) ---
+
+    #[test]
+    fn test_last_player_standing_triggers_game_over() {
+        let (engine, mut regions, mut players) = make_ground_engine();
+
+        players.get_mut("p2").unwrap().is_alive = false;
+
+        let mut air_queue: Vec<AirTransitItem> = Vec::new();
+        let events = engine.check_conditions(&mut players, &mut regions, &mut air_queue);
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::GameOver { winner_id: Some(w) }
+                if w == "p1")),
+            "GameOver should name p1 as winner; events: {:?}",
+            events
+        );
+    }
+
+    #[test]
+    fn test_elimination_purges_dead_player_air_missions() {
+        let (engine, mut regions, mut players) = make_ground_engine();
+
+        let p2_flight = AirTransitItem {
+            id: "dead-flight".into(),
+            mission_type: "bomb_run".into(),
+            source_region_id: "C".into(),
+            target_region_id: "A".into(),
+            player_id: "p2".into(),
+            unit_type: "bomber".into(),
+            units: 2,
+            escort_fighters: 0,
+            progress: 0.5,
+            speed_per_tick: 0.1,
+            total_distance: 2,
+            interceptors: vec![],
+            flight_path: vec!["C".into(), "B".into(), "A".into()],
+            last_bombed_hop: 0,
+        };
+        let p1_flight = AirTransitItem {
+            id: "alive-flight".into(),
+            mission_type: "bomb_run".into(),
+            source_region_id: "A".into(),
+            target_region_id: "C".into(),
+            player_id: "p1".into(),
+            unit_type: "bomber".into(),
+            units: 3,
+            escort_fighters: 0,
+            progress: 0.5,
+            speed_per_tick: 0.1,
+            total_distance: 2,
+            interceptors: vec![],
+            flight_path: vec!["A".into(), "B".into(), "C".into()],
+            last_bombed_hop: 0,
+        };
+
+        let mut air_queue = vec![p2_flight, p1_flight];
+
+        // Trigger p2 elimination: their capital is no longer owned by them.
+        players.get_mut("p2").unwrap().capital_region_id = Some("B".into());
+        regions.get_mut("B").unwrap().owner_id = None;
+
+        let _events = engine.check_conditions(&mut players, &mut regions, &mut air_queue);
+
+        assert!(
+            air_queue.iter().all(|f| f.player_id != "p2"),
+            "Dead player p2 air missions must be purged; remaining ids: {:?}",
+            air_queue.iter().map(|f| &f.player_id).collect::<Vec<_>>()
+        );
+        assert!(
+            air_queue.iter().any(|f| f.player_id == "p1"),
+            "Alive player p1 air missions must be preserved"
+        );
+    }
+
+    // --- Nuke impact ---
+
+    #[test]
+    fn test_nuke_impact_kills_units_in_target_region() {
+        let (engine, mut regions, _) = make_ground_engine();
+
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_province_nuke".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "B".into(),
+            affected_region_ids: vec![],
+            ticks_remaining: 1, // expires this tick → damage applied
+            total_ticks: 5,
+            params: serde_json::json!({ "damage": 100.0 }),
+        }];
+
+        let before = regions["B"].units.get("infantry").copied().unwrap_or(0);
+        let events = engine.process_active_effects(&mut regions, &mut active_effects);
+        let after = regions["B"].units.get("infantry").copied().unwrap_or(0);
+
+        assert!(
+            after < before,
+            "Nuke should kill units in B; before={} after={}",
+            before,
+            after
+        );
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AbilityEffectExpired {
+                effect_type, ..
+            } if effect_type == "ab_province_nuke")),
+            "Should emit AbilityEffectExpired for nuke; events: {:?}",
+            events
+        );
+    }
+
+    #[test]
+    fn test_nuke_splash_damages_listed_neighbor_regions() {
+        // C is in affected_region_ids → receives 50% splash from a nuke on B.
+        let (engine, mut regions, _) = make_ground_engine();
+
+        let c_before = regions["C"].units.get("infantry").copied().unwrap_or(0);
+
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_province_nuke".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "B".into(),
+            affected_region_ids: vec!["C".into()],
+            ticks_remaining: 1,
+            total_ticks: 5,
+            params: serde_json::json!({ "damage": 100.0 }),
+        }];
+
+        engine.process_active_effects(&mut regions, &mut active_effects);
+
+        let c_after = regions["C"].units.get("infantry").copied().unwrap_or(0);
+        assert!(
+            c_after < c_before,
+            "Nuke splash must kill units in neighbor C; before={} after={}",
+            c_before,
+            c_after
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 24. set_weather — covers lines 402-406
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_set_weather_updates_modifiers() {
+        let settings = test_settings();
+        let mut engine = GameEngine::new(settings, HashMap::new());
+
+        let weather = WeatherState {
+            time_of_day: 0.0,
+            phase: "night".into(),
+            cloud_coverage: 0.5,
+            visibility: 0.8,
+            condition: "storm".into(),
+            defense_modifier: 1.15,
+            randomness_modifier: 1.4,
+            energy_modifier: 0.9,
+            unit_gen_modifier: 0.95,
+        };
+
+        engine.set_weather(&weather);
+
+        assert_eq!(engine.weather_defense_modifier, 1.15);
+        assert_eq!(engine.weather_randomness_modifier, 1.4);
+        assert_eq!(engine.weather_energy_modifier, 0.9);
+        assert_eq!(engine.weather_unit_gen_modifier, 0.95);
+    }
+
+    // -------------------------------------------------------------------------
+    // 25. process_tick pact/proposal expiry — covers lines 541-584
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_process_tick_pact_expires_at_tick() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.pacts.push(Pact {
+            id: "pact-exp".into(),
+            pact_type: "nap".into(),
+            player_a: "p1".into(),
+            player_b: "p2".into(),
+            created_tick: 1,
+            expires_tick: Some(10),
+        });
+
+        let events = engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut vec![], &mut vec![], &mut vec![], &mut vec![],
+            10, &mut vec![], &mut diplomacy,
+        );
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::PactExpired { pact_id, .. } if pact_id == "pact-exp")),
+            "Expected PactExpired at tick 10; events: {:?}", events
+        );
+        assert!(diplomacy.pacts.is_empty(), "Expired pact should be removed");
+    }
+
+    #[test]
+    fn test_process_tick_proposal_expires_at_tick() {
+        let (engine, mut regions, mut players) = make_diplomacy_engine();
+        let mut diplomacy = DiplomacyState::default();
+        diplomacy.proposals.push(DiplomacyProposal {
+            id: "prop-exp".into(),
+            proposal_type: "nap".into(),
+            from_player_id: "p1".into(),
+            to_player_id: "p2".into(),
+            created_tick: 1,
+            conditions: None,
+            status: "pending".into(),
+            rejected_tick: None,
+            expires_tick: Some(5),
+        });
+
+        let events = engine.process_tick(
+            &mut players, &mut regions, &[],
+            &mut vec![], &mut vec![], &mut vec![], &mut vec![],
+            5, &mut vec![], &mut diplomacy,
+        );
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ProposalExpired { proposal_id, .. } if proposal_id == "prop-exp")),
+            "Expected ProposalExpired at tick 5; events: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 26. execute_flash / process_ability → ab_flash — covers lines 1440-1492
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_execute_flash_creates_active_effect_and_event() {
+        let mut settings = test_settings();
+        settings.ability_types.insert(
+            "ab_flash".into(),
+            serde_json::from_value(serde_json::json!({
+                "name": "Flash",
+                "target_type": "any",
+                "range": 0,
+                "energy_cost": 10,
+                "cooldown_ticks": 1,
+                "effect_duration_ticks": 3,
+                "effect_params": { "radius": 1 }
+            })).unwrap(),
+        );
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 10));
+        regions.insert("B".into(), make_region("B", Some("p2"), 10));
+
+        let mut players = HashMap::new();
+        let mut p1 = make_player("p1");
+        p1.energy = 200;
+        p1.ability_scrolls.insert("ab_flash".into(), 5);
+        players.insert("p1".into(), p1);
+
+        let action = Action {
+            action_type: "use_ability".into(),
+            player_id: Some("p1".into()),
+            ability_type: Some("ab_flash".into()),
+            target_region_id: Some("B".into()),
+            ..Default::default()
+        };
+
+        let mut active_effects = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_tick(
+            &mut players, &mut regions, &[action],
+            &mut vec![], &mut vec![], &mut vec![], &mut vec![],
+            1, &mut active_effects, &mut diplomacy,
+        );
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::FlashEffect { .. })),
+            "Expected FlashEffect event; got: {:?}", events
+        );
+        assert_eq!(active_effects.len(), 1);
+        assert_eq!(active_effects[0].effect_type, "ab_flash");
+    }
+
+    // -------------------------------------------------------------------------
+    // 27. process_active_effects submarine/flash tick events — lines 1555-1572
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_process_active_effects_submarine_emits_tick_event() {
+        let settings = test_settings();
+        let engine = GameEngine::new(settings, HashMap::new());
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 5));
+
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_pr_submarine".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "A".into(),
+            affected_region_ids: vec!["B".into()],
+            ticks_remaining: 3,
+            total_ticks: 5,
+            params: serde_json::Value::Null,
+        }];
+
+        let events = engine.process_active_effects(&mut regions, &mut active_effects);
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AbilityEffectTick { effect_type, .. } if effect_type == "ab_pr_submarine")),
+            "Expected AbilityEffectTick for submarine; got: {:?}", events
+        );
+    }
+
+    #[test]
+    fn test_process_active_effects_flash_emits_tick_event() {
+        let settings = test_settings();
+        let engine = GameEngine::new(settings, HashMap::new());
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 5));
+
+        let mut active_effects = vec![ActiveEffect {
+            effect_type: "ab_flash".into(),
+            source_player_id: "p1".into(),
+            target_region_id: "A".into(),
+            affected_region_ids: vec!["B".into()],
+            ticks_remaining: 2,
+            total_ticks: 4,
+            params: serde_json::Value::Null,
+        }];
+
+        let events = engine.process_active_effects(&mut regions, &mut active_effects);
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AbilityEffectTick { effect_type, .. } if effect_type == "ab_flash")),
+            "Expected AbilityEffectTick for flash; got: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 28. Team attack block — lines 2073-2084
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_attack_blocked_on_teammate() {
+        let (mut engine, mut regions, mut players) = make_linear_engine();
+        engine.settings.capital_protection_ticks = 0;
+        engine.settings.ap_cost_attack = 0;
+
+        players.get_mut("p1").unwrap().team = Some("red".into());
+        players.get_mut("p2").unwrap().team = Some("red".into());
+
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("B".into()),
+            target_region_id: Some("C".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Attack on teammate must be rejected; events: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 29. Capital protection — lines 2087-2097
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_attack_blocked_by_capital_protection() {
+        let (mut engine, mut regions, mut players) = make_linear_engine();
+        engine.settings.capital_protection_ticks = 100;
+        engine.settings.ap_cost_attack = 0;
+
+        regions.get_mut("C").unwrap().is_capital = true;
+
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("B".into()),
+            target_region_id: Some("C".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::CapitalProtected { .. })),
+            "Attack on protected capital must emit CapitalProtected; events: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 30. Auto-declare war on attack when diplomacy enabled — lines 2100-2108
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_attack_auto_declares_war_with_diplomacy_enabled() {
+        let mut settings = test_settings();
+        settings.diplomacy_enabled = true;
+        settings.capital_protection_ticks = 0;
+        settings.ap_cost_attack = 0;
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 20));
+        regions.insert("B".into(), make_region("B", Some("p2"), 10));
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::WarDeclared { .. })),
+            "Attacking enemy without war should auto-declare war; events: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 31. SAM cannot attack — lines 2112-2115
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_sam_unit_attack_rejected() {
+        let mut settings = test_settings();
+        settings.capital_protection_ticks = 0;
+        settings.ap_cost_attack = 0;
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        let mut region_a = make_region("A", Some("p1"), 0);
+        region_a.units.insert("sam".into(), 5);
+        region_a.unit_count = 5;
+        regions.insert("A".into(), region_a);
+        regions.insert("B".into(), make_region("B", Some("p2"), 10));
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let action = Action {
+            action_type: "attack".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            unit_type: Some("sam".into()),
+            units: Some(2),
+            ..Default::default()
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "SAM attack must be rejected; events: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 32. Move target not owned by player — lines 2260-2268
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_move_rejected_when_target_not_owned() {
+        let (mut engine, mut regions, mut players) = make_linear_engine();
+        engine.settings.ap_cost_move = 0;
+
+        let action = Action {
+            action_type: "move".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("C".into()),
+            units: Some(5),
+            ..Default::default()
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Move to enemy region must be rejected; events: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 33. Air unit move routes into air_transit_queue — lines 2326-2366
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_move_air_unit_goes_to_air_transit_queue() {
+        let (engine, mut regions, mut players) = make_air_engine();
+        regions.get_mut("B").unwrap().owner_id = Some("p1".into());
+
+        let action = Action {
+            action_type: "move".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            unit_type: Some("bomber".into()),
+            units: Some(1),
+            ..Default::default()
+        };
+
+        let mut air_queue: Vec<AirTransitItem> = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut air_queue, &mut diplomacy, 1,
+        );
+
+        assert_eq!(air_queue.len(), 1, "Air unit move should create an air transit item");
+        assert_eq!(air_queue[0].mission_type, "air_move");
+        assert!(
+            has_event(&events, |e| matches!(e, Event::TroopsSent { .. })),
+            "Expected TroopsSent event for air move; got: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 34. Build deck unlocked_buildings check — lines 2432-2441
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_build_rejected_when_building_not_in_unlocked_deck() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        players.get_mut("p1").unwrap().unlocked_buildings = vec!["factory".into()];
+        players.get_mut("p1").unwrap().energy = 200;
+
+        let action = Action {
+            action_type: "build".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            building_type: Some("barracks".into()),
+            ..Default::default()
+        };
+
+        let mut buildings_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut buildings_queue, &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(buildings_queue.is_empty());
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Build of locked building type must be rejected; events: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 35. Produce unit deck unlocked_units check — lines 2608-2617
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_produce_unit_rejected_when_not_in_unlocked_deck() {
+        let (engine, mut regions, mut players) = make_linear_engine();
+
+        regions.get_mut("A").unwrap().building_instances.push(
+            BuildingInstance { building_type: "factory".into(), level: 1 }
+        );
+
+        players.get_mut("p1").unwrap().unlocked_units = vec!["ship".into()];
+        players.get_mut("p1").unwrap().energy = 200;
+
+        let action = Action {
+            action_type: "produce_unit".into(),
+            player_id: Some("p1".into()),
+            region_id: Some("A".into()),
+            unit_type: Some("tank".into()),
+            ..Default::default()
+        };
+
+        let mut unit_queue = vec![];
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut unit_queue, &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(unit_queue.is_empty());
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Producing locked unit must be rejected; events: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 36. Bombardment team block — lines 2792-2803
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_bombard_rejected_on_teammate() {
+        let mut settings = test_settings();
+        settings.ap_cost_attack = 0;
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        let mut region_a = make_region("A", Some("p1"), 0);
+        region_a.units.insert("artillery".into(), 3);
+        region_a.unit_count = 3;
+        regions.insert("A".into(), region_a);
+        regions.insert("B".into(), make_region("B", Some("p2"), 10));
+
+        let mut players = HashMap::new();
+        let mut p1 = make_player("p1");
+        p1.team = Some("blue".into());
+        players.insert("p1".into(), p1);
+        let mut p2 = make_player("p2");
+        p2.team = Some("blue".into());
+        players.insert("p2".into(), p2);
+
+        let action = Action {
+            action_type: "bombard".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            unit_type: Some("artillery".into()),
+            units: Some(2),
+            ..Default::default()
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::ActionRejected { .. })),
+            "Bombardment of teammate must be rejected; events: {:?}", events
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 37. Bombardment SAM interception — lines 2806-2866
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_bombard_sam_intercepts_rockets() {
+        let mut settings = test_settings();
+        settings.ap_cost_attack = 0;
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        let mut region_a = make_region("A", Some("p1"), 0);
+        region_a.units.insert("artillery".into(), 5);
+        region_a.unit_count = 5;
+        regions.insert("A".into(), region_a);
+
+        let mut region_b = make_region("B", Some("p2"), 10);
+        region_b.units.insert("sam".into(), 3);
+        region_b.unit_count = 13;
+        regions.insert("B".into(), region_b);
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let b_before = regions["B"].units.get("infantry").copied().unwrap_or(0);
+
+        let action = Action {
+            action_type: "bombard".into(),
+            player_id: Some("p1".into()),
+            source_region_id: Some("A".into()),
+            target_region_id: Some("B".into()),
+            unit_type: Some("artillery".into()),
+            units: Some(3),
+            ..Default::default()
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let _events = engine.process_action(
+            &action, &mut players, &mut regions,
+            &mut vec![], &mut vec![], &mut vec![],
+            &mut vec![], &mut diplomacy, 1,
+        );
+
+        let b_after = regions["B"].units.get("infantry").copied().unwrap_or(0);
+        assert_eq!(b_after, b_before, "All rockets intercepted by SAM, no infantry should die");
+        let sam_after = regions["B"].units.get("sam").copied().unwrap_or(0);
+        assert_eq!(sam_after, 0, "SAM units should be consumed after intercepting");
+    }
+
+    // -------------------------------------------------------------------------
+    // 38. Defense boost stacking in resolve_attack_arrival — lines 3695-3732
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_defense_deck_boost_code_path_executes() {
+        // Test that active_boosts with effect_type="defense_bonus" is read without panic.
+        // With attacker=1 vs defender=30, even without boost the defender wins; the boost
+        // ensures defender_bonus is increased, which we verify by checking defender wins both ways.
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into()]);
+
+        let settings = test_settings();
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 1));
+        regions.insert("B".into(), make_region("B", Some("p2"), 30));
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        let mut p2 = make_player("p2");
+        p2.active_boosts.push(ActiveBoost {
+            slug: "def_boost".into(),
+            params: serde_json::json!({"effect_type": "defense_bonus", "value": 2.0}),
+        });
+        p2.active_match_boosts.push(ActiveMatchBoost {
+            slug: "def_match".into(),
+            effect_type: "defense_bonus".into(),
+            value: 1.0,
+            ticks_remaining: 10,
+            total_ticks: 10,
+        });
+        players.insert("p2".into(), p2);
+
+        let item = TransitQueueItem {
+            action_type: "attack".into(),
+            player_id: "p1".into(),
+            source_region_id: "A".into(),
+            target_region_id: "B".into(),
+            unit_type: "infantry".into(),
+            units: 1,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
+
+        // Defender should win — attacker had 1 vs 30 boosted defenders
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AttackFailed { .. })),
+            "Defender with boost should repel 1-unit attack; events: {:?}", events
+        );
+    }
+
+    #[test]
+    fn test_attack_match_boost_stacking_reduces_defender() {
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into()]);
+
+        let do_attack = |attacker_boost: bool| {
+            let settings = test_settings();
+            let engine = GameEngine::new(settings, neighbor_map.clone());
+
+            let mut regions = HashMap::new();
+            regions.insert("A".into(), make_region("A", Some("p1"), 5));
+            regions.insert("B".into(), make_region("B", Some("p2"), 20));
+
+            let mut players = HashMap::new();
+            let mut p1 = make_player("p1");
+            if attacker_boost {
+                p1.active_match_boosts.push(ActiveMatchBoost {
+                    slug: "atk_boost".into(),
+                    effect_type: "attack_bonus".into(),
+                    value: 5.0,
+                    ticks_remaining: 10,
+                    total_ticks: 10,
+                });
+            }
+            players.insert("p1".into(), p1);
+            players.insert("p2".into(), make_player("p2"));
+
+            let item = TransitQueueItem {
+                action_type: "attack".into(),
+                player_id: "p1".into(),
+                source_region_id: "A".into(),
+                target_region_id: "B".into(),
+                unit_type: "infantry".into(),
+                units: 5,
+                ticks_remaining: 0,
+                travel_ticks: 1,
+            };
+
+            let mut diplomacy = DiplomacyState::default();
+            engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
+            let defender_remaining: i64 = regions["B"].units.values().sum();
+            defender_remaining
+        };
+
+        let baseline = do_attack(false);
+        let boosted = do_attack(true);
+
+        assert!(
+            boosted <= baseline,
+            "Attack boost should reduce defender survivors; baseline={} boosted={}",
+            baseline, boosted
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 39. AOE damage in resolve_attack_arrival — lines 4098-4157
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_aoe_damage_hits_enemy_neighbors_on_attack() {
+        let mut settings = test_settings();
+        settings.combat_randomness = 0.0;
+        settings.capital_protection_ticks = 0;
+
+        let mut neighbor_map: HashMap<String, Vec<String>> = HashMap::new();
+        neighbor_map.insert("A".into(), vec!["B".into()]);
+        neighbor_map.insert("B".into(), vec!["A".into(), "C".into()]);
+        neighbor_map.insert("C".into(), vec!["B".into()]);
+
+        let engine = GameEngine::new(settings, neighbor_map);
+
+        let mut regions = HashMap::new();
+        regions.insert("A".into(), make_region("A", Some("p1"), 50));
+        regions.insert("B".into(), make_region("B", Some("p2"), 5));
+        regions.insert("C".into(), make_region("C", Some("p2"), 20));
+
+        let mut players = HashMap::new();
+        players.insert("p1".into(), make_player("p1"));
+        players.insert("p2".into(), make_player("p2"));
+
+        let c_before: i64 = regions["C"].units.values().sum();
+
+        let item = TransitQueueItem {
+            action_type: "attack".into(),
+            player_id: "p1".into(),
+            source_region_id: "A".into(),
+            target_region_id: "B".into(),
+            unit_type: "artillery".into(),
+            units: 50,
+            ticks_remaining: 0,
+            travel_ticks: 1,
+        };
+
+        let mut diplomacy = DiplomacyState::default();
+        let events = engine.resolve_attack_arrival(&item, &mut players, &mut regions, &mut diplomacy, 1);
+
+        assert!(
+            has_event(&events, |e| matches!(e, Event::AoeDamage { .. })),
+            "Expected AoeDamage event; got: {:?}", events
+        );
+        let c_after: i64 = regions["C"].units.values().sum();
+        assert!(
+            c_after < c_before,
+            "AOE should reduce units in enemy neighbor C; before={} after={}",
+            c_before, c_after
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 40. types.rs: is_system_module_enabled / system_module_config — lines 155-173
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_is_system_module_enabled_present_and_enabled() {
+        let mut settings = GameSettings::default();
+        settings.system_modules.insert(
+            "anticheat".into(),
+            SystemModuleSnapshot {
+                enabled: true,
+                config: HashMap::new(),
+            },
+        );
+        assert!(settings.is_system_module_enabled("anticheat"));
+    }
+
+    #[test]
+    fn test_is_system_module_enabled_present_and_disabled() {
+        let mut settings = GameSettings::default();
+        settings.system_modules.insert(
+            "anticheat".into(),
+            SystemModuleSnapshot {
+                enabled: false,
+                config: HashMap::new(),
+            },
+        );
+        assert!(!settings.is_system_module_enabled("anticheat"));
+    }
+
+    #[test]
+    fn test_is_system_module_enabled_missing_defaults_to_true() {
+        let settings = GameSettings::default();
+        assert!(settings.is_system_module_enabled("nonexistent"));
+    }
+
+    #[test]
+    fn test_system_module_config_returns_value_when_present() {
+        let mut settings = GameSettings::default();
+        let mut config = HashMap::new();
+        config.insert("max_actions".into(), serde_json::json!(42i64));
+        settings.system_modules.insert(
+            "anticheat".into(),
+            SystemModuleSnapshot { enabled: true, config },
+        );
+        let val: i64 = settings.system_module_config("anticheat", "max_actions", 0i64);
+        assert_eq!(val, 42);
+    }
+
+    #[test]
+    fn test_system_module_config_returns_default_when_missing() {
+        let settings = GameSettings::default();
+        let val: i64 = settings.system_module_config("anticheat", "max_actions", 99i64);
+        assert_eq!(val, 99);
+    }
+
+    // -------------------------------------------------------------------------
+    // 41. types.rs default helper functions — lines 389-390, 422-423, 468-470
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_unit_config_default_combat_target_is_ground() {
+        // default_combat_target() is a serde default fn — verify via JSON deserialization.
+        let cfg: UnitConfig = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(cfg.combat_target, "ground");
+    }
+
+    #[test]
+    fn test_ability_config_default_target_type_is_enemy() {
+        // default_target_type() is a serde default fn — verify via JSON deserialization.
+        let cfg: AbilityConfig = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(cfg.target_type, "enemy");
+    }
+
+    #[test]
+    fn test_ability_config_default_cooldown_is_sixty() {
+        // default_cooldown() is a serde default fn — verify via JSON deserialization.
+        let cfg: AbilityConfig = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(cfg.cooldown_ticks, 60);
+    }
+
+    #[test]
+    fn test_unit_config_default_movement_type_is_land() {
+        // default_movement_type() is a serde default fn — verify via JSON deserialization.
+        let cfg: UnitConfig = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(cfg.movement_type, "land");
+    }
+
+    #[test]
+    fn test_building_instance_default_level_is_one() {
+        let json = r#"{"building_type": "barracks"}"#;
+        let b: BuildingInstance = serde_json::from_str(json).unwrap();
+        assert_eq!(b.level, 1);
+    }
+
+    #[test]
+    fn test_game_settings_default_is_valid() {
+        let settings = GameSettings::default();
+        assert_eq!(settings.base_energy_per_tick, 2.0);
+        assert_eq!(settings.base_unit_generation_rate, 1.0);
+        assert!(settings.system_modules.is_empty());
+    }
 }

@@ -6,6 +6,15 @@
 	# Enable compression for all responses
 	encode zstd gzip
 
+	# Security headers
+	header {
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-XSS-Protection "1; mode=block"
+		Permissions-Policy "camera=(), microphone=(self), geolocation=()"
+	}
+
 	# API
 	handle /api/* {
 		reverse_proxy backend:8000

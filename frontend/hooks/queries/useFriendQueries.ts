@@ -85,7 +85,7 @@ export function useRemoveFriend() {
 export function useInviteFriendToGame() {
   return useMutation({
     mutationFn: ({ friendshipId, gameMode }: { friendshipId: string; gameMode: string }) =>
-      inviteFriendToGame(requireToken(), friendshipId, gameMode),
+      inviteFriendToGame(friendshipId, gameMode),
   });
 }
 

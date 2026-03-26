@@ -222,7 +222,7 @@ export default memo(function MobileBuildSheet({
                         {isBuildingLocked && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
                         {displayName}
                       </span>
-                      <span className="block text-[11px] text-muted-foreground">
+                      <span className="block text-label text-muted-foreground">
                         {isBuildingLocked
                           ? "Wymaga blueprintu z talii"
                           : isAtMaxLevel
@@ -277,7 +277,7 @@ export default memo(function MobileBuildSheet({
                         {isUnitLocked && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
                         {unit.name}
                       </span>
-                      <span className="block text-[11px] text-muted-foreground">
+                      <span className="block text-label text-muted-foreground">
                         {isUnitLocked
                           ? "Wymaga blueprintu z talii"
                           : `Zaloga: ${unit.manpower_cost} · ${unit.production_time_ticks} tick`}

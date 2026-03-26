@@ -6,6 +6,24 @@ import { useEffect } from "react";
 import type { ShapesData } from "@/lib/canvasTypes";
 import { UNIT_PULSE_DURATION_MS } from "@/lib/canvasTypes";
 
+// Module-level TextStyle constants — avoids re-creating on every effect run
+const PULSE_STYLE_GREEN = new TextStyle({
+  fontFamily: "Rajdhani, sans-serif",
+  fontSize: 16,
+  fontWeight: "bold",
+  fill: 0x4ade80,
+  align: "center",
+  dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
+});
+const PULSE_STYLE_RED = new TextStyle({
+  fontFamily: "Rajdhani, sans-serif",
+  fontSize: 16,
+  fontWeight: "bold",
+  fill: 0xf87171,
+  align: "center",
+  dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
+});
+
 /**
  * Renders floating +N/-N labels above provinces when unit counts change.
  * Uses a Pixi ticker for smooth animation (drift up + fade out).
@@ -26,23 +44,6 @@ export function useUnitPulseLabels(
     const centroidMap = centroidCacheRef.current;
 
     const activeTexts = new Map<string, Text>();
-
-    const pulseStyleGreen = new TextStyle({
-      fontFamily: "Rajdhani, sans-serif",
-      fontSize: 16,
-      fontWeight: "bold",
-      fill: 0x4ade80,
-      align: "center",
-      dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
-    });
-    const pulseStyleRed = new TextStyle({
-      fontFamily: "Rajdhani, sans-serif",
-      fontSize: 16,
-      fontWeight: "bold",
-      fill: 0xf87171,
-      align: "center",
-      dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.9, angle: Math.PI / 4 },
-    });
 
     const tickerFn = () => {
       const now = Date.now();
@@ -74,7 +75,7 @@ export function useUnitPulseLabels(
           const isPositive = pulse.delta > 0;
           const label = isPositive ? `+${pulse.delta}` : String(pulse.delta);
 
-          txt = new Text({ text: label, style: isPositive ? pulseStyleGreen : pulseStyleRed, resolution: 3 });
+          txt = new Text({ text: label, style: isPositive ? PULSE_STYLE_GREEN : PULSE_STYLE_RED, resolution: 3 });
           txt.anchor.set(0.5, 0.5);
           txt.position.set(centroid[0], centroid[1] - 20);
           txt.eventMode = "none";
@@ -102,6 +103,7 @@ export function useUnitPulseLabels(
       }
       activeTexts.clear();
     };
+    // Only re-run when shapesData changes — refs are stable and read inside ticker
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shapesData, appRef.current, centroidCacheRef.current, unitChangeLayerRef.current, unitPulsesRef.current]);
 }

@@ -62,7 +62,7 @@ export default memo(function ActiveBoosts({ boosts, matchBoosts = [], tickInterv
         return (
           <div
             key={b.slug}
-            className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] sm:text-xs font-medium ${colors}`}
+            className={`flex items-center gap-1 rounded-full border px-2 py-1 text-caption sm:text-xs font-medium ${colors}`}
             title={`${label}: +${Math.round(value * 100)}% (cały mecz)`}
           >
             {BOOST_ICONS[effectType] ?? fallbackIcon()}
@@ -77,12 +77,12 @@ export default memo(function ActiveBoosts({ boosts, matchBoosts = [], tickInterv
         return (
           <div
             key={`${b.slug}-${i}`}
-            className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] sm:text-xs font-medium ${colors}`}
+            className={`flex items-center gap-1 rounded-full border px-2 py-1 text-caption sm:text-xs font-medium ${colors}`}
             title={`${label}: +${Math.round(b.value * 100)}% (${remainingSec}s)`}
           >
             {BOOST_ICONS[b.effect_type] ?? fallbackIcon()}
             <span>+{Math.round(b.value * 100)}%</span>
-            <span className="font-display text-[10px] tabular-nums opacity-70">{remainingSec}s</span>
+            <span className="font-display text-caption tabular-nums opacity-70">{remainingSec}s</span>
           </div>
         );
       })}

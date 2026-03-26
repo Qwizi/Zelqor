@@ -3,15 +3,12 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import type { AirTransitItem, GameState } from "@/hooks/useGameSocket";
 import type { UnitType } from "@/lib/api";
 import { BOOST_EFFECT_LABELS, getAnimationPower } from "@/lib/gamePageUtils";
 import type { TroopAnimation } from "@/lib/gameTypes";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type GameEvent = Record<string, any>;
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type GameStateRef = React.RefObject<any>;
+type GameEvent = Record<string, unknown> & { __eventKey?: string };
 
 /**
  * Processes server events and produces TroopAnimation[] entries for visual rendering.
@@ -24,8 +21,7 @@ export function useGameAnimations(
   unitsConfig: UnitType[],
   unitConfigBySlug: Record<string, { movement_type?: string; attack?: number }>,
   unitManpowerMap: Record<string, number> | undefined,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  gameStateRef: React.RefObject<any>,
+  gameStateRef: React.RefObject<GameState | null>,
   _neighborMap: Record<string, string[]>,
   localDispatchKeysRef: React.RefObject<Map<string, number>>,
   setAnimations: React.Dispatch<React.SetStateAction<TroopAnimation[]>>,
@@ -232,11 +228,9 @@ export function useGameAnimations(
         setAnimations((prev) => prev.filter((a) => !a.id.startsWith(`${flightId}_int_`)));
 
         if (interceptorsRemaining > 0 && interceptorPlayerId) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const flight = gameStateRef.current?.air_transit_queue?.find((f: any) => f.id === flightId);
+          const flight = gameStateRef.current?.air_transit_queue?.find((f: AirTransitItem) => f.id === flightId);
           const targetId = flight?.target_region_id ?? (e.target_region_id as string);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const interceptorGroup = flight?.interceptors?.find((ig: any) => ig.player_id === interceptorPlayerId);
+          const interceptorGroup = flight?.interceptors?.find((ig) => ig.player_id === interceptorPlayerId);
           const sourceId = interceptorGroup?.source_region_id;
           if (sourceId && targetId) {
             const intColor = gameStateRef.current?.players[interceptorPlayerId]?.color ?? "#3b82f6";
@@ -297,9 +291,9 @@ export function useGameAnimations(
             id: `game-bomber-neutralized-${targetId}`,
           });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const completedFlight = gameStateRef.current?.air_transit_queue?.find(
-          (f: any) => f.target_region_id === targetId && f.player_id === playerId && f.unit_type === "bomber",
+          (f: AirTransitItem) =>
+            f.target_region_id === targetId && f.player_id === playerId && f.unit_type === "bomber",
         );
         const escortCount = completedFlight?.escort_fighters ?? (e.escorts_surviving as number) ?? 0;
         if (escortCount > 0) {
@@ -345,18 +339,20 @@ export function useGameAnimations(
     if (newAnims.length > 0) {
       setAnimations((prev) => [...prev, ...newAnims]);
     }
+    // events is the primary trigger; gameStateRef/localDispatchKeysRef are stable refs read inside
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     events,
     myUserId,
     unitsConfig,
+    setAnimations,
+    unitConfigBySlug,
+    unitManpowerMap,
     gameStateRef.current?.air_transit_queue?.find,
     gameStateRef.current?.meta?.tick_interval_ms,
     gameStateRef.current?.players,
     gameStateRef.current?.regions,
     localDispatchKeysRef.current.delete,
     localDispatchKeysRef.current.get,
-    setAnimations,
-    unitConfigBySlug,
-    unitManpowerMap?.artillery,
   ]);
 }

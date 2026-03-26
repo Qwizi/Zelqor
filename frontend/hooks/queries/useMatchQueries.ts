@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  createShareLink,
   getMatch,
   getMatchmakingStatus,
   getMatchResult,
@@ -13,6 +14,7 @@ import {
   type PaginatedResponse,
   type SnapshotDetail,
   type SnapshotTick,
+  startTutorial,
 } from "@/lib/api";
 import { requireToken } from "@/lib/queryClient";
 import { queryKeys } from "@/lib/queryKeys";
@@ -63,6 +65,39 @@ export function useMatchSnapshots(matchId: string) {
 }
 
 export function useSnapshot(matchId: string, tick: number) {
+  return useQuery<SnapshotDetail>({
+    queryKey: [...queryKeys.matches.snapshots(matchId), tick],
+    queryFn: () => getSnapshot(requireToken(), matchId, tick),
+    enabled: !!matchId && tick >= 0,
+    staleTime: Infinity,
+  });
+}
+
+export function useStartTutorial() {
+  return useMutation({
+    mutationFn: () => startTutorial(),
+  });
+}
+
+export function useCreateShareLink() {
+  return useMutation({
+    mutationFn: ({ resourceType, resourceId }: { resourceType: string; resourceId: string }) =>
+      createShareLink(resourceType, resourceId),
+  });
+}
+
+export function usePrefetchSnapshot(matchId: string) {
+  const queryClient = useQueryClient();
+  return (tick: number) => {
+    return queryClient.prefetchQuery({
+      queryKey: [...queryKeys.matches.snapshots(matchId), tick],
+      queryFn: () => getSnapshot(requireToken(), matchId, tick),
+      staleTime: Infinity,
+    });
+  };
+}
+
+export function useSnapshotData(matchId: string, tick: number) {
   return useQuery<SnapshotDetail>({
     queryKey: [...queryKeys.matches.snapshots(matchId), tick],
     queryFn: () => getSnapshot(requireToken(), matchId, tick),

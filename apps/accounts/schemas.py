@@ -5,6 +5,11 @@ from ninja import Schema
 from pydantic import EmailStr, Field, model_validator
 
 
+class LoginSchema(Schema):
+    email: str
+    password: str
+
+
 class PushSubscriptionSchema(Schema):
     endpoint: str
     p256dh: str

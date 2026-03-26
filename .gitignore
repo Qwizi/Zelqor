@@ -1,4 +1,4 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
@@ -7,24 +7,47 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+.venv/
 
 # Environment
 .env
+.env.*
 
 # Django
 *.sqlite3
 static/
 media/
 
-# Node
+# Node / Frontend
 frontend/node_modules/
 frontend/.next/
+frontend/.pnpm-store/
+
+# Rust gateway
+gateway/target/
+
+# Test / Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Linters / Formatters
+.ruff_cache/
+.mypy_cache/
 
 # Celery Beat schedule
 celerybeat-schedule
 celerybeat-schedule-shm
 celerybeat-schedule-wal
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Promo / Remotion
 promo/node_modules/
@@ -37,7 +60,14 @@ twa/app/build/
 twa/maplord.keystore
 twa/local.properties
 
-# OS
-.DS_Store
-pixi/
+# Desktop (Tauri)
 desktop/src-tauri/target/
+pixi/
+
+# Logs
+*.log
+
+# Local tooling
+.claude-flow/
+.rtk/
+.swarm/

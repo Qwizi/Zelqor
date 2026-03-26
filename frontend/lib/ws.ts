@@ -20,14 +20,24 @@ export function createSocket(
   ticket?: string | null,
   nonce?: string | null,
 ): WebSocket {
-  let url = token ? `${WS_BASE}${path}?token=${token}` : `${WS_BASE}${path}`;
-  if (ticket) {
-    url += `&ticket=${ticket}`;
-  }
-  if (nonce) {
-    url += `&nonce=${nonce}`;
-  }
+  // Build URL without token — token is sent as the first message after the
+  // connection opens so it never appears in server logs or browser history.
+  let url = `${WS_BASE}${path}`;
+  const params: string[] = [];
+  if (ticket) params.push(`ticket=${ticket}`);
+  if (nonce) params.push(`nonce=${nonce}`);
+  if (params.length > 0) url += `?${params.join("&")}`;
+
   const ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    // Send auth token as first message so it travels over the encrypted WS
+    // frame rather than appearing in the URL (which is logged by servers and
+    // visible in browser history / DevTools network tab).
+    if (token) {
+      ws.send(JSON.stringify({ type: "auth", token }));
+    }
+  };
 
   ws.onmessage = (event) => {
     try {
