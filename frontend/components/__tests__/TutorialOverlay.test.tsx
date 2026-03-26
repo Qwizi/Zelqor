@@ -13,6 +13,8 @@ vi.mock("lucide-react", () => ({
     React.createElement("span", { "data-testid": "icon-chevron-right", className }),
   ChevronLeft: ({ className }: { className?: string }) =>
     React.createElement("span", { "data-testid": "icon-chevron-left", className }),
+  GraduationCap: ({ className }: { className?: string }) =>
+    React.createElement("span", { "data-testid": "icon-graduation", className }),
 }));
 
 // ---------------------------------------------------------------------------

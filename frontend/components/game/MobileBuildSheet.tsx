@@ -99,7 +99,7 @@ export default memo(function MobileBuildSheet({
   // ── Floating buttons (left side, mid-screen) ──
   if (mode === null) {
     return (
-      <div className="fixed bottom-[220px] left-3 z-30 flex flex-col gap-2 sm:hidden">
+      <div data-tutorial="build-section" className="fixed bottom-[220px] left-3 z-30 flex flex-col gap-2 sm:hidden">
         {hasBuild && (
           <button
             onClick={() => setMode("build")}

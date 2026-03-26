@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { GamePlayer } from "@/hooks/useGameSocket";
 import type { CosmeticValue } from "@/lib/animationConfig";
+import { AP_MAX } from "@/lib/gameTypes";
 import type { DiplomacyState } from "@/lib/gameTypes";
 
 /**
@@ -535,11 +536,9 @@ const LargeStat = memo(function LargeStat({
   );
 });
 
-const AP_MAX_HUD = 10;
-
 /** AP tile with progress bar and regen rate */
 const APStat = memo(function APStat({ actionPoints }: { actionPoints: number }) {
-  const pct = Math.round((Math.min(actionPoints, AP_MAX_HUD) / AP_MAX_HUD) * 100);
+  const pct = Math.round((Math.min(actionPoints, AP_MAX) / AP_MAX) * 100);
   const isLow = actionPoints < 3;
   const isMid = actionPoints >= 3 && actionPoints < 6;
   const valueColor = isLow ? "text-red-400" : isMid ? "text-amber-400" : "text-green-400";
@@ -562,7 +561,7 @@ const APStat = memo(function APStat({ actionPoints }: { actionPoints: number }) 
       </div>
       <div className={`mt-1 font-display text-2xl font-bold leading-none sm:text-3xl tabular-nums ${valueColor}`}>
         {actionPoints}
-        <span className="text-label font-normal text-muted-foreground sm:text-sm">/{AP_MAX_HUD}</span>
+        <span className="text-label font-normal text-muted-foreground sm:text-sm">/{AP_MAX}</span>
       </div>
       {/* Progress bar */}
       <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted/40">

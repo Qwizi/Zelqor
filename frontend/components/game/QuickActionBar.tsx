@@ -726,7 +726,7 @@ export default memo(function QuickActionBar({
 
             {/* Build row */}
             {hasBuild && (
-              <div className={`border-t border-border px-3 py-2.5 ${expanded ? "block" : "hidden"} sm:block`}>
+              <div data-tutorial="build-section" className={`border-t border-border px-3 py-2.5 ${expanded ? "block" : "hidden"} sm:block`}>
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs uppercase tracking-widest text-muted-foreground/60">Budynki</p>
                   {!canAffordBuild && (
