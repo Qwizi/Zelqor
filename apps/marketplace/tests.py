@@ -1274,3 +1274,121 @@ def test_expire_old_listings_no_expired_does_nothing(item, db):
     )
     expire_old_listings()
     assert MarketListing.objects.filter(status=MarketListing.Status.ACTIVE).count() == 1
+
+
+# ---------------------------------------------------------------------------
+# marketplace/admin.py — display methods and permissions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestMarketplaceAdmin:
+    def test_market_listing_admin_list(self, db):
+        from django.test import Client
+
+        from apps.accounts.models import User
+
+        c = Client()
+        su = User.objects.create_superuser(username="mp_admin", email="mp_admin@test.local", password="adminpass")
+        c.force_login(su)
+        r = c.get("/admin/marketplace/marketlisting/")
+        assert r.status_code == 200
+
+    def test_market_config_has_add_blocked_when_exists(self, db):
+        from django.contrib.admin.sites import AdminSite
+
+        from apps.marketplace.admin import MarketConfigAdmin
+        from apps.marketplace.models import MarketConfig
+
+        MarketConfig.get()
+        admin = MarketConfigAdmin(model=MarketConfig, admin_site=AdminSite())
+        assert admin.has_add_permission(request=None) is False
+
+    def test_market_config_has_add_when_empty(self, db):
+        from django.contrib.admin.sites import AdminSite
+
+        from apps.marketplace.admin import MarketConfigAdmin
+        from apps.marketplace.models import MarketConfig
+
+        admin = MarketConfigAdmin(model=MarketConfig, admin_site=AdminSite())
+        assert admin.has_add_permission(request=None) is True
+
+    def test_market_config_has_delete_blocked(self, db):
+        from django.contrib.admin.sites import AdminSite
+
+        from apps.marketplace.admin import MarketConfigAdmin
+        from apps.marketplace.models import MarketConfig
+
+        admin = MarketConfigAdmin(model=MarketConfig, admin_site=AdminSite())
+        assert admin.has_delete_permission(request=None) is False
+
+    def test_display_listing_type(self, db):
+        from django.contrib.admin.sites import AdminSite
+
+        from apps.marketplace.admin import MarketListingAdmin
+        from apps.marketplace.models import MarketListing
+
+        admin = MarketListingAdmin(model=MarketListing, admin_site=AdminSite())
+        listing = MarketListing(listing_type="sell")
+        assert admin.display_listing_type(listing) == "sell"
+
+    def test_display_status(self, db):
+        from django.contrib.admin.sites import AdminSite
+
+        from apps.marketplace.admin import MarketListingAdmin
+        from apps.marketplace.models import MarketListing
+
+        admin = MarketListingAdmin(model=MarketListing, admin_site=AdminSite())
+        listing = MarketListing(status="active")
+        assert admin.display_status(listing) == "active"
+
+
+# ---------------------------------------------------------------------------
+# marketplace/models.py — MarketConfig.get_effective_config
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_market_config_get_effective_config():
+    from apps.marketplace.models import MarketConfig
+
+    config = MarketConfig.get_effective_config()
+    assert "transaction_fee" in config
+    assert "listing_duration_hours" in config
+
+
+# ---------------------------------------------------------------------------
+# marketplace/tasks.py — bot_restock_marketplace
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_bot_restock_marketplace_runs_without_items():
+    """bot_restock_marketplace should not crash when no tradeable items exist."""
+    from apps.marketplace.tasks import bot_restock_marketplace
+
+    bot_restock_marketplace()
+
+
+@pytest.mark.django_db
+def test_bot_restock_marketplace_creates_listings(db):
+    """bot_restock_marketplace should create sell listings for tradeable items."""
+    from apps.inventory.models import Item, ItemCategory
+    from apps.marketplace.models import MarketConfig, MarketListing
+    from apps.marketplace.tasks import bot_restock_marketplace
+
+    MarketConfig.get()
+    cat = ItemCategory.objects.create(name="Trade Cat", slug="trade-cat-bot")
+    item = Item.objects.create(
+        name="Tradeable Item",
+        slug="tradeable-item-bot",
+        category=cat,
+        item_type=Item.ItemType.MATERIAL,
+        rarity=Item.Rarity.COMMON,
+        is_tradeable=True,
+        is_active=True,
+        is_stackable=True,
+        base_value=100,
+    )
+    bot_restock_marketplace()
+    assert MarketListing.objects.filter(item=item, is_bot_listing=True).count() >= 1

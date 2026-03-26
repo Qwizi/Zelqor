@@ -1623,3 +1623,203 @@ def test_update_non_editable_deck_returns_403(client, db):
         HTTP_AUTHORIZATION=auth,
     )
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Additional inventory/views.py and inventory/models.py coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_inventory_my_with_item_type_filter(client):
+    """GET /inventory/my/?item_type=... should filter by type."""
+
+    owner = User.objects.create_user(email="myfilter@test.com", username="myfilter", password="testpass123")
+    cat = make_category("Filter Cat", "filter-cat")
+    item_a = make_item(cat, "Mat A", "mat-a", Item.ItemType.MATERIAL)
+    item_a.is_stackable = True
+    item_a.save()
+    UserInventory.objects.create(user=owner, item=item_a, quantity=3)
+
+    auth = _get_auth_header(owner)
+    resp = client.get(
+        f"{BASE}/inventory/my/?item_type=material",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_equip_cosmetic_item_not_in_inventory(client):
+    """equip_cosmetic returns 404 when item is not in user's inventory."""
+    import json
+
+    owner = User.objects.create_user(email="equip404@test.com", username="equip404", password="testpass123")
+    auth = _get_auth_header(owner)
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/equip/",
+        data=json.dumps({"item_slug": "nonexistent-cosmetic", "instance_id": None}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_equip_non_cosmetic_item_with_instance_id_returns_400(client):
+    """equip_cosmetic returns 400 when item is not of type cosmetic (with instance_id=None)."""
+    import json
+
+    owner = User.objects.create_user(email="equip400@test.com", username="equip400", password="testpass123")
+    cat = make_category("Not Cosmetic Cat", "not-cosmetic-cat")
+    material_item = make_item(cat, "Stone", "stone-m", Item.ItemType.MATERIAL)
+    material_item.is_stackable = True
+    material_item.save()
+    UserInventory.objects.create(user=owner, item=material_item, quantity=1)
+
+    auth = _get_auth_header(owner)
+    resp = client.post(
+        f"{BASE}/inventory/cosmetics/equip/",
+        data=json.dumps({"item_slug": "stone-m", "instance_id": None}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_open_crate_missing_crate_returns_404(client):
+    """open_crate returns 404 when the crate slug doesn't exist."""
+    import json
+
+    owner = User.objects.create_user(email="crate404@test.com", username="crate404", password="testpass123")
+    auth = _get_auth_header(owner)
+    resp = client.post(
+        f"{BASE}/inventory/crates/open/",
+        data=json.dumps({"crate_slug": "nonexistent-crate", "key_slug": "nonexistent-key"}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_delete_non_editable_deck_returns_403(client):
+    """delete_deck should fail for a non-editable deck."""
+    owner = User.objects.create_user(email="del_nonedit@test.com", username="del_nonedit", password="testpass123")
+    auth = _get_auth_header(owner)
+    locked = Deck.objects.create(user=owner, name="Locked Deck", is_editable=False)
+    resp = client.delete(
+        f"{BASE}/inventory/decks/{locked.id}/",
+        HTTP_AUTHORIZATION=auth,
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_item_instance_wear_condition_categories():
+    """ItemInstance.wear_condition should return the right enum for boundary values."""
+    cat = make_category("WC Cat", "wc-cat")
+    item = Item.objects.create(
+        name="Weapon",
+        slug="wc-weapon",
+        category=cat,
+        item_type=Item.ItemType.COSMETIC,
+        rarity=Item.Rarity.RARE,
+    )
+    user = User.objects.create_user(email="wc@test.com", username="wc_user", password="x")
+
+    def make_instance(wear_val):
+        return ItemInstance(item=item, owner=user, wear=wear_val, pattern_seed=42)
+
+    assert make_instance(0.05).wear_condition == ItemInstance.WearCondition.FACTORY_NEW
+    assert make_instance(0.10).wear_condition == ItemInstance.WearCondition.MINIMAL_WEAR
+    assert make_instance(0.25).wear_condition == ItemInstance.WearCondition.FIELD_TESTED
+    assert make_instance(0.42).wear_condition == ItemInstance.WearCondition.WELL_WORN
+    assert make_instance(0.80).wear_condition == ItemInstance.WearCondition.BATTLE_SCARRED
+
+
+@pytest.mark.django_db
+def test_item_instance_is_rare_pattern():
+    """ItemInstance.is_rare_pattern should be True for pattern_seed < 10."""
+    cat = make_category("RP Cat", "rp-cat")
+    item = Item.objects.create(
+        name="Rare Item",
+        slug="rp-item",
+        category=cat,
+        item_type=Item.ItemType.COSMETIC,
+        rarity=Item.Rarity.EPIC,
+    )
+    user = User.objects.create_user(email="rp@test.com", username="rp_user", password="x")
+    inst_rare = ItemInstance(item=item, owner=user, wear=0.1, pattern_seed=5)
+    inst_normal = ItemInstance(item=item, owner=user, wear=0.1, pattern_seed=50)
+    assert inst_rare.is_rare_pattern is True
+    assert inst_normal.is_rare_pattern is False
+
+
+@pytest.mark.django_db
+def test_item_instance_str_with_stattrak_and_nametag():
+    """__str__ of ItemInstance should include StatTrak and nametag."""
+    cat = make_category("ST Cat", "st-cat")
+    item = Item.objects.create(
+        name="Knife",
+        slug="knife-st",
+        category=cat,
+        item_type=Item.ItemType.COSMETIC,
+        rarity=Item.Rarity.LEGENDARY,
+    )
+    user = User.objects.create_user(email="st@test.com", username="st_user", password="x")
+    inst = ItemInstance.objects.create(
+        item=item,
+        owner=user,
+        wear=0.05,
+        pattern_seed=1,
+        stattrak=True,
+        nametag="Custom",
+        first_owner=user,
+    )
+    s = str(inst)
+    assert "StatTrak" in s
+    assert "Custom" in s
+
+
+@pytest.mark.django_db
+def test_equipped_cosmetic_save_sets_slot_from_item():
+    """EquippedCosmetic.save should auto-fill slot from item.cosmetic_slot."""
+    from apps.inventory.models import CosmeticSlot, EquippedCosmetic
+
+    user = User.objects.create_user(email="ec_slot@test.com", username="ec_slot", password="x")
+    cat = make_category("Cosmetic Cat", "cosmetic-cat")
+    # Use a valid CosmeticSlot value
+    valid_slot = CosmeticSlot.UNIT_INFANTRY
+    item = Item.objects.create(
+        name="Infantry Skin Test",
+        slug="infantry-skin-ec-test",
+        category=cat,
+        item_type=Item.ItemType.COSMETIC,
+        rarity=Item.Rarity.COMMON,
+        cosmetic_slot=valid_slot,
+    )
+    ec = EquippedCosmetic(user=user, item=item)
+    ec.save()
+    assert ec.slot == valid_slot
+
+
+@pytest.mark.django_db
+def test_deck_save_clears_other_defaults():
+    """Setting is_default=True on a new deck should clear old default."""
+    owner = User.objects.create_user(email="deck_def@test.com", username="deck_def", password="x")
+    d1 = Deck.objects.create(user=owner, name="D1", is_default=True)
+    d2 = Deck.objects.create(user=owner, name="D2", is_default=True)
+    d1.refresh_from_db()
+    assert d1.is_default is False
+    assert d2.is_default is True
+
+
+@pytest.mark.django_db
+def test_wallet_str():
+    """Wallet.__str__ should include username and gold amount."""
+    owner = User.objects.create_user(email="wallet_str@test.com", username="wallet_str", password="x")
+    w = Wallet.objects.create(user=owner, gold=500)
+    assert "wallet_str" in str(w)
+    assert "500" in str(w)

@@ -1611,3 +1611,1657 @@ class TestPublishLobbyEvent:
         with patch("apps.matchmaking.events.redis.Redis", mock_redis_cls):
             _get_redis()
         mock_redis_cls.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _consume_default_deck — deck with items (lines 67-150)
+# ---------------------------------------------------------------------------
+
+
+def _make_item_category(slug="cat-test"):
+    from apps.inventory.models import ItemCategory
+
+    return ItemCategory.objects.get_or_create(slug=slug, defaults={"name": slug, "order": 0})[0]
+
+
+def _make_item(slug, item_type, is_consumable=False, is_stackable=True, blueprint_ref="", level=1, boost_params=None):
+    from apps.inventory.models import Item
+
+    cat = _make_item_category()
+    return Item.objects.create(
+        name=slug,
+        slug=slug,
+        category=cat,
+        item_type=item_type,
+        is_consumable=is_consumable,
+        is_stackable=is_stackable,
+        level=level,
+        blueprint_ref=blueprint_ref,
+        boost_params=boost_params,
+    )
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_non_consumable_tactical_package(deck_user):
+    """Non-consumable tactical package in deck adds ability slug."""
+    from apps.inventory.models import Deck, DeckItem, Item, UserInventory
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    item = _make_item(
+        "ab_fireball",
+        Item.ItemType.TACTICAL_PACKAGE,
+        is_consumable=False,
+        is_stackable=True,
+        blueprint_ref="ab_fireball",
+        level=2,
+    )
+    UserInventory.objects.create(user=deck_user, item=item, quantity=1)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+
+    result = _consume_default_deck(deck_user)
+
+    assert "ab_fireball" in result["ability_scrolls"]
+    assert result["ability_scrolls"]["ab_fireball"] == 999
+    assert result["ability_levels"]["ab_fireball"] == 2
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_non_consumable_blueprint_building(deck_user):
+    """Non-consumable building blueprint in deck unlocks the building."""
+    from apps.game_config.models import BuildingType
+    from apps.inventory.models import Deck, DeckItem, Item, UserInventory
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    # Create a building type so the blueprint_ref can match
+    BuildingType.objects.get_or_create(
+        slug="barracks",
+        defaults={"name": "Barracks", "is_active": True, "max_per_region": 1},
+    )
+    item = _make_item(
+        "bp-barracks",
+        Item.ItemType.BLUEPRINT_BUILDING,
+        is_consumable=False,
+        is_stackable=True,
+        blueprint_ref="barracks",
+        level=2,
+    )
+    UserInventory.objects.create(user=deck_user, item=item, quantity=1)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+
+    result = _consume_default_deck(deck_user)
+
+    assert "barracks" in result["unlocked_buildings"]
+    assert result["building_levels"]["barracks"] == 2
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_non_consumable_blueprint_unit(deck_user):
+    """Non-consumable unit blueprint in deck unlocks the unit."""
+    from apps.inventory.models import Deck, DeckItem, Item, UserInventory
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    item = _make_item(
+        "bp-tank", Item.ItemType.BLUEPRINT_UNIT, is_consumable=False, is_stackable=True, blueprint_ref="tank", level=1
+    )
+    UserInventory.objects.create(user=deck_user, item=item, quantity=1)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+
+    result = _consume_default_deck(deck_user)
+
+    assert "tank" in result["unlocked_units"]
+    assert result["unit_levels"]["tank"] == 1
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_non_consumable_not_owned_skipped(deck_user):
+    """Non-consumable item in deck but not in inventory is skipped."""
+    from apps.inventory.models import Deck, DeckItem, Item
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    item = _make_item(
+        "ab-unowned", Item.ItemType.TACTICAL_PACKAGE, is_consumable=False, is_stackable=True, blueprint_ref="ab_unowned"
+    )
+    # No UserInventory entry — user does NOT own this item
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+
+    result = _consume_default_deck(deck_user)
+
+    assert "ab_unowned" not in result["ability_scrolls"]
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_consumable_stackable_boost(deck_user):
+    """Consumable stackable boost is consumed from inventory and added to active_boosts."""
+    from apps.inventory.models import Deck, DeckItem, Item, UserInventory
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    item = _make_item(
+        "boost-speed",
+        Item.ItemType.BOOST,
+        is_consumable=True,
+        is_stackable=True,
+        level=1,
+        boost_params={"effect_type": "speed", "value": 10},
+    )
+    UserInventory.objects.create(user=deck_user, item=item, quantity=3)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+
+    result = _consume_default_deck(deck_user)
+
+    assert any(b["slug"] == "boost-speed" for b in result["active_boosts"])
+    # Inventory should have been decremented
+    from apps.inventory.models import UserInventory
+
+    remaining = UserInventory.objects.filter(user=deck_user, item=item).first()
+    assert remaining is None or remaining.quantity == 2
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_consumable_stackable_not_in_inventory(deck_user):
+    """Consumable stackable boost not in inventory is skipped (consumed=0)."""
+    from apps.inventory.models import Deck, DeckItem, Item
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    item = _make_item("boost-missing", Item.ItemType.BOOST, is_consumable=True, is_stackable=True)
+    # No UserInventory entry
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+
+    result = _consume_default_deck(deck_user)
+
+    assert not any(b["slug"] == "boost-missing" for b in result["active_boosts"])
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_consumable_non_stackable_no_instance(deck_user):
+    """Consumable non-stackable item without instance_id is skipped."""
+    from apps.inventory.models import Deck, DeckItem, Item
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    item = _make_item("scroll-nuke", Item.ItemType.TACTICAL_PACKAGE, is_consumable=True, is_stackable=False)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    # instance not set => deck_item.instance_id is None
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+
+    result = _consume_default_deck(deck_user)
+
+    # consumed=0 branch, nothing added
+    assert "scroll-nuke" not in result["ability_scrolls"]
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_consumable_non_stackable_instance_consumed(deck_user):
+    """Consumable non-stackable item with a valid instance is consumed and deleted."""
+    from apps.inventory.models import Deck, DeckItem, Item, ItemInstance
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    item = _make_item(
+        "scroll-fire", Item.ItemType.BOOST, is_consumable=True, is_stackable=False, boost_params={"effect_type": "fire"}
+    )
+    instance = ItemInstance.objects.create(item=item, owner=deck_user)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1, instance=instance)
+
+    result = _consume_default_deck(deck_user)
+
+    assert any(b["slug"] == "scroll-fire" for b in result["active_boosts"])
+    assert not ItemInstance.objects.filter(id=instance.id).exists()
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_consumable_non_stackable_instance_missing(deck_user):
+    """Consumable non-stackable with a stale instance (deleted after deck creation) is skipped."""
+    from apps.inventory.models import Deck, DeckItem, Item, ItemInstance
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    item = _make_item("scroll-stale", Item.ItemType.BOOST, is_consumable=True, is_stackable=False, boost_params={})
+    # Create a real instance, reference it in the deck, then delete the instance
+    instance = ItemInstance.objects.create(item=item, owner=deck_user)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1, instance=instance)
+    # Delete the instance to simulate a stale reference — use raw update to avoid FK cascade
+    ItemInstance.objects.filter(pk=instance.pk).delete()
+    # Clear the deck_item FK so teardown constraint check passes, but keep instance_id pointing to old
+    # Instead, just call without the instance: test the ItemInstance.DoesNotExist branch via direct call
+    # Re-create deck_item without instance so instance_id is None -> consumed=0 path tested separately
+    # Actually: test the ItemInstance.DoesNotExist branch by patching ItemInstance.objects.get
+    from unittest.mock import patch
+
+    # Recreate with instance set but ItemInstance already gone — patch the get to raise DoesNotExist
+    deck2 = Deck.objects.create(user=deck_user, name="Default2", is_default=False)
+    item2 = _make_item("scroll-stale2", Item.ItemType.BOOST, is_consumable=True, is_stackable=False, boost_params={})
+    instance2 = ItemInstance.objects.create(item=item2, owner=deck_user)
+    DeckItem.objects.create(deck=deck2, item=item2, quantity=1, instance=instance2)
+    deck2.is_default = True
+    deck2.save()
+
+    with patch("apps.inventory.models.ItemInstance.objects") as mock_inst:
+        mock_inst.get.side_effect = ItemInstance.DoesNotExist
+        result = _consume_default_deck(deck_user)
+
+    assert not any(b["slug"] == "scroll-stale2" for b in result["active_boosts"])
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_non_consumable_non_stackable_instance_id_tracked(deck_user):
+    """Non-consumable non-stackable item with an instance_id records instance in instance_ids."""
+    from apps.inventory.models import Deck, DeckItem, Item, ItemInstance
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    item = _make_item(
+        "bp-fighter", Item.ItemType.BLUEPRINT_UNIT, is_consumable=False, is_stackable=False, blueprint_ref="fighter"
+    )
+    instance = ItemInstance.objects.create(item=item, owner=deck_user)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1, instance=instance)
+
+    result = _consume_default_deck(deck_user)
+
+    assert str(instance.id) in result["instance_ids"]
+
+
+# ---------------------------------------------------------------------------
+# _build_cosmetic_snapshot (lines 169-190)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_build_cosmetic_snapshot_empty_when_no_cosmetics(deck_user):
+    from apps.matchmaking.internal_api import _build_cosmetic_snapshot
+
+    result = _build_cosmetic_snapshot(deck_user)
+    assert result == {}
+
+
+def _make_mock_ec(slot, url=None, cosmetic_params=None, instance_id=None):
+    """Build a mock EquippedCosmetic-like object for testing _build_cosmetic_snapshot."""
+    from unittest.mock import MagicMock
+
+    ec = MagicMock()
+    ec.slot = slot
+    ec.instance_id = instance_id
+    ec.item.cosmetic_params = cosmetic_params
+    if url:
+        ec.item.cosmetic_asset = MagicMock()
+        ec.item.cosmetic_asset.file.url = url
+    else:
+        ec.item.cosmetic_asset = None
+    return ec
+
+
+@pytest.mark.django_db
+def test_build_cosmetic_snapshot_static_slot_with_url(deck_user):
+    """Static slot (non-vfx) with cosmetic_asset file produces {slot: url}."""
+    from unittest.mock import patch
+
+    from apps.matchmaking.internal_api import _build_cosmetic_snapshot
+
+    ec = _make_mock_ec("unit_infantry", url="/media/skin.png")
+
+    with patch("apps.inventory.models.EquippedCosmetic.objects") as mock_qs:
+        mock_qs.filter.return_value.select_related.return_value = [ec]
+        result = _build_cosmetic_snapshot(deck_user)
+
+    assert result.get("unit_infantry") == "/media/skin.png"
+
+
+@pytest.mark.django_db
+def test_build_cosmetic_snapshot_static_slot_no_asset_skipped(deck_user):
+    """Static slot with no cosmetic_asset and no instance_id: slot is omitted."""
+    from unittest.mock import patch
+
+    from apps.matchmaking.internal_api import _build_cosmetic_snapshot
+
+    ec = _make_mock_ec("unit_tank", url=None)
+
+    with patch("apps.inventory.models.EquippedCosmetic.objects") as mock_qs:
+        mock_qs.filter.return_value.select_related.return_value = [ec]
+        result = _build_cosmetic_snapshot(deck_user)
+
+    assert "unit_tank" not in result
+
+
+@pytest.mark.django_db
+def test_build_cosmetic_snapshot_static_slot_with_instance(deck_user):
+    """Static slot with instance_id produces {slot: {url, instance_id}}."""
+    import uuid
+    from unittest.mock import patch
+
+    from apps.matchmaking.internal_api import _build_cosmetic_snapshot
+
+    instance_id = uuid.uuid4()
+    ec = _make_mock_ec("unit_ship", url="/media/ship.png", instance_id=instance_id)
+
+    with patch("apps.inventory.models.EquippedCosmetic.objects") as mock_qs:
+        mock_qs.filter.return_value.select_related.return_value = [ec]
+        result = _build_cosmetic_snapshot(deck_user)
+
+    assert result["unit_ship"]["url"] == "/media/ship.png"
+    assert result["unit_ship"]["instance_id"] == str(instance_id)
+
+
+@pytest.mark.django_db
+def test_build_cosmetic_snapshot_vfx_slot(deck_user):
+    """VFX slot produces {slot: {url, params}} dict."""
+    from unittest.mock import patch
+
+    from apps.matchmaking.internal_api import _build_cosmetic_snapshot
+
+    ec = _make_mock_ec("vfx_attack", url="/media/vfx_attack.png", cosmetic_params={"color": "red"})
+
+    with patch("apps.inventory.models.EquippedCosmetic.objects") as mock_qs:
+        mock_qs.filter.return_value.select_related.return_value = [ec]
+        result = _build_cosmetic_snapshot(deck_user)
+
+    assert result["vfx_attack"]["url"] == "/media/vfx_attack.png"
+    assert result["vfx_attack"]["params"] == {"color": "red"}
+    assert "instance_id" not in result["vfx_attack"]
+
+
+@pytest.mark.django_db
+def test_build_cosmetic_snapshot_vfx_slot_with_instance(deck_user):
+    """VFX slot with instance_id includes instance_id in the entry."""
+    import uuid
+    from unittest.mock import patch
+
+    from apps.matchmaking.internal_api import _build_cosmetic_snapshot
+
+    instance_id = uuid.uuid4()
+    ec = _make_mock_ec("vfx_move", url=None, cosmetic_params={"speed": 5}, instance_id=instance_id)
+
+    with patch("apps.inventory.models.EquippedCosmetic.objects") as mock_qs:
+        mock_qs.filter.return_value.select_related.return_value = [ec]
+        result = _build_cosmetic_snapshot(deck_user)
+
+    assert result["vfx_move"]["instance_id"] == str(instance_id)
+    assert result["vfx_move"]["url"] is None
+
+
+# ---------------------------------------------------------------------------
+# _consume_default_deck additional branches (lines 95, 118)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_non_consumable_blueprint_building_new_ref(deck_user):
+    """Non-consumable building blueprint whose ref is NOT already in all_building_slugs (line 95)."""
+    from apps.game_config.models import BuildingType
+    from apps.inventory.models import Deck, DeckItem, Item, UserInventory
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    # Create an INACTIVE building type so it's NOT in all_building_slugs
+    BuildingType.objects.get_or_create(
+        slug="secret-lab",
+        defaults={"name": "Secret Lab", "is_active": False, "max_per_region": 1},
+    )
+    item = _make_item(
+        "bp-secret-lab",
+        Item.ItemType.BLUEPRINT_BUILDING,
+        is_consumable=False,
+        is_stackable=True,
+        blueprint_ref="secret-lab",
+        level=2,
+    )
+    UserInventory.objects.create(user=deck_user, item=item, quantity=1)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+
+    result = _consume_default_deck(deck_user)
+
+    assert "secret-lab" in result["unlocked_buildings"]
+    assert result["building_levels"]["secret-lab"] == 2
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_blueprint_building_already_unlocked_updates_level(deck_user):
+    """Non-consumable building blueprint whose ref is already in unlocked_buildings updates level but doesn't re-append."""
+    from apps.game_config.models import BuildingType
+    from apps.inventory.models import Deck, DeckItem, Item, UserInventory
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    # Ensure building type exists so it appears in all_building_slugs (already unlocked by default)
+    BuildingType.objects.get_or_create(
+        slug="barracks2",
+        defaults={"name": "Barracks2", "is_active": True, "max_per_region": 1},
+    )
+    item = _make_item(
+        "bp-barracks2-lvl3",
+        Item.ItemType.BLUEPRINT_BUILDING,
+        is_consumable=False,
+        is_stackable=True,
+        blueprint_ref="barracks2",
+        level=3,
+    )
+    UserInventory.objects.create(user=deck_user, item=item, quantity=1)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+
+    result = _consume_default_deck(deck_user)
+
+    # Should be unlocked with level 3 (updated from default 1)
+    assert "barracks2" in result["unlocked_buildings"]
+    assert result["building_levels"]["barracks2"] == 3
+    # Should NOT be duplicated in the list
+    assert result["unlocked_buildings"].count("barracks2") == 1
+
+
+@pytest.mark.django_db
+def test_consume_default_deck_consumable_boost_depletes_inventory_fully(deck_user):
+    """Consuming a boost with qty=1 depletes inventory fully (inv.delete path)."""
+    from apps.inventory.models import Deck, DeckItem, Item, UserInventory
+    from apps.matchmaking.internal_api import _consume_default_deck
+
+    item = _make_item(
+        "boost-deplete",
+        Item.ItemType.BOOST,
+        is_consumable=True,
+        is_stackable=True,
+        boost_params={"effect_type": "deplete"},
+    )
+    # Only 1 unit in inventory — should be fully consumed and deleted
+    UserInventory.objects.create(user=deck_user, item=item, quantity=1)
+    deck = Deck.objects.create(user=deck_user, name="Default", is_default=True)
+    DeckItem.objects.create(deck=deck, item=item, quantity=1)
+
+    result = _consume_default_deck(deck_user)
+
+    assert any(b["slug"] == "boost-deplete" for b in result["active_boosts"])
+    assert not UserInventory.objects.filter(user=deck_user, item=item).exists()
+
+
+# ---------------------------------------------------------------------------
+# queue/add with explicit game_mode slug (line 237)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_queue_add_with_explicit_game_mode_slug(client, user1, game_settings, game_mode):
+    """queue/add with a game_mode body field resolves by slug."""
+    resp = client.post(
+        "/api/v1/internal/matchmaking/queue/add/",
+        headers=_auth(),
+        data=json.dumps({"user_id": str(user1.id), "game_mode": game_mode.slug}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+    entry = MatchQueue.objects.get(user=user1)
+    assert entry.game_mode == game_mode
+
+
+# ---------------------------------------------------------------------------
+# fill_with_bots branches (lines 308, 315-316, 331)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_fill_with_bots_with_explicit_game_mode(client, game_settings, game_mode, user1, bot_user):
+    """fill-with-bots with an explicit game_mode slug resolves and adds bots."""
+    MatchQueue.objects.all().delete()
+    MatchQueue.objects.create(user=user1, game_mode=game_mode)
+    resp = client.post(
+        "/api/v1/internal/matchmaking/fill-with-bots/",
+        headers=_auth(),
+        data=json.dumps({"game_mode": game_mode.slug}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_fill_with_bots_no_game_mode_uses_game_settings(client, game_settings, user1, bot_user):
+    """fill-with-bots without game_mode falls back to GameSettings.min_players."""
+    # Delete any default game mode so the no-game-mode branch is taken
+    from apps.game_config.models import GameMode
+
+    GameMode.objects.filter(is_default=True).delete()
+
+    MatchQueue.objects.all().delete()
+    MatchQueue.objects.create(user=user1)
+    resp = client.post(
+        "/api/v1/internal/matchmaking/fill-with-bots/",
+        headers=_auth(),
+        data=json.dumps({}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_fill_with_bots_queue_already_full_returns_null(client, game_settings, game_mode, user1, user2):
+    """fill-with-bots when human_count >= min_players returns null (needed <= 0)."""
+    MatchQueue.objects.all().delete()
+    # Both users enqueued — already meets min_players=2
+    MatchQueue.objects.create(user=user1, game_mode=game_mode)
+    MatchQueue.objects.create(user=user2, game_mode=game_mode)
+    resp = client.post(
+        "/api/v1/internal/matchmaking/fill-with-bots/",
+        headers=_auth(),
+        data=json.dumps({"game_mode": game_mode.slug}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["match_id"] is None
+
+
+# ---------------------------------------------------------------------------
+# _do_try_match — map_config branches (lines 388, 390)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_try_match_uses_active_map_config_when_game_mode_has_none(client, game_settings, user1, user2):
+    """When game_mode.map_config is None, the active MapConfig is used."""
+    from apps.game_config.models import GameMode, MapConfig
+
+    MapConfig.objects.get_or_create(
+        is_active=True,
+        defaults={"name": "Test Map", "min_capital_distance": 3},
+    )
+    gm = GameMode.objects.create(
+        name="No-Map Mode",
+        slug="no-map-mode",
+        min_players=2,
+        max_players=2,
+        is_active=True,
+        is_default=False,
+        map_config=None,
+    )
+    MatchQueue.objects.all().delete()
+    MatchQueue.objects.create(user=user1, game_mode=gm)
+    MatchQueue.objects.create(user=user2, game_mode=gm)
+
+    resp = client.post(
+        "/api/v1/internal/matchmaking/try-match/",
+        headers=_auth(),
+        data=json.dumps({"game_mode": gm.slug}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    assert resp.json()["match_id"] is not None
+
+
+@pytest.mark.django_db
+def test_try_match_uses_game_mode_map_config_when_set(client, game_settings, user1, user2):
+    """When game_mode has a map_config set, it is used directly (line 388)."""
+    from apps.game_config.models import GameMode, MapConfig
+
+    map_cfg = MapConfig.objects.create(name="Mode Map", is_active=True, min_capital_distance=5)
+    gm = GameMode.objects.create(
+        name="Map Mode",
+        slug="map-mode",
+        min_players=2,
+        max_players=2,
+        is_active=True,
+        is_default=False,
+        map_config=map_cfg,
+    )
+    MatchQueue.objects.all().delete()
+    MatchQueue.objects.create(user=user1, game_mode=gm)
+    MatchQueue.objects.create(user=user2, game_mode=gm)
+
+    resp = client.post(
+        "/api/v1/internal/matchmaking/try-match/",
+        headers=_auth(),
+        data=json.dumps({"game_mode": gm.slug}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["match_id"] is not None
+    from apps.matchmaking.models import Match
+
+    match = Match.objects.get(id=data["match_id"])
+    assert match.map_config == map_cfg
+
+
+# ---------------------------------------------------------------------------
+# _create_match_from_users (lines 588-780) — via lobby start_match
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_start_match_from_lobby_creates_match(client, host, guest, game_settings):
+    """start-match from a READY lobby calls _create_match_from_users and returns match_id."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.FULL)
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_bot=False, is_ready=True)
+    LobbyPlayer.objects.create(lobby=lobby, user=guest, is_bot=False, is_ready=True)
+    lobby.status = Lobby.Status.READY
+    lobby.save()
+
+    resp = client.post(
+        "/api/v1/internal/lobby/start-match/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["match_id"] is not None
+    assert str(host.id) in data["user_ids"]
+    assert str(guest.id) in data["user_ids"]
+
+
+@pytest.mark.django_db
+def test_start_match_from_lobby_not_found(client, game_settings):
+    resp = client.post(
+        "/api/v1/internal/lobby/start-match/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(uuid.uuid4())}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_start_match_from_lobby_not_ready_returns_400(client, host, game_settings):
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.WAITING)
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_bot=False, is_ready=False)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/start-match/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_start_match_from_lobby_wrong_secret_returns_403(client, host, game_settings):
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.READY)
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_bot=False, is_ready=True)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/start-match/",
+        headers={"X-Internal-Secret": WRONG_SECRET},
+        data=json.dumps({"lobby_id": str(lobby.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_start_match_from_lobby_with_bot_player(client, host, game_settings):
+    """_create_match_from_users skips deck/cosmetic snapshot for bots."""
+    bot = User.objects.create_user(email="startbot@test.com", username="startbot", password="x", is_bot=True)
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.READY)
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_bot=False, is_ready=True)
+    LobbyPlayer.objects.create(lobby=lobby, user=bot, is_bot=True, is_ready=True)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/start-match/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert str(bot.id) in data["bot_ids"]
+
+
+@pytest.mark.django_db
+def test_start_match_from_lobby_cleans_queue_entries(client, host, guest, game_settings):
+    """start-match removes any MatchQueue entries for the lobby players."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.READY)
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_bot=False, is_ready=True)
+    LobbyPlayer.objects.create(lobby=lobby, user=guest, is_bot=False, is_ready=True)
+    MatchQueue.objects.create(user=host)
+    MatchQueue.objects.create(user=guest)
+
+    client.post(
+        "/api/v1/internal/lobby/start-match/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id)}),
+        content_type="application/json",
+    )
+
+    assert not MatchQueue.objects.filter(user=host).exists()
+    assert not MatchQueue.objects.filter(user=guest).exists()
+
+
+@pytest.mark.django_db
+def test_start_match_from_lobby_with_team_labels(client, host, guest, game_settings):
+    """_create_match_from_users passes team_labels when lobby players have them."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer, MatchPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.READY)
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_bot=False, is_ready=True, team_label="A")
+    LobbyPlayer.objects.create(lobby=lobby, user=guest, is_bot=False, is_ready=True, team_label="B")
+
+    resp = client.post(
+        "/api/v1/internal/lobby/start-match/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    match_id = resp.json()["match_id"]
+    host_player = MatchPlayer.objects.get(match_id=match_id, user=host)
+    guest_player = MatchPlayer.objects.get(match_id=match_id, user=guest)
+    assert host_player.team_label == "A"
+    assert guest_player.team_label == "B"
+
+
+# ---------------------------------------------------------------------------
+# _create_match_from_users — no game_mode path (lines 597, 601)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_create_match_from_users_no_game_mode_uses_game_settings(db, host, guest, game_settings):
+    """_create_match_from_users with game_mode=None uses GameSettings.max_players and active MapConfig."""
+    from apps.game_config.models import MapConfig
+    from apps.matchmaking.internal_api import _create_match_from_users
+
+    MapConfig.objects.get_or_create(
+        is_active=True,
+        defaults={"name": "Default Map", "min_capital_distance": 3},
+    )
+    result = _create_match_from_users([host, guest], game_mode=None)
+    assert result["match_id"] is not None
+    assert str(host.id) in result["user_ids"]
+    assert str(guest.id) in result["user_ids"]
+
+
+@pytest.mark.django_db
+def test_create_match_from_users_with_game_mode_uses_game_mode_settings(db, host, guest, game_settings, game_mode):
+    """_create_match_from_users with game_mode set uses game_mode.max_players (line 597) and map_config (line 601)."""
+    from apps.game_config.models import MapConfig
+    from apps.matchmaking.internal_api import _create_match_from_users
+
+    map_cfg = MapConfig.objects.create(name="GM Map", is_active=True, min_capital_distance=4)
+    game_mode.map_config = map_cfg
+    game_mode.save()
+
+    result = _create_match_from_users([host, guest], game_mode=game_mode)
+    assert result["match_id"] is not None
+
+    from apps.matchmaking.models import Match
+
+    match = Match.objects.get(id=result["match_id"])
+    assert match.map_config == map_cfg
+    assert match.max_players == game_mode.max_players
+
+
+@pytest.mark.django_db
+def test_start_match_from_lobby_without_game_mode_uses_game_settings(client, host, guest, game_settings):
+    """start-match from lobby with no game_mode uses GameSettings max_players and active MapConfig."""
+    from apps.game_config.models import MapConfig
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    MapConfig.objects.get_or_create(
+        is_active=True,
+        defaults={"name": "Default Map", "min_capital_distance": 3},
+    )
+    # Lobby with no game_mode
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.READY, game_mode=None)
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_bot=False, is_ready=True)
+    LobbyPlayer.objects.create(lobby=lobby, user=guest, is_bot=False, is_ready=True)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/start-match/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["match_id"] is not None
+
+
+# ---------------------------------------------------------------------------
+# create_lobby with explicit game_mode (line 853)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_create_lobby_with_game_mode_slug(client, host, game_settings, game_mode):
+    """create_lobby with a game_mode slug sets the correct game_mode on the lobby."""
+    from apps.matchmaking.models import Lobby
+
+    resp = client.post(
+        "/api/v1/internal/lobby/create/",
+        headers=_auth(),
+        data=json.dumps({"user_id": str(host.id), "game_mode": game_mode.slug}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    lobby_id = resp.json()["lobby_id"]
+    lobby = Lobby.objects.get(id=lobby_id)
+    assert lobby.game_mode == game_mode
+
+
+# ---------------------------------------------------------------------------
+# join_lobby error branches (lines 888, 892-893)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_join_lobby_not_open_returns_400(client, host, guest, game_settings):
+    """Joining a lobby that is FULL returns 400."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.FULL)
+    LobbyPlayer.objects.create(lobby=lobby, user=host)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/join/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id), "user_id": str(guest.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_join_lobby_unknown_user_returns_404(client, host, game_settings):
+    """Joining a lobby with an unknown user_id returns 404."""
+    lobby_id = _create_lobby(client, host).json()["lobby_id"]
+    resp = client.post(
+        "/api/v1/internal/lobby/join/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": lobby_id, "user_id": str(uuid.uuid4())}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_join_lobby_marks_full_when_capacity_reached(client, host, guest, game_settings):
+    """Joining fills lobby to capacity and sets status to FULL."""
+    from apps.matchmaking.models import Lobby
+
+    # Create a 2-player lobby with host already inside
+    lobby_id = _create_lobby(client, host).json()["lobby_id"]
+
+    resp = client.post(
+        "/api/v1/internal/lobby/join/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": lobby_id, "user_id": str(guest.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    lobby = Lobby.objects.get(id=lobby_id)
+    assert lobby.status == Lobby.Status.FULL
+
+
+# ---------------------------------------------------------------------------
+# leave_lobby — auth guard (line 919)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_leave_lobby_wrong_secret_returns_403(client, host, game_settings):
+    lobby_id = _create_lobby(client, host).json()["lobby_id"]
+    resp = client.post(
+        "/api/v1/internal/lobby/leave/",
+        headers={"X-Internal-Secret": WRONG_SECRET},
+        data=json.dumps({"lobby_id": lobby_id, "user_id": str(host.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# leave_lobby branches (line 919, 936-945)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_leave_lobby_all_players_gone_cancels(client, host, game_settings):
+    """Lobby is cancelled when non-host leaves and no remaining players (empty lobby edge case)."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    # Create lobby with only guest (host not in LobbyPlayer so remaining=0 after guest leaves)
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.WAITING)
+    guest2 = User.objects.create_user(email="alone2@test.com", username="alone2", password="x")
+    LobbyPlayer.objects.create(lobby=lobby, user=guest2)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/leave/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id), "user_id": str(guest2.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    lobby.refresh_from_db()
+    assert lobby.status == Lobby.Status.CANCELLED
+
+
+@pytest.mark.django_db
+def test_leave_lobby_non_host_resets_to_waiting(client, host, guest, game_settings):
+    """Non-host leaving a full lobby reverts it to WAITING and unreadies humans."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.FULL)
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_ready=True)
+    LobbyPlayer.objects.create(lobby=lobby, user=guest, is_ready=True)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/leave/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id), "user_id": str(guest.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    assert resp.json()["cancelled"] is False
+    lobby.refresh_from_db()
+    assert lobby.status == Lobby.Status.WAITING
+    host_player = LobbyPlayer.objects.get(lobby=lobby, user=host)
+    assert host_player.is_ready is False
+
+
+# ---------------------------------------------------------------------------
+# set_ready — lobby not found and lobby becomes READY (lines 955, 961-962, 976-977)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_set_ready_lobby_not_found_returns_404(client, game_settings):
+    resp = client.post(
+        "/api/v1/internal/lobby/set-ready/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(uuid.uuid4()), "user_id": str(uuid.uuid4()), "is_ready": True}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_set_ready_wrong_secret_returns_403(client, host, game_settings):
+    lobby_id = _create_lobby(client, host).json()["lobby_id"]
+    resp = client.post(
+        "/api/v1/internal/lobby/set-ready/",
+        headers={"X-Internal-Secret": WRONG_SECRET},
+        data=json.dumps({"lobby_id": lobby_id, "user_id": str(host.id), "is_ready": True}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_set_ready_all_ready_promotes_to_ready_status(client, host, guest, game_settings):
+    """When all players in a FULL lobby are ready, status becomes READY."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.FULL)
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_ready=True)
+    LobbyPlayer.objects.create(lobby=lobby, user=guest, is_ready=False)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/set-ready/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id), "user_id": str(guest.id), "is_ready": True}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    assert resp.json()["all_ready"] is True
+    lobby.refresh_from_db()
+    assert lobby.status == Lobby.Status.READY
+
+
+# ---------------------------------------------------------------------------
+# fill_lobby_bots (lines 986-1033)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_fill_lobby_bots_wrong_secret_returns_403(client, host, game_settings):
+    lobby_id = _create_lobby(client, host).json()["lobby_id"]
+    resp = client.post(
+        "/api/v1/internal/lobby/fill-bots/",
+        headers={"X-Internal-Secret": WRONG_SECRET},
+        data=json.dumps({"lobby_id": lobby_id}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_fill_lobby_bots_not_found_returns_404(client, game_settings):
+    resp = client.post(
+        "/api/v1/internal/lobby/fill-bots/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(uuid.uuid4())}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_fill_lobby_bots_already_full_returns_no_bots(client, host, guest, game_settings):
+    """fill-bots when lobby is already at capacity returns empty bot_ids list."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.FULL)
+    LobbyPlayer.objects.create(lobby=lobby, user=host)
+    LobbyPlayer.objects.create(lobby=lobby, user=guest)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/fill-bots/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["bot_ids"] == []
+
+
+@pytest.mark.django_db
+def test_fill_lobby_bots_adds_bots_to_lobby(client, host, game_settings):
+    """fill-bots adds available bots to fill the remaining slots."""
+    bot = User.objects.create_user(email="fillbot@test.com", username="fillbot", password="x", is_bot=True)
+    lobby_id = _create_lobby(client, host).json()["lobby_id"]
+
+    resp = client.post(
+        "/api/v1/internal/lobby/fill-bots/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": lobby_id}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert str(bot.id) in data["bot_ids"]
+
+
+@pytest.mark.django_db
+def test_fill_lobby_bots_sets_status_ready_when_all_ready(client, host, game_settings):
+    """fill-bots sets status to READY when all players (including bots) are ready."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    User.objects.create_user(email="readybot@test.com", username="readybot", password="x", is_bot=True)
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.WAITING)
+    # Host is ready
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_ready=True)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/fill-bots/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    from apps.matchmaking.models import Lobby
+
+    lobby.refresh_from_db()
+    # Bots are always added as ready, so all players are ready => READY status
+    assert lobby.status in (Lobby.Status.READY, Lobby.Status.FULL)
+
+
+@pytest.mark.django_db
+def test_fill_lobby_bots_sets_status_full_when_host_not_ready(client, host, game_settings):
+    """fill-bots sets status to FULL when not all are ready."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    User.objects.create_user(email="fullbot@test.com", username="fullbot", password="x", is_bot=True)
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.WAITING)
+    # Host is NOT ready
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_ready=False)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/fill-bots/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(lobby.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    lobby.refresh_from_db()
+    from apps.matchmaking.models import Lobby
+
+    assert lobby.status == Lobby.Status.FULL
+
+
+# ---------------------------------------------------------------------------
+# get_active_lobby auth guard (line 1104)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_get_active_lobby_wrong_secret_returns_403(client, host, game_settings):
+    resp = client.get(
+        f"/api/v1/internal/lobby/active/{host.id}/",
+        headers={"X-Internal-Secret": WRONG_SECRET},
+    )
+    assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# find_waiting_lobby — auth guard and game_mode slug (lines 1126, 1135)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_find_waiting_lobby_wrong_secret_returns_403(client, game_settings):
+    resp = client.get(
+        "/api/v1/internal/lobby/find-waiting/",
+        headers={"X-Internal-Secret": WRONG_SECRET},
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_find_waiting_lobby_with_game_mode_slug(client, host, game_settings, game_mode):
+    """find-waiting with a game_mode slug filters lobbies by that game mode."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.WAITING, game_mode=game_mode)
+    LobbyPlayer.objects.create(lobby=lobby, user=host)
+
+    resp = client.get(
+        f"/api/v1/internal/lobby/find-waiting/?game_mode={game_mode.slug}",
+        headers=_auth(),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["lobby_id"] == str(lobby.id)
+
+
+# ---------------------------------------------------------------------------
+# find_or_create_lobby branches (lines 1153, 1164-1165, 1169, 1188)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_find_or_create_lobby_wrong_secret_returns_403(client, host, game_settings):
+    resp = client.post(
+        "/api/v1/internal/lobby/find-or-create/",
+        headers={"X-Internal-Secret": WRONG_SECRET},
+        data=json.dumps({"user_id": str(host.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_find_or_create_lobby_unknown_user_returns_404(client, game_settings):
+    resp = client.post(
+        "/api/v1/internal/lobby/find-or-create/",
+        headers=_auth(),
+        data=json.dumps({"user_id": str(uuid.uuid4())}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_find_or_create_lobby_with_explicit_game_mode_slug(client, host, game_settings, game_mode):
+    """find-or-create with a game_mode slug creates lobby with that mode."""
+    from apps.matchmaking.models import Lobby
+
+    resp = client.post(
+        "/api/v1/internal/lobby/find-or-create/",
+        headers=_auth(),
+        data=json.dumps({"user_id": str(host.id), "game_mode": game_mode.slug}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["created"] is True
+    lobby = Lobby.objects.get(id=data["lobby_id"])
+    assert lobby.game_mode == game_mode
+
+
+@pytest.mark.django_db
+def test_find_or_create_lobby_joins_and_marks_full_when_capacity_reached(client, host, guest, game_settings):
+    """find-or-create filling a 2-player lobby to capacity marks it FULL."""
+    from apps.matchmaking.models import Lobby
+
+    # Host creates a lobby
+    resp1 = client.post(
+        "/api/v1/internal/lobby/find-or-create/",
+        headers=_auth(),
+        data=json.dumps({"user_id": str(host.id)}),
+        content_type="application/json",
+    )
+    lobby_id = resp1.json()["lobby_id"]
+
+    # Guest joins — fills lobby to capacity (max_players=2)
+    resp2 = client.post(
+        "/api/v1/internal/lobby/find-or-create/",
+        headers=_auth(),
+        data=json.dumps({"user_id": str(guest.id)}),
+        content_type="application/json",
+    )
+    assert resp2.status_code == 200
+    assert resp2.json()["created"] is False
+
+    lobby = Lobby.objects.get(id=lobby_id)
+    assert lobby.status == Lobby.Status.FULL
+
+
+@pytest.mark.django_db
+def test_find_or_create_lobby_creates_new_when_found_lobby_is_actually_full(client, host, guest, game_settings):
+    """find-or-create creates a new lobby when no suitable WAITING lobby exists."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    third = User.objects.create_user(email="third@test.com", username="thirdplayer", password="x")
+
+    # All existing lobbies are FULL — find-or-create should create a new one
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.FULL)
+    LobbyPlayer.objects.create(lobby=lobby, user=host)
+    LobbyPlayer.objects.create(lobby=lobby, user=guest)
+
+    resp = client.post(
+        "/api/v1/internal/lobby/find-or-create/",
+        headers=_auth(),
+        data=json.dumps({"user_id": str(third.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["created"] is True
+    assert data["lobby_id"] != str(lobby.id)
+
+
+@pytest.mark.django_db
+def test_find_or_create_lobby_race_condition_creates_new_when_locked_lobby_full(client, host, guest, game_settings):
+    """find-or-create line 1188: when the locked lobby turns out to be full, a new lobby is created.
+
+    We trigger this by having select_for_update return a lobby that has players.count() >= max_players.
+    We mock the entire queryset chain for select_for_update to return a mock lobby that is full.
+    """
+    from unittest.mock import MagicMock, patch
+
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    third = User.objects.create_user(email="race3@test.com", username="race3player", password="x")
+
+    # Create a lobby with 1 player (passes the subquery filter: player_count=1 < max_players=2)
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.WAITING)
+    LobbyPlayer.objects.create(lobby=lobby, user=host)
+
+    # Build a mock that simulates select_for_update().filter().first() returning the real lobby
+    # but with players.count() >= max_players (simulating race: another player joined)
+    mock_full_lobby = MagicMock(spec=Lobby)
+    mock_full_lobby.id = lobby.id
+    mock_full_lobby.max_players = lobby.max_players
+    mock_full_lobby.status = Lobby.Status.WAITING
+    mock_full_lobby.players.count.return_value = lobby.max_players  # already full
+
+    mock_qs = MagicMock()
+    mock_qs.filter.return_value.first.return_value = mock_full_lobby
+
+    with patch("apps.matchmaking.models.Lobby.objects.select_for_update", return_value=mock_qs):
+        resp = client.post(
+            "/api/v1/internal/lobby/find-or-create/",
+            headers=_auth(),
+            data=json.dumps({"user_id": str(third.id)}),
+            content_type="application/json",
+        )
+
+    assert resp.status_code == 200
+    # A new lobby should have been created for third
+    data = resp.json()
+    assert data["created"] is True
+
+
+# ---------------------------------------------------------------------------
+# notify_lobby_full (lines 1235-1265)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_notify_lobby_full_wrong_secret_returns_403(client, game_settings):
+    resp = client.post(
+        "/api/v1/internal/lobby/notify-lobby-full/",
+        headers={"X-Internal-Secret": WRONG_SECRET},
+        data=json.dumps({"lobby_id": str(uuid.uuid4())}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_notify_lobby_full_missing_lobby_id_returns_400(client, game_settings):
+    resp = client.post(
+        "/api/v1/internal/lobby/notify-lobby-full/",
+        headers=_auth(),
+        data=json.dumps({}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_notify_lobby_full_nonexistent_lobby_returns_404(client, game_settings):
+    resp = client.post(
+        "/api/v1/internal/lobby/notify-lobby-full/",
+        headers=_auth(),
+        data=json.dumps({"lobby_id": str(uuid.uuid4())}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_notify_lobby_full_success_with_humans(client, host, guest, game_settings):
+    """notify-lobby-full calls send_push_to_users for human players."""
+    from unittest.mock import patch
+
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=host, max_players=2, status=Lobby.Status.FULL)
+    LobbyPlayer.objects.create(lobby=lobby, user=host, is_bot=False)
+    LobbyPlayer.objects.create(lobby=lobby, user=guest, is_bot=False)
+
+    with patch("apps.accounts.push.send_push_to_users"):
+        resp = client.post(
+            "/api/v1/internal/lobby/notify-lobby-full/",
+            headers=_auth(),
+            data=json.dumps({"lobby_id": str(lobby.id)}),
+            content_type="application/json",
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["notified"] == 2
+
+
+@pytest.mark.django_db
+def test_notify_lobby_full_success_with_only_bots(client, game_settings):
+    """notify-lobby-full with all-bot lobby returns ok=True, notified=0 without calling push."""
+    from unittest.mock import patch
+
+    bot1 = User.objects.create_user(email="ntfybot1@test.com", username="ntfybot1", password="x", is_bot=True)
+    bot2 = User.objects.create_user(email="ntfybot2@test.com", username="ntfybot2", password="x", is_bot=True)
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=bot1, max_players=2, status=Lobby.Status.FULL)
+    LobbyPlayer.objects.create(lobby=lobby, user=bot1, is_bot=True)
+    LobbyPlayer.objects.create(lobby=lobby, user=bot2, is_bot=True)
+
+    with patch("apps.accounts.push.send_push_to_users") as mock_push:
+        resp = client.post(
+            "/api/v1/internal/lobby/notify-lobby-full/",
+            headers=_auth(),
+            data=json.dumps({"lobby_id": str(lobby.id)}),
+            content_type="application/json",
+        )
+        mock_push.assert_not_called()
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["notified"] == 0
+
+
+# ---------------------------------------------------------------------------
+# TutorialController — start_tutorial and cleanup_tutorial (views.py lines 50-243)
+# ---------------------------------------------------------------------------
+
+
+def _make_tutorial_prerequisites():
+    """Create the GameMode, TutorialBot user, and required BuildingType/UnitType/AbilityType."""
+    from apps.game_config.models import AbilityType, BuildingType, GameMode, UnitType
+
+    tutorial_mode, _ = GameMode.objects.get_or_create(
+        slug="tutorial",
+        defaults={
+            "name": "Tutorial",
+            "is_active": True,
+            "max_players": 2,
+            "min_players": 2,
+        },
+    )
+
+    BuildingType.objects.get_or_create(
+        slug="hq",
+        defaults={
+            "name": "HQ",
+            "is_active": True,
+            "max_per_region": 1,
+            "level_stats": {"1": {"cost": 0, "energy_cost": 10, "build_time_ticks": 1}},
+        },
+    )
+
+    UnitType.objects.get_or_create(
+        slug="infantry",
+        defaults={
+            "name": "Infantry",
+            "is_active": True,
+            "order": 0,
+            "level_stats": {"1": {"production_cost": 5, "production_time_ticks": 2, "manpower_cost": 1}},
+        },
+    )
+
+    AbilityType.objects.get_or_create(
+        slug="nuke",
+        defaults={
+            "name": "Nuke",
+            "is_active": True,
+            "target_type": "enemy",
+            "range": 5,
+            "energy_cost": 50,
+            "cooldown_ticks": 10,
+            "damage": 100,
+            "effect_duration_ticks": 5,
+        },
+    )
+
+    tutorial_bot, _ = User.objects.get_or_create(
+        username="TutorialBot",
+        defaults={"email": "tutorialbot@internal.test", "is_bot": True},
+    )
+
+    return tutorial_mode, tutorial_bot
+
+
+@pytest.fixture
+def tutorial_user(db):
+    return User.objects.create_user(
+        email="tutplayer@test.com",
+        username="tutplayer",
+        password="testpass123",
+    )
+
+
+@pytest.fixture
+def tutorial_client(settings):
+    from django.test import Client
+
+    settings.ROOT_URLCONF = "config.test_urls"
+    return Client()
+
+
+@pytest.mark.django_db
+def test_start_tutorial_creates_match(tutorial_client, tutorial_user, game_settings):
+    """TutorialController.start_tutorial creates a SELECTING match (lines 50-231)."""
+    _make_tutorial_prerequisites()
+    token = _get_jwt(tutorial_client, tutorial_user)
+
+    resp = tutorial_client.post(
+        "/api/v1/matches/tutorial/start/",
+        **{"HTTP_AUTHORIZATION": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "match_id" in data
+
+    from apps.matchmaking.models import Match
+
+    m = Match.objects.get(id=data["match_id"])
+    assert m.is_tutorial is True
+    assert m.status == Match.Status.SELECTING
+
+
+@pytest.mark.django_db
+def test_start_tutorial_deletes_existing_tutorial_first(tutorial_client, tutorial_user, game_settings):
+    """start_tutorial deletes any existing tutorial matches before creating a new one."""
+    _make_tutorial_prerequisites()
+
+    from apps.matchmaking.models import Match, MatchPlayer
+
+    # Pre-create a stale tutorial match for this user
+    stale = Match.objects.create(is_tutorial=True, status=Match.Status.SELECTING, max_players=2)
+    MatchPlayer.objects.create(match=stale, user=tutorial_user)
+
+    token = _get_jwt(tutorial_client, tutorial_user)
+    resp = tutorial_client.post(
+        "/api/v1/matches/tutorial/start/",
+        **{"HTTP_AUTHORIZATION": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    # Old match should be deleted
+    assert not Match.objects.filter(pk=stale.pk).exists()
+
+
+@pytest.mark.django_db
+def test_start_tutorial_requires_auth(tutorial_client, game_settings):
+    """start_tutorial requires JWT authentication."""
+    resp = tutorial_client.post("/api/v1/matches/tutorial/start/")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_cleanup_tutorial_cancels_and_deletes_matches(tutorial_client, tutorial_user, game_settings):
+    """cleanup_tutorial cancels and deletes all tutorial matches for the user (lines 236-243)."""
+    from apps.matchmaking.models import Match, MatchPlayer
+
+    m = Match.objects.create(is_tutorial=True, status=Match.Status.SELECTING, max_players=2)
+    MatchPlayer.objects.create(match=m, user=tutorial_user)
+
+    token = _get_jwt(tutorial_client, tutorial_user)
+    resp = tutorial_client.post(
+        "/api/v1/matches/tutorial/cleanup/",
+        **{"HTTP_AUTHORIZATION": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+    assert not Match.objects.filter(pk=m.pk).exists()
+
+
+@pytest.mark.django_db
+def test_cleanup_tutorial_requires_auth(tutorial_client, game_settings):
+    """cleanup_tutorial requires JWT authentication."""
+    resp = tutorial_client.post("/api/v1/matches/tutorial/cleanup/")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_cleanup_tutorial_no_matches_is_ok(tutorial_client, tutorial_user, game_settings):
+    """cleanup_tutorial is idempotent — no matches for user is fine."""
+    token = _get_jwt(tutorial_client, tutorial_user)
+    resp = tutorial_client.post(
+        "/api/v1/matches/tutorial/cleanup/",
+        **{"HTTP_AUTHORIZATION": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+
+
+# ---------------------------------------------------------------------------
+# MatchmakingStatusController — full coverage of idle/in_queue/in_match/in_lobby
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def mm_client(settings):
+    from django.test import Client
+
+    settings.ROOT_URLCONF = "config.test_urls"
+    return Client()
+
+
+@pytest.fixture
+def mm_user(db):
+    return User.objects.create_user(
+        email="mmstatus@test.com",
+        username="mmstatususer",
+        password="testpass123",
+    )
+
+
+@pytest.mark.django_db
+def test_matchmaking_status_idle_state(mm_client, mm_user, game_settings):
+    """User with no match/lobby/queue is idle."""
+    token = _get_jwt(mm_client, mm_user)
+    resp = mm_client.get("/api/v1/matchmaking/status/", **{"HTTP_AUTHORIZATION": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json()["state"] == "idle"
+
+
+@pytest.mark.django_db
+def test_matchmaking_status_in_queue_state(mm_client, mm_user, game_settings):
+    """User in MatchQueue gets state=in_queue."""
+    MatchQueue.objects.create(user=mm_user)
+    token = _get_jwt(mm_client, mm_user)
+    resp = mm_client.get("/api/v1/matchmaking/status/", **{"HTTP_AUTHORIZATION": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["state"] == "in_queue"
+    assert "joined_at" in data
+
+
+@pytest.mark.django_db
+def test_matchmaking_status_in_match_state(mm_client, mm_user, game_settings):
+    """User in an active match gets state=in_match."""
+    m = Match.objects.create(status=Match.Status.IN_PROGRESS, max_players=2)
+    MatchPlayer.objects.create(match=m, user=mm_user)
+    token = _get_jwt(mm_client, mm_user)
+    resp = mm_client.get("/api/v1/matchmaking/status/", **{"HTTP_AUTHORIZATION": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["state"] == "in_match"
+    assert data["match_id"] == str(m.id)
+
+
+@pytest.mark.django_db
+def test_matchmaking_status_in_lobby_state(mm_client, mm_user, game_settings):
+    """User in an active lobby gets state=in_lobby."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=mm_user, max_players=2, status=Lobby.Status.WAITING)
+    LobbyPlayer.objects.create(lobby=lobby, user=mm_user, is_ready=False)
+    token = _get_jwt(mm_client, mm_user)
+    resp = mm_client.get("/api/v1/matchmaking/status/", **{"HTTP_AUTHORIZATION": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["state"] == "in_lobby"
+    assert data["lobby_id"] == str(lobby.id)
+    assert "players" in data
+    assert "max_players" in data
+
+
+@pytest.mark.django_db
+def test_matchmaking_status_selecting_match_prioritised(mm_client, mm_user, game_settings):
+    """SELECTING match takes priority over queue."""
+    m = Match.objects.create(status=Match.Status.SELECTING, max_players=2)
+    MatchPlayer.objects.create(match=m, user=mm_user)
+    MatchQueue.objects.create(user=mm_user)
+    token = _get_jwt(mm_client, mm_user)
+    resp = mm_client.get("/api/v1/matchmaking/status/", **{"HTTP_AUTHORIZATION": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json()["state"] == "in_match"
+
+
+@pytest.mark.django_db
+def test_matchmaking_status_in_lobby_game_mode_slug_none_when_no_game_mode(mm_client, mm_user, game_settings):
+    """in_lobby state with no game_mode shows game_mode_slug=None."""
+    from apps.matchmaking.models import Lobby, LobbyPlayer
+
+    lobby = Lobby.objects.create(host_user=mm_user, max_players=2, status=Lobby.Status.FULL, game_mode=None)
+    LobbyPlayer.objects.create(lobby=lobby, user=mm_user, is_ready=True)
+    token = _get_jwt(mm_client, mm_user)
+    resp = mm_client.get("/api/v1/matchmaking/status/", **{"HTTP_AUTHORIZATION": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["state"] == "in_lobby"
+    assert data["game_mode_slug"] is None

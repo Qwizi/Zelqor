@@ -658,3 +658,99 @@ def test_crafting_history_after_craft(client, api_user, cut_planks_recipe, wood_
     resp = client.get("/api/v1/crafting/history/", **_bearer(token))
     assert resp.status_code == 200
     assert resp.json()["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# crafting/views.py — missing lines: recipe not found, insufficient gold,
+# insufficient ingredients
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_craft_recipe_not_found_returns_404(client):
+    """POST /craft/ with a non-existent recipe slug should return 404."""
+    make_user("cr404@test.com", "cr404_user")
+    token = _get_token(client, "cr404@test.com", "testpass123")
+    resp = client.post(
+        "/api/v1/crafting/craft/",
+        data=json.dumps({"recipe_slug": "does-not-exist"}),
+        content_type="application/json",
+        **_bearer(token),
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_craft_insufficient_gold_returns_400(client):
+    """POST /craft/ when user has less gold than required should return 400."""
+    from apps.inventory.models import Wallet
+
+    result_item = make_item("Gold Result", "gold-result", Item.ItemType.MATERIAL)
+    recipe = make_recipe(result_item, "Gold Recipe", "gold-recipe", gold_cost=9999, result_quantity=1)
+
+    user = make_user("cr_nogold@test.com", "cr_nogold_user")
+    Wallet.objects.create(user=user, gold=0)
+
+    token = _get_token(client, "cr_nogold@test.com", "testpass123")
+    resp = client.post(
+        "/api/v1/crafting/craft/",
+        data=json.dumps({"recipe_slug": recipe.slug}),
+        content_type="application/json",
+        **_bearer(token),
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_craft_insufficient_ingredient_returns_400(client):
+    """POST /craft/ when user lacks an ingredient should return 400."""
+    from apps.inventory.models import Wallet
+
+    ingredient_item = make_item("Rare Ore", "rare-ore-cr", Item.ItemType.MATERIAL)
+    ingredient_item.is_stackable = True
+    ingredient_item.save()
+    result_item = make_item("Rare Bar", "rare-bar-cr", Item.ItemType.MATERIAL)
+
+    recipe = make_recipe(result_item, "Rare Recipe", "rare-recipe-cr", gold_cost=0, result_quantity=1)
+    RecipeIngredient.objects.create(recipe=recipe, item=ingredient_item, quantity=5)
+
+    user = make_user("cr_noing@test.com", "cr_noing_user")
+    Wallet.objects.create(user=user, gold=1000)
+    # User has 0 of the ingredient
+
+    token = _get_token(client, "cr_noing@test.com", "testpass123")
+    resp = client.post(
+        "/api/v1/crafting/craft/",
+        data=json.dumps({"recipe_slug": recipe.slug}),
+        content_type="application/json",
+        **_bearer(token),
+    )
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# crafting/admin.py — list views
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestCraftingAdmin:
+    @pytest.fixture(autouse=True)
+    def setup(self, db):
+        from django.test import Client
+
+        from apps.accounts.models import User
+
+        self.client = Client()
+        su = User.objects.create_superuser(
+            username="crafting_admin", email="crafting_admin@test.local", password="adminpass"
+        )
+        self.client.force_login(su)
+
+    def test_recipe_list(self):
+        r = self.client.get("/admin/crafting/recipe/")
+        assert r.status_code == 200
+
+    def test_craftinglog_list(self):
+        r = self.client.get("/admin/crafting/craftinglog/")
+        assert r.status_code == 200

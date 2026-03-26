@@ -262,3 +262,104 @@ def test_mercator_helpers():
     y_max = _lat_to_mercator_y(90.0)
     y_clamped = _lat_to_mercator_y(85.051129)
     assert abs(y_max - y_clamped) < 1e-6
+
+
+# ---------------------------------------------------------------------------
+# Additional geo/views.py coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_regions_graph_with_match_id(client, country):
+    """regions_graph with a match_id that doesn't exist should still return data."""
+    import uuid
+
+    resp = client.get(f"/api/v1/geo/regions/graph/?match_id={uuid.uuid4()}")
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_regions_graph_cached(client, country):
+    """Calling regions_graph twice should use cache on second call."""
+    resp1 = client.get("/api/v1/geo/regions/graph/")
+    resp2 = client.get("/api/v1/geo/regions/graph/")
+    assert resp1.status_code == 200
+    assert resp2.status_code == 200
+
+
+@pytest.mark.django_db
+def test_region_shapes_with_match_id(client, country, region):
+    """region_shapes with a non-existent match_id still returns result."""
+    import uuid
+
+    resp = client.get(f"/api/v1/geo/regions/shapes/?match_id={uuid.uuid4()}")
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_region_shapes_cached(client, country, region):
+    """Calling region_shapes twice should use cache on second call."""
+    resp1 = client.get("/api/v1/geo/regions/shapes/")
+    resp2 = client.get("/api/v1/geo/regions/shapes/")
+    assert resp1.status_code == 200
+    assert resp2.status_code == 200
+
+
+@pytest.mark.django_db
+def test_region_shapes_includes_regions_with_polygon_data(client, country):
+    """Regions with polygons_data should appear in shapes response."""
+    from apps.geo.models import Region
+
+    Region.objects.create(
+        name="Poly Region",
+        country=country,
+        polygons_data=[{"points": ["100.0,200.0", "150.0,250.0", "200.0,200.0"]}],
+        centroid_game=[150.0, 225.0],
+    )
+    resp = client.get("/api/v1/geo/regions/shapes/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "regions" in data
+
+
+@pytest.mark.django_db
+def test_get_tile_returns_204(client):
+    """MVT tile endpoint always returns 204 empty response."""
+    resp = client.get("/api/v1/geo/tiles/5/15/10/")
+    assert resp.status_code == 204
+
+
+@pytest.mark.django_db
+def test_country_codes_for_match_with_valid_match(country):
+    """_country_codes_for_match should return country codes when match has map_config."""
+    from apps.game_config.models import MapConfig
+    from apps.geo.views import GeoController
+    from apps.matchmaking.models import Match
+
+    map_config = MapConfig.objects.create(
+        name="Test Map Geo",
+        country_codes=["TST"],
+    )
+    match = Match.objects.create(max_players=2, map_config=map_config)
+    codes = GeoController._country_codes_for_match(str(match.id))
+    assert codes == ["TST"]
+
+
+@pytest.mark.django_db
+def test_country_codes_for_match_invalid_id():
+    """_country_codes_for_match returns [] for a non-existent match."""
+    from apps.geo.views import GeoController
+
+    codes = GeoController._country_codes_for_match("nonexistent-match-id")
+    assert codes == []
+
+
+@pytest.mark.django_db
+def test_regions_list_with_region(client, country, region):
+    """GET /geo/regions/ should include our region in the FeatureCollection."""
+    resp = client.get(f"/api/v1/geo/regions/?country_code={country.code}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["type"] == "FeatureCollection"
+    ids = [f["id"] for f in data["features"]]
+    assert str(region.id) in ids

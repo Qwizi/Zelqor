@@ -350,3 +350,251 @@ describe("TUTORIAL_STEPS — ability steps", () => {
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// getHighlightRegions — additional branches
+// ---------------------------------------------------------------------------
+
+describe("TUTORIAL_STEPS — getHighlightRegions additional branches", () => {
+  // expand step
+  it("expand getHighlightRegions returns up to 5 neutral neighbors", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "expand")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1" },
+        n1: { owner_id: null },
+        n2: { owner_id: null },
+        n3: { owner_id: null },
+        n4: { owner_id: null },
+        n5: { owner_id: null },
+        n6: { owner_id: null },
+      },
+    });
+    const neighborMap = { r1: ["n1", "n2", "n3", "n4", "n5", "n6"] };
+    const highlighted = step.getHighlightRegions?.(state, "user-1", neighborMap);
+    expect(highlighted).toBeDefined();
+    expect(highlighted!.length).toBeLessThanOrEqual(5);
+  });
+
+  it("expand getHighlightRegions returns empty array when no neutral neighbors", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "expand")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1" },
+        r2: { owner_id: "enemy" },
+      },
+    });
+    const neighborMap = { r1: ["r2"] };
+    const highlighted = step.getHighlightRegions?.(state, "user-1", neighborMap);
+    expect(highlighted).toEqual([]);
+  });
+
+  // build_action step
+  it("build_action getHighlightRegions returns up to 3 own regions", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "build_action")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1" },
+        r2: { owner_id: "user-1" },
+        r3: { owner_id: "user-1" },
+        r4: { owner_id: "user-1" },
+      },
+    });
+    const highlighted = step.getHighlightRegions?.(state, "user-1", {});
+    expect(highlighted).toBeDefined();
+    expect(highlighted!.length).toBeLessThanOrEqual(3);
+  });
+
+  it("build_action getHighlightRegions returns empty when player owns no regions", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "build_action")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "enemy-1" },
+      },
+    });
+    const highlighted = step.getHighlightRegions?.(state, "user-1", {});
+    expect(highlighted).toEqual([]);
+  });
+
+  // ability_virus getHighlightRegions
+  it("ability_virus getHighlightRegions returns up to 3 enemy regions", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "ability_virus")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1" },
+        e1: { owner_id: "enemy-1" },
+        e2: { owner_id: "enemy-1" },
+        e3: { owner_id: "enemy-1" },
+        e4: { owner_id: "enemy-1" },
+      },
+    });
+    const highlighted = step.getHighlightRegions?.(state, "user-1", {});
+    expect(highlighted).toBeDefined();
+    expect(highlighted!.length).toBeLessThanOrEqual(3);
+  });
+
+  it("ability_virus getHighlightRegions returns empty when no enemy regions", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "ability_virus")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1" },
+        n1: { owner_id: null },
+      },
+    });
+    const highlighted = step.getHighlightRegions?.(state, "user-1", {});
+    expect(highlighted).toEqual([]);
+  });
+
+  // ability_submarine getHighlightRegions
+  it("ability_submarine getHighlightRegions returns enemy regions", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "ability_submarine")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1" },
+        e1: { owner_id: "enemy-1" },
+        e2: { owner_id: "enemy-2" },
+      },
+    });
+    const highlighted = step.getHighlightRegions?.(state, "user-1", {});
+    expect(highlighted).toBeDefined();
+    expect(highlighted!.length).toBeGreaterThan(0);
+    expect(highlighted).not.toContain("r1");
+  });
+
+  // abilities_nuke getHighlightRegions
+  it("abilities_nuke getHighlightRegions returns enemy regions", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "abilities_nuke")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1" },
+        e1: { owner_id: "enemy-1" },
+      },
+    });
+    const highlighted = step.getHighlightRegions?.(state, "user-1", {});
+    expect(highlighted).toContain("e1");
+    expect(highlighted).not.toContain("r1");
+  });
+
+  // attack_neutral — no neighbor map entry → empty neighbors
+  it("attack_neutral getHighlightRegions returns empty when neighborMap has no entry for owned region", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "attack_neutral")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1" },
+        r2: { owner_id: null },
+      },
+    });
+    const highlighted = step.getHighlightRegions?.(state, "user-1", {}); // no entries in neighborMap
+    expect(highlighted).toEqual([]);
+  });
+
+  // attack_neutral — neutral neighbor already in result is not duplicated
+  it("attack_neutral getHighlightRegions does not duplicate neutral neighbors", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "attack_neutral")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1" },
+        r2: { owner_id: "user-1" },
+        n1: { owner_id: null },
+      },
+    });
+    // Both r1 and r2 neighbor n1
+    const neighborMap = { r1: ["n1"], r2: ["n1"] };
+    const highlighted = step.getHighlightRegions?.(state, "user-1", neighborMap);
+    expect(highlighted).toBeDefined();
+    // n1 should appear only once
+    expect(highlighted!.filter((id) => id === "n1").length).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// build_action condition branches
+// ---------------------------------------------------------------------------
+
+describe("TUTORIAL_STEPS — build_action condition", () => {
+  it("is true when a building is in the queue for the player", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "build_action")!;
+    const state = makeGameState({
+      buildings_queue: [{ player_id: "user-1", building_type: "barracks", region_id: "r1" }],
+    });
+    expect(step.condition?.(state, "user-1")).toBe(true);
+  });
+
+  it("is true when a region has buildings built", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "build_action")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1", buildings: { barracks: 1 } },
+      },
+    });
+    expect(step.condition?.(state, "user-1")).toBe(true);
+  });
+
+  it("is false when no buildings queued and no buildings built", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "build_action")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1", buildings: {} },
+      },
+      buildings_queue: [],
+    });
+    expect(step.condition?.(state, "user-1")).toBe(false);
+  });
+
+  it("is false when buildings are queued for a different player", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "build_action")!;
+    const state = makeGameState({
+      buildings_queue: [{ player_id: "enemy-1", building_type: "barracks", region_id: "r2" }],
+    });
+    expect(step.condition?.(state, "user-1")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// build_wait condition
+// ---------------------------------------------------------------------------
+
+describe("TUTORIAL_STEPS — build_wait condition", () => {
+  it("is true when player owns a region with a completed building", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "build_wait")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1", buildings: { barracks: 1 } },
+      },
+    });
+    expect(step.condition?.(state, "user-1")).toBe(true);
+  });
+
+  it("is false when player owns regions but none have buildings", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "build_wait")!;
+    const state = makeGameState({
+      regions: {
+        r1: { owner_id: "user-1", buildings: {} },
+        r2: { owner_id: "user-1", buildings: null },
+      },
+    });
+    expect(step.condition?.(state, "user-1")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ability conditions with missing ability_cooldowns key
+// ---------------------------------------------------------------------------
+
+describe("TUTORIAL_STEPS — ability conditions edge cases", () => {
+  it("ability_conscription condition is false when player has no ability_cooldowns", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "ability_conscription")!;
+    const state = makeGameState({
+      players: {
+        "user-1": { ability_cooldowns: undefined },
+      },
+    });
+    expect(step.condition?.(state, "user-1")).toBe(false);
+  });
+
+  it("ability condition is false when player is not in players object", () => {
+    const step = TUTORIAL_STEPS.find((s) => s.id === "ability_shield")!;
+    const state = makeGameState({ players: {} });
+    expect(step.condition?.(state, "user-1")).toBe(false);
+  });
+});

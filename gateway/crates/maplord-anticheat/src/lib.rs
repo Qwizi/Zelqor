@@ -917,6 +917,33 @@ mod tests {
             // With only 5 samples (< TIMING_WINDOW+1 = 11), should be None
             assert!(last.is_none(), "fewer than TIMING_WINDOW+1 samples should return None");
         }
+
+        /// Covers lines 243-244: the drain branch inside check_impossible_timing.
+        ///
+        /// The drain fires when `action_timestamps_ms.len() > 256`.  Each call
+        /// with N actions pushes N timestamps.  We use a flood count that pushes
+        /// the buffer well past 256 so the branch is definitely taken.
+        #[test]
+        fn drain_branch_fires_when_timestamps_exceed_256() {
+            let mut d = Detectors::new();
+
+            // 260 actions in one call → 260 timestamps pushed, which is > 256,
+            // triggering the drain on the next call that again pushes actions.
+            // We call twice so the second call sees the already-long buffer and
+            // actually enters the drain branch.
+            d.check_impossible_timing("p1", 260, 1);
+            // Second call: buffer is now 260 entries; the guard `> 256` fires and
+            // drains it back to 128 before appending the new batch.
+            let _result = d.check_impossible_timing("p1", 10, 2);
+
+            // After two calls the timestamps buffer must be bounded (≤ 128 + 10).
+            let profile = d.profile("p1");
+            assert!(
+                profile.action_timestamps_ms.len() <= 256,
+                "drain should have kept the timestamps buffer bounded, got len={}",
+                profile.action_timestamps_ms.len()
+            );
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -981,6 +1008,39 @@ mod tests {
                 let result = d.check_repetitive_pattern("p1", &refs, tick);
                 assert!(result.is_none(), "varied actions should not trigger repetition (tick {tick})");
             }
+        }
+
+        /// Covers lines 290-291: the drain branch inside check_repetitive_pattern.
+        ///
+        /// The drain fires when `recent_action_sigs.len() > 256`.  We push 260
+        /// signatures in the first call, then call again so the second invocation
+        /// enters the `> 256` guard and executes the drain back to 128.
+        #[test]
+        fn drain_branch_fires_when_sigs_exceed_256() {
+            let mut d = Detectors::new();
+
+            // First call: push 260 distinct actions → 260 sigs, which is > 256.
+            let big_batch: Vec<Action> = (0..260usize)
+                .map(|i| make_seq("p1", i))
+                .collect();
+            let big_refs: Vec<&Action> = big_batch.iter().collect();
+            d.check_repetitive_pattern("p1", &big_refs, 1);
+
+            // Second call: the buffer is 260 entries; the `> 256` guard fires,
+            // draining it to 128, then appends the new batch.
+            let small_batch: Vec<Action> = (300..305usize)
+                .map(|i| make_seq("p1", i))
+                .collect();
+            let small_refs: Vec<&Action> = small_batch.iter().collect();
+            let _result = d.check_repetitive_pattern("p1", &small_refs, 2);
+
+            // After drain the buffer must be bounded (≤ 128 + 5 = 133).
+            let profile = d.profile("p1");
+            assert!(
+                profile.recent_action_sigs.len() <= 256,
+                "drain should have kept the sigs buffer bounded, got len={}",
+                profile.recent_action_sigs.len()
+            );
         }
     }
 

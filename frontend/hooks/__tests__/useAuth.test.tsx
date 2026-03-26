@@ -246,4 +246,198 @@ describe("useAuth", () => {
 
     expect(result.current.user?.elo_rating).toBe(1300);
   });
+
+  // -------------------------------------------------------------------------
+  // loadUser — rethrows unexpected errors (leaves existing state intact)
+  // -------------------------------------------------------------------------
+
+  it("loadUser() rethrows errors that are not 401/403 APIError, leaving existing state intact", async () => {
+    // First load a valid user
+    mockIsAuthenticated.mockReturnValue(true);
+    mockGetMe.mockResolvedValue(mockUser);
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {});
+
+    expect(result.current.user).toEqual(mockUser);
+
+    // Now simulate an unexpected error on refreshUser (calls loadUser internally)
+    const unexpectedError = new Error("Server crash");
+    mockGetMe.mockRejectedValue(unexpectedError);
+
+    // loadUser rethrows on unexpected errors — refreshUser() will propagate the rejection
+    await expect(
+      act(async () => {
+        await result.current.refreshUser();
+      }),
+    ).rejects.toThrow("Server crash");
+
+    // Existing state should remain intact (user not cleared)
+    expect(result.current.user).toEqual(mockUser);
+    // setAuthenticated(false) should NOT have been called for unexpected errors
+    expect(mockSetAuthenticated).not.toHaveBeenCalledWith(false);
+  });
+
+  it("loadUser() clears state on 403 APIError (forbidden)", async () => {
+    mockIsAuthenticated.mockReturnValue(true);
+    mockGetMe.mockRejectedValue(new APIError(403, "Forbidden"));
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {});
+
+    expect(result.current.user).toBeNull();
+    expect(result.current.loading).toBe(false);
+    expect(mockSetAuthenticated).toHaveBeenCalledWith(false);
+  });
+
+  // -------------------------------------------------------------------------
+  // register()
+  // -------------------------------------------------------------------------
+
+  it("register() calls apiRegister then login", async () => {
+    mockIsAuthenticated.mockReturnValue(false);
+    mockRegister.mockResolvedValue(undefined);
+    mockLogin.mockResolvedValue({ user: mockUser });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      await result.current.register("Alice", "alice@example.com", "password123");
+    });
+
+    expect(mockRegister).toHaveBeenCalledWith({
+      username: "Alice",
+      email: "alice@example.com",
+      password: "password123",
+    });
+    // login is called internally after register
+    expect(mockLogin).toHaveBeenCalledWith("alice@example.com", "password123");
+    expect(result.current.user).toEqual(mockUser);
+  });
+
+  it("register() propagates errors from apiRegister", async () => {
+    mockIsAuthenticated.mockReturnValue(false);
+    mockRegister.mockRejectedValue(new Error("Username taken"));
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {});
+
+    await expect(
+      act(async () => {
+        await result.current.register("Alice", "alice@example.com", "password123");
+      }),
+    ).rejects.toThrow("Username taken");
+  });
+
+  // -------------------------------------------------------------------------
+  // loginWithTokens()
+  // -------------------------------------------------------------------------
+
+  it("loginWithTokens() calls loadUser and sets the user", async () => {
+    mockIsAuthenticated.mockReturnValue(false);
+    // After loginWithTokens, getMe should succeed
+    mockGetMe.mockResolvedValue(mockUser);
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {});
+
+    // Set isAuthenticated=true so loadUser proceeds
+    mockIsAuthenticated.mockReturnValue(true);
+
+    await act(async () => {
+      await result.current.loginWithTokens("access-token", "refresh-token");
+    });
+
+    expect(mockGetMe).toHaveBeenCalled();
+    expect(result.current.user).toEqual(mockUser);
+  });
+
+  it("loginWithTokens() ignores the provided token arguments (cookie-based auth)", async () => {
+    mockIsAuthenticated.mockReturnValue(false);
+    mockGetMe.mockResolvedValue(mockUser);
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {});
+
+    mockIsAuthenticated.mockReturnValue(true);
+
+    await act(async () => {
+      await result.current.loginWithTokens("dummy-access", "dummy-refresh");
+    });
+
+    // Tokens are not passed anywhere — only getMe is called
+    expect(mockLogin).not.toHaveBeenCalled();
+    expect(mockGetMe).toHaveBeenCalled();
+    // token is always null in cookie auth
+    expect(result.current.token).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // logout() — logoutAPI failure still clears state
+  // -------------------------------------------------------------------------
+
+  it("logout() clears user state even when logoutAPI throws", async () => {
+    mockIsAuthenticated.mockReturnValue(true);
+    mockGetMe.mockResolvedValue(mockUser);
+    mockLogoutAPI.mockRejectedValue(new Error("Network error"));
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {});
+
+    expect(result.current.user).toEqual(mockUser);
+
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    // Should still clear despite API error
+    expect(result.current.user).toBeNull();
+    expect(mockSetAuthenticated).toHaveBeenCalledWith(false);
+  });
+
+  // -------------------------------------------------------------------------
+  // refreshUser() — skips when not authenticated and no user
+  // -------------------------------------------------------------------------
+
+  it("refreshUser() is a no-op when user is null and not authenticated", async () => {
+    mockIsAuthenticated.mockReturnValue(false);
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {});
+
+    const callsBefore = mockGetMe.mock.calls.length;
+
+    await act(async () => {
+      await result.current.refreshUser();
+    });
+
+    // getMe should not have been called
+    expect(mockGetMe.mock.calls.length).toBe(callsBefore);
+  });
+
+  // -------------------------------------------------------------------------
+  // login() clears isBanned on success
+  // -------------------------------------------------------------------------
+
+  it("login() sets isBanned=false on successful login after a previous ban", async () => {
+    // Simulate previously banned state
+    mockIsAuthenticated.mockReturnValue(true);
+    mockGetMe.mockResolvedValue({ ...mockUser, is_banned: true });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {});
+
+    expect(result.current.isBanned).toBe(true);
+
+    // Now login succeeds with non-banned user
+    mockLogin.mockResolvedValue({ user: mockUser });
+
+    await act(async () => {
+      await result.current.login("alice@example.com", "password");
+    });
+
+    expect(result.current.isBanned).toBe(false);
+    expect(result.current.user).toEqual(mockUser);
+  });
 });

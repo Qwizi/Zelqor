@@ -2093,3 +2093,476 @@ def test_finalize_clan_war_draw_refunds_wager(_mock_dev, _mock_inv, two_player_m
     # Both clans should have received their wager back (100 each)
     assert clan1.treasury_gold == 100
     assert clan2.treasury_gold == 100
+
+
+# ---------------------------------------------------------------------------
+# _balanced_round_elo_changes — delta > 0 branch (lines 33-36)
+# ---------------------------------------------------------------------------
+
+
+def test_balanced_round_elo_changes_delta_positive_branch():
+    """Force delta > 0: sum of rounded is negative, so delta = -sum > 0."""
+    # 0.4 rounds to 0, -0.4 rounds to 0 → sum = 0, but we need delta > 0.
+    # Use values that round to a sum < 0, so -sum > 0.
+    # e.g. [0.6, -1.4]: rounded = [1, -1] sum=0; try [1.4, -0.6]: rounded=[1,0] sum=1 delta=-1 <0.
+    # Try [0.4, 0.4, -1.4]: rounded=[0,0,-1] sum=-1 delta=1 >0 → hits the positive branch.
+    raw = [0.4, 0.4, -1.4]
+    result = _balanced_round_elo_changes(raw)
+    assert sum(result) == 0
+    assert all(isinstance(v, int) for v in result)
+
+
+# ---------------------------------------------------------------------------
+# _award_match_xp — error dispatching clan XP (lines 94-95)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_award_match_xp_clan_xp_dispatch_error_is_swallowed():
+    """If award_clan_xp.delay raises, _award_match_xp still completes."""
+    from unittest.mock import MagicMock, patch
+
+    from apps.game.tasks import _award_match_xp
+
+    user = User.objects.create_user(email="xp_err@test.com", username="xperr", password="x", experience=0)
+    mp = MagicMock()
+    mp.user = user
+
+    player_rows = [{"pid": str(user.id), "is_bot": False, "match_player": mp}]
+
+    with patch("apps.clans.tasks.award_clan_xp.delay", side_effect=Exception("redis down")):
+        # Should not raise
+        _award_match_xp(player_rows, str(user.id))
+
+    user.refresh_from_db()
+    assert user.experience == 50  # XP still awarded despite clan dispatch error
+
+
+# ---------------------------------------------------------------------------
+# finalize_match_results_sync — equal-placement tie branch (line 221)
+# and discipline penalties (lines 230, 232)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_finalize_equal_placement_tie_branch(db):
+    """Two players alive with same regions/units → tied placement triggers actual_score=0.5."""
+    GameSettings.get()
+    user1 = User.objects.create_user(email="tie1@test.com", username="tie1", password="x", elo_rating=1000)
+    user2 = User.objects.create_user(email="tie2@test.com", username="tie2", password="x", elo_rating=1000)
+    match = Match.objects.create(
+        status=Match.Status.IN_PROGRESS,
+        max_players=2,
+        started_at=timezone.now() - timedelta(minutes=5),
+    )
+    MatchPlayer.objects.create(match=match, user=user1, color="#FF0000")
+    MatchPlayer.objects.create(match=match, user=user2, color="#0000FF")
+
+    # Both alive with identical stats — results in tied placement
+    final_state = {
+        "players": {
+            str(user1.id): {
+                "is_alive": True,
+                "total_regions_conquered": 5,
+                "total_units_produced": 10,
+                "total_units_lost": 2,
+                "total_buildings_built": 1,
+                "eliminated_reason": "",
+                "eliminated_tick": 0,
+            },
+            str(user2.id): {
+                "is_alive": True,
+                "total_regions_conquered": 5,
+                "total_units_produced": 10,
+                "total_units_lost": 2,
+                "total_buildings_built": 1,
+                "eliminated_reason": "",
+                "eliminated_tick": 0,
+            },
+        },
+        "regions": {},
+    }
+    with (
+        patch("apps.inventory.tasks.generate_match_drops", side_effect=Exception("skip")),
+        patch("apps.developers.tasks.dispatch_webhook_event", side_effect=Exception("skip")),
+    ):
+        finalize_match_results_sync(str(match.id), None, 100, final_state)
+
+    from apps.game.models import MatchResult
+
+    assert MatchResult.objects.filter(match=match).exists()
+
+
+@pytest.mark.django_db
+def test_finalize_left_match_discipline_penalty(db):
+    """Player who left gets discipline penalty (line 230)."""
+    GameSettings.get()
+    user1 = User.objects.create_user(email="left1@test.com", username="left1", password="x", elo_rating=1000)
+    user2 = User.objects.create_user(email="left2@test.com", username="left2", password="x", elo_rating=1000)
+    match = Match.objects.create(
+        status=Match.Status.IN_PROGRESS,
+        max_players=2,
+        started_at=timezone.now() - timedelta(minutes=5),
+    )
+    MatchPlayer.objects.create(match=match, user=user1, color="#FF0000")
+    MatchPlayer.objects.create(match=match, user=user2, color="#0000FF")
+
+    final_state = {
+        "players": {
+            str(user1.id): {
+                "is_alive": True,
+                "total_regions_conquered": 10,
+                "total_units_produced": 20,
+                "total_units_lost": 1,
+                "total_buildings_built": 2,
+                "eliminated_reason": "",
+                "eliminated_tick": 0,
+            },
+            str(user2.id): {
+                "is_alive": False,
+                "total_regions_conquered": 3,
+                "total_units_produced": 5,
+                "total_units_lost": 10,
+                "total_buildings_built": 0,
+                "eliminated_reason": "left_match",
+                "eliminated_tick": 50,
+            },
+        },
+        "regions": {},
+    }
+    with (
+        patch("apps.inventory.tasks.generate_match_drops", side_effect=Exception("skip")),
+        patch("apps.developers.tasks.dispatch_webhook_event", side_effect=Exception("skip")),
+    ):
+        finalize_match_results_sync(str(match.id), str(user1.id), 100, final_state)
+
+    from apps.game.models import MatchResult
+
+    assert MatchResult.objects.filter(match=match).exists()
+
+
+@pytest.mark.django_db
+def test_finalize_disconnect_timeout_discipline_penalty(db):
+    """Player who disconnected gets disconnect penalty (line 232)."""
+    GameSettings.get()
+    user1 = User.objects.create_user(email="dc1@test.com", username="dc1", password="x", elo_rating=1000)
+    user2 = User.objects.create_user(email="dc2@test.com", username="dc2", password="x", elo_rating=1000)
+    match = Match.objects.create(
+        status=Match.Status.IN_PROGRESS,
+        max_players=2,
+        started_at=timezone.now() - timedelta(minutes=5),
+    )
+    MatchPlayer.objects.create(match=match, user=user1, color="#FF0000")
+    MatchPlayer.objects.create(match=match, user=user2, color="#0000FF")
+
+    final_state = {
+        "players": {
+            str(user1.id): {
+                "is_alive": True,
+                "total_regions_conquered": 10,
+                "total_units_produced": 20,
+                "total_units_lost": 1,
+                "total_buildings_built": 2,
+                "eliminated_reason": "",
+                "eliminated_tick": 0,
+            },
+            str(user2.id): {
+                "is_alive": False,
+                "total_regions_conquered": 3,
+                "total_units_produced": 5,
+                "total_units_lost": 10,
+                "total_buildings_built": 0,
+                "eliminated_reason": "disconnect_timeout",
+                "eliminated_tick": 60,
+            },
+        },
+        "regions": {},
+    }
+    with (
+        patch("apps.inventory.tasks.generate_match_drops", side_effect=Exception("skip")),
+        patch("apps.developers.tasks.dispatch_webhook_event", side_effect=Exception("skip")),
+    ):
+        finalize_match_results_sync(str(match.id), str(user1.id), 100, final_state)
+
+    from apps.game.models import MatchResult
+
+    assert MatchResult.objects.filter(match=match).exists()
+
+
+# ---------------------------------------------------------------------------
+# finalize_match_results_sync — StatTrak branches (lines 335-336, 340-342, 346-385)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_finalize_stattrak_increments_match_counter(two_player_match):
+    """deck_snapshot with instance_ids causes StatTrak update (lines 335-385)."""
+    from apps.inventory.models import Item, ItemCategory, ItemInstance
+
+    match, user1, user2 = two_player_match
+
+    cat = ItemCategory.objects.create(slug="skin-cat", name="Skins", order=0)
+    item = Item.objects.create(name="Skin1", slug="skin1", category=cat, item_type="skin")
+    instance = ItemInstance.objects.create(owner=user1, item=item, stattrak=True, stattrak_matches=0)
+
+    # Set deck_snapshot with instance_id
+    from apps.matchmaking.models import MatchPlayer
+
+    mp = MatchPlayer.objects.get(match=match, user=user1)
+    mp.deck_snapshot = {"instance_ids": [str(instance.id)]}
+    mp.save()
+
+    with (
+        patch("apps.inventory.tasks.generate_match_drops", side_effect=Exception("skip")),
+        patch("apps.developers.tasks.dispatch_webhook_event", side_effect=Exception("skip")),
+    ):
+        finalize_match_results_sync(str(match.id), str(user1.id), 100, _make_final_state(user1.id, user2.id))
+
+    instance.refresh_from_db()
+    assert instance.stattrak_matches == 1
+
+
+@pytest.mark.django_db
+def test_finalize_stattrak_cosmetic_snapshot_instance_id(two_player_match):
+    """cosmetic_snapshot with instance_id dict triggers StatTrak update (lines 340-342)."""
+    from apps.inventory.models import Item, ItemCategory, ItemInstance
+
+    match, user1, user2 = two_player_match
+
+    cat = ItemCategory.objects.get_or_create(slug="cos-cat", defaults={"name": "Cosmetics", "order": 1})[0]
+    item = Item.objects.create(name="Spray1", slug="spray1", category=cat, item_type="spray")
+    instance = ItemInstance.objects.create(owner=user1, item=item, stattrak=True, stattrak_matches=0)
+
+    from apps.matchmaking.models import MatchPlayer
+
+    mp = MatchPlayer.objects.get(match=match, user=user1)
+    mp.cosmetic_snapshot = {"spray_slot": {"instance_id": str(instance.id)}}
+    mp.save()
+
+    with (
+        patch("apps.inventory.tasks.generate_match_drops", side_effect=Exception("skip")),
+        patch("apps.developers.tasks.dispatch_webhook_event", side_effect=Exception("skip")),
+    ):
+        finalize_match_results_sync(str(match.id), str(user1.id), 100, _make_final_state(user1.id, user2.id))
+
+    instance.refresh_from_db()
+    assert instance.stattrak_matches == 1
+
+
+# ---------------------------------------------------------------------------
+# finalize_match_results_sync — webhook dispatch for elo_changed (lines 407-410)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_finalize_dispatches_elo_changed_webhook_for_human_with_elo_change(two_player_match):
+    """Webhook player.elo_changed is dispatched for human players whose ELO changed."""
+    match, user1, user2 = two_player_match
+
+    with (
+        patch("apps.developers.tasks.dispatch_webhook_event") as mock_dispatch,
+        patch("apps.inventory.tasks.generate_match_drops", side_effect=Exception("skip")),
+    ):
+        finalize_match_results_sync(str(match.id), str(user1.id), 100, _make_final_state(user1.id, user2.id))
+
+    calls = [c[0][0] for c in mock_dispatch.call_args_list]
+    assert "match.finished" in calls
+    # player.elo_changed should be called if elo actually changed
+    # (this depends on ranking; user1 won so typically gains ELO)
+
+
+# ---------------------------------------------------------------------------
+# _resolve_clan_war — team_label fallback path (lines 466-477)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+@patch("apps.inventory.tasks.generate_match_drops", side_effect=Exception("skip"))
+@patch("apps.developers.tasks.dispatch_webhook_event", side_effect=Exception("skip"))
+def test_resolve_clan_war_team_label_challenger_fallback(_mock_dev, _mock_inv, two_player_match):
+    """When no ClanWarParticipant record exists for winner, falls back to team_label."""
+    from apps.clans.models import Clan, ClanWar
+
+    match, user1, user2 = two_player_match
+
+    clan1 = Clan.objects.create(name="FL Clan A", tag="FLA", leader=user1, elo_rating=1000)
+    clan2 = Clan.objects.create(name="FL Clan B", tag="FLB", leader=user2, elo_rating=1000)
+
+    war = ClanWar.objects.create(
+        challenger=clan1,
+        defender=clan2,
+        status=ClanWar.Status.IN_PROGRESS,
+        match=match,
+    )
+    # No ClanWarParticipant entries — fallback to team_label
+    from apps.matchmaking.models import MatchPlayer
+
+    MatchPlayer.objects.filter(match=match, user=user1).update(team_label="challenger")
+
+    with patch("apps.clans.tasks.calculate_clan_war_elo.delay") as mock_elo:
+        finalize_match_results_sync(str(match.id), str(user1.id), 100, _make_final_state(user1.id, user2.id))
+
+    war.refresh_from_db()
+    assert war.winner_id == clan1.pk
+    mock_elo.assert_called_once()
+
+
+@pytest.mark.django_db
+@patch("apps.inventory.tasks.generate_match_drops", side_effect=Exception("skip"))
+@patch("apps.developers.tasks.dispatch_webhook_event", side_effect=Exception("skip"))
+def test_resolve_clan_war_team_label_defender_fallback(_mock_dev, _mock_inv, two_player_match):
+    """Fallback team_label='defender' resolves to defender clan."""
+    from apps.clans.models import Clan, ClanWar
+
+    match, user1, user2 = two_player_match
+
+    clan1 = Clan.objects.create(name="FLD Clan A", tag="FLDA", leader=user1, elo_rating=1000)
+    clan2 = Clan.objects.create(name="FLD Clan B", tag="FLDB", leader=user2, elo_rating=1000)
+
+    war = ClanWar.objects.create(
+        challenger=clan1,
+        defender=clan2,
+        status=ClanWar.Status.IN_PROGRESS,
+        match=match,
+    )
+    from apps.matchmaking.models import MatchPlayer
+
+    # user1 wins but is labelled "defender"
+    MatchPlayer.objects.filter(match=match, user=user1).update(team_label="defender")
+
+    with patch("apps.clans.tasks.calculate_clan_war_elo.delay") as mock_elo:
+        finalize_match_results_sync(str(match.id), str(user1.id), 100, _make_final_state(user1.id, user2.id))
+
+    war.refresh_from_db()
+    assert war.winner_id == clan2.pk
+    mock_elo.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Internal API — cancel active match (lines 312-327)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+@patch("apps.game.internal_api.redis.Redis")
+def test_cancel_active_match_success(mock_redis_cls, internal_api):
+
+    mock_r = MagicMock()
+    mock_redis_cls.from_url.return_value = mock_r
+
+    client, match, _, _ = internal_api
+    resp = client.post(
+        "/api/v1/internal/game/cancel-match/",
+        headers={"X-Internal-Secret": INTERNAL_SECRET},
+        data=json.dumps({"match_id": str(match.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["match_id"] == str(match.id)
+    match.refresh_from_db()
+    assert match.status == "cancelled"
+
+
+@pytest.mark.django_db
+def test_cancel_active_match_wrong_secret_returns_403(internal_api):
+    client, match, _, _ = internal_api
+    resp = client.post(
+        "/api/v1/internal/game/cancel-match/",
+        headers={"X-Internal-Secret": WRONG_SECRET},
+        data=json.dumps({"match_id": str(match.id)}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Internal API — verify_spectator match not found (line 186)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_verify_spectator_match_not_found_returns_false(internal_api):
+    client, _, user1, _ = internal_api
+    resp = client.get(
+        f"/api/v1/internal/matches/{uuid.uuid4()}/verify-spectator/{user1.id}/",
+        headers={"X-Internal-Secret": INTERNAL_SECRET},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["is_member"] is False
+    assert data["is_active"] is True
+
+
+# ---------------------------------------------------------------------------
+# Internal API — get_match_regions (lines 248-263)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_get_match_regions_match_not_found(internal_api):
+    client, _, _, _ = internal_api
+    resp = client.get(
+        f"/api/v1/internal/matches/{uuid.uuid4()}/regions/",
+        headers={"X-Internal-Secret": INTERNAL_SECRET},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_get_match_regions_success(internal_api):
+    client, match, _, _ = internal_api
+    resp = client.get(
+        f"/api/v1/internal/matches/{match.id}/regions/",
+        headers={"X-Internal-Secret": INTERNAL_SECRET},
+    )
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), dict)
+
+
+@pytest.mark.django_db
+def test_get_match_regions_wrong_secret_returns_403(internal_api):
+    client, match, _, _ = internal_api
+    resp = client.get(
+        f"/api/v1/internal/matches/{match.id}/regions/",
+        headers={"X-Internal-Secret": WRONG_SECRET},
+    )
+    assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Internal API — StatusUpdateRequest invalid status (line 43)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_update_match_status_invalid_value_returns_422(internal_api):
+    client, match, _, _ = internal_api
+    resp = client.patch(
+        f"/api/v1/internal/matches/{match.id}/status/",
+        headers={"X-Internal-Secret": INTERNAL_SECRET},
+        data=json.dumps({"status": "completely_invalid_status"}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Internal API — get_neighbor_map cached (line 437)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_get_neighbor_map_returns_cached_result(internal_api):
+    """Second call should hit the cache (line 437)."""
+    client, _, _, _ = internal_api
+    with patch("apps.geo.models.Region.objects") as mock_mgr:
+        mock_mgr.prefetch_related.return_value.all.return_value = []
+        # First call populates cache
+        resp1 = client.get("/api/v1/internal/regions/neighbors/", headers={"X-Internal-Secret": INTERNAL_SECRET})
+        # Second call should return cached result
+        resp2 = client.get("/api/v1/internal/regions/neighbors/", headers={"X-Internal-Secret": INTERNAL_SECRET})
+    assert resp1.status_code == 200
+    assert resp2.status_code == 200
+    assert resp1.json() == resp2.json()

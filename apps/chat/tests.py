@@ -247,3 +247,49 @@ def test_get_match_messages(client, user, match):
 def test_get_match_messages_requires_secret(client, match):
     resp = client.get(f"/api/v1/internal/chat/matches/{match.id}/messages/?limit=50")
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Additional chat/internal_api.py coverage — missing lines 86, 99-100
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_get_global_messages_limit_clamped(client, user):
+    """GET /internal/chat/messages/ should accept limit=1 (minimum)."""
+    ChatMessage.objects.create(user=user, content="Clamp test")
+    resp = client.get(
+        "/api/v1/internal/chat/messages/?limit=1",
+        **INTERNAL_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "messages" in data
+    assert len(data["messages"]) >= 1
+
+
+@pytest.mark.django_db
+def test_save_match_message_user_not_found(client, match):
+    """POST /internal/chat/matches/{id}/messages/ with unknown user_id returns 404."""
+    import uuid
+
+    resp = client.post(
+        f"/api/v1/internal/chat/matches/{match.id}/messages/",
+        data=json.dumps({"user_id": str(uuid.uuid4()), "content": "ghost"}),
+        content_type="application/json",
+        **INTERNAL_HEADERS,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_get_match_messages_with_messages(client, user, match):
+    """GET /internal/chat/matches/{id}/messages/ should return posted messages."""
+    MatchChatMessage.objects.create(match=match, user=user, content="Match msg")
+    resp = client.get(
+        f"/api/v1/internal/chat/matches/{match.id}/messages/?limit=10",
+        **INTERNAL_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["messages"]) >= 1

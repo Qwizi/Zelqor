@@ -8,8 +8,11 @@
 // Override the Redis URL via the `REDIS_URL` environment variable.
 // The tests use database 15 by default to avoid interfering with other data.
 
-use maplord_engine::{Action, DiplomacyState, Player, Region};
-use maplord_state::GameStateManager;
+use maplord_engine::{
+    Action, ActiveEffect, AirTransitItem, BuildingQueueItem, DiplomacyState, Player, Region,
+    TransitQueueItem, UnitQueueItem,
+};
+use maplord_state::{FullGameState, GameStateManager};
 use redis::aio::ConnectionManager;
 use std::collections::HashMap;
 
@@ -718,6 +721,1518 @@ async fn test_incr_decr_connection() {
         .await
         .expect("final decr_connection failed");
     assert_eq!(after_zero, 0);
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 21. redis() getter returns a usable ConnectionManager clone
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_redis_getter_returns_usable_conn() {
+    let (manager, _) = make_manager().await;
+
+    // Obtain a clone of the ConnectionManager via the public getter and
+    // exercise it independently — PING should succeed.
+    let mut conn = manager.redis();
+    let pong: String = redis::cmd("PING")
+        .query_async(&mut conn)
+        .await
+        .expect("PING via redis() getter failed");
+    assert_eq!(pong, "PONG");
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 22. get_tick_data with buildings_queue populated
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_tick_data_with_buildings_queue() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Warsaw"))
+        .await
+        .expect("set_region failed");
+
+    // Pre-populate the buildings_queue list directly via set_tick_result so
+    // the data is in the canonical msgpack format that get_tick_data reads.
+    let building = BuildingQueueItem {
+        region_id: "r1".to_string(),
+        building_type: "barracks".to_string(),
+        player_id: "p1".to_string(),
+        ticks_remaining: 3,
+        total_ticks: 5,
+        is_upgrade: false,
+        target_level: 0,
+    };
+
+    let players: HashMap<String, Player> = HashMap::new();
+    let regions: HashMap<String, Region> = HashMap::new();
+    let diplomacy = DiplomacyState::default();
+
+    manager
+        .set_tick_result(
+            &players,
+            &regions,
+            &[building.clone()],
+            &[],
+            &[],
+            &[],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let tick_data = manager
+        .get_tick_data()
+        .await
+        .expect("get_tick_data failed");
+
+    assert_eq!(tick_data.buildings_queue.len(), 1);
+    assert_eq!(tick_data.buildings_queue[0].region_id, "r1");
+    assert_eq!(tick_data.buildings_queue[0].building_type, "barracks");
+    assert_eq!(tick_data.buildings_queue[0].ticks_remaining, 3);
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 23. get_tick_data with unit_queue populated
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_tick_data_with_unit_queue() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Krakow"))
+        .await
+        .expect("set_region failed");
+
+    let unit_item = UnitQueueItem {
+        region_id: "r1".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "infantry".to_string(),
+        quantity: Some(10),
+        manpower_cost: Some(5),
+        ticks_remaining: 2,
+        total_ticks: 4,
+    };
+
+    let players: HashMap<String, Player> = HashMap::new();
+    let regions: HashMap<String, Region> = HashMap::new();
+    let diplomacy = DiplomacyState::default();
+
+    manager
+        .set_tick_result(
+            &players,
+            &regions,
+            &[],
+            &[unit_item.clone()],
+            &[],
+            &[],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let tick_data = manager
+        .get_tick_data()
+        .await
+        .expect("get_tick_data failed");
+
+    assert_eq!(tick_data.unit_queue.len(), 1);
+    assert_eq!(tick_data.unit_queue[0].unit_type, "infantry");
+    assert_eq!(tick_data.unit_queue[0].quantity, Some(10));
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 24. get_tick_data with transit_queue populated
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_tick_data_with_transit_queue() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Gdansk"))
+        .await
+        .expect("set_region failed");
+
+    let transit = TransitQueueItem {
+        action_type: "move".to_string(),
+        source_region_id: "r1".to_string(),
+        target_region_id: "r2".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "infantry".to_string(),
+        units: 50,
+        ticks_remaining: 1,
+        travel_ticks: 3,
+    };
+
+    let players: HashMap<String, Player> = HashMap::new();
+    let regions: HashMap<String, Region> = HashMap::new();
+    let diplomacy = DiplomacyState::default();
+
+    manager
+        .set_tick_result(
+            &players,
+            &regions,
+            &[],
+            &[],
+            &[transit.clone()],
+            &[],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let tick_data = manager
+        .get_tick_data()
+        .await
+        .expect("get_tick_data failed");
+
+    assert_eq!(tick_data.transit_queue.len(), 1);
+    assert_eq!(tick_data.transit_queue[0].source_region_id, "r1");
+    assert_eq!(tick_data.transit_queue[0].target_region_id, "r2");
+    assert_eq!(tick_data.transit_queue[0].units, 50);
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 25. get_tick_data with air_transit_queue populated
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_tick_data_with_air_transit_queue() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Poznan"))
+        .await
+        .expect("set_region failed");
+
+    let air_item = AirTransitItem {
+        id: "air-001".to_string(),
+        mission_type: "bomb_run".to_string(),
+        source_region_id: "r1".to_string(),
+        target_region_id: "r3".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "bomber".to_string(),
+        units: 3,
+        escort_fighters: 2,
+        progress: 0.25,
+        speed_per_tick: 0.1,
+        total_distance: 4,
+        interceptors: vec![],
+        flight_path: vec!["r1".to_string(), "r2".to_string(), "r3".to_string()],
+        last_bombed_hop: 0,
+    };
+
+    let players: HashMap<String, Player> = HashMap::new();
+    let regions: HashMap<String, Region> = HashMap::new();
+    let diplomacy = DiplomacyState::default();
+
+    manager
+        .set_tick_result(
+            &players,
+            &regions,
+            &[],
+            &[],
+            &[],
+            &[air_item.clone()],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let tick_data = manager
+        .get_tick_data()
+        .await
+        .expect("get_tick_data failed");
+
+    assert_eq!(tick_data.air_transit_queue.len(), 1);
+    assert_eq!(tick_data.air_transit_queue[0].id, "air-001");
+    assert_eq!(tick_data.air_transit_queue[0].mission_type, "bomb_run");
+    assert_eq!(tick_data.air_transit_queue[0].units, 3);
+    assert_eq!(tick_data.air_transit_queue[0].escort_fighters, 2);
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 26. get_tick_data with active_effects populated
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_tick_data_with_active_effects() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Lodz"))
+        .await
+        .expect("set_region failed");
+
+    let effect = ActiveEffect {
+        effect_type: "fortify".to_string(),
+        source_player_id: "p1".to_string(),
+        target_region_id: "r1".to_string(),
+        affected_region_ids: vec!["r1".to_string()],
+        ticks_remaining: 5,
+        total_ticks: 10,
+        params: serde_json::json!({"bonus": 0.2}),
+    };
+
+    let players: HashMap<String, Player> = HashMap::new();
+    let regions: HashMap<String, Region> = HashMap::new();
+    let diplomacy = DiplomacyState::default();
+
+    manager
+        .set_tick_result(
+            &players,
+            &regions,
+            &[],
+            &[],
+            &[],
+            &[],
+            &[effect.clone()],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let tick_data = manager
+        .get_tick_data()
+        .await
+        .expect("get_tick_data failed");
+
+    assert_eq!(tick_data.active_effects.len(), 1);
+    assert_eq!(tick_data.active_effects[0].effect_type, "fortify");
+    assert_eq!(tick_data.active_effects[0].ticks_remaining, 5);
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 27. set_tick_result with all queue types populated — RPUSH branches
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_set_tick_result_all_queues_populated() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+
+    let mut players = HashMap::new();
+    let mut p = make_player("p1");
+    p.energy = 80;
+    players.insert("p1".to_string(), p);
+
+    let mut regions = HashMap::new();
+    let mut r = make_region("Wroclaw");
+    r.unit_count = 15;
+    regions.insert("r1".to_string(), r);
+
+    let building = BuildingQueueItem {
+        region_id: "r1".to_string(),
+        building_type: "fortress".to_string(),
+        player_id: "p1".to_string(),
+        ticks_remaining: 4,
+        total_ticks: 8,
+        is_upgrade: true,
+        target_level: 2,
+    };
+
+    let unit_item = UnitQueueItem {
+        region_id: "r1".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "tank".to_string(),
+        quantity: Some(5),
+        manpower_cost: Some(20),
+        ticks_remaining: 3,
+        total_ticks: 6,
+    };
+
+    let transit = TransitQueueItem {
+        action_type: "attack".to_string(),
+        source_region_id: "r1".to_string(),
+        target_region_id: "r2".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "infantry".to_string(),
+        units: 25,
+        ticks_remaining: 2,
+        travel_ticks: 4,
+    };
+
+    let air_item = AirTransitItem {
+        id: "air-002".to_string(),
+        mission_type: "fighter_attack".to_string(),
+        source_region_id: "r1".to_string(),
+        target_region_id: "r5".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "fighter".to_string(),
+        units: 6,
+        escort_fighters: 0,
+        progress: 0.5,
+        speed_per_tick: 0.2,
+        total_distance: 2,
+        interceptors: vec![],
+        flight_path: vec!["r1".to_string(), "r5".to_string()],
+        last_bombed_hop: 0,
+    };
+
+    let effect = ActiveEffect {
+        effect_type: "shield".to_string(),
+        source_player_id: "p1".to_string(),
+        target_region_id: "r1".to_string(),
+        affected_region_ids: vec!["r1".to_string()],
+        ticks_remaining: 3,
+        total_ticks: 3,
+        params: serde_json::json!(null),
+    };
+
+    let diplomacy = DiplomacyState::default();
+
+    manager
+        .set_tick_result(
+            &players,
+            &regions,
+            &[building],
+            &[unit_item],
+            &[transit],
+            &[air_item],
+            &[effect],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result with all queues failed");
+
+    // Verify all queues were written correctly.
+    let buildings = manager
+        .get_all_buildings()
+        .await
+        .expect("get_all_buildings failed");
+    assert_eq!(buildings.len(), 1);
+    assert_eq!(buildings[0].building_type, "fortress");
+    assert!(buildings[0].is_upgrade);
+
+    let units = manager
+        .get_all_unit_queue()
+        .await
+        .expect("get_all_unit_queue failed");
+    assert_eq!(units.len(), 1);
+    assert_eq!(units[0].unit_type, "tank");
+
+    let transits = manager
+        .get_all_transit_queue()
+        .await
+        .expect("get_all_transit_queue failed");
+    assert_eq!(transits.len(), 1);
+    assert_eq!(transits[0].units, 25);
+
+    let air = manager
+        .get_all_air_transit_queue()
+        .await
+        .expect("get_all_air_transit_queue failed");
+    assert_eq!(air.len(), 1);
+    assert_eq!(air[0].id, "air-002");
+
+    let effects = manager
+        .get_all_active_effects()
+        .await
+        .expect("get_all_active_effects failed");
+    assert_eq!(effects.len(), 1);
+    assert_eq!(effects[0].effect_type, "shield");
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 28. get_full_state with all queues populated
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_full_state_all_queues_populated() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(500, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Berlin"))
+        .await
+        .expect("set_region failed");
+
+    let players: HashMap<String, Player> = HashMap::new();
+    let regions: HashMap<String, Region> = HashMap::new();
+    let diplomacy = DiplomacyState::default();
+
+    let building = BuildingQueueItem {
+        region_id: "r1".to_string(),
+        building_type: "factory".to_string(),
+        player_id: "p1".to_string(),
+        ticks_remaining: 2,
+        total_ticks: 5,
+        is_upgrade: false,
+        target_level: 0,
+    };
+
+    let unit_item = UnitQueueItem {
+        region_id: "r1".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "artillery".to_string(),
+        quantity: Some(2),
+        manpower_cost: Some(30),
+        ticks_remaining: 1,
+        total_ticks: 3,
+    };
+
+    let transit = TransitQueueItem {
+        action_type: "reinforce".to_string(),
+        source_region_id: "r1".to_string(),
+        target_region_id: "r2".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "infantry".to_string(),
+        units: 10,
+        ticks_remaining: 1,
+        travel_ticks: 2,
+    };
+
+    let air_item = AirTransitItem {
+        id: "air-003".to_string(),
+        mission_type: "escort_return".to_string(),
+        source_region_id: "r2".to_string(),
+        target_region_id: "r1".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "fighter".to_string(),
+        units: 4,
+        escort_fighters: 0,
+        progress: 0.75,
+        speed_per_tick: 0.25,
+        total_distance: 1,
+        interceptors: vec![],
+        flight_path: vec!["r2".to_string(), "r1".to_string()],
+        last_bombed_hop: 0,
+    };
+
+    let effect = ActiveEffect {
+        effect_type: "nuke_fallout".to_string(),
+        source_player_id: "p1".to_string(),
+        target_region_id: "r2".to_string(),
+        affected_region_ids: vec!["r2".to_string()],
+        ticks_remaining: 2,
+        total_ticks: 5,
+        params: serde_json::json!({"radiation": 0.8}),
+    };
+
+    manager
+        .set_tick_result(
+            &players,
+            &regions,
+            &[building],
+            &[unit_item],
+            &[transit],
+            &[air_item],
+            &[effect],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let state = manager
+        .get_full_state()
+        .await
+        .expect("get_full_state failed");
+
+    assert_eq!(state.buildings_queue.len(), 1);
+    assert_eq!(state.buildings_queue[0].building_type, "factory");
+
+    assert_eq!(state.unit_queue.len(), 1);
+    assert_eq!(state.unit_queue[0].unit_type, "artillery");
+
+    assert_eq!(state.transit_queue.len(), 1);
+    assert_eq!(state.transit_queue[0].action_type, "reinforce");
+
+    assert_eq!(state.air_transit_queue.len(), 1);
+    assert_eq!(state.air_transit_queue[0].id, "air-003");
+
+    assert_eq!(state.active_effects.len(), 1);
+    assert_eq!(state.active_effects[0].effect_type, "nuke_fallout");
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 29. restore_full_state with all queue types populated
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_restore_full_state_all_queues() {
+    let (manager, _) = make_manager().await;
+
+    let mut meta = HashMap::new();
+    meta.insert("status".to_string(), "active".to_string());
+    meta.insert("current_tick".to_string(), "7".to_string());
+
+    let mut players = HashMap::new();
+    players.insert("p1".to_string(), make_player("p1"));
+
+    let mut regions = HashMap::new();
+    regions.insert("r1".to_string(), make_region("Vienna"));
+
+    let building = BuildingQueueItem {
+        region_id: "r1".to_string(),
+        building_type: "watchtower".to_string(),
+        player_id: "p1".to_string(),
+        ticks_remaining: 1,
+        total_ticks: 3,
+        is_upgrade: false,
+        target_level: 0,
+    };
+
+    let unit_item = UnitQueueItem {
+        region_id: "r1".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "cavalry".to_string(),
+        quantity: Some(3),
+        manpower_cost: Some(15),
+        ticks_remaining: 2,
+        total_ticks: 5,
+    };
+
+    let transit = TransitQueueItem {
+        action_type: "move".to_string(),
+        source_region_id: "r1".to_string(),
+        target_region_id: "r3".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "cavalry".to_string(),
+        units: 12,
+        ticks_remaining: 1,
+        travel_ticks: 2,
+    };
+
+    let air_item = AirTransitItem {
+        id: "air-restore-01".to_string(),
+        mission_type: "bomb_run".to_string(),
+        source_region_id: "r1".to_string(),
+        target_region_id: "r4".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "bomber".to_string(),
+        units: 2,
+        escort_fighters: 1,
+        progress: 0.1,
+        speed_per_tick: 0.1,
+        total_distance: 3,
+        interceptors: vec![],
+        flight_path: vec!["r1".to_string(), "r2".to_string(), "r4".to_string()],
+        last_bombed_hop: 0,
+    };
+
+    let effect = ActiveEffect {
+        effect_type: "fortify".to_string(),
+        source_player_id: "p1".to_string(),
+        target_region_id: "r1".to_string(),
+        affected_region_ids: vec!["r1".to_string()],
+        ticks_remaining: 4,
+        total_ticks: 6,
+        params: serde_json::json!(null),
+    };
+
+    let original = FullGameState {
+        meta,
+        players,
+        regions,
+        buildings_queue: vec![building],
+        unit_queue: vec![unit_item],
+        transit_queue: vec![transit],
+        air_transit_queue: vec![air_item],
+        active_effects: vec![effect],
+        diplomacy: DiplomacyState::default(),
+    };
+
+    manager
+        .restore_full_state(&original)
+        .await
+        .expect("restore_full_state failed");
+
+    let restored = manager
+        .get_full_state()
+        .await
+        .expect("get_full_state after restore failed");
+
+    assert_eq!(
+        restored.meta.get("current_tick").map(String::as_str),
+        Some("7")
+    );
+    assert!(restored.players.contains_key("p1"));
+    assert!(restored.regions.contains_key("r1"));
+    assert_eq!(restored.regions["r1"].name, "Vienna");
+
+    assert_eq!(restored.buildings_queue.len(), 1);
+    assert_eq!(restored.buildings_queue[0].building_type, "watchtower");
+
+    assert_eq!(restored.unit_queue.len(), 1);
+    assert_eq!(restored.unit_queue[0].unit_type, "cavalry");
+
+    assert_eq!(restored.transit_queue.len(), 1);
+    assert_eq!(restored.transit_queue[0].units, 12);
+
+    assert_eq!(restored.air_transit_queue.len(), 1);
+    assert_eq!(restored.air_transit_queue[0].id, "air-restore-01");
+
+    assert_eq!(restored.active_effects.len(), 1);
+    assert_eq!(restored.active_effects[0].effect_type, "fortify");
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 30. get_full_state with only buildings_queue populated
+//     Covers lines 402-406 (buildings_queue deser iter closure).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_full_state_only_buildings_queue() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Oslo"))
+        .await
+        .expect("set_region failed");
+
+    let building = BuildingQueueItem {
+        region_id: "r1".to_string(),
+        building_type: "barracks".to_string(),
+        player_id: "p1".to_string(),
+        ticks_remaining: 2,
+        total_ticks: 4,
+        is_upgrade: false,
+        target_level: 0,
+    };
+
+    let diplomacy = DiplomacyState::default();
+    manager
+        .set_tick_result(
+            &HashMap::new(),
+            &HashMap::new(),
+            &[building],
+            &[],
+            &[],
+            &[],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let state = manager
+        .get_full_state()
+        .await
+        .expect("get_full_state failed");
+
+    assert_eq!(state.buildings_queue.len(), 1);
+    assert_eq!(state.buildings_queue[0].building_type, "barracks");
+    assert!(state.unit_queue.is_empty());
+    assert!(state.transit_queue.is_empty());
+    assert!(state.air_transit_queue.is_empty());
+    assert!(state.active_effects.is_empty());
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 31. get_full_state with only unit_queue populated
+//     Covers lines 407-411 (unit_queue deser iter closure).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_full_state_only_unit_queue() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Stockholm"))
+        .await
+        .expect("set_region failed");
+
+    let unit_item = UnitQueueItem {
+        region_id: "r1".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "tank".to_string(),
+        quantity: Some(4),
+        manpower_cost: Some(10),
+        ticks_remaining: 1,
+        total_ticks: 3,
+    };
+
+    let diplomacy = DiplomacyState::default();
+    manager
+        .set_tick_result(
+            &HashMap::new(),
+            &HashMap::new(),
+            &[],
+            &[unit_item],
+            &[],
+            &[],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let state = manager
+        .get_full_state()
+        .await
+        .expect("get_full_state failed");
+
+    assert!(state.buildings_queue.is_empty());
+    assert_eq!(state.unit_queue.len(), 1);
+    assert_eq!(state.unit_queue[0].unit_type, "tank");
+    assert_eq!(state.unit_queue[0].quantity, Some(4));
+    assert!(state.transit_queue.is_empty());
+    assert!(state.air_transit_queue.is_empty());
+    assert!(state.active_effects.is_empty());
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 32. get_full_state with only transit_queue populated
+//     Covers lines 412-416 (transit_queue deser iter closure).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_full_state_only_transit_queue() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Helsinki"))
+        .await
+        .expect("set_region failed");
+
+    let transit = TransitQueueItem {
+        action_type: "move".to_string(),
+        source_region_id: "r1".to_string(),
+        target_region_id: "r2".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "infantry".to_string(),
+        units: 20,
+        ticks_remaining: 2,
+        travel_ticks: 3,
+    };
+
+    let diplomacy = DiplomacyState::default();
+    manager
+        .set_tick_result(
+            &HashMap::new(),
+            &HashMap::new(),
+            &[],
+            &[],
+            &[transit],
+            &[],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let state = manager
+        .get_full_state()
+        .await
+        .expect("get_full_state failed");
+
+    assert!(state.buildings_queue.is_empty());
+    assert!(state.unit_queue.is_empty());
+    assert_eq!(state.transit_queue.len(), 1);
+    assert_eq!(state.transit_queue[0].source_region_id, "r1");
+    assert_eq!(state.transit_queue[0].units, 20);
+    assert!(state.air_transit_queue.is_empty());
+    assert!(state.active_effects.is_empty());
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 33. get_full_state with only air_transit_queue populated
+//     Covers lines 417-421 (air_transit_queue deser iter closure).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_full_state_only_air_transit_queue() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Copenhagen"))
+        .await
+        .expect("set_region failed");
+
+    let air_item = AirTransitItem {
+        id: "air-solo".to_string(),
+        mission_type: "bomb_run".to_string(),
+        source_region_id: "r1".to_string(),
+        target_region_id: "r2".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "bomber".to_string(),
+        units: 2,
+        escort_fighters: 0,
+        progress: 0.0,
+        speed_per_tick: 0.5,
+        total_distance: 2,
+        interceptors: vec![],
+        flight_path: vec!["r1".to_string(), "r2".to_string()],
+        last_bombed_hop: 0,
+    };
+
+    let diplomacy = DiplomacyState::default();
+    manager
+        .set_tick_result(
+            &HashMap::new(),
+            &HashMap::new(),
+            &[],
+            &[],
+            &[],
+            &[air_item],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let state = manager
+        .get_full_state()
+        .await
+        .expect("get_full_state failed");
+
+    assert!(state.buildings_queue.is_empty());
+    assert!(state.unit_queue.is_empty());
+    assert!(state.transit_queue.is_empty());
+    assert_eq!(state.air_transit_queue.len(), 1);
+    assert_eq!(state.air_transit_queue[0].id, "air-solo");
+    assert_eq!(state.air_transit_queue[0].mission_type, "bomb_run");
+    assert!(state.active_effects.is_empty());
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 34. get_full_state with only active_effects populated
+//     Covers lines 422-426 (active_effects deser iter closure).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_full_state_only_active_effects() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Reykjavik"))
+        .await
+        .expect("set_region failed");
+
+    let effect = ActiveEffect {
+        effect_type: "fortify".to_string(),
+        source_player_id: "p1".to_string(),
+        target_region_id: "r1".to_string(),
+        affected_region_ids: vec!["r1".to_string()],
+        ticks_remaining: 3,
+        total_ticks: 6,
+        params: serde_json::json!({"bonus": 0.3}),
+    };
+
+    let diplomacy = DiplomacyState::default();
+    manager
+        .set_tick_result(
+            &HashMap::new(),
+            &HashMap::new(),
+            &[],
+            &[],
+            &[],
+            &[],
+            &[effect],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let state = manager
+        .get_full_state()
+        .await
+        .expect("get_full_state failed");
+
+    assert!(state.buildings_queue.is_empty());
+    assert!(state.unit_queue.is_empty());
+    assert!(state.transit_queue.is_empty());
+    assert!(state.air_transit_queue.is_empty());
+    assert_eq!(state.active_effects.len(), 1);
+    assert_eq!(state.active_effects[0].effect_type, "fortify");
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 35. validate_state — meta present but current_tick is not parseable
+//     Covers line 457 (tick_valid false branch → return Ok(false)).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_validate_state_invalid_tick_format() {
+    let (manager, _) = make_manager().await;
+
+    // Write a meta hash with a non-numeric current_tick value so that the
+    // `v.parse::<i64>().ok()` call inside validate_state yields None.
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    manager
+        .set_meta_field("current_tick", "not_a_number")
+        .await
+        .expect("set_meta_field failed");
+
+    // Also add a player and region so only the tick parse fails.
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+    manager
+        .set_region("r1", &make_region("Dublin"))
+        .await
+        .expect("set_region failed");
+
+    let valid = manager
+        .validate_state()
+        .await
+        .expect("validate_state failed");
+    assert!(
+        !valid,
+        "unparseable current_tick should cause validate_state to return false"
+    );
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 36. validate_state — meta + valid tick but no players at all
+//     Covers line 460 (results.1 == 0 branch → return Ok(false)).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_validate_state_no_players() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    // Deliberately write a region but no player.
+    manager
+        .set_region("r1", &make_region("Lisbon"))
+        .await
+        .expect("set_region failed");
+
+    let valid = manager
+        .validate_state()
+        .await
+        .expect("validate_state failed");
+    assert!(
+        !valid,
+        "zero players should cause validate_state to return false"
+    );
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 37. validate_state — meta + valid tick + players but no regions
+//     Covers line 460 (results.2 == 0 branch → return Ok(false)).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_validate_state_no_regions() {
+    let (manager, _) = make_manager().await;
+
+    manager.init_meta(1000, 2).await.expect("init_meta failed");
+    // Deliberately write a player but no region.
+    manager
+        .set_player("p1", &make_player("p1"))
+        .await
+        .expect("set_player failed");
+
+    let valid = manager
+        .validate_state()
+        .await
+        .expect("validate_state failed");
+    assert!(
+        !valid,
+        "zero regions should cause validate_state to return false"
+    );
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 38. get_all_players — deser closure executed (line 120-121)
+//     Explicitly verifies that the per-entry deserialization runs correctly
+//     by writing three players and reading them all back.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_all_players_deser_closure() {
+    let (manager, _) = make_manager().await;
+
+    for i in 0..3u32 {
+        let id = format!("deser_p{i}");
+        manager
+            .set_player(&id, &make_player(&id))
+            .await
+            .expect("set_player failed");
+    }
+
+    let all = manager
+        .get_all_players()
+        .await
+        .expect("get_all_players failed");
+
+    // Three entries → the closure on line 120-121 ran three times.
+    assert_eq!(all.len(), 3);
+    for i in 0..3u32 {
+        let id = format!("deser_p{i}");
+        assert!(all.contains_key(&id), "missing key {id}");
+        assert_eq!(all[&id].user_id, id);
+    }
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 39. get_all_regions — deser closure executed (line 157-158)
+//     Mirrors test 38 for regions.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_all_regions_deser_closure() {
+    let (manager, _) = make_manager().await;
+
+    for i in 0..3u32 {
+        let id = format!("deser_r{i}");
+        manager
+            .set_region(&id, &make_region(&format!("DeserCity{i}")))
+            .await
+            .expect("set_region failed");
+    }
+
+    let all = manager
+        .get_all_regions()
+        .await
+        .expect("get_all_regions failed");
+
+    assert_eq!(all.len(), 3);
+    for i in 0..3u32 {
+        let id = format!("deser_r{i}");
+        assert!(all.contains_key(&id), "missing key {id}");
+        assert_eq!(all[&id].name, format!("DeserCity{i}"));
+    }
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 40. get_all_buildings — deser closure on populated list (line 614-615)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_all_buildings_deser_closure() {
+    let (manager, _) = make_manager().await;
+
+    let building = BuildingQueueItem {
+        region_id: "r1".to_string(),
+        building_type: "lighthouse".to_string(),
+        player_id: "p1".to_string(),
+        ticks_remaining: 1,
+        total_ticks: 2,
+        is_upgrade: false,
+        target_level: 0,
+    };
+
+    let diplomacy = DiplomacyState::default();
+    manager
+        .set_tick_result(
+            &HashMap::new(),
+            &HashMap::new(),
+            &[building],
+            &[],
+            &[],
+            &[],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let buildings = manager
+        .get_all_buildings()
+        .await
+        .expect("get_all_buildings failed");
+
+    // Non-empty list → deser closure on line 614 executed.
+    assert_eq!(buildings.len(), 1);
+    assert_eq!(buildings[0].building_type, "lighthouse");
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 41. get_all_unit_queue — deser closure on populated list (line 623-624)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_all_unit_queue_deser_closure() {
+    let (manager, _) = make_manager().await;
+
+    let unit_item = UnitQueueItem {
+        region_id: "r1".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "sniper".to_string(),
+        quantity: Some(1),
+        manpower_cost: Some(5),
+        ticks_remaining: 1,
+        total_ticks: 2,
+    };
+
+    let diplomacy = DiplomacyState::default();
+    manager
+        .set_tick_result(
+            &HashMap::new(),
+            &HashMap::new(),
+            &[],
+            &[unit_item],
+            &[],
+            &[],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let units = manager
+        .get_all_unit_queue()
+        .await
+        .expect("get_all_unit_queue failed");
+
+    assert_eq!(units.len(), 1);
+    assert_eq!(units[0].unit_type, "sniper");
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 42. get_all_transit_queue — deser closure on populated list (line 632-633)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_all_transit_queue_deser_closure() {
+    let (manager, _) = make_manager().await;
+
+    let transit = TransitQueueItem {
+        action_type: "reinforce".to_string(),
+        source_region_id: "rA".to_string(),
+        target_region_id: "rB".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "artillery".to_string(),
+        units: 8,
+        ticks_remaining: 1,
+        travel_ticks: 2,
+    };
+
+    let diplomacy = DiplomacyState::default();
+    manager
+        .set_tick_result(
+            &HashMap::new(),
+            &HashMap::new(),
+            &[],
+            &[],
+            &[transit],
+            &[],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let transits = manager
+        .get_all_transit_queue()
+        .await
+        .expect("get_all_transit_queue failed");
+
+    assert_eq!(transits.len(), 1);
+    assert_eq!(transits[0].source_region_id, "rA");
+    assert_eq!(transits[0].units, 8);
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 43. get_all_air_transit_queue — deser closure on populated list (line 641-642)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_all_air_transit_queue_deser_closure() {
+    let (manager, _) = make_manager().await;
+
+    let air_item = AirTransitItem {
+        id: "air-deser-01".to_string(),
+        mission_type: "fighter_patrol".to_string(),
+        source_region_id: "r1".to_string(),
+        target_region_id: "r2".to_string(),
+        player_id: "p1".to_string(),
+        unit_type: "fighter".to_string(),
+        units: 3,
+        escort_fighters: 0,
+        progress: 0.2,
+        speed_per_tick: 0.4,
+        total_distance: 1,
+        interceptors: vec![],
+        flight_path: vec!["r1".to_string(), "r2".to_string()],
+        last_bombed_hop: 0,
+    };
+
+    let diplomacy = DiplomacyState::default();
+    manager
+        .set_tick_result(
+            &HashMap::new(),
+            &HashMap::new(),
+            &[],
+            &[],
+            &[],
+            &[air_item],
+            &[],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let air = manager
+        .get_all_air_transit_queue()
+        .await
+        .expect("get_all_air_transit_queue failed");
+
+    assert_eq!(air.len(), 1);
+    assert_eq!(air[0].id, "air-deser-01");
+    assert_eq!(air[0].mission_type, "fighter_patrol");
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 44. get_all_active_effects — deser closure on populated list (line 650-651)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_get_all_active_effects_deser_closure() {
+    let (manager, _) = make_manager().await;
+
+    let effect = ActiveEffect {
+        effect_type: "shield".to_string(),
+        source_player_id: "p1".to_string(),
+        target_region_id: "r1".to_string(),
+        affected_region_ids: vec!["r1".to_string()],
+        ticks_remaining: 4,
+        total_ticks: 8,
+        params: serde_json::json!(null),
+    };
+
+    let diplomacy = DiplomacyState::default();
+    manager
+        .set_tick_result(
+            &HashMap::new(),
+            &HashMap::new(),
+            &[],
+            &[],
+            &[],
+            &[],
+            &[effect],
+            &diplomacy,
+            None,
+        )
+        .await
+        .expect("set_tick_result failed");
+
+    let effects = manager
+        .get_all_active_effects()
+        .await
+        .expect("get_all_active_effects failed");
+
+    assert_eq!(effects.len(), 1);
+    assert_eq!(effects[0].effect_type, "shield");
+    assert_eq!(effects[0].ticks_remaining, 4);
+
+    manager.cleanup().await.expect("cleanup failed");
+}
+
+// ---------------------------------------------------------------------------
+// 45. incr_connection / decr_connection — verify key format
+//     Covers lines 586-592 (incr key format) and 597-604 (decr key format).
+//     Tests multiple players to ensure key namespacing is correct.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_connection_tracking_key_namespacing() {
+    let (manager, _) = make_manager().await;
+
+    // Increment two distinct players — their counters must be independent.
+    let c1a = manager
+        .incr_connection("user-alpha")
+        .await
+        .expect("incr_connection user-alpha failed");
+    let c2a = manager
+        .incr_connection("user-beta")
+        .await
+        .expect("incr_connection user-beta failed");
+    assert_eq!(c1a, 1, "first incr for user-alpha should be 1");
+    assert_eq!(c2a, 1, "first incr for user-beta should be 1 (independent key)");
+
+    let c1b = manager
+        .incr_connection("user-alpha")
+        .await
+        .expect("second incr_connection user-alpha failed");
+    assert_eq!(c1b, 2, "second incr for user-alpha should be 2");
+
+    // Beta counter is still 1 — not affected by alpha's second increment.
+    let c2_check = manager
+        .incr_connection("user-beta")
+        .await
+        .expect("second incr_connection user-beta failed");
+    assert_eq!(c2_check, 2);
+
+    // Decrement to 1 → key remains.
+    let d1 = manager
+        .decr_connection("user-alpha")
+        .await
+        .expect("decr_connection user-alpha failed");
+    assert_eq!(d1, 1);
+
+    // Decrement alpha to 0 → key is deleted; next incr resets to 1.
+    let d2 = manager
+        .decr_connection("user-alpha")
+        .await
+        .expect("second decr_connection user-alpha failed");
+    assert_eq!(d2, 0);
+
+    let c_reset = manager
+        .incr_connection("user-alpha")
+        .await
+        .expect("reset incr_connection user-alpha failed");
+    assert_eq!(c_reset, 1, "after deletion, incr should start at 1 again");
+
+    // Decrement beta twice to clean up.
+    manager
+        .decr_connection("user-beta")
+        .await
+        .expect("cleanup decr user-beta 1 failed");
+    manager
+        .decr_connection("user-beta")
+        .await
+        .expect("cleanup decr user-beta 2 failed");
+    manager
+        .decr_connection("user-alpha")
+        .await
+        .expect("cleanup decr user-alpha failed");
 
     manager.cleanup().await.expect("cleanup failed");
 }

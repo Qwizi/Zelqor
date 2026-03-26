@@ -10,6 +10,8 @@ class MockWebSocket {
   onmessage: ((event: MessageEvent) => void) | null = null;
   onclose: ((event: CloseEvent) => void) | null = null;
   onerror: (() => void) | null = null;
+  onopen: ((event: Event) => void) | null = null;
+  sent: string[] = [];
 
   static instances: MockWebSocket[] = [];
 
@@ -18,7 +20,9 @@ class MockWebSocket {
     MockWebSocket.instances.push(this);
   }
 
-  send(_data: string) {}
+  send(data: string) {
+    this.sent.push(data);
+  }
   close() {}
 
   /** Helper: simulate an incoming message from the server. */
@@ -114,5 +118,27 @@ describe("createSocket", () => {
   it("returns the WebSocket instance", () => {
     const result = createSocket("/matchmaking", null, vi.fn());
     expect(result).toBeInstanceOf(MockWebSocket);
+  });
+
+  it("sends an auth message as first message when token is provided", () => {
+    const ws = createSocket("/game/1", "mytoken", vi.fn());
+    // Manually invoke onopen since MockWebSocket does not auto-fire it
+    ws.onopen?.(new Event("open"));
+    const sentMessages = (ws as unknown as MockWebSocket).sent;
+    expect(sentMessages).toHaveLength(1);
+    expect(JSON.parse(sentMessages[0])).toEqual({ type: "auth", token: "mytoken" });
+  });
+
+  it("does not send an auth message when token is null", () => {
+    const ws = createSocket("/game/1", null, vi.fn());
+    ws.onopen?.(new Event("open"));
+    expect((ws as unknown as MockWebSocket).sent).toHaveLength(0);
+  });
+
+  it("onerror handler does not throw", () => {
+    createSocket("/game/1", "tok", vi.fn());
+    const ws = MockWebSocket.instances[0];
+    // Invoke onerror — it should just log a warning and not throw
+    expect(() => ws.onerror?.()).not.toThrow();
   });
 });

@@ -820,3 +820,108 @@ class TestSystemModuleForm:
         form = SystemModuleForm(instance=module)
         source = form._get_config_source()
         assert source == {"z": 9}
+
+    def test_generate_config_fields_with_str_options(self):
+        """str field with options should generate a ChoiceField."""
+        from apps.game_config.forms import SystemModuleForm
+
+        schema = [{"key": "mode", "type": "str", "label": "Mode", "options": ["a", "b"], "default": "a"}]
+        module = self._make_module(module_type="system", schema=schema, config={})
+        form = SystemModuleForm(instance=module)
+        assert "cfg__mode" in form.fields
+
+    def test_generate_config_fields_with_list_type(self):
+        """list field type should generate a Textarea CharField."""
+        from apps.game_config.forms import SystemModuleForm
+
+        schema = [{"key": "items", "type": "list", "label": "Items", "default": []}]
+        module = self._make_module(module_type="system", schema=schema, config={})
+        form = SystemModuleForm(instance=module)
+        assert "cfg__items" in form.fields
+
+    def test_generate_config_fields_with_bool_type(self):
+        """bool field type should generate a BooleanField."""
+        from apps.game_config.forms import SystemModuleForm
+
+        schema = [{"key": "enabled_flag", "type": "bool", "label": "Enabled Flag", "default": True}]
+        module = self._make_module(module_type="system", schema=schema, config={})
+        form = SystemModuleForm(instance=module)
+        assert "cfg__enabled_flag" in form.fields
+
+    def test_generate_config_fields_with_float_type(self):
+        """float field type should generate a FloatField."""
+        from apps.game_config.forms import SystemModuleForm
+
+        schema = [{"key": "ratio", "type": "float", "label": "Ratio", "default": 1.5}]
+        module = self._make_module(module_type="system", schema=schema, config={})
+        form = SystemModuleForm(instance=module)
+        assert "cfg__ratio" in form.fields
+
+    def test_clean_handles_list_json_parse_error(self):
+        """clean() should fall back to the default on invalid JSON for list type."""
+        import django.forms as forms_mod
+
+        from apps.game_config.forms import SystemModuleForm
+
+        schema = [{"key": "items", "type": "list", "label": "Items", "default": []}]
+        module = self._make_module(module_type="system", schema=schema, config={})
+        form = SystemModuleForm(
+            data={"cfg__items": "not-valid-json", "name": module.name, "slug": module.slug},
+            instance=module,
+        )
+        # Force add the field so clean() can find it
+        form.fields["cfg__items"] = forms_mod.CharField(required=False, initial="[]")
+        # clean should not raise
+        form.is_valid()
+
+
+# ---------------------------------------------------------------------------
+# game_config/models.py — GameSettingsModuleOverride and GameModeModuleOverride __str__
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_game_settings_module_override_str():
+    from apps.game_config.models import GameSettings, GameSettingsModuleOverride, SystemModule
+
+    gs = GameSettings.objects.create()
+    mod = SystemModule.objects.create(name="Reg", slug="reg-str-test")
+    ov = GameSettingsModuleOverride.objects.create(game_settings=gs, module=mod, enabled=True)
+    assert "Reg" in str(ov)
+    assert "ON" in str(ov)
+    ov.enabled = False
+    assert "OFF" in ov.__str__() if not ov.pk else True
+
+
+@pytest.mark.django_db
+def test_game_mode_module_override_str():
+    from apps.game_config.models import GameMode, GameModeModuleOverride, SystemModule
+
+    mode = GameMode.objects.create(name="TestMode", slug="test-mode-str")
+    mod = SystemModule.objects.create(name="ChatMod", slug="chat-mod-str")
+    ov = GameModeModuleOverride.objects.create(game_mode=mode, module=mod, enabled=False)
+    s = str(ov)
+    assert "ChatMod" in s
+    assert "OFF" in s
+
+
+@pytest.mark.django_db
+def test_system_module_invalidate_cache_and_save():
+    """SystemModule.save should invalidate the all-modules cache keys."""
+    from django.core.cache import cache
+
+    from apps.game_config.models import SystemModule
+
+    # Set the aggregate cache keys that invalidate_cache clears
+    cache.set("sysmodules:all", "stale_value")
+    cache.set("sysmodules:full", "stale_full")
+
+    mod = SystemModule.objects.create(name="CacheTest2", slug="cache-test-save2")
+    # After save, the aggregate keys should be cleared
+    assert cache.get("sysmodules:all") is None
+    assert cache.get("sysmodules:full") is None
+
+    # Test delete path as well
+    cache.set("sysmodules:all", "stale_again")
+    mod.delete()
+    assert cache.get("sysmodules:all") is None

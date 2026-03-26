@@ -250,4 +250,79 @@ describe("MatchCharts", () => {
     );
     expect(screen.getByTestId("recharts-grid")).toBeTruthy();
   });
+
+  // ── Player color fallback (lines 39, 135, 156-159) ───────────────────────
+  // When a player_result user_id does NOT match any match.players entry,
+  // the color falls back to PLAYER_COLORS[i % PLAYER_COLORS.length].
+
+  it("uses fallback color when player_result user_id is not in match.players (line 39 chartConfig)", () => {
+    // match.players has no entry for user-3 → fallback to PLAYER_COLORS
+    const result = makeMatchResult({
+      player_results: [
+        makePlayerResult({ user_id: "user-1", username: "Alpha" }),
+        makePlayerResult({ user_id: "user-3", username: "Ghost", placement: 2 }),
+      ],
+    });
+    const match = makeMatch({
+      players: [
+        {
+          id: "mp1",
+          user_id: "user-1",
+          username: "Alpha",
+          color: "#22d3ee",
+          is_alive: false,
+          joined_at: "",
+          is_banned: false,
+        },
+        // user-3 is NOT present in match.players
+      ],
+    });
+    // Should render without throwing, using fallback color for Ghost
+    render(React.createElement(MatchCharts, { match, result }));
+    expect(screen.getByTestId("recharts-bar-Ghost")).toBeTruthy();
+  });
+
+  it("uses fallback color for Bar when player not in match.players (line 135)", () => {
+    const result = makeMatchResult({
+      player_results: [
+        makePlayerResult({ user_id: "user-x", username: "Unknown" }),
+      ],
+    });
+    // match.players is empty — no match for user-x
+    const match = makeMatch({ players: [] });
+    render(React.createElement(MatchCharts, { match, result }));
+    expect(screen.getByTestId("recharts-bar-Unknown")).toBeTruthy();
+  });
+
+  it("uses fallback color for Radar series when player not in match.players (lines 156-159)", () => {
+    const result = makeMatchResult({
+      player_results: [
+        makePlayerResult({ user_id: "user-x", username: "Phantom" }),
+        makePlayerResult({ user_id: "user-y", username: "Ghost", placement: 2 }),
+      ],
+    });
+    // No players in match.players → both fall back to PLAYER_COLORS
+    const match = makeMatch({ players: [] });
+    render(React.createElement(MatchCharts, { match, result }));
+    // Switch to radar tab to trigger Radar color fallback path
+    fireEvent.click(screen.getAllByText("Radar")[0]);
+    expect(screen.getByTestId("recharts-radar-Phantom")).toBeTruthy();
+    expect(screen.getByTestId("recharts-radar-Ghost")).toBeTruthy();
+  });
+
+  it("uses correct PLAYER_COLORS index for multiple players without match colors", () => {
+    const result = makeMatchResult({
+      player_results: [
+        makePlayerResult({ user_id: "u1", username: "P1" }),
+        makePlayerResult({ user_id: "u2", username: "P2", placement: 2 }),
+        makePlayerResult({ user_id: "u3", username: "P3", placement: 3 }),
+      ],
+    });
+    // No match.players entries for any of these players
+    const match = makeMatch({ players: [] });
+    render(React.createElement(MatchCharts, { match, result }));
+    expect(screen.getByTestId("recharts-bar-P1")).toBeTruthy();
+    expect(screen.getByTestId("recharts-bar-P2")).toBeTruthy();
+    expect(screen.getByTestId("recharts-bar-P3")).toBeTruthy();
+  });
 });

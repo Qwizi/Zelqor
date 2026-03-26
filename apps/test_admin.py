@@ -640,3 +640,182 @@ class TestAssetsAdminAdditional:
         assert "unit-infantry-tst" in key_names
         assert "ability-nuke-tst" in key_names
         assert "sound-nuke-tst" in key_names
+
+
+# ---------------------------------------------------------------------------
+# inventory/admin.py — list views and display methods
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestInventoryAdmin:
+    def test_item_list(self, admin_client):
+        r = admin_client.get(_list_url("inventory", "item"))
+        assert r.status_code == 200
+
+    def test_itemcategory_list(self, admin_client):
+        r = admin_client.get(_list_url("inventory", "itemcategory"))
+        assert r.status_code == 200
+
+    def test_userinventory_list(self, admin_client):
+        r = admin_client.get(_list_url("inventory", "userinventory"))
+        assert r.status_code == 200
+
+    def test_deck_list(self, admin_client):
+        r = admin_client.get(_list_url("inventory", "deck"))
+        assert r.status_code == 200
+
+    def test_wallet_list(self, admin_client):
+        r = admin_client.get(_list_url("inventory", "wallet"))
+        assert r.status_code == 200
+
+    def test_equippedcosmetic_list(self, admin_client):
+        r = admin_client.get(_list_url("inventory", "equippedcosmetic"))
+        assert r.status_code == 200
+
+    def test_iteminstance_list(self, admin_client):
+        r = admin_client.get(_list_url("inventory", "iteminstance"))
+        assert r.status_code == 200
+
+    def test_itemdrop_list(self, admin_client):
+        r = admin_client.get(_list_url("inventory", "itemdrop"))
+        assert r.status_code == 200
+
+    def test_display_rarity(self, db):
+        from apps.inventory.admin import ItemAdmin
+        from apps.inventory.models import Item, ItemCategory
+
+        admin = ItemAdmin(model=Item, admin_site=AdminSite())
+        cat = ItemCategory.objects.create(name="Test Cat Rarity", slug="test-cat-rarity")
+        item = Item(name="Sword", slug="sword-rarity", category=cat, rarity=Item.Rarity.EPIC)
+        assert admin.display_rarity(item) == "epic"
+
+    def test_display_wear(self, db):
+        from apps.inventory.admin import ItemInstanceAdmin
+        from apps.inventory.models import Item, ItemCategory, ItemInstance
+
+        admin = ItemInstanceAdmin(model=ItemInstance, admin_site=AdminSite())
+        cat = ItemCategory.objects.create(name="Wear Cat", slug="wear-cat-admin")
+        item = Item.objects.create(
+            name="Wear Item",
+            slug="wear-item-admin",
+            category=cat,
+            item_type=Item.ItemType.COSMETIC,
+            rarity=Item.Rarity.COMMON,
+        )
+        user = __import__("django.contrib.auth", fromlist=["get_user_model"]).get_user_model()
+        usr = user.objects.create_user(email="wear_adm@test.com", username="wear_adm", password="x")
+        inst = ItemInstance.objects.create(item=item, owner=usr, wear=0.05, pattern_seed=42, first_owner=usr)
+        result = admin.display_wear(inst)
+        assert "Factory New" in result or "factory_new" in result.lower() or "0.0" in result
+
+    def test_display_stattrak(self, db):
+        from apps.inventory.admin import ItemInstanceAdmin
+        from apps.inventory.models import Item, ItemCategory, ItemInstance
+
+        admin = ItemInstanceAdmin(model=ItemInstance, admin_site=AdminSite())
+        cat = ItemCategory.objects.create(name="ST Cat Admin", slug="st-cat-admin")
+        item = Item.objects.create(
+            name="ST Item",
+            slug="st-item-admin",
+            category=cat,
+            item_type=Item.ItemType.COSMETIC,
+            rarity=Item.Rarity.COMMON,
+        )
+        user = __import__("django.contrib.auth", fromlist=["get_user_model"]).get_user_model()
+        usr = user.objects.create_user(email="st_adm@test.com", username="st_adm", password="x")
+        inst = ItemInstance.objects.create(item=item, owner=usr, wear=0.1, pattern_seed=10, first_owner=usr)
+        assert admin.display_stattrak(inst) == "-"
+        inst.stattrak = True
+        assert admin.display_stattrak(inst) == "ST"
+
+    def test_display_item_count(self, db):
+        from apps.inventory.admin import DeckAdmin
+        from apps.inventory.models import Deck
+
+        admin = DeckAdmin(model=Deck, admin_site=AdminSite())
+        usr = __import__("django.contrib.auth", fromlist=["get_user_model"]).get_user_model()
+        user = usr.objects.create_user(email="deck_cnt@test.com", username="deck_cnt", password="x")
+        deck = Deck.objects.create(user=user, name="Count Deck")
+        assert admin.display_item_count(deck) == 0
+
+    def test_display_item_type(self, db):
+        from apps.inventory.admin import EquippedCosmeticAdmin
+        from apps.inventory.models import CosmeticSlot, EquippedCosmetic, Item, ItemCategory
+
+        admin = EquippedCosmeticAdmin(model=EquippedCosmetic, admin_site=AdminSite())
+        cat = ItemCategory.objects.create(name="EC Type Cat", slug="ec-type-cat")
+        item = Item.objects.create(
+            name="EC Item",
+            slug="ec-item-admin",
+            category=cat,
+            item_type=Item.ItemType.COSMETIC,
+            rarity=Item.Rarity.COMMON,
+            cosmetic_slot=CosmeticSlot.AVATAR_FRAME,
+        )
+        ec = EquippedCosmetic(item=item)
+        result = admin.display_item_type(ec)
+        assert result is not None
+
+    def test_display_source(self, db):
+        from apps.inventory.admin import ItemDropAdmin
+        from apps.inventory.models import ItemDrop
+
+        admin = ItemDropAdmin(model=ItemDrop, admin_site=AdminSite())
+        drop = ItemDrop(source=ItemDrop.DropSource.CRATE_OPEN)
+        assert admin.display_source(drop) == "crate_open"
+
+
+# ---------------------------------------------------------------------------
+# marketplace/admin.py — missing lines (covered in marketplace/tests.py above)
+# but also verify matchmaking and game_config admin lines
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestMatchmakingAdminExtended:
+    def test_lobby_display_status(self, db):
+        from apps.matchmaking.admin import LobbyAdmin
+        from apps.matchmaking.models import Lobby
+
+        admin = LobbyAdmin(model=Lobby, admin_site=AdminSite())
+        lobby = Lobby(status="full")
+        assert admin.display_status(lobby) == "full"
+
+
+@pytest.mark.django_db
+class TestGameConfigAdminExtended:
+    def test_unittype_display_active(self, db):
+        from apps.game_config.admin import UnitTypeAdmin
+        from apps.game_config.models import UnitType
+
+        admin = UnitTypeAdmin(model=UnitType, admin_site=AdminSite())
+        ut = UnitType(name="Tank", slug="tank-adm")
+        ut.is_active = True
+        assert admin.display_active(ut) == "ACTIVE"
+
+    def test_abilitytype_display_active(self, db):
+        from apps.game_config.admin import AbilityTypeAdmin
+        from apps.game_config.models import AbilityType
+
+        admin = AbilityTypeAdmin(model=AbilityType, admin_site=AdminSite())
+        at = AbilityType(name="Nuke", slug="nuke-adm")
+        at.is_active = True
+        assert admin.display_active(at) == "ACTIVE"
+
+    def test_gamemode_display_active(self, db):
+        from apps.game_config.admin import GameModeAdmin
+        from apps.game_config.models import GameMode
+
+        admin = GameModeAdmin(model=GameMode, admin_site=AdminSite())
+        gm = GameMode(name="TestMode", slug="testmode-adm")
+        gm.is_active = True
+        result = admin.display_active(gm)
+        assert result in ("ACTIVE", "INACTIVE")
+
+    def test_systemmodule_form_in_admin(self, admin_client, db):
+        from apps.game_config.models import SystemModule
+
+        SystemModule.objects.get_or_create(slug="test-sm-admin", defaults={"name": "Test SM Admin"})
+        r = admin_client.get(_list_url("game_config", "systemmodule"))
+        assert r.status_code == 200

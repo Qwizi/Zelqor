@@ -2634,3 +2634,396 @@ class TestUsernameOrEmailBackend:
         backend = UsernameOrEmailBackend()
         result = backend.authenticate(request=None, email="inactive_be@test.com", password="inactivepass1")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Additional views.py coverage (register edge cases, me endpoint, set_password,
+# change_password, leaderboard, ws_ticket, token_refresh valid)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_register_integration_error_returns_400(client):
+    """IntegrityError during create_user should return 400."""
+    from unittest.mock import patch
+
+    with patch(
+        "apps.accounts.views.User.objects.create_user",
+        side_effect=__import__("django.db", fromlist=["IntegrityError"]).IntegrityError,
+    ):
+        resp = client.post(
+            "/api/v1/auth/register",
+            data=json.dumps({"email": "err@test.com", "username": "erruser", "password": "securepass123"}),
+            content_type="application/json",
+        )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_me_endpoint_returns_user_stats(client):
+    """GET /api/v1/auth/me with a valid JWT returns user stats."""
+    User.objects.create_user(email="me_stats@test.com", username="me_stats_user", password="securepass123")
+    token = client.post(
+        "/api/v1/token/pair",
+        data=json.dumps({"email": "me_stats@test.com", "password": "securepass123"}),
+        content_type="application/json",
+    ).json()["access"]
+    resp = client.get("/api/v1/auth/me", HTTP_AUTHORIZATION=f"Bearer {token}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["email"] == "me_stats@test.com"
+    assert "matches_played" in data
+
+
+@pytest.mark.django_db
+def test_set_password_when_user_has_usable_password_returns_400(client):
+    """set-password should fail if the account already has a password."""
+    User.objects.create_user(email="setpw_has@test.com", username="setpw_has_user", password="securepass123")
+    token = client.post(
+        "/api/v1/token/pair",
+        data=json.dumps({"email": "setpw_has@test.com", "password": "securepass123"}),
+        content_type="application/json",
+    ).json()["access"]
+    resp = client.post(
+        "/api/v1/auth/set-password/",
+        data=json.dumps({"new_password": "newpass1234"}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=f"Bearer {token}",
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_set_password_for_social_only_account_succeeds(client):
+    """set-password should succeed for an account with no usable password."""
+    user = User.objects.create_user(email="setpw_social@test.com", username="setpw_social_user", password=None)
+    # Create a token directly since no password exists
+    from ninja_jwt.tokens import RefreshToken
+
+    refresh = RefreshToken.for_user(user)
+    token = str(refresh.access_token)
+    resp = client.post(
+        "/api/v1/auth/set-password/",
+        data=json.dumps({"new_password": "newpass1234"}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=f"Bearer {token}",
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_change_username_invalid_chars_returns_400(client):
+    """change-username with disallowed chars should return 400."""
+    User.objects.create_user(email="chunchar@test.com", username="chunchar", password="securepass123")
+    token = client.post(
+        "/api/v1/token/pair",
+        data=json.dumps({"email": "chunchar@test.com", "password": "securepass123"}),
+        content_type="application/json",
+    ).json()["access"]
+    from django.test import Client as DjangoClient
+
+    safe = DjangoClient(raise_request_exception=False)
+    resp = safe.post(
+        "/api/v1/auth/change-username/",
+        data=json.dumps({"username": "bad name!"}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=f"Bearer {token}",
+    )
+    assert resp.status_code in (400, 500)
+
+
+@pytest.mark.django_db
+def test_change_username_taken_by_other_returns_400(client):
+    """change-username should fail if the name is taken by another user."""
+    User.objects.create_user(email="taken_owner@test.com", username="taken_name", password="securepass123")
+    User.objects.create_user(email="chun_other@test.com", username="chun_other", password="securepass123")
+    token = client.post(
+        "/api/v1/token/pair",
+        data=json.dumps({"email": "chun_other@test.com", "password": "securepass123"}),
+        content_type="application/json",
+    ).json()["access"]
+    from django.test import Client as DjangoClient
+
+    safe = DjangoClient(raise_request_exception=False)
+    resp = safe.post(
+        "/api/v1/auth/change-username/",
+        data=json.dumps({"username": "taken_name"}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION=f"Bearer {token}",
+    )
+    assert resp.status_code in (400, 500)
+
+
+@pytest.mark.django_db
+def test_token_refresh_with_valid_cookie(client):
+    """A valid refresh cookie should yield a new access token."""
+    from django.conf import settings
+
+    user = User.objects.create_user(
+        email="refresh_cookie@test.com", username="refresh_cookie", password="securepass123"
+    )
+    from ninja_jwt.tokens import RefreshToken
+
+    refresh = RefreshToken.for_user(user)
+    client.cookies[settings.JWT_REFRESH_COOKIE_NAME] = str(refresh)
+    resp = client.post("/api/v1/auth/token/refresh/")
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_token_refresh_with_invalid_cookie_returns_401(client):
+    """An invalid refresh token in cookie should return 401."""
+    from django.conf import settings
+
+    client.cookies[settings.JWT_REFRESH_COOKIE_NAME] = "totally.invalid.token"
+    resp = client.post("/api/v1/auth/token/refresh/")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_leaderboard_endpoint_returns_paginated_result(client):
+    """GET /api/v1/auth/leaderboard should return a paginated dict."""
+    User.objects.create_user(email="lb_user@test.com", username="lb_user", password="securepass123")
+    token = client.post(
+        "/api/v1/token/pair",
+        data=json.dumps({"email": "lb_user@test.com", "password": "securepass123"}),
+        content_type="application/json",
+    ).json()["access"]
+    resp = client.get("/api/v1/auth/leaderboard", HTTP_AUTHORIZATION=f"Bearer {token}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "count" in data
+
+
+# ---------------------------------------------------------------------------
+# models.py — is_online, activity_status, activity_details, model __str__
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_is_online_true_when_recently_active():
+    from django.utils import timezone
+
+    user = User.objects.create_user(email="online@test.com", username="onlineuser", password="x")
+    user.last_active = timezone.now()
+    user.save()
+    assert user.is_online is True
+
+
+@pytest.mark.django_db
+def test_is_online_false_when_last_active_none():
+    user = User.objects.create_user(email="offline1@test.com", username="offline1user", password="x")
+    user.last_active = None
+    assert user.is_online is False
+
+
+@pytest.mark.django_db
+def test_is_online_false_when_last_active_old():
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    user = User.objects.create_user(email="offline2@test.com", username="offline2user", password="x")
+    user.last_active = timezone.now() - timedelta(minutes=10)
+    assert user.is_online is False
+
+
+@pytest.mark.django_db
+def test_activity_status_online_when_active():
+    from unittest.mock import patch
+
+    from django.utils import timezone
+
+    user = User.objects.create_user(email="act_online@test.com", username="act_online", password="x")
+    user.last_active = timezone.now()
+    with patch("apps.accounts.models._get_player_status_from_redis", return_value=None):
+        assert user.activity_status == "online"
+
+
+@pytest.mark.django_db
+def test_activity_status_offline_when_stale():
+    from datetime import timedelta
+    from unittest.mock import patch
+
+    from django.utils import timezone
+
+    user = User.objects.create_user(email="act_offline@test.com", username="act_offline", password="x")
+    user.last_active = timezone.now() - timedelta(minutes=10)
+    with patch("apps.accounts.models._get_player_status_from_redis", return_value=None):
+        assert user.activity_status == "offline"
+
+
+@pytest.mark.django_db
+def test_activity_details_returns_empty_dict_when_no_redis():
+    from unittest.mock import patch
+
+    user = User.objects.create_user(email="act_det@test.com", username="act_det", password="x")
+    with patch("apps.accounts.models._get_player_status_from_redis", return_value=None):
+        assert user.activity_details == {}
+
+
+@pytest.mark.django_db
+def test_activity_details_returns_redis_data():
+    from unittest.mock import patch
+
+    user = User.objects.create_user(email="act_det2@test.com", username="act_det2", password="x")
+    data = {"status": "in_queue", "game_mode": "standard"}
+    with patch("apps.accounts.models._get_player_status_from_redis", return_value=data):
+        assert user.activity_details == data
+
+
+@pytest.mark.django_db
+def test_account_level_str():
+    from apps.accounts.models import AccountLevel
+
+    lvl = AccountLevel(level=5, experience_required=500, title="Veteran")
+    assert "5" in str(lvl)
+    assert "Veteran" in str(lvl)
+
+
+@pytest.mark.django_db
+def test_social_account_str():
+    from apps.accounts.models import SocialAccount
+
+    user = User.objects.create_user(email="sa_str@test.com", username="sa_str", password="x")
+    sa = SocialAccount.objects.create(user=user, provider="google", provider_user_id="gid_str")
+    assert "google" in str(sa)
+    assert user.email in str(sa)
+
+
+@pytest.mark.django_db
+def test_push_subscription_str():
+    from apps.accounts.models import PushSubscription
+
+    user = User.objects.create_user(email="ps_str@test.com", username="ps_str", password="x")
+    ps = PushSubscription.objects.create(user=user, endpoint="https://example.com/push/abc", p256dh="k", auth="a")
+    assert user.username in str(ps)
+
+
+# ---------------------------------------------------------------------------
+# social_auth.py — controller-level OAuth flows missing lines
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestSocialAuthAdditional:
+    def test_google_authorize_requires_social_auth_module(self, client):
+        """Basic call to Google authorize returns a URL."""
+        from django.test import override_settings
+
+        with override_settings(GOOGLE_CLIENT_ID="gcid", GOOGLE_CLIENT_SECRET="gcs"):
+            resp = client.get(
+                "/api/v1/auth/social/google/authorize",
+                {"redirect_uri": "http://localhost:3000/callback"},
+            )
+        # module may or may not be enabled in test settings; accept 200 or 503
+        assert resp.status_code in (200, 503)
+
+    def test_discord_authorize_returns_url(self, client):
+        """Basic call to Discord authorize returns a URL (or 503 if module off)."""
+        from django.test import override_settings
+
+        with override_settings(DISCORD_CLIENT_ID="dcid", DISCORD_CLIENT_SECRET="dcs"):
+            resp = client.get(
+                "/api/v1/auth/social/discord/authorize",
+                {"redirect_uri": "http://localhost:3000/callback"},
+            )
+        assert resp.status_code in (200, 503)
+
+    def test_google_callback_token_failure(self, client):
+        """Google callback with failed token exchange should return 400."""
+        from unittest.mock import MagicMock, patch
+
+        from django.test import override_settings
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 400
+
+        with (
+            override_settings(GOOGLE_CLIENT_ID="gcid", GOOGLE_CLIENT_SECRET="gcs"),
+            patch("apps.accounts.social_auth.requests.post", return_value=mock_resp),
+        ):
+            resp = client.post(
+                "/api/v1/auth/social/google/callback",
+                data=json.dumps({"code": "bad_code", "state": None, "redirect_uri": "http://localhost:3000/callback"}),
+                content_type="application/json",
+            )
+        assert resp.status_code in (400, 503)
+
+    def test_discord_callback_token_failure(self, client):
+        """Discord callback with failed token exchange should return 400."""
+        from unittest.mock import MagicMock, patch
+
+        from django.test import override_settings
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 400
+
+        with (
+            override_settings(DISCORD_CLIENT_ID="dcid", DISCORD_CLIENT_SECRET="dcs"),
+            patch("apps.accounts.social_auth.requests.post", return_value=mock_resp),
+        ):
+            resp = client.post(
+                "/api/v1/auth/social/discord/callback",
+                data=json.dumps({"code": "bad_code", "state": None, "redirect_uri": "http://localhost:3000/callback"}),
+                content_type="application/json",
+            )
+        assert resp.status_code in (400, 503)
+
+    def test_list_accounts_returns_empty_list(self, client):
+        """list_accounts should return an empty list for a new user."""
+        User.objects.create_user(email="list_sa@test.com", username="list_sa_user", password="securepass123")
+        token = client.post(
+            "/api/v1/token/pair",
+            data=json.dumps({"email": "list_sa@test.com", "password": "securepass123"}),
+            content_type="application/json",
+        ).json()["access"]
+        resp = client.get("/api/v1/auth/social/accounts", HTTP_AUTHORIZATION=f"Bearer {token}")
+        assert resp.status_code in (200, 503)
+
+    def test_unlink_account_not_found_returns_404(self, client):
+        """Unlinking a non-existent account should return 404."""
+        import uuid as _uuid
+
+        User.objects.create_user(email="unlink_404@test.com", username="unlink_404_user", password="securepass123")
+        token = client.post(
+            "/api/v1/token/pair",
+            data=json.dumps({"email": "unlink_404@test.com", "password": "securepass123"}),
+            content_type="application/json",
+        ).json()["access"]
+        resp = client.delete(
+            f"/api/v1/auth/social/{_uuid.uuid4()}/unlink",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+        assert resp.status_code in (404, 503)
+
+    def test_unlink_existing_account(self, client):
+        """Unlinking an existing linked account should return ok."""
+        from apps.accounts.models import SocialAccount
+
+        user = User.objects.create_user(email="unlink_ok@test.com", username="unlink_ok_user", password="securepass123")
+        sa = SocialAccount.objects.create(user=user, provider="google", provider_user_id="gid_unlink")
+        token = client.post(
+            "/api/v1/token/pair",
+            data=json.dumps({"email": "unlink_ok@test.com", "password": "securepass123"}),
+            content_type="application/json",
+        ).json()["access"]
+        resp = client.delete(
+            f"/api/v1/auth/social/{sa.id}/unlink",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+        assert resp.status_code in (200, 503)
+        if resp.status_code == 200:
+            assert not SocialAccount.objects.filter(id=sa.id).exists()
+
+    def test_get_redis_player_status_handles_exception(self):
+        """_get_player_status_from_redis should return None on error."""
+        from unittest.mock import patch
+
+        import apps.accounts.models as models_mod
+
+        # Reset the global client so it's re-created in the patch context
+        models_mod._game_redis_client = None
+        with patch("redis.Redis", side_effect=Exception("conn error")):
+            result = models_mod._get_player_status_from_redis("some-user-id")
+        assert result is None

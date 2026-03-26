@@ -336,4 +336,284 @@ describe("MobileBuildSheet", () => {
     const unitBtns = screen.getAllByRole("button").filter((b) => b.textContent?.includes("Piechota"));
     expect(unitBtns[0]).toHaveProperty("disabled", true);
   });
+
+  // ── building_instances format ──────────────────────────────────────────────
+
+  it("uses building_instances when present to determine building counts", () => {
+    const region = makeRegion({
+      buildings: {},
+      building_instances: [{ building_type: "barracks", level: 1 }],
+    });
+    render(React.createElement(MobileBuildSheet, { ...defaultProps, region }));
+    // barracks already present via instance, max_per_region=2 so can still build
+    fireEvent.click(screen.getByTitle("Buduj"));
+    expect(screen.getByText("Koszary Lvl 1")).toBeTruthy();
+  });
+
+  it("shows upgrade label when instance level is below player max level", () => {
+    const region = makeRegion({
+      buildings: {},
+      building_instances: [{ building_type: "barracks", level: 1 }],
+    });
+    const building = makeBuilding({ max_per_region: 2, max_level: 3 });
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        buildings: [building],
+        buildingLevels: { barracks: 3 },
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Buduj"));
+    expect(screen.getByText(/Ulepsz do Lvl 2/)).toBeTruthy();
+  });
+
+  it("shows 'Max' label when building is at max player level", () => {
+    const region = makeRegion({
+      buildings: {},
+      building_instances: [{ building_type: "barracks", level: 2 }],
+    });
+    const building = makeBuilding({ max_per_region: 2, max_level: 2 });
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        buildings: [building],
+        buildingLevels: { barracks: 2 },
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Buduj"));
+    // "Max" label appears in both the description and the badge
+    const maxEls = screen.getAllByText("Max");
+    expect(maxEls.length).toBeGreaterThan(0);
+  });
+
+  it("shows count/max_per_region label when no level info is available", () => {
+    const region = makeRegion({ buildings: { barracks: 1 } });
+    const building = makeBuilding({ max_per_region: 2 });
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        buildings: [building],
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Buduj"));
+    // 1 existing + 0 queued / max 2 → "1/2"
+    expect(screen.getByText("1/2")).toBeTruthy();
+  });
+
+  // ── buildingQueue interaction ──────────────────────────────────────────────
+
+  it("counts queued buildings toward the per-region limit", () => {
+    const region = makeRegion({ buildings: { barracks: 1 } });
+    // max_per_region=2, 1 built, 1 queued → total=2 → no more builds available
+    const building = makeBuilding({ max_per_region: 2 });
+    const buildingQueue: BuildingQueueItem[] = [
+      { region_id: "r1", building_type: "barracks", player_id: "user-1", ticks_remaining: 2, total_ticks: 5 },
+    ];
+    const { container } = render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        buildings: [building],
+        buildingQueue,
+        units: [],
+      }),
+    );
+    // hasBuild = false, hasProduce = false → null
+    expect(container.firstChild).toBeNull();
+  });
+
+  // ── Locked unit in produce mode ────────────────────────────────────────────
+
+  it("shows locked state for unit not in unlockedUnits", () => {
+    const region = makeRegion({ buildings: { barracks: 1 } });
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        unlockedUnits: ["tank"],
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Produkuj"));
+    // infantry is not in unlockedUnits → locked
+    expect(screen.getByText("Wymaga blueprintu z talii")).toBeTruthy();
+  });
+
+  it("does not show lock when unit IS in unlockedUnits", () => {
+    const region = makeRegion({ buildings: { barracks: 1 } });
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        unlockedUnits: ["infantry"],
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Produkuj"));
+    expect(screen.queryByText("Wymaga blueprintu z talii")).toBeNull();
+  });
+
+  it("shows crew and tick label for unlocked units", () => {
+    const region = makeRegion({ buildings: { barracks: 1 } });
+    render(React.createElement(MobileBuildSheet, { ...defaultProps, region }));
+    fireEvent.click(screen.getByTitle("Produkuj"));
+    // infantry: manpower=1, time=3 ticks
+    expect(screen.getByText(/Zaloga: 1 · 3 tick/)).toBeTruthy();
+  });
+
+  it("does not call onProduceUnit when locked unit button is clicked", () => {
+    const onProduceUnit = vi.fn();
+    const region = makeRegion({ buildings: { barracks: 1 } });
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        onProduceUnit,
+        unlockedUnits: ["tank"], // infantry not unlocked
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Produkuj"));
+    const unitBtns = screen.getAllByRole("button").filter((b) => b.textContent?.includes("Piechota"));
+    fireEvent.click(unitBtns[0]);
+    expect(onProduceUnit).not.toHaveBeenCalled();
+  });
+
+  it("does not call onBuild when locked building button is clicked", () => {
+    const onBuild = vi.fn();
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        onBuild,
+        unlockedBuildings: ["factory"],
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Buduj"));
+    const buildBtns = screen.getAllByRole("button").filter((b) => b.textContent?.includes("Koszary"));
+    fireEvent.click(buildBtns[0]);
+    expect(onBuild).not.toHaveBeenCalled();
+  });
+
+  // ── Multiple building instances for upgrade label ─────────────────────────
+
+  it("shows weakest level info when multiple instances exist", () => {
+    const region = makeRegion({
+      buildings: {},
+      building_instances: [
+        { building_type: "barracks", level: 1 },
+        { building_type: "barracks", level: 3 },
+      ],
+    });
+    const building = makeBuilding({ max_per_region: 3, max_level: 5 });
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        buildings: [building],
+        buildingLevels: { barracks: 5 },
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Buduj"));
+    // 2 instances → shows "weakest" info: "najslabsza: Lvl 1"
+    expect(screen.getByText(/najslabsza: Lvl 1/)).toBeTruthy();
+  });
+
+  // ── Level stats cost override ──────────────────────────────────────────────
+
+  it("shows level_stats energy cost for next level when upgrading", () => {
+    const region = makeRegion({
+      buildings: {},
+      building_instances: [{ building_type: "barracks", level: 1 }],
+    });
+    const building = makeBuilding({
+      max_per_region: 2,
+      max_level: 3,
+      energy_cost: 50,
+      level_stats: { "2": { energy_cost: 80 } },
+    });
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        buildings: [building],
+        buildingLevels: { barracks: 3 },
+        myEnergy: 200,
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Buduj"));
+    // Next level is 2, cost = level_stats["2"].energy_cost = 80
+    expect(screen.getByText("80")).toBeTruthy();
+  });
+
+  // ── Backdrop click closes sheet ────────────────────────────────────────────
+
+  it("clicking backdrop overlay closes the sheet", () => {
+    render(React.createElement(MobileBuildSheet, defaultProps));
+    fireEvent.click(screen.getByTitle("Buduj"));
+    expect(screen.getByText(/Budowa/)).toBeTruthy();
+    // Click the backdrop overlay (fixed inset-0 element)
+    const backdrop = document.querySelector(".fixed.inset-0.bg-background\\/60");
+    if (backdrop) fireEvent.click(backdrop);
+    // Sheet should close
+    expect(screen.queryByText("Budowa")).toBeNull();
+  });
+
+  // ── producedUnits sort fallback to name.localeCompare (line 92) ─────────────
+
+  it("sorts produced units by name when order and production_cost are equal (line 92)", () => {
+    const region = makeRegion({ buildings: { barracks: 1 } });
+    const unitA = makeUnit({
+      id: "u-a",
+      slug: "z_unit",
+      name: "Zolnierz",
+      produced_by_slug: "barracks",
+      order: 1,
+      production_cost: 30,
+    });
+    const unitB = makeUnit({
+      id: "u-b",
+      slug: "a_unit",
+      name: "Artyleria",
+      produced_by_slug: "barracks",
+      order: 1,
+      production_cost: 30,
+    });
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        units: [unitA, unitB],
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Produkuj"));
+    // Both units should appear; Artyleria sorts before Zolnierz alphabetically
+    const buttons = screen.getAllByRole("button");
+    const unitBtns = buttons.filter((b) => b.textContent?.match(/Artyleria|Zolnierz/));
+    expect(unitBtns.length).toBeGreaterThan(0);
+    // Artyleria comes before Zolnierz in alphabetical order
+    expect(unitBtns[0].textContent).toContain("Artyleria");
+  });
+
+  // ── region.building_levels fallback ───────────────────────────────────────
+
+  it("reads current level from region.building_levels when no instances exist", () => {
+    const region = makeRegion({
+      buildings: { barracks: 1 },
+      building_instances: [],
+      // @ts-ignore — add building_levels for coverage
+      building_levels: { barracks: 2 },
+    });
+    const building = makeBuilding({ max_per_region: 2, max_level: 5 });
+    render(
+      React.createElement(MobileBuildSheet, {
+        ...defaultProps,
+        region,
+        buildings: [building],
+        buildingLevels: { barracks: 5 },
+      }),
+    );
+    fireEvent.click(screen.getByTitle("Buduj"));
+    // Should show upgrade label using region.building_levels
+    expect(screen.getByText(/Ulepsz do Lvl 3/)).toBeTruthy();
+  });
 });

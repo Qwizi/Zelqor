@@ -210,4 +210,71 @@ describe("MatchIntroOverlay", () => {
     // Only one "(Ty)" label should exist
     expect(tyElements.length).toBe(1);
   });
+
+  // ── GSAP dismiss animation — onComplete callback (line 271) ──────────────
+  //
+  // To cover the gsap.to onComplete branch we use a vi.doMock that replaces
+  // gsap.to with an implementation that immediately invokes onComplete.
+
+  it("calls onComplete via gsap.to onComplete callback when all ready and min time elapsed (line 271)", async () => {
+    const gsapModule = await import("gsap");
+    const gsap = gsapModule.default;
+
+    // Replace gsap.to mock to immediately call onComplete
+    vi.mocked(gsap.to).mockImplementation((_el: unknown, opts: Record<string, unknown>) => {
+      if (typeof opts?.onComplete === "function") {
+        (opts.onComplete as () => void)();
+      }
+      return {} as ReturnType<typeof gsap.to>;
+    });
+
+    const onComplete = vi.fn();
+    render(
+      React.createElement(
+        MatchIntroOverlay,
+        makeProps({ mapReady: true, connected: true, gameStateLoaded: true, onComplete }),
+      ),
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(3001);
+    });
+    // onComplete should have been called either directly or via gsap.to onComplete
+    expect(onComplete).toHaveBeenCalled();
+  });
+
+  // ── FFA layout player list ─────────────────────────────────────────────────
+
+  it("renders all FFA player names in list", () => {
+    const props = makeProps({
+      players: {
+        "user-me": PLAYER_ME,
+        "user-opp": PLAYER_OPPONENT,
+        "bot-1": PLAYER_BOT,
+      },
+    });
+    render(React.createElement(MatchIntroOverlay, props));
+    expect(screen.getByText("Alpha")).toBeTruthy();
+    expect(screen.getByText("Bravo")).toBeTruthy();
+    expect(screen.getByText("Bot")).toBeTruthy();
+  });
+
+  it("shows mapReady true loading step when only map is not ready", () => {
+    render(
+      React.createElement(
+        MatchIntroOverlay,
+        makeProps({ connected: true, gameStateLoaded: true, mapReady: false }),
+      ),
+    );
+    expect(screen.getByText("Ładowanie mapy...")).toBeTruthy();
+  });
+
+  it("shows gameStateLoaded loading step when game data not yet loaded", () => {
+    render(
+      React.createElement(
+        MatchIntroOverlay,
+        makeProps({ connected: true, gameStateLoaded: false, mapReady: false }),
+      ),
+    );
+    expect(screen.getByText("Ładowanie danych gry...")).toBeTruthy();
+  });
 });

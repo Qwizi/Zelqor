@@ -1985,3 +1985,533 @@ def test_start_clan_war_skips_non_accepted_war(clan, rival_clan, caplog):
         start_clan_war(str(war.pk))
     # Should log a warning and return without creating a match
     assert any("accepted" in r.message.lower() for r in caplog.records)
+
+
+def test_start_clan_war_no_game_mode_logs_error(clan, rival_clan, caplog):
+    """start_clan_war returns early when GameMode clan-war is not found (line 99-102)."""
+    import logging
+
+    from apps.clans.tasks import start_clan_war
+    from apps.game_config.models import GameMode
+
+    GameMode.objects.filter(slug="clan-war").delete()
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.ACCEPTED,
+    )
+    with caplog.at_level(logging.ERROR, logger="apps.clans.tasks"):
+        start_clan_war(str(war.pk))
+    assert any("clan-war" in r.message.lower() or "gamemode" in r.message.lower() for r in caplog.records)
+
+
+def test_start_clan_war_no_participants_logs_warning(clan, rival_clan, caplog):
+    """start_clan_war returns early when war has no participants (lines 104-107)."""
+    import logging
+
+    from apps.clans.tasks import start_clan_war
+    from apps.game_config.models import GameMode
+
+    GameMode.objects.get_or_create(slug="clan-war", defaults={"name": "Clan War", "is_active": True})
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.ACCEPTED,
+    )
+    with caplog.at_level(logging.WARNING, logger="apps.clans.tasks"):
+        start_clan_war(str(war.pk))
+    assert any("participants" in r.message.lower() for r in caplog.records)
+
+
+def test_start_clan_war_full_flow(clan, rival_clan, leader, other_user):
+    """start_clan_war happy path: creates match, marks war IN_PROGRESS (lines 109-193)."""
+    from unittest.mock import MagicMock, patch
+
+    from apps.clans.tasks import start_clan_war
+    from apps.game_config.models import GameMode
+
+    GameMode.objects.get_or_create(slug="clan-war", defaults={"name": "Clan War", "is_active": True})
+
+    ClanMembership.objects.get_or_create(clan=clan, user=leader, defaults={"role": ClanMembership.Role.LEADER})
+    ClanMembership.objects.get_or_create(
+        clan=rival_clan, user=other_user, defaults={"role": ClanMembership.Role.LEADER}
+    )
+
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.ACCEPTED,
+        players_per_side=1,
+    )
+    ClanWarParticipant.objects.create(war=war, clan=clan, user=leader)
+    ClanWarParticipant.objects.create(war=war, clan=rival_clan, user=other_user)
+
+    fake_match_id = str(war.pk)  # reuse war UUID for simplicity
+    with (
+        patch(
+            "apps.clans.tasks._create_match_from_users",
+            return_value={"match_id": fake_match_id},
+        ),
+        patch("apps.matchmaking.models.Match.objects.get") as mock_match_get,
+        patch("apps.accounts.push.send_push_to_users"),
+        patch("apps.matchmaking.events.publish_lobby_event"),
+        patch("apps.clans.tasks.redis_lib") as mock_redis_mod,
+    ):
+        mock_match = MagicMock()
+        mock_match_get.return_value = mock_match
+
+        mock_r = MagicMock()
+        mock_redis_mod.Redis.return_value = mock_r
+
+        start_clan_war(str(war.pk))
+
+    war.refresh_from_db()
+    assert war.status == ClanWar.Status.IN_PROGRESS
+
+
+def test_calculate_clan_war_elo_awards_xp_to_participants(clan, rival_clan, leader, other_user):
+    """calculate_clan_war_elo iterates participants and calls award_clan_xp.delay (lines 319-320)."""
+    from unittest.mock import patch
+
+    from apps.clans.tasks import CLAN_WAR_XP_WIN, calculate_clan_war_elo
+
+    ClanMembership.objects.get_or_create(clan=clan, user=leader, defaults={"role": ClanMembership.Role.LEADER})
+    ClanMembership.objects.get_or_create(
+        clan=rival_clan, user=other_user, defaults={"role": ClanMembership.Role.LEADER}
+    )
+
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.FINISHED,
+        winner=clan,
+        wager_gold=0,
+    )
+    ClanWarParticipant.objects.create(war=war, clan=clan, user=leader)
+    ClanWarParticipant.objects.create(war=war, clan=rival_clan, user=other_user)
+
+    with patch("apps.clans.tasks.award_clan_xp.delay") as mock_delay:
+        calculate_clan_war_elo(str(war.pk))
+
+    # Two participants → two delay calls
+    assert mock_delay.call_count == 2
+    # Winner participant should get CLAN_WAR_XP_WIN
+    calls_args = {args[0]: args[1] for args, _ in mock_delay.call_args_list}
+    assert calls_args[str(leader.id)] == CLAN_WAR_XP_WIN
+
+
+# ---------------------------------------------------------------------------
+# clans/api.py — missing branch coverage
+# ---------------------------------------------------------------------------
+
+
+def test_accept_invitation_clan_full(tc, clan, leader, member_user, member_token, leader_membership):
+    """accept_invitation returns 400 when clan is full (line 125)."""
+    clan.max_members = 1  # already has 1 member (leader)
+    clan.save(update_fields=["max_members"])
+
+    inv = ClanInvitation.objects.create(
+        clan=clan,
+        invited_user=member_user,
+        invited_by=leader,
+        expires_at=timezone.now() + timedelta(days=1),
+    )
+    resp = tc.post(f"/api/v1/clans/invitations/{inv.pk}/accept/", **_auth(member_token))
+    assert resp.status_code == 400
+
+
+def test_decline_invitation_not_found(tc, leader, leader_token):
+    """decline_invitation with non-existent ID returns 404 (line 152)."""
+    resp = tc.post(f"/api/v1/clans/invitations/{uuid.uuid4()}/decline/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_accept_join_request_clan_full(tc, clan, leader, member_user, leader_membership):
+    """accept_join_request returns 400 when clan is full (line 174)."""
+    clan.max_members = 1
+    clan.save(update_fields=["max_members"])
+
+    jr = ClanJoinRequest.objects.create(clan=clan, user=member_user)
+    leader_token = _get_token(tc, leader)
+    resp = tc.post(f"/api/v1/clans/join-requests/{jr.pk}/accept/", **_auth(leader_token))
+    assert resp.status_code == 400
+
+
+def test_accept_join_request_user_already_in_clan(tc, clan, rival_clan, leader, member_user, leader_membership):
+    """accept_join_request declines when user is already in another clan (lines 177-179)."""
+    # member_user is already a member of rival_clan
+    ClanMembership.objects.create(clan=rival_clan, user=member_user, role=ClanMembership.Role.MEMBER)
+    jr = ClanJoinRequest.objects.create(clan=clan, user=member_user)
+    leader_token = _get_token(tc, leader)
+    resp = tc.post(f"/api/v1/clans/join-requests/{jr.pk}/accept/", **_auth(leader_token))
+    assert resp.status_code == 400
+    jr.refresh_from_db()
+    assert jr.status == ClanJoinRequest.Status.DECLINED
+
+
+def test_decline_join_request_not_found(tc, leader, leader_token, leader_membership):
+    """decline_join_request with non-existent ID returns 404 (line 220)."""
+    resp = tc.post(f"/api/v1/clans/join-requests/{uuid.uuid4()}/decline/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_accept_war_wager_locked_insufficient(
+    tc, clan, rival_clan, leader, leader_token, other_user, other_token, leader_membership, other_membership
+):
+    """accept_war inside atomic block checks treasury again (lines 251-258)."""
+    clan.treasury_gold = 5000
+    clan.save(update_fields=["treasury_gold"])
+    # rival_clan treasury is 0 — cannot cover wager inside atomic
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.PENDING,
+        wager_gold=500,
+    )
+    resp = tc.post(f"/api/v1/clans/wars/{war.pk}/accept/", **_auth(other_token))
+    assert resp.status_code == 400
+
+
+def test_accept_war_scheduled_future(
+    tc, clan, rival_clan, leader, leader_token, other_user, other_token, leader_membership, other_membership
+):
+    """accept_war with future scheduled_at uses apply_async (line 269)."""
+    future = timezone.now() + timedelta(hours=2)
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.PENDING,
+        scheduled_at=future,
+    )
+    with patch("apps.clans.tasks.start_clan_war.apply_async") as mock_async:
+        resp = tc.post(f"/api/v1/clans/wars/{war.pk}/accept/", **_auth(other_token))
+    assert resp.status_code == 200
+    mock_async.assert_called_once()
+
+
+def test_decline_war_not_found(tc, leader, leader_token):
+    """decline_war with non-existent war_id returns 404 (line 277)."""
+    resp = tc.post(f"/api/v1/clans/wars/{uuid.uuid4()}/decline/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_join_war_not_found(tc, leader, leader_token):
+    """join_war with non-existent war_id returns 404 (line 299)."""
+    resp = tc.post(f"/api/v1/clans/wars/{uuid.uuid4()}/join/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_join_war_not_member_of_either_clan_with_membership_elsewhere(
+    tc, clan, rival_clan, leader, leader_membership, other_user, other_token
+):
+    """join_war returns 403 when user is in a different clan (line 311)."""
+    # Create a third clan for other_user
+    third_clan = Clan.objects.create(name="Third Clan", tag="T3C", leader=other_user)
+    ClanMembership.objects.create(clan=third_clan, user=other_user, role=ClanMembership.Role.LEADER)
+
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.ACCEPTED,
+        players_per_side=2,
+    )
+    resp = tc.post(f"/api/v1/clans/wars/{war.pk}/join/", **_auth(other_token))
+    assert resp.status_code == 403
+
+
+def test_join_war_side_full(tc, clan, rival_clan, leader, leader_token, leader_membership, other_membership):
+    """join_war returns 400 when the player's side is already full (lines ~310)."""
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.ACCEPTED,
+        players_per_side=1,
+    )
+    # Fill challenger side
+    ClanWarParticipant.objects.create(war=war, clan=clan, user=leader)
+    # leader tries to join again — side is full
+    resp = tc.post(f"/api/v1/clans/wars/{war.pk}/join/", **_auth(leader_token))
+    assert resp.status_code == 400
+
+
+def test_join_war_both_sides_full_and_not_scheduled_starts_war(
+    tc, clan, rival_clan, leader, leader_token, leader_membership, other_membership, other_user, other_token
+):
+    """Joining the last slot when both sides are full auto-starts war (lines 319-325)."""
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.ACCEPTED,
+        players_per_side=1,
+    )
+    # Fill defender side already
+    ClanWarParticipant.objects.create(war=war, clan=rival_clan, user=other_user)
+
+    with patch("apps.clans.tasks.start_clan_war.delay") as mock_delay:
+        resp = tc.post(f"/api/v1/clans/wars/{war.pk}/join/", **_auth(leader_token))
+
+    assert resp.status_code == 200
+    mock_delay.assert_called_once_with(str(war.pk))
+
+
+def test_join_war_both_sides_full_with_future_schedule_does_not_start(
+    tc, clan, rival_clan, leader, leader_token, leader_membership, other_membership, other_user, other_token
+):
+    """Both sides full but scheduled in future → no immediate start (lines 321-322)."""
+    future = timezone.now() + timedelta(hours=1)
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.ACCEPTED,
+        players_per_side=1,
+        scheduled_at=future,
+    )
+    ClanWarParticipant.objects.create(war=war, clan=rival_clan, user=other_user)
+
+    with patch("apps.clans.tasks.start_clan_war.delay") as mock_delay:
+        resp = tc.post(f"/api/v1/clans/wars/{war.pk}/join/", **_auth(leader_token))
+
+    assert resp.status_code == 200
+    mock_delay.assert_not_called()
+
+
+def test_leave_war_wrong_status(tc, clan, rival_clan, leader, leader_token, leader_membership, other_membership):
+    """leave_war returns 400 when war is not in ACCEPTED status (line 360)."""
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.PENDING,
+    )
+    ClanWarParticipant.objects.create(war=war, clan=clan, user=leader)
+    resp = tc.post(f"/api/v1/clans/wars/{war.pk}/leave/", **_auth(leader_token))
+    assert resp.status_code == 400
+
+
+def test_leave_war_not_found_war(tc, leader, leader_token):
+    """leave_war with non-existent war_id returns 404 (line 357)."""
+    resp = tc.post(f"/api/v1/clans/wars/{uuid.uuid4()}/leave/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_cancel_war_not_found(tc, leader, leader_token):
+    """cancel_war with non-existent war_id returns 404 (line 377)."""
+    resp = tc.post(f"/api/v1/clans/wars/{uuid.uuid4()}/cancel/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_cancel_war_non_member_of_either_clan(tc, clan, rival_clan, member_user, leader_membership):
+    """cancel_war returns 403 when user is not in either clan (line 390)."""
+    member_token = _get_token(tc, member_user)  # no membership
+    war = ClanWar.objects.create(challenger=clan, defender=rival_clan, status=ClanWar.Status.PENDING)
+    resp = tc.post(f"/api/v1/clans/wars/{war.pk}/cancel/", **_auth(member_token))
+    assert resp.status_code == 403
+
+
+def test_cancel_accepted_war_refunds_both_wagers(
+    tc, clan, rival_clan, leader, leader_token, leader_membership, other_membership
+):
+    """Cancelling an ACCEPTED war refunds both challenger and defender wagers (lines 396-406)."""
+    clan.treasury_gold = 0
+    clan.save(update_fields=["treasury_gold"])
+    rival_clan.treasury_gold = 0
+    rival_clan.save(update_fields=["treasury_gold"])
+
+    war = ClanWar.objects.create(
+        challenger=clan,
+        defender=rival_clan,
+        status=ClanWar.Status.ACCEPTED,
+        wager_gold=200,
+    )
+    resp = tc.post(f"/api/v1/clans/wars/{war.pk}/cancel/", **_auth(leader_token))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["refunded_gold"] == 400  # 200 challenger + 200 defender
+
+    clan.refresh_from_db()
+    rival_clan.refresh_from_db()
+    assert clan.treasury_gold == 200
+    assert rival_clan.treasury_gold == 200
+
+
+def test_update_clan_duplicate_name_returns_400(tc, clan, leader, leader_token, leader_membership, other_user):
+    """update_clan returns 400 when new name is taken by another clan (line 518)."""
+    Clan.objects.create(name="Taken Name", tag="TKN", leader=other_user)
+    payload = {"name": "Taken Name"}
+    resp = tc.patch(
+        f"/api/v1/clans/{clan.pk}/",
+        data=json.dumps(payload),
+        content_type="application/json",
+        **_auth(leader_token),
+    )
+    assert resp.status_code == 400
+
+
+def test_get_clan_non_member_sees_hidden_treasury(tc, clan, leader, leader_token):
+    """Non-member gets treasury_gold=0 and tax_percent=0 (line 511)."""
+    clan.treasury_gold = 9999
+    clan.save(update_fields=["treasury_gold"])
+    # No membership fixture — leader_token user has no membership
+    resp = tc.get(f"/api/v1/clans/{clan.pk}/", **_auth(leader_token))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["treasury_gold"] == 0
+    assert data["tax_percent"] == 0
+    assert data["my_membership"] is None
+
+
+def test_dissolve_clan_not_found(tc, leader, leader_token):
+    """dissolve_clan returns 404 when clan not found (line 539)."""
+    resp = tc.delete(f"/api/v1/clans/{uuid.uuid4()}/", **_auth(leader_token))
+    assert resp.status_code in (403, 404)
+
+
+def test_list_members_clan_not_found_returns_404(tc, leader, leader_token):
+    """list_members returns 404 when clan doesn't exist (line 585)."""
+    resp = tc.get(f"/api/v1/clans/{uuid.uuid4()}/members/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_kick_member_not_in_clan_returns_404(tc, clan, leader, leader_token, leader_membership, other_user):
+    """kick_member returns 404 when target is not in clan (line 615)."""
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/kick/{other_user.pk}/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_promote_member_already_at_max_returns_400(tc, clan, leader, leader_token, leader_membership, other_user):
+    """promote_member returns 400 when target is already officer and actor is leader (line 625)."""
+    # Officer cannot be promoted past officer without leader rank — and leader role is max
+    # Let's have a leader try to promote another leader (leader cannot be promoted higher)
+    another_leader_user = User.objects.create_user(email="promo2@t.com", username="promo2leader", password="x")
+    ClanMembership.objects.create(clan=clan, user=another_leader_user, role=ClanMembership.Role.OFFICER)
+    # Promote officer to officer is invalid (no mapping from officer to anything)
+    # Promote officer → no entry in promotion_map
+    # Actually officer is in promotion_map: OFFICER -> none? let's check
+    # demotion_map: OFFICER->MEMBER, MEMBER->RECRUIT
+    # promotion_map: RECRUIT->MEMBER, MEMBER->OFFICER
+    # So to hit line 625, we need target whose role has no promotion (officer already)
+    # But wait - line 625 is about ClanMembership.ROLE_HIERARCHY[new_role] >= actor_m.rank
+    # Let's have an officer promote a member to officer (same rank as actor) → 403
+    officer_user = User.objects.create_user(email="promo_off@t.com", username="promo_officer", password="x")
+    ClanMembership.objects.create(clan=clan, user=officer_user, role=ClanMembership.Role.OFFICER)
+    officer_token = _get_token(tc, officer_user)
+
+    target_member = User.objects.create_user(email="promo_tgt@t.com", username="promo_target", password="x")
+    ClanMembership.objects.create(clan=clan, user=target_member, role=ClanMembership.Role.MEMBER)
+
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/promote/{target_member.pk}/", **_auth(officer_token))
+    # officer promoting member to officer → same rank as actor → 403
+    assert resp.status_code == 403
+
+
+def test_promote_member_not_in_clan(tc, clan, leader, leader_token, leader_membership, other_user):
+    """promote_member returns 404 when target is not in clan (line 615 area)."""
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/promote/{other_user.pk}/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_demote_member_not_in_clan_returns_404(tc, clan, leader, leader_token, leader_membership, other_user):
+    """demote_member returns 404 when target is not in clan (line 655)."""
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/demote/{other_user.pk}/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_demote_member_already_at_bottom_returns_400(tc, clan, leader, leader_token, leader_membership, other_user):
+    """demote_member returns 400 when target is a recruit (no lower role) (line 665 area)."""
+    ClanMembership.objects.create(clan=clan, user=other_user, role=ClanMembership.Role.RECRUIT)
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/demote/{other_user.pk}/", **_auth(leader_token))
+    assert resp.status_code == 400
+
+
+def test_demote_member_equal_rank_returns_403(tc, clan, leader, leader_membership, other_user):
+    """demote_member returns 403 when target has equal or higher rank (line 665)."""
+    officer_user = User.objects.create_user(email="demoter@t.com", username="demoter", password="x")
+    ClanMembership.objects.create(clan=clan, user=officer_user, role=ClanMembership.Role.OFFICER)
+    demoter_token = _get_token(tc, officer_user)
+
+    # Another officer — equal rank → 403
+    ClanMembership.objects.create(clan=clan, user=other_user, role=ClanMembership.Role.OFFICER)
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/demote/{other_user.pk}/", **_auth(demoter_token))
+    assert resp.status_code == 403
+
+
+def test_transfer_leadership_target_not_in_clan(tc, clan, leader, leader_token, leader_membership, other_user):
+    """transfer_leadership returns 404 when target is not in clan (line 695)."""
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/transfer-leadership/{other_user.pk}/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_invite_player_clan_full(tc, clan, leader, leader_token, leader_membership, member_user):
+    """invite_player returns 400 when clan is already at max_members (line 724)."""
+    clan.max_members = 1
+    clan.save(update_fields=["max_members"])
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/invite/{member_user.pk}/", **_auth(leader_token))
+    assert resp.status_code == 400
+
+
+def test_invite_player_target_not_found(tc, clan, leader, leader_token, leader_membership):
+    """invite_player returns 404 when target user doesn't exist (line 727)."""
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/invite/{uuid.uuid4()}/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_join_or_request_clan_not_recruiting(tc, clan, leader, leader_token, member_user, member_token):
+    """join_or_request returns 400 when clan is not recruiting (line 779)."""
+    clan.is_recruiting = False
+    clan.save(update_fields=["is_recruiting"])
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/join/", **_auth(member_token))
+    assert resp.status_code == 400
+
+
+def test_join_or_request_clan_full(tc, clan, leader, member_user, member_token, leader_membership):
+    """join_or_request returns 400 when clan is full (line 783)."""
+    clan.max_members = 1
+    clan.save(update_fields=["max_members"])
+    resp = tc.post(f"/api/v1/clans/{clan.pk}/join/", **_auth(member_token))
+    assert resp.status_code == 400
+
+
+def test_get_treasury_clan_not_found(tc, leader, leader_token, leader_membership):
+    """get_treasury returns 404 when clan doesn't exist (line 848)."""
+    resp = tc.get(f"/api/v1/clans/{uuid.uuid4()}/treasury/", **_auth(leader_token))
+    assert resp.status_code == 404
+
+
+def test_declare_war_challenger_clan_not_found(tc, clan, rival_clan, leader, leader_token, leader_membership):
+    """declare_war returns 404 when challenger clan is dissolved (line 901)."""
+    clan.dissolved_at = timezone.now()
+    clan.save(update_fields=["dissolved_at"])
+    resp = tc.post(
+        f"/api/v1/clans/{clan.pk}/wars/declare/{rival_clan.pk}/",
+        data=json.dumps({"players_per_side": 2, "wager_gold": 0}),
+        content_type="application/json",
+        **_auth(leader_token),
+    )
+    assert resp.status_code == 404
+
+
+def test_declare_war_defender_clan_not_found(tc, clan, rival_clan, leader, leader_token, leader_membership):
+    """declare_war returns 404 when defender clan is dissolved (line 903)."""
+    rival_clan.dissolved_at = timezone.now()
+    rival_clan.save(update_fields=["dissolved_at"])
+    resp = tc.post(
+        f"/api/v1/clans/{clan.pk}/wars/declare/{rival_clan.pk}/",
+        data=json.dumps({"players_per_side": 2, "wager_gold": 0}),
+        content_type="application/json",
+        **_auth(leader_token),
+    )
+    assert resp.status_code == 404
+
+
+def test_declare_war_wager_treasury_insufficient_inside_atomic(
+    tc, clan, rival_clan, leader, leader_token, leader_membership, other_membership
+):
+    """declare_war fails inside atomic when treasury is insufficient for wager (lines 925-932)."""
+    clan.treasury_gold = 200
+    clan.save(update_fields=["treasury_gold"])
+    resp = tc.post(
+        f"/api/v1/clans/{clan.pk}/wars/declare/{rival_clan.pk}/",
+        data=json.dumps({"players_per_side": 1, "wager_gold": 500}),
+        content_type="application/json",
+        **_auth(leader_token),
+    )
+    assert resp.status_code == 400

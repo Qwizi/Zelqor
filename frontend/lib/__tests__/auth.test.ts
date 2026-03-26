@@ -103,4 +103,36 @@ describe("auth utilities", () => {
       expect(() => clearTokens()).not.toThrow();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // SSR branch: typeof window === "undefined" (lines 8 and 13)
+  // In jsdom window exists, so we simulate the SSR guard by temporarily
+  // deleting the global window object.
+  // -------------------------------------------------------------------------
+
+  describe("SSR guard (typeof window === 'undefined')", () => {
+    it("isAuthenticated() returns false when window is undefined", () => {
+      const savedWindow = global.window;
+      // @ts-expect-error intentional: simulate SSR environment
+      delete global.window;
+
+      const result = isAuthenticated();
+      expect(result).toBe(false);
+
+      global.window = savedWindow;
+    });
+
+    it("setAuthenticated() is a no-op when window is undefined", () => {
+      const savedWindow = global.window;
+      // @ts-expect-error intentional: simulate SSR environment
+      delete global.window;
+
+      // Should not throw and should have no observable effect
+      expect(() => setAuthenticated(true)).not.toThrow();
+
+      global.window = savedWindow;
+      // After restoring window, the flag should not have been set
+      expect(isAuthenticated()).toBe(false);
+    });
+  });
 });
