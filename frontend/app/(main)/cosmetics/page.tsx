@@ -177,6 +177,7 @@ function SlotCard({
     const rarity = "common"; // EquippedCosmeticOut doesn't carry rarity — use neutral default
     return (
       <button
+        type="button"
         onClick={onClick}
         className={[
           "group relative flex flex-col items-center gap-1.5 rounded-xl border-2 p-2 text-left transition-all duration-150",
@@ -212,6 +213,7 @@ function SlotCard({
 
   return (
     <button
+      type="button"
       onClick={onClick}
       className="group flex flex-col items-center gap-1.5 rounded-xl border-2 border-dashed border-border/50 p-2 text-left transition-all duration-150 hover:border-border hover:bg-muted/30 active:scale-[0.97] cursor-pointer"
       title={`Slot: ${slotDef.label} — kliknij aby założyć`}
@@ -250,6 +252,7 @@ function PickerItem({
 
   return (
     <button
+      type="button"
       onClick={handleClick}
       disabled={loading || isEquipped}
       className={[
