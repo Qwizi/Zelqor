@@ -66,3 +66,8 @@ pixi/
 
 # Logs
 *.log
+
+# Local tooling
+.claude-flow/
+.rtk/
+.swarm/
