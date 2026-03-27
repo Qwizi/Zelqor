@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { GamePlayer } from "@/hooks/useGameSocket";
 import type { CosmeticValue } from "@/lib/animationConfig";
-import { AP_MAX } from "@/lib/gameTypes";
 import type { DiplomacyState } from "@/lib/gameTypes";
+import { AP_MAX } from "@/lib/gameTypes";
 
 /**
  * Resolve the `emblem` cosmetic slot to a URL string, or return null if absent.

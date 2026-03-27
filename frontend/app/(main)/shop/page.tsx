@@ -115,9 +115,7 @@ function GemPackageCard({ pkg }: { pkg: GemPackageOut }) {
         <div className="flex flex-col items-center gap-1 text-center">
           <span className="text-sm font-semibold text-foreground">{pkg.name}</span>
           <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold tabular-nums text-cyan-300">
-              {pkg.gems.toLocaleString("pl-PL")}
-            </span>
+            <span className="text-2xl font-bold tabular-nums text-cyan-300">{pkg.gems.toLocaleString("pl-PL")}</span>
             <span className="text-xs text-muted-foreground">klejnotów</span>
           </div>
           {pkg.bonus_gems > 0 && (
