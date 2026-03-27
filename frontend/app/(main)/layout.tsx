@@ -11,6 +11,7 @@ import {
   ChevronRightIcon,
   Code,
   Coins,
+  Diamond,
   ExternalLink,
   Globe,
   Hammer,
@@ -25,6 +26,7 @@ import {
   Settings,
   Shield,
   Shirt,
+  ShoppingBag,
   Store,
   Swords,
   Trophy,
@@ -42,7 +44,7 @@ import { toast } from "sonner";
 import { ClanTag } from "@/components/ClanTag";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useFriends, useMyWallet, useOnlineStats } from "@/hooks/queries";
+import { useFriends, useGemWallet, useMyWallet, useOnlineStats } from "@/hooks/queries";
 import { SocialSocketContext } from "@/hooks/SocialSocketContext";
 import { useAudio } from "@/hooks/useAudio";
 import { useAuth } from "@/hooks/useAuth";
@@ -92,6 +94,7 @@ const ALL_LOADOUT_ITEMS: NavItem[] = [
 ];
 
 const ALL_ECONOMY_ITEMS: NavItem[] = [
+  { href: "/shop", label: "Sklep", icon: <ShoppingBag size={20} /> },
   { href: "/marketplace", label: "Rynek", icon: <Store size={20} /> },
   { href: "/crafting", label: "Kuźnia", icon: <Hammer size={20} /> },
 ];
@@ -239,6 +242,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   inventory: "Ekwipunek",
   cosmetics: "Kosmetyki",
   decks: "Talia",
+  shop: "Sklep",
   marketplace: "Rynek",
   crafting: "Kuźnia",
   developers: "Deweloperzy",
@@ -1127,6 +1131,7 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { data: wallet } = useMyWallet();
+  const { data: gemWallet } = useGemWallet();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -1348,19 +1353,32 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
                 </div>
                 {/* Stats */}
                 {!collapsed && (
-                  <div className="px-3 pb-3 pt-1 flex gap-2">
-                    <div className="flex-1 flex items-center gap-2 rounded-lg bg-secondary/80 px-2.5 py-2">
-                      <Trophy size={14} className="text-accent shrink-0" />
-                      <span className="text-sm font-bold tabular-nums text-foreground">{user.elo_rating}</span>
+                  <div className="px-3 pb-3 pt-1 flex flex-col gap-1.5">
+                    <div className="flex gap-2">
+                      <div className="flex-1 flex items-center gap-2 rounded-lg bg-secondary/80 px-2.5 py-2">
+                        <Trophy size={14} className="text-accent shrink-0" />
+                        <span className="text-sm font-bold tabular-nums text-foreground">{user.elo_rating}</span>
+                      </div>
+                      {wallet && (
+                        <div className="flex-1 flex items-center gap-2 rounded-lg bg-accent/[0.06] px-2.5 py-2">
+                          <Coins size={14} className="text-accent shrink-0" />
+                          <span className="text-sm font-bold tabular-nums text-accent">
+                            {wallet.gold > 9999
+                              ? `${Math.floor(wallet.gold / 1000)}k`
+                              : wallet.gold.toLocaleString("pl-PL")}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    {wallet && (
-                      <div className="flex-1 flex items-center gap-2 rounded-lg bg-accent/[0.06] px-2.5 py-2">
-                        <Coins size={14} className="text-accent shrink-0" />
-                        <span className="text-sm font-bold tabular-nums text-accent">
-                          {wallet.gold > 9999
-                            ? `${Math.floor(wallet.gold / 1000)}k`
-                            : wallet.gold.toLocaleString("pl-PL")}
+                    {gemWallet && (
+                      <div className="flex items-center gap-2 rounded-lg bg-cyan-500/[0.06] px-2.5 py-2">
+                        <Diamond size={14} className="text-cyan-400 shrink-0" />
+                        <span className="text-sm font-bold tabular-nums text-cyan-300">
+                          {gemWallet.gems > 9999
+                            ? `${Math.floor(gemWallet.gems / 1000)}k`
+                            : gemWallet.gems.toLocaleString("pl-PL")}
                         </span>
+                        <span className="text-[11px] text-muted-foreground ml-auto">klejnotów</span>
                       </div>
                     )}
                   </div>
@@ -1379,6 +1397,15 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
                         className="flex h-7 w-full items-center justify-center rounded-md bg-accent/10 text-[10px] font-bold tabular-nums text-accent"
                       >
                         {wallet.gold > 9999 ? `${Math.floor(wallet.gold / 1000)}k` : wallet.gold}
+                      </div>
+                    )}
+                    {gemWallet && (
+                      <div
+                        title={`${gemWallet.gems} klejnotów`}
+                        className="flex h-7 w-full items-center justify-center rounded-md bg-cyan-500/10 text-[10px] font-bold tabular-nums text-cyan-300"
+                      >
+                        <Diamond size={10} className="mr-1 shrink-0" />
+                        {gemWallet.gems > 9999 ? `${Math.floor(gemWallet.gems / 1000)}k` : gemWallet.gems}
                       </div>
                     )}
                   </div>

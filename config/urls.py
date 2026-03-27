@@ -26,6 +26,7 @@ from apps.marketplace.views import MarketplaceController
 from apps.matchmaking.internal_api import LobbyInternalController, MatchmakingInternalController
 from apps.matchmaking.views import MatchController, MatchmakingStatusController, TutorialController
 from apps.notifications.views import NotificationController
+from apps.payments.views import PaymentsController, PaymentsWebhookController
 
 api = NinjaExtraAPI(title="MapLord API", version="1.0.0")
 api.register_controllers(
@@ -57,6 +58,8 @@ api.register_controllers(
     NotificationController,
     ClanGlobalController,
     ClanController,
+    PaymentsController,
+    PaymentsWebhookController,
 )
 
 

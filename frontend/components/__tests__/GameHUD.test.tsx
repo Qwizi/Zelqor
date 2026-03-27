@@ -41,6 +41,7 @@ function makePlayer(id: string, overrides: Partial<GamePlayer> = {}): GamePlayer
     is_alive: true,
     capital_region_id: null,
     energy: 100,
+    action_points: 15,
     ...overrides,
   };
 }

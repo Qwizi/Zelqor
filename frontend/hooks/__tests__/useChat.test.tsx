@@ -747,11 +747,11 @@ describe("useChat", () => {
 
     // Now fire onopen — hook checks disposed=true and calls ws.close()
     if (capturedOnopen) {
-      capturedOnopen();
+      (capturedOnopen as () => void)();
     }
 
     // ws.close() was called, readyState should be 3
-    expect(capturedWs?.readyState).toBe(3);
+    expect((capturedWs as MockWebSocket | null)?.readyState).toBe(3);
   });
 
   it("does not increment unreadCount when chatOpen=true", async () => {

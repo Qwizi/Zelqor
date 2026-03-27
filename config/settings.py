@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "apps.assets",
     "apps.notifications",
     "apps.clans",
+    "apps.payments",
 ]
 
 MIDDLEWARE = [
@@ -203,6 +204,11 @@ DISCORD_CLIENT_SECRET = config("DISCORD_CLIENT_SECRET", default="")
 # Steam Auth
 STEAM_WEB_API_KEY = config("STEAM_WEB_API_KEY", default="")
 STEAM_APP_ID = config("STEAM_APP_ID", default="480")
+
+# Stripe
+STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="")
+STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="")
+STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
 
 # CORS
 # Internal API secret for Rust gateway

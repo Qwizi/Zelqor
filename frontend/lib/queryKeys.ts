@@ -97,6 +97,12 @@ export const queryKeys = {
     resource: (shareToken: string) => [...queryKeys.share.all, shareToken] as const,
     snapshot: (shareToken: string) => [...queryKeys.share.all, shareToken, "snapshot"] as const,
   },
+  shop: {
+    all: ["shop"] as const,
+    gemWallet: () => [...queryKeys.shop.all, "gem-wallet"] as const,
+    gemPackages: () => [...queryKeys.shop.all, "gem-packages"] as const,
+    items: (category?: string) => [...queryKeys.shop.all, "items", { category }] as const,
+  },
   clans: {
     all: ["clans"] as const,
     list: (search?: string, limit?: number, offset?: number) =>

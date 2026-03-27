@@ -13,3 +13,4 @@ export * from "./useMatchQueries";
 export * from "./useMessageQueries";
 export * from "./useNotificationQueries";
 export * from "./useShareQueries";
+export * from "./useShopQueries";

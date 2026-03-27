@@ -1917,3 +1917,77 @@ export async function sendClanChatMessage(token: string, clanId: string, content
     body: JSON.stringify({ content }),
   });
 }
+
+// --- Shop ---
+
+export interface GemWalletOut {
+  gems: number;
+  total_purchased: number;
+  total_spent: number;
+}
+
+export interface GemPackageOut {
+  id: string;
+  name: string;
+  slug: string;
+  gems: number;
+  bonus_gems: number;
+  total_gems: number;
+  price_cents: number;
+  currency: string;
+  icon: string;
+  is_featured: boolean;
+  order: number;
+}
+
+export interface ShopItemOut {
+  id: string;
+  item: ItemOut;
+  gem_price: number;
+  original_gem_price: number | null;
+  shop_category: string;
+  quantity: number;
+  available_until: string | null;
+  order: number;
+}
+
+export interface CreateCheckoutResponse {
+  session_url: string;
+  order_id: string;
+}
+
+export interface BuyShopItemResponse {
+  id: string;
+  item: ItemOut;
+  quantity: number;
+  gems_spent: number;
+  gem_balance: number;
+  created_at: string;
+}
+
+export async function getGemWallet(): Promise<GemWalletOut> {
+  return fetchAPI<GemWalletOut>("/payments/gem-wallet/");
+}
+
+export async function getGemPackages(): Promise<GemPackageOut[]> {
+  return fetchAPI<GemPackageOut[]>("/payments/gem-packages/");
+}
+
+export async function getShopItems(category?: string): Promise<ShopItemOut[]> {
+  const qs = category ? `?category=${encodeURIComponent(category)}` : "";
+  return fetchAPI<ShopItemOut[]>(`/payments/shop/${qs}`);
+}
+
+export async function createCheckout(packageSlug: string, idempotencyKey: string): Promise<CreateCheckoutResponse> {
+  return fetchAPI<CreateCheckoutResponse>("/payments/create-checkout/", {
+    method: "POST",
+    body: JSON.stringify({ package_slug: packageSlug, idempotency_key: idempotencyKey }),
+  });
+}
+
+export async function buyShopItem(shopItemId: string): Promise<BuyShopItemResponse> {
+  return fetchAPI<BuyShopItemResponse>("/payments/shop/buy/", {
+    method: "POST",
+    body: JSON.stringify({ shop_item_id: shopItemId }),
+  });
+}

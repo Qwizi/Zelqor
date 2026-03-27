@@ -113,6 +113,16 @@ function makeUnit(overrides: Partial<UnitType> = {}): UnitType {
     order: 1,
     max_level: 1,
     level_stats: {},
+    is_stealth: false,
+    path_damage: 0,
+    aoe_damage: 0,
+    blockade_port: false,
+    intercept_air: false,
+    can_station_anywhere: false,
+    lifetime_ticks: 0,
+    combat_target: "ground",
+    ticks_per_hop: 1,
+    air_speed_ticks_per_hop: 1,
     ...overrides,
   };
 }

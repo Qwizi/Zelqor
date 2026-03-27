@@ -623,7 +623,10 @@ function deepMerge<T>(base: T, override: Partial<T>): T {
  * A cosmetic entry is either a bare URL string (no animation params) or an
  * object that may carry a `params` bag with partial AnimationConfig overrides.
  */
-export type CosmeticValue = string | { url?: string | null; params?: Partial<AnimationConfig> };
+/** Recursively make all properties optional. */
+type DeepPartial<T> = { [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P] };
+
+export type CosmeticValue = string | { url?: string | null; params?: DeepPartial<AnimationConfig> };
 
 /**
  * Resolve the final AnimationConfig for a given unit kind + player cosmetics.

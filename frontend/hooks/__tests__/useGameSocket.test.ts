@@ -117,6 +117,7 @@ const baseGameState: GameState = {
       is_alive: true,
       capital_region_id: null,
       energy: 10,
+      action_points: 15,
     },
   },
   regions: {
@@ -697,7 +698,7 @@ describe("useGameSocket", () => {
     });
 
     const diplomacyData = {
-      wars: [{ id: "w1", attacker_id: "p1", defender_id: "p2", declared_at: 1 }],
+      wars: [{ player_a: "p1", player_b: "p2", started_tick: 1, aggressor_id: "p1", provinces_changed: [] }],
       pacts: [],
       proposals: [],
     };
@@ -710,7 +711,7 @@ describe("useGameSocket", () => {
     });
 
     expect(result.current.diplomacy.wars).toHaveLength(1);
-    expect(result.current.diplomacy.wars[0].id).toBe("w1");
+    expect(result.current.diplomacy.wars[0].player_a).toBe("p1");
   });
 
   it("game_state with top-level diplomacy field sets diplomacy", async () => {
