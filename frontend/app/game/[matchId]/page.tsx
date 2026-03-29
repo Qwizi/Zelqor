@@ -1478,7 +1478,7 @@ export default function GamePage({ params }: { params: Promise<{ matchId: string
       {!connected && status !== "finished" && status !== "cancelled" && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="flex items-center gap-3 rounded-[24px] border border-border bg-card px-6 py-4">
-            <Image src="/assets/common/world.webp" alt="" width={24} height={24} className="h-6 w-6 object-contain" />
+            <img src="/zelqor-z.svg" alt="Zelqor" width={24} height={24} className="h-6 w-6" />
             <Loader2 className="h-5 w-5 animate-spin" />
             <span>Łączenie z serwerem...</span>
           </div>

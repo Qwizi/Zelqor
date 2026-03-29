@@ -109,9 +109,9 @@ describe("MatchIntroOverlay", () => {
     expect(screen.getByText("Przygotowanie do Bitwy")).toBeTruthy();
   });
 
-  it("renders the MapLord eyebrow text", () => {
+  it("renders the Zelqor eyebrow text", () => {
     render(React.createElement(MatchIntroOverlay, makeProps()));
-    expect(screen.getByText("MapLord")).toBeTruthy();
+    expect(screen.getByText("Zelqor")).toBeTruthy();
   });
 
   it("renders both player usernames in a 1v1 match", () => {

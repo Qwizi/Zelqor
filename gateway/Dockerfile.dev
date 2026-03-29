@@ -7,22 +7,22 @@ RUN cargo install cargo-watch
 
 # Copy manifests first for caching
 COPY Cargo.toml Cargo.lock* ./
-COPY crates/maplord-gateway/Cargo.toml crates/maplord-gateway/Cargo.toml
-COPY crates/maplord-engine/Cargo.toml crates/maplord-engine/Cargo.toml
-COPY crates/maplord-state/Cargo.toml crates/maplord-state/Cargo.toml
-COPY crates/maplord-matchmaking/Cargo.toml crates/maplord-matchmaking/Cargo.toml
-COPY crates/maplord-django/Cargo.toml crates/maplord-django/Cargo.toml
-COPY crates/maplord-ai/Cargo.toml crates/maplord-ai/Cargo.toml
-COPY crates/maplord-anticheat/Cargo.toml crates/maplord-anticheat/Cargo.toml
+COPY crates/zelqor-gateway/Cargo.toml crates/zelqor-gateway/Cargo.toml
+COPY crates/zelqor-engine/Cargo.toml crates/zelqor-engine/Cargo.toml
+COPY crates/zelqor-state/Cargo.toml crates/zelqor-state/Cargo.toml
+COPY crates/zelqor-matchmaking/Cargo.toml crates/zelqor-matchmaking/Cargo.toml
+COPY crates/zelqor-django/Cargo.toml crates/zelqor-django/Cargo.toml
+COPY crates/zelqor-ai/Cargo.toml crates/zelqor-ai/Cargo.toml
+COPY crates/zelqor-anticheat/Cargo.toml crates/zelqor-anticheat/Cargo.toml
 
 # Create dummy source files for dependency caching
-RUN mkdir -p crates/maplord-gateway/src && echo "fn main() {}" > crates/maplord-gateway/src/main.rs && \
-    mkdir -p crates/maplord-engine/src && echo "" > crates/maplord-engine/src/lib.rs && \
-    mkdir -p crates/maplord-state/src && echo "" > crates/maplord-state/src/lib.rs && \
-    mkdir -p crates/maplord-matchmaking/src && echo "" > crates/maplord-matchmaking/src/lib.rs && \
-    mkdir -p crates/maplord-django/src && echo "" > crates/maplord-django/src/lib.rs && \
-    mkdir -p crates/maplord-ai/src && echo "" > crates/maplord-ai/src/lib.rs && \
-    mkdir -p crates/maplord-anticheat/src && echo "" > crates/maplord-anticheat/src/lib.rs
+RUN mkdir -p crates/zelqor-gateway/src && echo "fn main() {}" > crates/zelqor-gateway/src/main.rs && \
+    mkdir -p crates/zelqor-engine/src && echo "" > crates/zelqor-engine/src/lib.rs && \
+    mkdir -p crates/zelqor-state/src && echo "" > crates/zelqor-state/src/lib.rs && \
+    mkdir -p crates/zelqor-matchmaking/src && echo "" > crates/zelqor-matchmaking/src/lib.rs && \
+    mkdir -p crates/zelqor-django/src && echo "" > crates/zelqor-django/src/lib.rs && \
+    mkdir -p crates/zelqor-ai/src && echo "" > crates/zelqor-ai/src/lib.rs && \
+    mkdir -p crates/zelqor-anticheat/src && echo "" > crates/zelqor-anticheat/src/lib.rs
 
 RUN cargo build 2>/dev/null || true
 
@@ -32,4 +32,4 @@ RUN touch crates/*/src/*.rs
 
 # Clean workspace crate artifacts on startup so cargo-watch rebuilds with real source.
 # This preserves the dependency cache while ensuring stale dummy binaries aren't used.
-CMD ["sh", "-c", "cargo clean -p maplord-gateway -p maplord-engine -p maplord-state -p maplord-matchmaking -p maplord-django 2>/dev/null; exec cargo-watch -x 'run --bin maplord-gateway' -w crates"]
+CMD ["sh", "-c", "cargo clean -p zelqor-gateway -p zelqor-engine -p zelqor-state -p zelqor-matchmaking -p zelqor-django 2>/dev/null; exec cargo-watch -x 'run --bin zelqor-gateway' -w crates"]

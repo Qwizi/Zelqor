@@ -151,7 +151,7 @@ export default function DocsPage() {
           <SectionLabel>Portal Deweloperski</SectionLabel>
           <h1 className="mt-2 font-display text-3xl text-zinc-50">Dokumentacja API</h1>
           <p className="mt-2 max-w-xl text-sm text-slate-400">
-            Kompletny przewodnik po integracji z MapLord API. Znajdziesz tu informacje o uwierzytelnianiu, dostepnych
+            Kompletny przewodnik po integracji z Zelqor API. Znajdziesz tu informacje o uwierzytelnianiu, dostepnych
             endpointach, OAuth2, webhookach i obsludze bledow.
           </p>
         </div>
@@ -192,7 +192,7 @@ export default function DocsPage() {
         </div>
 
         <SectionDescription>
-          Aby rozpoczac integracje z MapLord API, wykonaj trzy kroki: utworz aplikacje w portalu deweloperskim, pobierz
+          Aby rozpoczac integracje z Zelqor API, wykonaj trzy kroki: utworz aplikacje w portalu deweloperskim, pobierz
           klucz API, a nastepnie wykonaj pierwsze zapytanie.
         </SectionDescription>
 
@@ -222,13 +222,13 @@ export default function DocsPage() {
               <Globe className="h-4 w-4 text-slate-500" />
               <span className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Base URL</span>
             </div>
-            <code className="mt-1 block font-mono text-sm text-cyan-200">https://maplord.gg/api/v1/public/</code>
+            <code className="mt-1 block font-mono text-sm text-cyan-200">https://zelqor.gg/api/v1/public/</code>
           </div>
           <div className="px-5 py-4">
             <div className="mb-3 text-[11px] uppercase tracking-[0.2em] text-slate-500">
               Przykladowe zapytanie (curl)
             </div>
-            <CodeBlock>{`curl -X GET https://maplord.gg/api/v1/public/leaderboard/ \\
+            <CodeBlock>{`curl -X GET https://zelqor.gg/api/v1/public/leaderboard/ \\
   -H "X-API-Key: ml_twoj_klucz_api" \\
   -H "Accept: application/json"`}</CodeBlock>
           </div>
@@ -248,7 +248,7 @@ export default function DocsPage() {
         </div>
 
         <SectionDescription>
-          MapLord API obsluguje dwie metody uwierzytelniania: klucze API do endpointow publicznych oraz OAuth2 do
+          Zelqor API obsluguje dwie metody uwierzytelniania: klucze API do endpointow publicznych oraz OAuth2 do
           endpointow wymagajacych kontekstu uzytkownika.
         </SectionDescription>
 
@@ -421,8 +421,8 @@ export default function DocsPage() {
 
 {
   "count": 1240,
-  "next": "https://maplord.gg/api/v1/public/leaderboard/?page=3",
-  "previous": "https://maplord.gg/api/v1/public/leaderboard/?page=1",
+  "next": "https://zelqor.gg/api/v1/public/leaderboard/?page=3",
+  "previous": "https://zelqor.gg/api/v1/public/leaderboard/?page=1",
   "results": [ ... ]
 }`}</CodeBlock>
         </Card>
@@ -441,7 +441,7 @@ export default function DocsPage() {
         </div>
 
         <SectionDescription>
-          OAuth2 Authorization Code Flow pozwala Twojej aplikacji dzialac w imieniu uzytkownika MapLord po uzyskaniu
+          OAuth2 Authorization Code Flow pozwala Twojej aplikacji dzialac w imieniu uzytkownika Zelqor po uzyskaniu
           jego zgody. Uzywaj tego przepływu, gdy potrzebujesz dostepu do danych konkretnego gracza.
         </SectionDescription>
 
@@ -449,7 +449,7 @@ export default function DocsPage() {
           <div className="mb-4 font-display text-sm text-zinc-100">Diagram przepływu</div>
           <div className="space-y-2">
             <StepItem step={1}>
-              Uzytkownik klika <strong className="text-zinc-100">&ldquo;Zaloguj przez MapLord&rdquo;</strong> w Twojej
+              Uzytkownik klika <strong className="text-zinc-100">&ldquo;Zaloguj przez Zelqor&rdquo;</strong> w Twojej
               aplikacji.
             </StepItem>
             <StepItem step={2}>
@@ -464,11 +464,11 @@ export default function DocsPage() {
               <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">state</code>.
             </StepItem>
             <StepItem step={3}>
-              Uzytkownik loguje sie na MapLord i <strong className="text-zinc-100">autoryzuje</strong> dostep dla Twojej
+              Uzytkownik loguje sie na Zelqor i <strong className="text-zinc-100">autoryzuje</strong> dostep dla Twojej
               aplikacji.
             </StepItem>
             <StepItem step={4}>
-              MapLord przekierowuje uzytkownika z powrotem na{" "}
+              Zelqor przekierowuje uzytkownika z powrotem na{" "}
               <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">redirect_uri</code> z
               parametrem <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">code</code> i{" "}
               <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-slate-300">state</code>.
@@ -498,7 +498,7 @@ export default function DocsPage() {
 
         <Card className="p-5">
           <div className="mb-3 font-display text-sm text-zinc-100">Przyklad — inicjowanie autoryzacji</div>
-          <CodeBlock>{`https://maplord.gg/api/v1/oauth/authorize/
+          <CodeBlock>{`https://zelqor.gg/api/v1/oauth/authorize/
   ?response_type=code
   &client_id=ml_app_abc123
   &redirect_uri=https%3A%2F%2Fmojaserwis.pl%2Fcallback
@@ -508,7 +508,7 @@ export default function DocsPage() {
 
         <Card className="p-5">
           <div className="mb-3 font-display text-sm text-zinc-100">Przyklad — wymiana kodu na token</div>
-          <CodeBlock>{`curl -X POST https://maplord.gg/api/v1/oauth/token/ \\
+          <CodeBlock>{`curl -X POST https://zelqor.gg/api/v1/oauth/token/ \\
   -H "Content-Type: application/json" \\
   -d '{
     "grant_type": "authorization_code",
@@ -563,7 +563,7 @@ export default function DocsPage() {
 
         <SectionDescription>
           Webhooki pozwalaja Twojej aplikacji otrzymywac powiadomienia o zdarzeniach w grze w czasie rzeczywistym.
-          MapLord wysyla zapytanie HTTP POST na skonfigurowany URL, gdy nastapi okreslone zdarzenie.
+          Zelqor wysyla zapytanie HTTP POST na skonfigurowany URL, gdy nastapi okreslone zdarzenie.
         </SectionDescription>
 
         <Card className="overflow-hidden">
@@ -598,7 +598,7 @@ export default function DocsPage() {
           <div className="mb-2 font-display text-sm text-zinc-100">Weryfikacja podpisu (HMAC-SHA256)</div>
           <p className="mb-3 text-sm text-slate-400">
             Kazde zapytanie webhook zawiera nagłowek{" "}
-            <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">X-MapLord-Signature</code>,
+            <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-cyan-200">X-Zelqor-Signature</code>,
             ktory jest podpisem HMAC-SHA256 ciała zapytania z uzyciem sekretu webhooka skonfigurowanego w panelu
             aplikacji. Zawsze weryfikuj podpis przed przetworzeniem zdarzenia.
           </p>
@@ -606,7 +606,7 @@ export default function DocsPage() {
 import hashlib
 
 def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
-    """Zweryfikuj podpis webhooka MapLord."""
+    """Zweryfikuj podpis webhooka Zelqor."""
     expected = hmac.new(
         secret.encode("utf-8"),
         msg=payload,
@@ -616,7 +616,7 @@ def verify_webhook(payload: bytes, signature: str, secret: str) -> bool:
 
 # Uzycie w widoku Django / FastAPI:
 raw_body = request.body          # bajty, nie zdekodowany JSON
-sig = request.headers.get("X-MapLord-Signature", "")
+sig = request.headers.get("X-Zelqor-Signature", "")
 if not verify_webhook(raw_body, sig, WEBHOOK_SECRET):
     return HttpResponse(status=401)`}</CodeBlock>
         </Card>
@@ -625,7 +625,7 @@ if not verify_webhook(raw_body, sig, WEBHOOK_SECRET):
           <div className="mb-2 font-display text-sm text-zinc-100">Ponowne proby i dezaktywacja</div>
           <p className="text-sm leading-6 text-slate-400">
             Jesli Twoj serwer odpowie kodem innym niz{" "}
-            <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-emerald-200">2xx</code>, MapLord ponowi
+            <code className="rounded bg-white/[0.07] px-1 font-mono text-xs text-emerald-200">2xx</code>, Zelqor ponowi
             probe z wykładniczym opóznieniem:{" "}
             <strong className="text-slate-200">5 s, 30 s, 2 min, 10 min, 30 min</strong>. Po{" "}
             <strong className="text-slate-200">10 nieudanych probach</strong> webhook zostanie automatycznie
@@ -701,7 +701,7 @@ Content-Type: application/json
         <h3 className="mt-2 font-display text-xl text-zinc-50">Utworz swoja pierwsza aplikacje</h3>
         <p className="mx-auto mt-2 max-w-sm text-sm text-slate-400">
           Przejdz do portalu deweloperskiego, aby wygenerowac klucze API i skonfigurowac webhooki dla swojej integracji
-          z MapLord.
+          z Zelqor.
         </p>
         <Link
           href="/developers"

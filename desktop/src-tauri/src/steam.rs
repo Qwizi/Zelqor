@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use steamworks::{AppId, Client, SingleClient};
 use tauri::State;
 
-/// MapLord Steam App ID — replace with your actual App ID after Steamworks registration.
+/// Zelqor Steam App ID — replace with your actual App ID after Steamworks registration.
 /// 480 = Spacewar (Valve's test app, works for development).
 const STEAM_APP_ID: u32 = 480;
 

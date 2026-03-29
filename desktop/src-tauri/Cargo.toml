@@ -1,8 +1,8 @@
 [package]
-name = "maplord-desktop"
+name = "zelqor-desktop"
 version = "0.1.0"
 edition = "2021"
-description = "MapLord Desktop Client"
+description = "Zelqor Desktop Client"
 license = "MIT"
 
 [build-dependencies]

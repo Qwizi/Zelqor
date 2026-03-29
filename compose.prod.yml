@@ -11,14 +11,14 @@ services:
       -c checkpoint_completion_target=0.9
       -c wal_buffers=4MB
     environment:
-      POSTGRES_DB: ${DB_NAME:-maplord}
-      POSTGRES_USER: ${DB_USER:-maplord}
+      POSTGRES_DB: ${DB_NAME:-zelqor}
+      POSTGRES_USER: ${DB_USER:-zelqor}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     mem_limit: 256m
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-maplord}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-zelqor}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -36,7 +36,7 @@ services:
       retries: 5
 
   backend:
-    image: ghcr.io/qwizi/maplord:${TAG:-latest}
+    image: ghcr.io/qwizi/zelqor:${TAG:-latest}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -61,7 +61,7 @@ services:
       start_period: 15s
 
   gateway:
-    image: ghcr.io/qwizi/maplord-gateway:${TAG:-latest}
+    image: ghcr.io/qwizi/zelqor-gateway:${TAG:-latest}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -78,7 +78,7 @@ services:
         condition: service_started
 
   celery:
-    image: ghcr.io/qwizi/maplord:${TAG:-latest}
+    image: ghcr.io/qwizi/zelqor:${TAG:-latest}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -94,7 +94,7 @@ services:
     command: uv run celery -A config worker -l warning --pool=gevent --concurrency 8
 
   celery-beat:
-    image: ghcr.io/qwizi/maplord:${TAG:-latest}
+    image: ghcr.io/qwizi/zelqor:${TAG:-latest}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -111,7 +111,7 @@ services:
     command: uv run celery -A config beat -l info --schedule /app/celerybeat/celerybeat-schedule
 
   frontend:
-    image: ghcr.io/qwizi/maplord-frontend:${TAG:-latest}
+    image: ghcr.io/qwizi/zelqor-frontend:${TAG:-latest}
     restart: unless-stopped
     env_file: .env
     environment:

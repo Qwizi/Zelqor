@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**MapLord 2.0** is a real-time strategy web game built on a world map. Players claim territories, build armies, and compete in real-time matches. The project uses CalVer versioning (e.g., `v2026.3.23.2`).
+**Zelqor** is a real-time strategy web game built on a world map. Players claim territories, build armies, and compete in real-time matches. The project uses CalVer versioning (e.g., `v2026.3.23.2`).
 
 ## Commands
 
@@ -29,7 +29,7 @@ Cargo workspace under `gateway/`. Requires Rust 1.88+.
 cd gateway
 cargo build                    # Build all crates
 cargo test                     # Run all tests
-cargo run --bin maplord-gateway  # Run the gateway server (port 8080)
+cargo run --bin zelqor-gateway  # Run the gateway server (port 8080)
 ```
 
 ### Frontend (Next.js)
@@ -79,13 +79,13 @@ Key config under `config/`:
 
 Cargo workspace with 7 crates handling all WebSocket traffic:
 
-- **maplord-gateway** — Binary: axum WS server, JWT auth, routing, game consumer
-- **maplord-engine** — Lib: pure game logic (tick processing, combat, economy, pathfinding)
-- **maplord-state** — Lib: Redis state management with msgpack (rmp-serde)
-- **maplord-matchmaking** — Lib: matchmaking queue logic with DashMap connection groups
-- **maplord-django** — Lib: Django internal API client (reqwest)
-- **maplord-ai** — Lib: bot AI strategies (BotBrain, TutorialBotBrain) implementing BotStrategy trait
-- **maplord-anticheat** — Lib: cheat detection (action floods, impossible timing, fog-of-war abuse) with Redis-backed state
+- **zelqor-gateway** — Binary: axum WS server, JWT auth, routing, game consumer
+- **zelqor-engine** — Lib: pure game logic (tick processing, combat, economy, pathfinding)
+- **zelqor-state** — Lib: Redis state management with msgpack (rmp-serde)
+- **zelqor-matchmaking** — Lib: matchmaking queue logic with DashMap connection groups
+- **zelqor-django** — Lib: Django internal API client (reqwest)
+- **zelqor-ai** — Lib: bot AI strategies (BotBrain, TutorialBotBrain) implementing BotStrategy trait
+- **zelqor-anticheat** — Lib: cheat detection (action floods, impossible timing, fog-of-war abuse) with Redis-backed state
 
 ### Real-time Game Flow
 

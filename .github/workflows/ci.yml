@@ -167,7 +167,7 @@ jobs:
         run: cargo test
 
       - name: Run integration tests (Redis)
-        run: cargo test --features maplord-matchmaking/testing -- --include-ignored
+        run: cargo test --features zelqor-matchmaking/testing -- --include-ignored
 
   # ── test-frontend: Vitest unit tests ────────────────────────────────
   test-frontend:

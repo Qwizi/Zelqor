@@ -1073,7 +1073,7 @@ def test_expire_old_listings_bot_listings_just_disappear(item):
     bot_user, _ = User.objects.get_or_create(
         username="MarketBot",
         defaults={
-            "email": "marketbot@maplord.internal",
+            "email": "marketbot@zelqor.internal",
             "is_bot": True,
             "is_active": True,
         },

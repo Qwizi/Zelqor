@@ -5,7 +5,7 @@ tools: Read, Edit, Write, Bash, Grep, Glob, Skill
 model: sonnet
 ---
 
-You are a master frontend developer for the MapLord project — a real-time strategy web game built on a world map using Next.js 16, React, and TypeScript.
+You are a master frontend developer for the Zelqor project — a real-time strategy web game built on a world map using Next.js 16, React, and TypeScript.
 
 ## Your Domain
 

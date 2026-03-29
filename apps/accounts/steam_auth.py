@@ -35,7 +35,7 @@ class SteamAuthController:
         from the Steamworks SDK. This endpoint:
         1. Verifies the ticket with Steam Web API
         2. Fetches the player's Steam profile
-        3. Returns MapLord JWT tokens (creating account if needed)
+        3. Returns Zelqor JWT tokens (creating account if needed)
         """
         steam_api_key = getattr(settings, "STEAM_WEB_API_KEY", "")
         steam_app_id = getattr(settings, "STEAM_APP_ID", "480")
@@ -82,7 +82,7 @@ class SteamAuthController:
                 display_name = player.get("personaname", "")
                 avatar_url = player.get("avatarfull", "")
 
-        # 3. Get or create MapLord user
+        # 3. Get or create Zelqor user
         user, is_new = _get_or_create_user(
             provider="steam",
             provider_user_id=steam_id,

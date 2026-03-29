@@ -224,7 +224,7 @@ export default function SharePage() {
         <Globe className="h-12 w-12 text-muted-foreground/30" />
         <p className="text-sm md:text-lg text-muted-foreground text-center">{"Link nieprawidłowy lub wygasł."}</p>
         <Link href="/register" className={buttonVariants({ className: "h-11 gap-2 rounded-full px-6 text-sm" })}>
-          <LogIn className="h-4 w-4" /> Dołącz do MapLord
+          <LogIn className="h-4 w-4" /> Dołącz do Zelqor
         </Link>
       </div>
     );
@@ -254,7 +254,7 @@ export default function SharePage() {
               <Globe size={15} className="text-muted-foreground" />
             </div>
             <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-foreground">
-              MAPLORD
+              ZELQOR
             </span>
           </Link>
           <div className="flex-1" />
@@ -667,7 +667,7 @@ export default function SharePage() {
 
           {/* CTA */}
           <div className="rounded-2xl border border-border bg-card p-6 md:p-8 text-center">
-            <h2 className="font-display text-xl md:text-3xl text-foreground">Zagraj w MapLord</h2>
+            <h2 className="font-display text-xl md:text-3xl text-foreground">Zagraj w Zelqor</h2>
             <p className="mt-2 text-xs md:text-sm text-muted-foreground max-w-xs mx-auto">
               Zbuduj armię, podbij terytoria i rywalizuj w czasie rzeczywistym.
             </p>

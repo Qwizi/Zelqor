@@ -610,7 +610,6 @@ describe("MobileBuildSheet", () => {
     const region = makeRegion({
       buildings: { barracks: 1 },
       building_instances: [],
-      // @ts-expect-error — add building_levels for coverage
       building_levels: { barracks: 2 },
     });
     const building = makeBuilding({ max_per_region: 2, max_level: 5 });

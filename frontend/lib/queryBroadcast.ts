@@ -1,6 +1,6 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
-const CHANNEL_NAME = "maplord:query-sync";
+const CHANNEL_NAME = "zelqor:query-sync";
 
 /**
  * Cross-tab query cache synchronization via BroadcastChannel.

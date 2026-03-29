@@ -19,7 +19,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="animate-pulse text-2xl font-bold text-zinc-400">MapLord</div>
+      <div className="animate-pulse text-2xl font-bold text-zinc-400">Zelqor</div>
     </div>
   );
 }

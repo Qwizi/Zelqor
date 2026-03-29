@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build MapLord Desktop app.
+# Build Zelqor Desktop app.
 #
 # Usage:
 #   ./build.sh              # Debug build (no Steam)
@@ -7,7 +7,7 @@
 #   ./build.sh steam        # Debug build with Steam
 #   ./build.sh release steam # Release build with Steam
 #
-# The app loads https://maplord.qwizi.ovh in a native window.
+# The app loads https://zelqor.qwizi.ovh in a native window.
 # For local dev, run: cargo tauri dev (uses localhost:3000)
 
 set -euo pipefail
@@ -24,14 +24,14 @@ for arg in "$@"; do
     esac
 done
 
-echo "==> Building MapLord Desktop (mode=${MODE}, steam=$([ -n "$FEATURES" ] && echo yes || echo no))"
+echo "==> Building Zelqor Desktop (mode=${MODE}, steam=$([ -n "$FEATURES" ] && echo yes || echo no))"
 
 cd "$SCRIPT_DIR/src-tauri"
 
 if [ "$MODE" = "release" ]; then
     cargo build --release $FEATURES
-    echo "==> Release build: target/release/maplord-desktop"
+    echo "==> Release build: target/release/zelqor-desktop"
 else
     cargo build $FEATURES
-    echo "==> Debug build: target/debug/maplord-desktop"
+    echo "==> Debug build: target/debug/zelqor-desktop"
 fi

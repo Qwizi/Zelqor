@@ -17,7 +17,7 @@ import { createSocket, type WSMessage } from "@/lib/ws";
 
 // ─── Session storage keys ────────────────────────────────────────────────────
 
-const QUEUE_KEY = "maplord_queue";
+const QUEUE_KEY = "zelqor_queue";
 
 interface QueueSession {
   gameModeSlug: string | null;
@@ -112,7 +112,7 @@ export function useMatchmaking(): MatchmakingContextValue {
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
-const MM_CHANNEL = "maplord:matchmaking-sync";
+const MM_CHANNEL = "zelqor:matchmaking-sync";
 
 interface MMBroadcast {
   type: "joined" | "left" | "match_found" | "lobby_update";

@@ -35,7 +35,7 @@ test.describe("Auth — login page", () => {
   });
 
   test("shows error for wrong credentials", async ({ page }) => {
-    await page.getByLabel("Login lub email").fill("nobody@maplord.gg");
+    await page.getByLabel("Login lub email").fill("nobody@zelqor.gg");
     await page.getByLabel("Hasło").fill("wrongpassword");
     await page.getByRole("button", { name: /wejdź do gry/i }).click();
 
@@ -107,7 +107,7 @@ test.describe("Auth — logout", () => {
     await page.waitForURL(/\/login/, { timeout: 10_000 });
 
     // Tokens should be gone from localStorage
-    const accessToken = await page.evaluate(() => localStorage.getItem("maplord_access"));
+    const accessToken = await page.evaluate(() => localStorage.getItem("zelqor_access"));
     expect(accessToken).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
-# MapLord 2.0 — Plan Implementacji
+# Zelqor 2.0 — Plan Implementacji
 
 ## Opis projektu
-MapLord 2.0 to webowa gra strategiczna czasu rzeczywistego osadzona na prawdziwej mapie świata.
+Zelqor 2.0 to webowa gra strategiczna czasu rzeczywistego osadzona na prawdziwej mapie świata.
 Gracze wybierają region startowy (stolica), generują jednostki co X czasu, budują budynki specjalne
 i walczą o kontrolę nad terytoriami. Przegrana następuje po utracie stolicy.
 
@@ -268,7 +268,7 @@ Wszystkie parametry gry w modelach z Django Admin:
 ## Struktura katalogów (wzorowana na mapcident)
 
 ```
-maplord/
+zelqor/
 ├── .env.example                  # Zmienne dev
 ├── .env.prod.example             # Zmienne prod
 ├── .python-version               # 3.13

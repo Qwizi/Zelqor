@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "MapLord",
-    short_name: "MapLord",
+    name: "Zelqor",
+    short_name: "Zelqor",
     description: "Real-time strategy game on a world map",
     start_url: "/dashboard",
     display: "standalone",

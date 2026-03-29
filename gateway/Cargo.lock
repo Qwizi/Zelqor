@@ -1201,115 +1201,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
-name = "maplord-ai"
-version = "0.1.0"
-dependencies = [
- "maplord-engine",
- "rand 0.8.5",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "maplord-anticheat"
-version = "0.1.0"
-dependencies = [
- "maplord-engine",
- "redis",
- "rmp-serde",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "maplord-django"
-version = "0.1.0"
-dependencies = [
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "uuid",
- "wiremock",
-]
-
-[[package]]
-name = "maplord-engine"
-version = "0.1.0"
-dependencies = [
- "rand 0.8.5",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "maplord-gateway"
-version = "0.1.0"
-dependencies = [
- "axum",
- "axum-extra",
- "dashmap",
- "dotenvy",
- "futures",
- "hex",
- "jsonwebtoken 9.3.1",
- "livekit-api",
- "maplord-ai",
- "maplord-anticheat",
- "maplord-django",
- "maplord-engine",
- "maplord-matchmaking",
- "maplord-state",
- "rand 0.8.5",
- "redis",
- "rmp-serde",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
-name = "maplord-matchmaking"
-version = "0.1.0"
-dependencies = [
- "dashmap",
- "futures",
- "maplord-django",
- "maplord-matchmaking",
- "redis",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "uuid",
- "wiremock",
-]
-
-[[package]]
-name = "maplord-state"
-version = "0.1.0"
-dependencies = [
- "maplord-engine",
- "redis",
- "rmp-serde",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3120,6 +3011,115 @@ dependencies = [
  "quote",
  "syn",
  "synstructure",
+]
+
+[[package]]
+name = "zelqor-ai"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "zelqor-engine",
+]
+
+[[package]]
+name = "zelqor-anticheat"
+version = "0.1.0"
+dependencies = [
+ "redis",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+ "zelqor-engine",
+]
+
+[[package]]
+name = "zelqor-django"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+ "wiremock",
+]
+
+[[package]]
+name = "zelqor-engine"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "zelqor-gateway"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "axum-extra",
+ "dashmap",
+ "dotenvy",
+ "futures",
+ "hex",
+ "jsonwebtoken 9.3.1",
+ "livekit-api",
+ "rand 0.8.5",
+ "redis",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "zelqor-ai",
+ "zelqor-anticheat",
+ "zelqor-django",
+ "zelqor-engine",
+ "zelqor-matchmaking",
+ "zelqor-state",
+]
+
+[[package]]
+name = "zelqor-matchmaking"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "futures",
+ "redis",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+ "wiremock",
+ "zelqor-django",
+ "zelqor-matchmaking",
+]
+
+[[package]]
+name = "zelqor-state"
+version = "0.1.0"
+dependencies = [
+ "redis",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+ "zelqor-engine",
 ]
 
 [[package]]

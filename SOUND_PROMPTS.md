@@ -1,4 +1,4 @@
-# MapLord - ElevenLabs Sound Effects Prompts
+# Zelqor - ElevenLabs Sound Effects Prompts
 
 Wszystkie prompty utrzymane w jednym spójnym stylu: *medieval fantasy strategy, stylizowane, czyste cyfrowo, z subtelnymi reverb'ami*.
 

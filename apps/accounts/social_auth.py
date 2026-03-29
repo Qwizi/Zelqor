@@ -145,7 +145,7 @@ def _get_or_create_user(
 
     if not user:
         # 3. Brand-new user
-        fallback_email = f"{provider}_{provider_user_id}@social.maplord.local"
+        fallback_email = f"{provider}_{provider_user_id}@social.zelqor.local"
         username = _build_username(display_name, email)
         user = User.objects.create_user(
             email=email or fallback_email,
@@ -196,7 +196,7 @@ class SocialAuthController:
 
     @route.post("/google/callback", response=SocialAuthTokenOut, auth=None)
     def google_callback(self, request, payload: SocialCallbackIn):
-        """Exchange a Google authorization code for MapLord JWT tokens."""
+        """Exchange a Google authorization code for Zelqor JWT tokens."""
         # Exchange code for Google tokens
         token_resp = requests.post(
             GOOGLE_TOKEN_URL,
@@ -397,7 +397,7 @@ class SocialAuthController:
 
     @route.post("/discord/callback", response=SocialAuthTokenOut, auth=None)
     def discord_callback(self, request, payload: SocialCallbackIn):
-        """Exchange a Discord authorization code for MapLord JWT tokens."""
+        """Exchange a Discord authorization code for Zelqor JWT tokens."""
         # Exchange code for Discord tokens
         token_resp = requests.post(
             DISCORD_TOKEN_URL,

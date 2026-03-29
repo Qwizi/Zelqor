@@ -1,6 +1,5 @@
 "use client";
 
-import { Globe } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -34,12 +33,9 @@ export default function AuthScreen({
       <div className="relative w-full max-w-md md:max-w-lg lg:max-w-xl space-y-6 md:space-y-8">
         {/* Logo */}
         <div className="flex items-center gap-3 md:justify-center">
-          <div className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl border border-border bg-secondary">
-            <Globe size={20} className="text-primary md:hidden" />
-            <Globe size={24} className="text-primary hidden md:block" />
-          </div>
+          <img src="/zelqor-z.svg" alt="" width={48} height={48} className="h-10 w-10 md:h-12 md:w-12" />
           <span className="font-display text-xl md:text-3xl font-bold uppercase tracking-[0.15em] md:tracking-[0.2em] text-foreground">
-            MAPLORD
+            ZELQOR
           </span>
         </div>
 

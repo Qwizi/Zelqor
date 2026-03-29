@@ -41,8 +41,8 @@ test.describe("Dashboard", () => {
 
   // ── Sidebar navigation ────────────────────────────────────────────────────
 
-  test("sidebar shows MAPLORD logo link", async ({ authenticatedPage: page }) => {
-    const logo = page.getByRole("link", { name: /maplord/i }).first();
+  test("sidebar shows ZELQOR logo link", async ({ authenticatedPage: page }) => {
+    const logo = page.getByRole("link", { name: /zelqor/i }).first();
     await expect(logo).toBeVisible();
   });
 

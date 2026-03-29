@@ -62,7 +62,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   // ── Intro ──
   {
     id: "welcome",
-    title: "Witaj w MapLord!",
+    title: "Witaj w Zelqor!",
     description:
       "Samouczek nauczy Cie podstaw gry. Grasz 1v1 przeciwko slabemu botowi \u2014 poprowadze Cie krok po kroku.",
     manualAdvance: true,

@@ -2,7 +2,7 @@
 // JS cannot read httpOnly cookies, so we keep a lightweight "is logged in"
 // flag in localStorage purely to skip the /auth/me fetch on page load when
 // the user is clearly not authenticated.
-const AUTH_FLAG_KEY = "maplord_authenticated";
+const AUTH_FLAG_KEY = "zelqor_authenticated";
 
 export function isAuthenticated(): boolean {
   if (typeof window === "undefined") return false;
@@ -16,8 +16,8 @@ export function setAuthenticated(value: boolean): void {
   } else {
     localStorage.removeItem(AUTH_FLAG_KEY);
     // Also clear legacy token keys if they happen to exist from an old session
-    localStorage.removeItem("maplord_access");
-    localStorage.removeItem("maplord_refresh");
+    localStorage.removeItem("zelqor_access");
+    localStorage.removeItem("zelqor_refresh");
   }
 }
 

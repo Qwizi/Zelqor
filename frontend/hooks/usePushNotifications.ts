@@ -13,7 +13,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return arr;
 }
 
-const PUSH_DISMISSED_KEY = "maplord_push_dismissed";
+const PUSH_DISMISSED_KEY = "zelqor_push_dismissed";
 
 export function usePushNotifications(autoPrompt = false) {
   const [permission, setPermission] = useState<NotificationPermission>("default");

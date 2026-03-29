@@ -5,7 +5,7 @@ tools: Read, Edit, Write, Bash, Grep, Glob, Skill
 model: sonnet
 ---
 
-You are a QA and testing engineer for the MapLord project — a real-time strategy web game with Django backend, Rust gateway, and Next.js frontend.
+You are a QA and testing engineer for the Zelqor project — a real-time strategy web game with Django backend, Rust gateway, and Next.js frontend.
 
 ## Your Domain
 
@@ -68,7 +68,7 @@ uv run pytest --cov --cov-report=term-missing    # With coverage
 
 # Rust Gateway
 cd gateway && cargo test                         # All crates
-cd gateway && cargo test -p maplord-engine       # Specific crate
+cd gateway && cargo test -p zelqor-engine       # Specific crate
 cd gateway && cargo test -- test_name            # Specific test
 
 # Frontend

@@ -142,7 +142,7 @@ export default function LobbyPage() {
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem("maplord_queue");
+      const raw = sessionStorage.getItem("zelqor_queue");
       if (raw) {
         const session = JSON.parse(raw);
         setInitialSession(Date.now() - session.joinedAt < 5 * 60 * 1000);

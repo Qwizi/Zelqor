@@ -4,7 +4,7 @@
     "pk": "00000000-0000-4000-b000-000000000001",
     "fields": {
       "username": "Bot Alpha",
-      "email": "bot-alpha@maplord.local",
+      "email": "bot-alpha@zelqor.local",
       "password": "!",
       "is_active": false,
       "is_bot": true,
@@ -17,7 +17,7 @@
     "pk": "00000000-0000-4000-b000-000000000002",
     "fields": {
       "username": "Bot Bravo",
-      "email": "bot-bravo@maplord.local",
+      "email": "bot-bravo@zelqor.local",
       "password": "!",
       "is_active": false,
       "is_bot": true,
@@ -30,7 +30,7 @@
     "pk": "00000000-0000-4000-b000-000000000003",
     "fields": {
       "username": "Bot Charlie",
-      "email": "bot-charlie@maplord.local",
+      "email": "bot-charlie@zelqor.local",
       "password": "!",
       "is_active": false,
       "is_bot": true,
@@ -43,7 +43,7 @@
     "pk": "00000000-0000-4000-b000-000000000004",
     "fields": {
       "username": "Bot Delta",
-      "email": "bot-delta@maplord.local",
+      "email": "bot-delta@zelqor.local",
       "password": "!",
       "is_active": false,
       "is_bot": true,
@@ -56,7 +56,7 @@
     "pk": "00000000-0000-4000-b000-000000000005",
     "fields": {
       "username": "Bot Echo",
-      "email": "bot-echo@maplord.local",
+      "email": "bot-echo@zelqor.local",
       "password": "!",
       "is_active": false,
       "is_bot": true,
@@ -69,7 +69,7 @@
     "pk": "00000000-0000-4000-b000-000000000006",
     "fields": {
       "username": "Bot Foxtrot",
-      "email": "bot-foxtrot@maplord.local",
+      "email": "bot-foxtrot@zelqor.local",
       "password": "!",
       "is_active": false,
       "is_bot": true,
@@ -82,7 +82,7 @@
     "pk": "00000000-0000-4000-b000-000000000007",
     "fields": {
       "username": "Bot Golf",
-      "email": "bot-golf@maplord.local",
+      "email": "bot-golf@zelqor.local",
       "password": "!",
       "is_active": false,
       "is_bot": true,
@@ -95,7 +95,7 @@
     "pk": "00000000-0000-4000-b000-000000000008",
     "fields": {
       "username": "Bot Hotel",
-      "email": "bot-hotel@maplord.local",
+      "email": "bot-hotel@zelqor.local",
       "password": "!",
       "is_active": false,
       "is_bot": true,

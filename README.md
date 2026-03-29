@@ -1,4 +1,4 @@
-# MapLord
+# Zelqor
 
 Real-time strategy web game on a world map. Players claim territories, build armies, and compete in live matches.
 
@@ -56,7 +56,7 @@ Gateway:
 ```bash
 cd gateway
 cargo build
-cargo run --bin maplord-gateway            # :8080
+cargo run --bin zelqor-gateway            # :8080
 ```
 
 Frontend:

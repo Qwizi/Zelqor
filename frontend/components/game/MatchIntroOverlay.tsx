@@ -331,7 +331,7 @@ export default function MatchIntroOverlay({
       <div className="relative z-10 flex w-full max-w-3xl flex-col items-center gap-8 px-4 py-8 sm:px-6">
         {/* Title */}
         <div className="intro-title flex flex-col items-center gap-3">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-zinc-500">MapLord</p>
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-zinc-500">Zelqor</p>
           <h1
             className="font-display text-2xl font-black uppercase tracking-widest text-zinc-50 sm:text-3xl"
             style={{ textShadow: "0 0 40px rgba(34,211,238,0.25)" }}

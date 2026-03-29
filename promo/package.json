@@ -1,11 +1,11 @@
 {
-  "name": "maplord-promo",
+  "name": "zelqor-promo",
   "version": "1.0.0",
-  "description": "Promotional videos for MapLord",
+  "description": "Promotional videos for Zelqor",
   "scripts": {
     "studio": "remotion studio src/index.ts",
-    "render": "remotion render src/index.ts MapLordTrailer out/trailer.mp4",
-    "render:gif": "remotion render src/index.ts MapLordTrailer out/trailer.gif --image-format png"
+    "render": "remotion render src/index.ts ZelqorTrailer out/trailer.mp4",
+    "render:gif": "remotion render src/index.ts ZelqorTrailer out/trailer.gif --image-format png"
   },
   "keywords": [],
   "author": "",

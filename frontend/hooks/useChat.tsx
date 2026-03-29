@@ -65,9 +65,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Update document title with unread count
   useEffect(() => {
     if (unreadCount > 0) {
-      document.title = `(${unreadCount}) MapLord`;
+      document.title = `(${unreadCount}) Zelqor`;
     } else {
-      document.title = "MapLord";
+      document.title = "Zelqor";
     }
   }, [unreadCount]);
 

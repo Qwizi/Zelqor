@@ -12,11 +12,11 @@ test-gateway-unit:
 
 ## Gateway integration tests (requires Redis: docker run -d -p 6379:6379 redis:7-alpine)
 test-gateway-integration:
-	cd gateway && REDIS_URL=redis://127.0.0.1:6379/15 cargo test --features maplord-matchmaking/testing -- --include-ignored
+	cd gateway && REDIS_URL=redis://127.0.0.1:6379/15 cargo test --features zelqor-matchmaking/testing -- --include-ignored
 
 ## Gateway test coverage report (requires Redis + cargo-tarpaulin)
 test-gateway-coverage:
-	cd gateway && REDIS_URL=redis://127.0.0.1:6379/15 cargo tarpaulin --workspace --exclude maplord-gateway --skip-clean --timeout 300 --features maplord-matchmaking/testing -- --include-ignored
+	cd gateway && REDIS_URL=redis://127.0.0.1:6379/15 cargo tarpaulin --workspace --exclude zelqor-gateway --skip-clean --timeout 300 --features zelqor-matchmaking/testing -- --include-ignored
 
 ## Frontend unit tests (vitest)
 test-frontend:

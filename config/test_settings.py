@@ -1,5 +1,5 @@
 """
-Test settings for MapLord — uses SQLite in-memory so tests can run
+Test settings for Zelqor — uses SQLite in-memory so tests can run
 without a PostgreSQL server.
 """
 

@@ -13,7 +13,6 @@ import {
   Coins,
   Diamond,
   ExternalLink,
-  Globe,
   Hammer,
   Home,
   Layers,
@@ -1273,11 +1272,9 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
           <div className="flex h-full items-center gap-3 px-4">
             {/* Logo */}
             <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5 mr-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-secondary">
-                <Globe size={16} className="text-primary" />
-              </div>
+              <img src="/zelqor-z.svg" alt="" width={28} height={28} className="h-7 w-7" />
               <span className="font-display text-sm font-bold uppercase tracking-[0.18em] text-foreground">
-                MAPLORD
+                ZELQOR
               </span>
             </Link>
 
@@ -1460,7 +1457,7 @@ function MainLayoutInner({ children }: { children: ReactNode }) {
         {/* ------------------------------------------------------------------ */}
         <MobileBottomBar pathname={pathname} sheetOpen={sheetOpen} setSheetOpen={setSheetOpen} />
         <footer className="hidden border-t border-border px-6 py-3 text-center text-xs text-muted-foreground md:block">
-          <span>&copy; {new Date().getFullYear()} MapLord. Wszelkie prawa zastrzezone.</span>
+          <span>&copy; {new Date().getFullYear()} Zelqor. Wszelkie prawa zastrzezone.</span>
         </footer>
       </div>
     </SocialSocketContext.Provider>

@@ -123,7 +123,7 @@ const IntroScene: React.FC = () => {
           alignItems: "center",
         }}
       >
-        {/* Logo — Globe icon + MAPLORD text, matching dashboard layout */}
+        {/* Logo — Globe icon + ZELQOR text, matching dashboard layout */}
         <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 20 }}>
           <div style={{
             width: 72, height: 72, borderRadius: 16,
@@ -149,7 +149,7 @@ const IntroScene: React.FC = () => {
               ...textGlow("#22d3ee"),
             }}
           >
-            MAPLORD
+            ZELQOR
           </h1>
         </div>
         <p
@@ -393,7 +393,7 @@ const CTAScene: React.FC = () => {
           alignItems: "center",
         }}
       >
-        {/* Logo — Globe + MAPLORD */}
+        {/* Logo — Globe + ZELQOR */}
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
           <div style={{
             width: 56, height: 56, borderRadius: 14,
@@ -418,7 +418,7 @@ const CTAScene: React.FC = () => {
               ...textGlow("#22d3ee"),
             }}
           >
-            MAPLORD
+            ZELQOR
           </h1>
         </div>
         <p
@@ -475,7 +475,7 @@ const CTAScene: React.FC = () => {
             letterSpacing: 3,
           }}
         >
-          maplord.qwizi.ovh
+          zelqor.qwizi.ovh
         </p>
       </div>
     </AbsoluteFill>
@@ -484,7 +484,7 @@ const CTAScene: React.FC = () => {
 
 // ─── Composition ─────────────────────────────────────────────────────────────
 
-export const MapLordTrailer: React.FC = () => {
+export const ZelqorTrailer: React.FC = () => {
   return (
     <AbsoluteFill style={{ background: "#020617" }}>
       {/* Music — full track */}

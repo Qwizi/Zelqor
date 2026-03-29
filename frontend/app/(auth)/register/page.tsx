@@ -164,7 +164,7 @@ function RegisterContent() {
             <Input
               id="email"
               type="email"
-              placeholder="dowódca@maplord.gg"
+              placeholder="dowódca@zelqor.gg"
               autoComplete="email"
               className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.email ? "border-destructive" : ""}`}
               {...rhfRegister("email")}

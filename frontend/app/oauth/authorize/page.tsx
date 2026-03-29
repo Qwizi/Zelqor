@@ -190,18 +190,10 @@ function OAuthAuthorizeInner() {
       {/* Centered card */}
       <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
         <div className="w-full max-w-md rounded-[24px] border border-white/10 bg-slate-950/80 p-8 backdrop-blur-xl">
-          {/* MapLord logo */}
+          {/* Zelqor logo */}
           <div className="mb-6 flex flex-col items-center gap-2">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-              <Image
-                src="/assets/common/world.webp"
-                alt="MapLord"
-                width={36}
-                height={36}
-                className="h-9 w-9 object-contain"
-              />
-            </div>
-            <span className="font-display text-lg text-zinc-200 tracking-wide">MapLord</span>
+            <img src="/zelqor-z.svg" alt="" width={36} height={36} className="h-9 w-9" />
+            <span className="font-display text-lg text-zinc-200 tracking-wide">Zelqor</span>
           </div>
 
           {/* Title */}

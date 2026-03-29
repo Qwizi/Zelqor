@@ -374,6 +374,6 @@ describe("usePushNotifications", () => {
       result.current.dismiss();
     });
 
-    expect(sessionStorage.getItem("maplord_push_dismissed")).toBe("1");
+    expect(sessionStorage.getItem("zelqor_push_dismissed")).toBe("1");
   });
 });

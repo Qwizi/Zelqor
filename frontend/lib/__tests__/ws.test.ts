@@ -47,8 +47,8 @@ vi.stubGlobal("WebSocket", MockWebSocket);
 Object.defineProperty(window, "location", {
   value: {
     protocol: "https:",
-    host: "maplord.test",
-    origin: "https://maplord.test",
+    host: "zelqor.test",
+    origin: "https://zelqor.test",
   },
   writable: true,
 });

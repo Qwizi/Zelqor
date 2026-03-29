@@ -841,7 +841,7 @@ function WebhooksTab({ appId }: WebhooksTabProps) {
         <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-10 text-center">
           <Webhook className="mx-auto h-8 w-8 text-slate-500" />
           <p className="mt-3 text-sm text-slate-400">
-            Brak webhookow. Dodaj webhook, aby otrzymywac zdarzenia z MapLord.
+            Brak webhookow. Dodaj webhook, aby otrzymywac zdarzenia z Zelqor.
           </p>
         </div>
       ) : (

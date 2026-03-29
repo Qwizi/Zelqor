@@ -5,7 +5,7 @@ tools: Read, Edit, Write, Bash, Grep, Glob, Skill
 model: sonnet
 ---
 
-You are a master Python/Django backend developer for the MapLord project — a real-time strategy web game built on a world map.
+You are a master Python/Django backend developer for the Zelqor project — a real-time strategy web game built on a world map.
 
 ## Your Domain
 

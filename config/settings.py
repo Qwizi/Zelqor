@@ -82,9 +82,9 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("DB_NAME", default="maplord"),
-        "USER": config("DB_USER", default="maplord"),
-        "PASSWORD": config("DB_PASSWORD", default="maplord"),
+        "NAME": config("DB_NAME", default="zelqor"),
+        "USER": config("DB_USER", default="zelqor"),
+        "PASSWORD": config("DB_PASSWORD", default="zelqor"),
         "HOST": config("DB_HOST", default="db"),
         "PORT": config("DB_PORT", default="5432"),
         "CONN_MAX_AGE": config("DB_CONN_MAX_AGE", default=60, cast=int),
@@ -178,7 +178,7 @@ CACHES = {
 # VAPID push notifications
 VAPID_PUBLIC_KEY = config("VAPID_PUBLIC_KEY", default="")
 VAPID_PRIVATE_KEY = config("VAPID_PRIVATE_KEY", default="")
-VAPID_MAILTO = config("VAPID_MAILTO", default="mailto:admin@maplord.com")
+VAPID_MAILTO = config("VAPID_MAILTO", default="mailto:admin@zelqor.com")
 
 AUTHENTICATION_BACKENDS = [
     "apps.accounts.backends.UsernameOrEmailBackend",
@@ -217,8 +217,8 @@ INTERNAL_SECRET = config("INTERNAL_SECRET", default="dev-internal-secret")
 
 # Unfold Admin
 UNFOLD = {
-    "SITE_TITLE": "MapLord Admin",
-    "SITE_HEADER": "MapLord",
+    "SITE_TITLE": "Zelqor Admin",
+    "SITE_HEADER": "Zelqor",
     "SITE_SYMBOL": "map",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": True,
@@ -500,8 +500,8 @@ CORS_ALLOWED_ORIGINS = config(
 CORS_ALLOW_CREDENTIALS = True
 
 # JWT Cookie settings
-JWT_COOKIE_NAME = "maplord_access"
-JWT_REFRESH_COOKIE_NAME = "maplord_refresh"
+JWT_COOKIE_NAME = "zelqor_access"
+JWT_REFRESH_COOKIE_NAME = "zelqor_refresh"
 JWT_COOKIE_SECURE = not DEBUG  # True in production (HTTPS only)
 JWT_COOKIE_HTTPONLY = True
 JWT_COOKIE_SAMESITE = "Lax"  # Lax allows top-level navigations

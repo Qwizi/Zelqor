@@ -14,7 +14,7 @@ REGIONS_URL = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ma
 def download_geojson(url):
     """Download and parse GeoJSON from URL."""
     print(f"Downloading {url}...")
-    req = urllib.request.Request(url, headers={"User-Agent": "MapLord/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Zelqor/1.0"})
     with urllib.request.urlopen(req, timeout=120) as response:
         return json.loads(response.read().decode("utf-8"))
 
