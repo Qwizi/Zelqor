@@ -5,18 +5,6 @@ on:
     branches:
       - main
       - master
-    paths:
-      - apps/**
-      - config/**
-      - frontend/**
-      - gateway/**
-      - cli/**
-      - Dockerfile
-      - frontend/Dockerfile
-      - gateway/Dockerfile
-      - pyproject.toml
-      - uv.lock
-      - manage.py
   workflow_dispatch:
 
 permissions:
