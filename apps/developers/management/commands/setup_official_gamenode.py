@@ -1,13 +1,13 @@
 """Create or retrieve the Official Gamenode DeveloperApp.
 
 Idempotent — safe to run multiple times.  On first run it creates a
-DeveloperApp + CommunityServer and prints the raw client_secret that
-must be stored in the GAMENODE_CLIENT_SECRET env var.  On subsequent
-runs it prints the existing client_id and reminds the operator that
-the secret was shown only once.
+DeveloperApp + CommunityServer and writes GAMENODE_CLIENT_ID and
+GAMENODE_CLIENT_SECRET to the .env file.  On subsequent runs it's a no-op.
 """
 
+import re
 import uuid
+from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
@@ -18,6 +18,21 @@ from apps.developers.models import CommunityServer, DeveloperApp
 OFFICIAL_APP_UUID = uuid.UUID("00000000-0000-4000-a000-000000000001")
 OFFICIAL_SERVER_UUID = uuid.UUID("00000000-0000-4000-a000-000000000002")
 SERVICE_ACCOUNT_UUID = uuid.UUID("00000000-0000-4000-a000-000000000099")
+
+
+def _update_env_file(key: str, value: str) -> None:
+    """Set key=value in .env, appending if missing, replacing if present."""
+    env_path = Path(".env")
+    if env_path.exists():
+        content = env_path.read_text()
+        pattern = re.compile(rf"^{re.escape(key)}=.*$", re.MULTILINE)
+        if pattern.search(content):
+            content = pattern.sub(f"{key}={value}", content)
+        else:
+            content = content.rstrip("\n") + f"\n{key}={value}\n"
+        env_path.write_text(content)
+    else:
+        env_path.write_text(f"{key}={value}\n")
 
 
 class Command(BaseCommand):
@@ -50,7 +65,7 @@ class Command(BaseCommand):
         app = DeveloperApp.objects.filter(id=OFFICIAL_APP_UUID).first()
 
         if app is None:
-            # First run — create app and show secret.
+            # First run — create app and write credentials to .env.
             raw_secret, secret_hash = DeveloperApp.generate_secret()
             app = DeveloperApp.objects.create(
                 id=OFFICIAL_APP_UUID,
@@ -59,19 +74,14 @@ class Command(BaseCommand):
                 owner=owner,
                 client_secret_hash=secret_hash,
             )
-            self.stdout.write(self.style.SUCCESS("Created Official Gamenode app"))
-            self.stdout.write("")
-            self.stdout.write(f"  GAMENODE_CLIENT_ID={app.client_id}")
-            self.stdout.write(f"  GAMENODE_CLIENT_SECRET={raw_secret}")
-            self.stdout.write("")
-            self.stdout.write(
-                self.style.WARNING("Save these to your .env file now — the secret will NOT be shown again.")
-            )
+            _update_env_file("GAMENODE_CLIENT_ID", app.client_id)
+            _update_env_file("GAMENODE_CLIENT_SECRET", raw_secret)
+            self.stdout.write(self.style.SUCCESS("Created Official Gamenode app — credentials written to .env"))
         else:
-            self.stdout.write(f"Official Gamenode app already exists (client_id={app.client_id})")
+            self.stdout.write("Official Gamenode app already exists")
 
         # Ensure the CommunityServer record exists.
-        server, created = CommunityServer.objects.get_or_create(
+        _server, created = CommunityServer.objects.get_or_create(
             id=OFFICIAL_SERVER_UUID,
             defaults={
                 "app": app,
