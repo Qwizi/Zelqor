@@ -467,7 +467,11 @@ class GameInternalController(ControllerBase):
 
     @route.patch("/server-status/{server_id}/")
     def update_server_status(self, request, server_id: str, body: ServerStatusUpdate):
-        """Update a community server's status (called by gateway on connect/disconnect)."""
+        """Update a community server's status (called by gateway on connect/disconnect).
+
+        server_id can be either a CommunityServer UUID or a DeveloperApp client_id.
+        The gamenode sends its OAuth client_id as server_id.
+        """
         if not check_internal_secret(request):
             return self.create_response({"error": "Unauthorized"}, status_code=403)
 
@@ -475,9 +479,11 @@ class GameInternalController(ControllerBase):
 
         from apps.developers.models import CommunityServer
 
-        try:
-            server = CommunityServer.objects.get(id=server_id)
-        except CommunityServer.DoesNotExist:
+        # Try by CommunityServer UUID first, then by app client_id.
+        server = CommunityServer.objects.filter(id=server_id).first()
+        if server is None:
+            server = CommunityServer.objects.filter(app__client_id=server_id).first()
+        if server is None:
             return self.create_response({"error": "Server not found"}, status_code=404)
 
         server.status = body.status
