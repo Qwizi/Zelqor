@@ -8,7 +8,7 @@ fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "maplord_desktop=info".into()),
+                .unwrap_or_else(|_| "zelqor_desktop=info".into()),
         )
         .init();
 
@@ -50,11 +50,11 @@ fn main() {
     };
 
     tracing::info!(
-        "MapLord Desktop starting (steam={})",
+        "Zelqor Desktop starting (steam={})",
         cfg!(feature = "steam")
     );
 
     builder
         .run(tauri::generate_context!())
-        .expect("error while running MapLord");
+        .expect("error while running Zelqor");
 }

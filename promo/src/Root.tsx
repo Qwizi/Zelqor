@@ -1,13 +1,13 @@
 import { Composition } from "remotion";
-import { MapLordTrailer } from "./sequences/Trailer";
+import { ZelqorTrailer } from "./sequences/Trailer";
 import { TikTokTrailer } from "./sequences/TikTok";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
-        id="MapLordTrailer"
-        component={MapLordTrailer}
+        id="ZelqorTrailer"
+        component={ZelqorTrailer}
         durationInFrames={2860}
         fps={30}
         width={1920}

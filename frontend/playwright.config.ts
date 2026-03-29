@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * MapLord E2E test configuration.
+ * Zelqor E2E test configuration.
  *
  * Run against a locally running dev server on port 3002 (matches docker-compose
  * port mapping for the frontend service). The webServer block starts the dev

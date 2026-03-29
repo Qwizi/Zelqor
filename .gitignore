@@ -57,7 +57,7 @@ promo/public/assets
 # TWA
 twa/.gradle/
 twa/app/build/
-twa/maplord.keystore
+twa/zelqor.keystore
 twa/local.properties
 
 # Desktop (Tauri)

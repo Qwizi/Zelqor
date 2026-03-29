@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'ovh.qwizi.maplord'
+    namespace 'ovh.qwizi.zelqor'
     compileSdk 35
 
     defaultConfig {
-        applicationId "ovh.qwizi.maplord"
+        applicationId "ovh.qwizi.zelqor"
         minSdk 24
         targetSdk 35
         versionCode 1
@@ -15,11 +15,11 @@ android {
 
         // TWA Metadata
         manifestPlaceholders = [
-            hostName    : "maplord.qwizi.ovh",
-            defaultUrl  : "https://maplord.qwizi.ovh/dashboard",
-            launcherName: "MapLord",
+            hostName    : "zelqor.com",
+            defaultUrl  : "https://zelqor.com/dashboard",
+            launcherName: "Zelqor",
             // Asset link fingerprint — replace with your signing key SHA-256
-            assetStatements: '[{ "relation": ["delegate_permission/common.handle_all_urls"], "target": { "namespace": "web", "site": "https://maplord.qwizi.ovh" } }]'
+            assetStatements: '[{ "relation": ["delegate_permission/common.handle_all_urls"], "target": { "namespace": "web", "site": "https://zelqor.com" } }]'
         ]
     }
 

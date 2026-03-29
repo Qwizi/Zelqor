@@ -950,7 +950,7 @@ describe("useMatchmaking", () => {
       await Promise.resolve();
     });
 
-    const raw = localStorage.getItem("maplord_queue");
+    const raw = localStorage.getItem("zelqor_queue");
     expect(raw).not.toBeNull();
     const session = JSON.parse(raw!);
     expect(session.gameModeSlug).toBe("ranked");
@@ -971,7 +971,7 @@ describe("useMatchmaking", () => {
       result.current.leaveQueue();
     });
 
-    expect(localStorage.getItem("maplord_queue")).toBeNull();
+    expect(localStorage.getItem("zelqor_queue")).toBeNull();
   });
 
   // -------------------------------------------------------------------------
@@ -1071,7 +1071,7 @@ describe("useMatchmaking", () => {
       joinedAt,
       lobbyId: null,
     };
-    localStorage.setItem("maplord_queue", JSON.stringify(session));
+    localStorage.setItem("zelqor_queue", JSON.stringify(session));
 
     vi.mocked(getMatchmakingStatus).mockResolvedValueOnce({
       state: "in_queue",
@@ -1168,7 +1168,7 @@ describe("useMatchmaking", () => {
       joinedAt: Date.now(),
       lobbyId: "lobby-local",
     };
-    localStorage.setItem("maplord_queue", JSON.stringify(session));
+    localStorage.setItem("zelqor_queue", JSON.stringify(session));
 
     // Make isAuthenticated() return false so the API is not called
     vi.mocked(isAuthenticated).mockReturnValueOnce(false);
@@ -1195,7 +1195,7 @@ describe("useMatchmaking", () => {
       joinedAt: Date.now(),
       lobbyId: null,
     };
-    localStorage.setItem("maplord_queue", JSON.stringify(session));
+    localStorage.setItem("zelqor_queue", JSON.stringify(session));
 
     // isAuthenticated=true but API throws — should fall through to localStorage
     vi.mocked(isAuthenticated).mockReturnValueOnce(true);

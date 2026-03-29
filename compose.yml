@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-maplord}
-      POSTGRES_USER: ${DB_USER:-maplord}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-maplord}
+      POSTGRES_DB: ${DB_NAME:-zelqor}
+      POSTGRES_USER: ${DB_USER:-zelqor}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-zelqor}
     ports:
       - "5433:5432"
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-maplord}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-zelqor}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -111,10 +111,10 @@ services:
       REDIS_GAME_DB: "1"
       DJANGO_INTERNAL_URL: http://backend:8000
       GATEWAY_PORT: "8080"
-      RUST_LOG: info,maplord_gateway=debug
+      RUST_LOG: info,zelqor_gateway=debug
       LIVEKIT_URL: ws://livekit:7880
       LIVEKIT_API_KEY: devkey
-      LIVEKIT_API_SECRET: devsecret-maplord-at-least-32-chars-long
+      LIVEKIT_API_SECRET: devsecret-zelqor-at-least-32-chars-long
       LIVEKIT_PUBLIC_URL: ws://localhost:7880
     volumes:
       - ./gateway:/app
@@ -155,7 +155,7 @@ services:
       - "7881:7881"
       - "7882:7882/udp"
     environment:
-      LIVEKIT_KEYS: "devkey: devsecret-maplord-at-least-32-chars-long"
+      LIVEKIT_KEYS: "devkey: devsecret-zelqor-at-least-32-chars-long"
 
   caddy:
     image: caddy:2-alpine

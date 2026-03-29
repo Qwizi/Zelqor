@@ -57,13 +57,13 @@ describe("useAudio", () => {
   });
 
   it("reads initial muted=false from localStorage", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     expect(result.current.muted).toBe(false);
   });
 
   it("reads initial muted=true from localStorage", () => {
-    localStorage.setItem("maplord:audio:muted", "1");
+    localStorage.setItem("zelqor:audio:muted", "1");
     const { result } = renderHook(() => useAudio());
     expect(result.current.muted).toBe(true);
   });
@@ -73,7 +73,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("toggleMute() flips muted from true to false", () => {
-    localStorage.setItem("maplord:audio:muted", "1");
+    localStorage.setItem("zelqor:audio:muted", "1");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -84,7 +84,7 @@ describe("useAudio", () => {
   });
 
   it("toggleMute() flips muted from false to true", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -95,14 +95,14 @@ describe("useAudio", () => {
   });
 
   it("toggleMute() persists the new muted state to localStorage", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
       result.current.toggleMute();
     });
 
-    expect(localStorage.getItem("maplord:audio:muted")).toBe("1");
+    expect(localStorage.getItem("zelqor:audio:muted")).toBe("1");
   });
 
   // -------------------------------------------------------------------------
@@ -110,7 +110,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("playSound() does nothing when muted=true", () => {
-    localStorage.setItem("maplord:audio:muted", "1");
+    localStorage.setItem("zelqor:audio:muted", "1");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -122,7 +122,7 @@ describe("useAudio", () => {
   });
 
   it("playSound() creates an Audio element and calls play when not muted", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -135,7 +135,7 @@ describe("useAudio", () => {
   });
 
   it("playSound() respects sound cooldown — second call within 80ms is ignored", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     vi.useFakeTimers();
     const { result } = renderHook(() => useAudio());
 
@@ -155,7 +155,7 @@ describe("useAudio", () => {
   });
 
   it("playSound() sets volume to 0.55", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -171,7 +171,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("startMusic() creates an Audio element and calls play", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -184,7 +184,7 @@ describe("useAudio", () => {
   });
 
   it("startMusic() sets music volume to 0.10", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -197,7 +197,7 @@ describe("useAudio", () => {
   });
 
   it("startMusic() is idempotent — calling twice does not create a second Audio", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -210,7 +210,7 @@ describe("useAudio", () => {
   });
 
   it("stopMusic() pauses the music audio element", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -256,7 +256,7 @@ describe("useAudio", () => {
   });
 
   it("selectTrack() starts playback on a new Audio element when no music is playing", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -269,7 +269,7 @@ describe("useAudio", () => {
   });
 
   it("selectTrack() updates src on existing audio element if music already playing", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     // Start music first to populate musicRef
@@ -293,7 +293,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("advanceTrack() advances to next track when music is playing", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -313,7 +313,7 @@ describe("useAudio", () => {
   });
 
   it("advanceTrack() is a no-op when muted", () => {
-    localStorage.setItem("maplord:audio:muted", "1");
+    localStorage.setItem("zelqor:audio:muted", "1");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -338,7 +338,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("startMenuMusic() creates a looping audio element", async () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -355,7 +355,7 @@ describe("useAudio", () => {
   });
 
   it("startMenuMusic() is idempotent — second call is ignored when first is pending", async () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -370,7 +370,7 @@ describe("useAudio", () => {
   });
 
   it("startMenuMusic() is idempotent when music already started", async () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     await act(async () => {
@@ -393,7 +393,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("stopMenuMusic() pauses and clears the menu music", async () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -416,7 +416,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("playJingle() creates an Audio element with the jingle src", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -429,7 +429,7 @@ describe("useAudio", () => {
   });
 
   it("playJingle() does nothing when muted", () => {
-    localStorage.setItem("maplord:audio:muted", "1");
+    localStorage.setItem("zelqor:audio:muted", "1");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -441,7 +441,7 @@ describe("useAudio", () => {
   });
 
   it("playJingle() pauses existing music when stopBgMusic=true (default)", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -458,7 +458,7 @@ describe("useAudio", () => {
   });
 
   it("playJingle() does not pause music when stopBgMusic=false", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -475,7 +475,7 @@ describe("useAudio", () => {
   });
 
   it("playJingle() uses the provided volume", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -488,7 +488,7 @@ describe("useAudio", () => {
   });
 
   it("playJingle() clears jingleRef.current when jingle ends", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
 
@@ -512,7 +512,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("playSound() respects MAX_CONCURRENT_SOUNDS (4) limit", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     vi.useFakeTimers();
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
@@ -537,7 +537,7 @@ describe("useAudio", () => {
   });
 
   it("playSound() decrements activeCount when onended fires", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     vi.useFakeTimers();
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
@@ -566,7 +566,7 @@ describe("useAudio", () => {
   });
 
   it("playSound() decrements activeCount when onerror fires", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     vi.useFakeTimers();
     const { result } = renderHook(() => useAudio());
     const countBefore = MockAudio.instances.length;
@@ -599,7 +599,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("mutes audio elements when tab becomes hidden", async () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -623,7 +623,7 @@ describe("useAudio", () => {
   });
 
   it("unmutes audio elements when tab becomes visible again (and not muted by user)", async () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -651,7 +651,7 @@ describe("useAudio", () => {
   });
 
   it("playSound() does nothing when tab is hidden", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
@@ -672,7 +672,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("toggleMute() applies muted to already-playing music", async () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -694,7 +694,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("toggleMute() applies muted=true to a currently-playing jingle (line 73)", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     // Start a jingle so jingleRef.current is set
@@ -718,7 +718,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("mutes jingle when tab becomes hidden (lines 193-194)", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -740,7 +740,7 @@ describe("useAudio", () => {
   });
 
   it("unmutes jingle when tab becomes visible again (lines 193-194)", () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     const { result } = renderHook(() => useAudio());
 
     act(() => {
@@ -795,7 +795,7 @@ describe("useAudio", () => {
   // -------------------------------------------------------------------------
 
   it("startMenuMusic() clears menuPendingRef when play() rejects", async () => {
-    localStorage.setItem("maplord:audio:muted", "0");
+    localStorage.setItem("zelqor:audio:muted", "0");
     MockAudio.playMock.mockRejectedValueOnce(new Error("NotAllowedError"));
 
     const { result } = renderHook(() => useAudio());

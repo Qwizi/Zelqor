@@ -1,13 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/maplord-gateway",
-    "crates/maplord-engine",
-    "crates/maplord-state",
-    "crates/maplord-matchmaking",
-    "crates/maplord-django",
-    "crates/maplord-ai",
-    "crates/maplord-anticheat",
+    "crates/zelqor-gateway",
+    "crates/zelqor-engine",
+    "crates/zelqor-state",
+    "crates/zelqor-matchmaking",
+    "crates/zelqor-django",
+    "crates/zelqor-ai",
+    "crates/zelqor-anticheat",
 ]
 
 [profile.release]

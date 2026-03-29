@@ -3,7 +3,7 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "ovh.qwizi.maplord",
+      "package_name": "ovh.qwizi.zelqor",
       "sha256_cert_fingerprints": [
         "2D:66:C3:8F:1A:D1:66:D6:F2:0B:48:80:DE:10:EA:D7:F1:AA:6C:64:2C:21:6A:33:D2:96:D1:23:FB:21:45:32"
       ]

@@ -4,29 +4,29 @@ WORKDIR /app
 
 # Copy manifests first for dependency caching
 COPY Cargo.toml Cargo.lock* ./
-COPY crates/maplord-gateway/Cargo.toml crates/maplord-gateway/Cargo.toml
-COPY crates/maplord-engine/Cargo.toml crates/maplord-engine/Cargo.toml
-COPY crates/maplord-state/Cargo.toml crates/maplord-state/Cargo.toml
-COPY crates/maplord-matchmaking/Cargo.toml crates/maplord-matchmaking/Cargo.toml
-COPY crates/maplord-django/Cargo.toml crates/maplord-django/Cargo.toml
-COPY crates/maplord-ai/Cargo.toml crates/maplord-ai/Cargo.toml
-COPY crates/maplord-anticheat/Cargo.toml crates/maplord-anticheat/Cargo.toml
+COPY crates/zelqor-gateway/Cargo.toml crates/zelqor-gateway/Cargo.toml
+COPY crates/zelqor-engine/Cargo.toml crates/zelqor-engine/Cargo.toml
+COPY crates/zelqor-state/Cargo.toml crates/zelqor-state/Cargo.toml
+COPY crates/zelqor-matchmaking/Cargo.toml crates/zelqor-matchmaking/Cargo.toml
+COPY crates/zelqor-django/Cargo.toml crates/zelqor-django/Cargo.toml
+COPY crates/zelqor-ai/Cargo.toml crates/zelqor-ai/Cargo.toml
+COPY crates/zelqor-anticheat/Cargo.toml crates/zelqor-anticheat/Cargo.toml
 
 # Create dummy source files for dependency caching
-RUN mkdir -p crates/maplord-gateway/src && echo "fn main() {}" > crates/maplord-gateway/src/main.rs && \
-    mkdir -p crates/maplord-engine/src && echo "" > crates/maplord-engine/src/lib.rs && \
-    mkdir -p crates/maplord-state/src && echo "" > crates/maplord-state/src/lib.rs && \
-    mkdir -p crates/maplord-matchmaking/src && echo "" > crates/maplord-matchmaking/src/lib.rs && \
-    mkdir -p crates/maplord-django/src && echo "" > crates/maplord-django/src/lib.rs && \
-    mkdir -p crates/maplord-ai/src && echo "" > crates/maplord-ai/src/lib.rs && \
-    mkdir -p crates/maplord-anticheat/src && echo "" > crates/maplord-anticheat/src/lib.rs
+RUN mkdir -p crates/zelqor-gateway/src && echo "fn main() {}" > crates/zelqor-gateway/src/main.rs && \
+    mkdir -p crates/zelqor-engine/src && echo "" > crates/zelqor-engine/src/lib.rs && \
+    mkdir -p crates/zelqor-state/src && echo "" > crates/zelqor-state/src/lib.rs && \
+    mkdir -p crates/zelqor-matchmaking/src && echo "" > crates/zelqor-matchmaking/src/lib.rs && \
+    mkdir -p crates/zelqor-django/src && echo "" > crates/zelqor-django/src/lib.rs && \
+    mkdir -p crates/zelqor-ai/src && echo "" > crates/zelqor-ai/src/lib.rs && \
+    mkdir -p crates/zelqor-anticheat/src && echo "" > crates/zelqor-anticheat/src/lib.rs
 
 RUN cargo build --release || true
 
 # Copy real source and build
 COPY . .
 RUN touch crates/*/src/*.rs && \
-    cargo build --release --bin maplord-gateway
+    cargo build --release --bin zelqor-gateway
 
 # Runtime stage — minimal image
 FROM debian:bookworm-slim
@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/target/release/maplord-gateway /usr/local/bin/maplord-gateway
+COPY --from=builder /app/target/release/zelqor-gateway /usr/local/bin/zelqor-gateway
 
 RUN addgroup --system --gid 1001 gateway && \
     adduser --system --uid 1001 --ingroup gateway gateway
@@ -43,4 +43,4 @@ USER gateway
 
 EXPOSE 8080
 ENV GATEWAY_PORT=8080
-CMD ["maplord-gateway"]
+CMD ["zelqor-gateway"]

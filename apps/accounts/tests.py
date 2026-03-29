@@ -211,7 +211,7 @@ class TestGetOrCreateUser:
             display_name="SteamPlayer",
         )
         assert is_new is True
-        assert "steam_steam-999@social.maplord.local" in user.email
+        assert "steam_steam-999@social.zelqor.local" in user.email
 
 
 class TestBuildUsername:
@@ -2234,7 +2234,7 @@ class TestSocialAuthHelpers:
             display_name="NoEmail",
         )
         assert is_new is True
-        assert "social.maplord.local" in user.email
+        assert "social.zelqor.local" in user.email
 
     def test_provision_starter_items_does_not_raise_without_items(self):
         from apps.accounts.social_auth import _provision_starter_items

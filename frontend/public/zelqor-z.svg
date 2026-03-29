@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+  <!-- Outer Z shape (hourglass) with gold accent -->
+  <path d="M6 6 L34 6 L14 20 L34 34 L6 34 L26 20 Z" stroke="#d4a017" stroke-width="1.5" fill="none" opacity="0.6"/>
+  <!-- Inner Z shape - main cyan -->
+  <path d="M8 8 L32 8 L15 20 L32 32 L8 32 L25 20 Z" stroke="#22d3ee" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+  <!-- Center arrow accent -->
+  <path d="M18 16 L24 20 L18 24" stroke="#22d3ee" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

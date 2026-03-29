@@ -278,7 +278,7 @@ const LogoScene: React.FC = () => {
             </svg>
           </div>
           <h1 style={{ fontFamily: rajdhani, fontSize: 56, fontWeight: 700, color: C.fg, letterSpacing: 6, margin: 0, ...textGlow(C.cyan) }}>
-            MAPLORD
+            ZELQOR
           </h1>
         </div>
         <p style={{
@@ -322,7 +322,7 @@ const CTAScene: React.FC = () => {
             </svg>
           </div>
           <h1 style={{ fontFamily: rajdhani, fontSize: 48, fontWeight: 700, color: C.fg, letterSpacing: 5, margin: 0, ...textGlow(C.cyan) }}>
-            MAPLORD
+            ZELQOR
           </h1>
         </div>
         <p style={{
@@ -344,7 +344,7 @@ const CTAScene: React.FC = () => {
         <p style={{
           fontFamily: rajdhani, fontSize: 13, color: C.cyan, marginTop: 14, letterSpacing: 2,
           opacity: interpolate(frame, [30, 40], [0, 0.7], { extrapolateRight: "clamp" }),
-        }}>maplord.qwizi.ovh</p>
+        }}>zelqor.qwizi.ovh</p>
       </div>
     </AbsoluteFill>
   );

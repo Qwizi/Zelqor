@@ -5,7 +5,7 @@ import { type BrowserContext, test as base, type Page } from "@playwright/test";
 // ---------------------------------------------------------------------------
 
 export const TEST_USER = {
-  email: process.env.TEST_USER_EMAIL || "e2e@maplord.gg",
+  email: process.env.TEST_USER_EMAIL || "e2e@zelqor.gg",
   password: process.env.TEST_USER_PASSWORD || "testpassword123",
   // Expected username for the test account — used in UI assertions.
   username: process.env.TEST_USER_USERNAME || "e2euser",
@@ -41,8 +41,8 @@ export async function loginViaAPI(page: Page): Promise<string> {
   // 2. Write tokens into localStorage — the app reads these on mount.
   await page.addInitScript(
     ({ accessToken, refreshToken }) => {
-      localStorage.setItem("maplord_access", accessToken);
-      localStorage.setItem("maplord_refresh", refreshToken);
+      localStorage.setItem("zelqor_access", accessToken);
+      localStorage.setItem("zelqor_refresh", refreshToken);
     },
     { accessToken: access, refreshToken: refresh },
   );
@@ -51,14 +51,14 @@ export async function loginViaAPI(page: Page): Promise<string> {
 }
 
 /**
- * Clear all MapLord auth state from localStorage/sessionStorage.
+ * Clear all Zelqor auth state from localStorage/sessionStorage.
  */
 export async function clearAuthState(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    localStorage.removeItem("maplord_access");
-    localStorage.removeItem("maplord_refresh");
-    localStorage.removeItem("maplord_profiles");
-    sessionStorage.removeItem("maplord_queue");
+    localStorage.removeItem("zelqor_access");
+    localStorage.removeItem("zelqor_refresh");
+    localStorage.removeItem("zelqor_profiles");
+    sessionStorage.removeItem("zelqor_queue");
   });
 }
 
@@ -66,7 +66,7 @@ export async function clearAuthState(page: Page): Promise<void> {
 // Fixture types
 // ---------------------------------------------------------------------------
 
-interface MapLordFixtures {
+interface ZelqorFixtures {
   /** A page that already has JWT tokens set — navigating to any protected
    *  route will succeed without going through the login flow. */
   authenticatedPage: Page;
@@ -78,7 +78,7 @@ interface MapLordFixtures {
 // Extended test object
 // ---------------------------------------------------------------------------
 
-export const test = base.extend<MapLordFixtures>({
+export const test = base.extend<ZelqorFixtures>({
   authenticatedPage: async ({ page }, use) => {
     // Navigate to a neutral page first so the origin is set before we write
     // to localStorage via addInitScript.
@@ -128,8 +128,8 @@ export async function waitForDashboard(page: Page): Promise<void> {
 export async function injectAuthTokens(context: BrowserContext, access: string, refresh: string): Promise<void> {
   await context.addInitScript(
     ({ accessToken, refreshToken }) => {
-      localStorage.setItem("maplord_access", accessToken);
-      localStorage.setItem("maplord_refresh", refreshToken);
+      localStorage.setItem("zelqor_access", accessToken);
+      localStorage.setItem("zelqor_refresh", refreshToken);
     },
     { accessToken: access, refreshToken: refresh },
   );

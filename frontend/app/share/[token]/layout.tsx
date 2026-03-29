@@ -13,8 +13,8 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 
     if (!res.ok) {
       return {
-        title: "MapLord — Udostępniony mecz",
-        description: "Zobacz wyniki meczu w MapLord",
+        title: "Zelqor — Udostępniony mecz",
+        description: "Zobacz wyniki meczu w Zelqor",
       };
     }
 
@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
     const result = data.result;
     const winner = match?.players?.find((p: { user_id: string }) => p.user_id === match.winner_id);
 
-    const title = winner ? `MapLord — ${winner.username} wygrał!` : "MapLord — Wyniki meczu";
+    const title = winner ? `Zelqor — ${winner.username} wygrał!` : "Zelqor — Wyniki meczu";
 
     const playerNames = match?.players?.map((p: { username: string }) => p.username).join(" vs ");
 
@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
         title,
         description,
         type: "website",
-        siteName: "MapLord",
+        siteName: "Zelqor",
       },
       twitter: {
         card: "summary",
@@ -48,8 +48,8 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
     };
   } catch {
     return {
-      title: "MapLord — Udostępniony mecz",
-      description: "Zobacz wyniki meczu w MapLord",
+      title: "Zelqor — Udostępniony mecz",
+      description: "Zobacz wyniki meczu w Zelqor",
     };
   }
 }

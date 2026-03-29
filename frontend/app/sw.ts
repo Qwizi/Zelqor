@@ -34,7 +34,7 @@ self.addEventListener("push", (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || "MapLord", {
+    self.registration.showNotification(data.title || "Zelqor", {
       body: data.body || "",
       icon: "/assets/icons/icon-192.png",
       badge: "/assets/icons/icon-192.png",

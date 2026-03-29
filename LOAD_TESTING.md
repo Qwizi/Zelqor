@@ -1,4 +1,4 @@
-# Load Testing Strategy — MapLord 2.0
+# Load Testing Strategy — Zelqor 2.0
 
 ## 1. Architektura systemu (podsumowanie pod kątem obciążenia)
 

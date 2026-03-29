@@ -37,15 +37,15 @@ describe("auth utilities", () => {
     it("removes the flag key from localStorage on setAuthenticated(false)", () => {
       setAuthenticated(true);
       setAuthenticated(false);
-      expect(localStorage.getItem("maplord_authenticated")).toBeNull();
+      expect(localStorage.getItem("zelqor_authenticated")).toBeNull();
     });
 
     it("also removes legacy token keys on setAuthenticated(false)", () => {
-      localStorage.setItem("maplord_access", "old-token");
-      localStorage.setItem("maplord_refresh", "old-refresh");
+      localStorage.setItem("zelqor_access", "old-token");
+      localStorage.setItem("zelqor_refresh", "old-refresh");
       setAuthenticated(false);
-      expect(localStorage.getItem("maplord_access")).toBeNull();
-      expect(localStorage.getItem("maplord_refresh")).toBeNull();
+      expect(localStorage.getItem("zelqor_access")).toBeNull();
+      expect(localStorage.getItem("zelqor_refresh")).toBeNull();
     });
   });
 
@@ -73,14 +73,14 @@ describe("auth utilities", () => {
   describe("getAccessToken (deprecated stub)", () => {
     it("always returns null — tokens are in httpOnly cookies", () => {
       // Even if a legacy key exists in localStorage, the stub ignores it
-      localStorage.setItem("maplord_access", "legacy-token");
+      localStorage.setItem("zelqor_access", "legacy-token");
       expect(getAccessToken()).toBeNull();
     });
   });
 
   describe("getRefreshToken (deprecated stub)", () => {
     it("always returns null — tokens are in httpOnly cookies", () => {
-      localStorage.setItem("maplord_refresh", "legacy-refresh");
+      localStorage.setItem("zelqor_refresh", "legacy-refresh");
       expect(getRefreshToken()).toBeNull();
     });
   });

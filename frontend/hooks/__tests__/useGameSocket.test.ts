@@ -53,7 +53,7 @@ vi.stubGlobal("WebSocket", MockWebSocket);
 
 // Stable window.location so WS_BASE is deterministic.
 Object.defineProperty(window, "location", {
-  value: { protocol: "https:", host: "maplord.test", origin: "https://maplord.test" },
+  value: { protocol: "https:", host: "zelqor.test", origin: "https://zelqor.test" },
   writable: true,
 });
 

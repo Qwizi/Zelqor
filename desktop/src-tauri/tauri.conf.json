@@ -1,16 +1,16 @@
 {
-  "productName": "MapLord",
+  "productName": "Zelqor",
   "version": "0.1.0",
-  "identifier": "ovh.qwizi.maplord",
+  "identifier": "ovh.qwizi.zelqor",
   "build": {
-    "frontendDist": "https://maplord.qwizi.ovh",
+    "frontendDist": "https://zelqor.qwizi.ovh",
     "devUrl": "http://localhost:3000"
   },
   "app": {
     "windows": [
       {
-        "title": "MapLord",
-        "url": "https://maplord.qwizi.ovh/dashboard",
+        "title": "Zelqor",
+        "url": "https://zelqor.qwizi.ovh/dashboard",
         "width": 1280,
         "height": 720,
         "minWidth": 1024,
@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' https://maplord.qwizi.ovh; connect-src * ws: wss: http: https:; img-src * data: blob:; style-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval'; font-src * data:; frame-src https://maplord.qwizi.ovh;"
+      "csp": "default-src 'self' https://zelqor.qwizi.ovh; connect-src * ws: wss: http: https:; img-src * data: blob:; style-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval'; font-src * data:; frame-src https://zelqor.qwizi.ovh;"
     }
   },
   "bundle": {

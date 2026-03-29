@@ -28,7 +28,7 @@ from apps.matchmaking.views import MatchController, MatchmakingStatusController,
 from apps.notifications.views import NotificationController
 from apps.payments.views import PaymentsController, PaymentsWebhookController
 
-api = NinjaExtraAPI(title="MapLord API", version="1.0.0")
+api = NinjaExtraAPI(title="Zelqor API", version="1.0.0")
 api.register_controllers(
     NinjaJWTDefaultController,
     AuthController,

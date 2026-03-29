@@ -116,7 +116,7 @@ describe("useChat", () => {
         _ticket: string,
         _nonce: string,
       ) => {
-        const ws = new MockWebSocket("wss://maplord.test/chat/");
+        const ws = new MockWebSocket("wss://zelqor.test/chat/");
         // Wire onmessage through the hook's onMessage callback
         ws.onmessage = (evt) => onMessage(JSON.parse(evt.data as string));
         return ws;

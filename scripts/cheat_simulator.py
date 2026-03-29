@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MapLord Anti-Cheat Test Script
+Zelqor Anti-Cheat Test Script
 ==============================
 Symuluje zachowania cheatera na prawdziwym meczu.
 Podlacz sie do meczu (np. tutorial) i uruchom ten skrypt.
@@ -18,7 +18,7 @@ Tryby (--mode):
 
 Jak zdobyc token:
     1. Zaloguj sie w przegladarce
-    2. Otwórz DevTools > Application > Local Storage > maplord_access
+    2. Otwórz DevTools > Application > Local Storage > zelqor_access
     3. Skopiuj wartość
 
 Jak zdobyc match_id:
@@ -417,7 +417,7 @@ async def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="MapLord Anti-Cheat Test - symulacja cheaterskich zachowan",
+        description="Zelqor Anti-Cheat Test - symulacja cheaterskich zachowan",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Przyklady:

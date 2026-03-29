@@ -1,0 +1,18 @@
+[package]
+name = "zelqor-anticheat"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zelqor-engine = { path = "../zelqor-engine" }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+rmp-serde = "1"
+tokio = { workspace = true }
+
+[dev-dependencies]
+uuid = { workspace = true }

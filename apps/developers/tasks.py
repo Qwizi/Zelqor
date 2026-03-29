@@ -46,8 +46,8 @@ def deliver_webhook(self, webhook_id: str, event: str, payload: dict):
 
     headers = {
         "Content-Type": "application/json",
-        "X-MapLord-Signature": f"sha256={signature}",
-        "X-MapLord-Event": event,
+        "X-Zelqor-Signature": f"sha256={signature}",
+        "X-Zelqor-Event": event,
     }
 
     response_status = None

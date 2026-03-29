@@ -28,7 +28,7 @@ interface SavedProfile {
 function getSavedProfiles(): SavedProfile[] {
   if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(localStorage.getItem("maplord_profiles") || "[]");
+    return JSON.parse(localStorage.getItem("zelqor_profiles") || "[]");
   } catch {
     return [];
   }
@@ -47,7 +47,7 @@ function saveProfile(user: User) {
   } else {
     profiles.unshift(profile);
   }
-  localStorage.setItem("maplord_profiles", JSON.stringify(profiles.slice(0, 5)));
+  localStorage.setItem("zelqor_profiles", JSON.stringify(profiles.slice(0, 5)));
 }
 
 function isProfileSaved(username: string): boolean {
@@ -56,7 +56,7 @@ function isProfileSaved(username: string): boolean {
 
 function removeProfile(username: string) {
   const profiles = getSavedProfiles().filter((p) => p.username !== username);
-  localStorage.setItem("maplord_profiles", JSON.stringify(profiles));
+  localStorage.setItem("zelqor_profiles", JSON.stringify(profiles));
 }
 
 // ---------------------------------------------------------------------------
@@ -403,7 +403,7 @@ function LoginForm() {
               <Input
                 id="identifier"
                 type="text"
-                placeholder="dowódca@maplord.gg"
+                placeholder="dowódca@zelqor.gg"
                 autoComplete="username"
                 className={`h-12 md:h-14 text-base md:text-lg rounded-xl md:rounded-xl ${errors.identifier ? "border-destructive" : ""}`}
                 {...rhfRegister("identifier")}

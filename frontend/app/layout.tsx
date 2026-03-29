@@ -65,26 +65,26 @@ const displayFont = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL ?? "https://maplord.pl"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL ?? "https://zelqor.pl"),
   title: {
-    default: "MapLord — Strategiczna gra czasu rzeczywistego",
-    template: "%s | MapLord",
+    default: "Zelqor — Strategiczna gra czasu rzeczywistego",
+    template: "%s | Zelqor",
   },
   description:
-    "MapLord to strategiczna gra czasu rzeczywistego na mapie świata. Zdobywaj terytoria, buduj armie i rywalizuj z innymi graczami online.",
-  keywords: ["gra strategiczna", "RTS", "mapa świata", "multiplayer", "gra online", "MapLord"],
-  authors: [{ name: "MapLord Team" }],
-  creator: "MapLord",
+    "Zelqor to strategiczna gra czasu rzeczywistego na mapie świata. Zdobywaj terytoria, buduj armie i rywalizuj z innymi graczami online.",
+  keywords: ["gra strategiczna", "RTS", "mapa świata", "multiplayer", "gra online", "Zelqor"],
+  authors: [{ name: "Zelqor Team" }],
+  creator: "Zelqor",
   openGraph: {
     type: "website",
-    siteName: "MapLord",
-    title: "MapLord — Strategiczna gra czasu rzeczywistego",
+    siteName: "Zelqor",
+    title: "Zelqor — Strategiczna gra czasu rzeczywistego",
     description: "Zdobywaj terytoria, buduj armie i rywalizuj z innymi graczami na mapie świata w czasie rzeczywistym.",
     locale: "pl_PL",
   },
   twitter: {
     card: "summary_large_image",
-    title: "MapLord — Strategiczna gra czasu rzeczywistego",
+    title: "Zelqor — Strategiczna gra czasu rzeczywistego",
     description: "Zdobywaj terytoria, buduj armie i rywalizuj z innymi graczami na mapie świata w czasie rzeczywistym.",
   },
   robots: {
@@ -94,7 +94,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "MapLord",
+    title: "Zelqor",
   },
 };
 
@@ -117,7 +117,7 @@ export default function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "WebApplication",
-              name: "MapLord",
+              name: "Zelqor",
               description:
                 "Strategiczna gra czasu rzeczywistego na mapie świata. Zdobywaj terytoria, buduj armie i rywalizuj online.",
               applicationCategory: "GameApplication",

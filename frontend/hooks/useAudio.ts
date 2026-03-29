@@ -40,7 +40,7 @@ export const SOUNDS = {
 
 export type SoundKey = keyof typeof SOUNDS;
 
-const LS_MUTED = "maplord:audio:muted";
+const LS_MUTED = "zelqor:audio:muted";
 const MAX_CONCURRENT_SOUNDS = 4;
 const SOUND_COOLDOWN_MS = 80;
 

@@ -263,7 +263,7 @@ function CreateAppDialog({
         <DialogHeader>
           <DialogTitle className="font-display text-xl text-zinc-50">Utworz aplikacje</DialogTitle>
           <DialogDescription className="text-sm text-slate-400">
-            Aplikacje pozwalaja generowac klucze API i konfigurowac webhooki do integracji z MapLord.
+            Aplikacje pozwalaja generowac klucze API i konfigurowac webhooki do integracji z Zelqor.
           </DialogDescription>
         </DialogHeader>
 
@@ -377,7 +377,7 @@ function DevelopersContent() {
           <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Deweloperzy</p>
           <h1 className="font-display text-3xl text-zinc-50">Panel deweloperski</h1>
           <p className="mt-2 max-w-lg text-sm text-slate-400">
-            Tworzenie aplikacji, kluczy API i webhookow do integracji z MapLord.
+            Tworzenie aplikacji, kluczy API i webhookow do integracji z Zelqor.
           </p>
         </div>
 

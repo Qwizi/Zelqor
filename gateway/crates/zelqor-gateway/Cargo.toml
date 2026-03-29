@@ -1,0 +1,38 @@
+[package]
+name = "zelqor-gateway"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "zelqor-gateway"
+path = "src/main.rs"
+
+[dependencies]
+zelqor-engine = { path = "../zelqor-engine" }
+zelqor-state = { path = "../zelqor-state" }
+zelqor-matchmaking = { path = "../zelqor-matchmaking" }
+zelqor-django = { path = "../zelqor-django" }
+zelqor-ai = { path = "../zelqor-ai" }
+zelqor-anticheat = { path = "../zelqor-anticheat" }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+rand = { workspace = true }
+
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+axum = { version = "0.8", features = ["ws"] }
+axum-extra = { version = "0.10", features = ["query"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+jsonwebtoken = "9"
+dotenvy = "0.15"
+dashmap = "6"
+futures = "0.3"
+livekit-api = { version = "0.4", default-features = false, features = ["access-token"] }
+sha2 = "0.10"
+hex = "0.4"
+rmp-serde = "1"

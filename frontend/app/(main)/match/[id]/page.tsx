@@ -185,7 +185,7 @@ export default function MatchDetailPage() {
         {/* Share panel */}
         {shareUrl &&
           (() => {
-            const title = `MapLord — ${winner ? `${winner.username} wygrał!` : "Wyniki meczu"}`;
+            const title = `Zelqor — ${winner ? `${winner.username} wygrał!` : "Wyniki meczu"}`;
             const platforms = [
               {
                 name: "X (Twitter)",

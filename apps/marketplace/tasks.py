@@ -23,7 +23,7 @@ def bot_restock_marketplace():
     bot_user, _ = User.objects.get_or_create(
         username="MarketBot",
         defaults={
-            "email": "marketbot@maplord.internal",
+            "email": "marketbot@zelqor.internal",
             "is_bot": True,
             "is_active": True,
         },

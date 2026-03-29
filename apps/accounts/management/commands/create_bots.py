@@ -35,7 +35,7 @@ class Command(BaseCommand):
 
         for i in range(count):
             name = BOT_NAMES[i]
-            email = f"bot-{name.split()[1].lower()}@maplord.local"
+            email = f"bot-{name.split()[1].lower()}@zelqor.local"
             bot_uuid = uuid.UUID(f"00000000-0000-4000-b000-00000000000{i + 1}")
 
             _, was_created = User.objects.update_or_create(
@@ -56,7 +56,7 @@ class Command(BaseCommand):
         _, tutorial_created = User.objects.update_or_create(
             username="TutorialBot",
             defaults={
-                "email": "tutorialbot@maplord.local",
+                "email": "tutorialbot@zelqor.local",
                 "is_active": False,
                 "is_bot": True,
                 "elo_rating": 1000,

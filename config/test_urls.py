@@ -31,7 +31,7 @@ from apps.matchmaking.internal_api import LobbyInternalController, MatchmakingIn
 from apps.matchmaking.views import MatchController, MatchmakingStatusController, TutorialController
 from apps.notifications.views import NotificationController
 
-api = NinjaExtraAPI(title="MapLord API", version="1.0.0")
+api = NinjaExtraAPI(title="Zelqor API", version="1.0.0")
 api.register_controllers(
     NinjaJWTDefaultController,
     AuthController,

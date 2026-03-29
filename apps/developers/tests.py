@@ -2090,7 +2090,7 @@ class TestDeveloperViewsAdditional:
         resp = self.client.post(
             f"/api/v1/developers/apps/{self.app_id}/webhooks/",
             data=json.dumps(
-                {"url": "https://this-host-does-not.exist.maplord.invalid/hook", "events": ["match.created"]}
+                {"url": "https://this-host-does-not.exist.zelqor.invalid/hook", "events": ["match.created"]}
             ),
             content_type="application/json",
             **auth_headers(self.token),

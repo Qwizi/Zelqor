@@ -1,11 +1,11 @@
 """
-Integration / E2E tests for the MapLord Django backend.
+Integration / E2E tests for the Zelqor Django backend.
 
 Run with:
     uv run python manage.py test tests.test_integration --settings=config.test_settings -v2
 
 These tests exercise full API flows via Django's test client.  They hit the
-real database (a fresh test_maplord DB is created and destroyed per test run)
+real database (a fresh test_zelqor DB is created and destroyed per test run)
 and verify end-to-end request → model → response behaviour.
 
 Notes:
@@ -105,7 +105,7 @@ def _make_tutorial_bot():
     return User.objects.get_or_create(
         username="TutorialBot",
         defaults={
-            "email": "tutorialbot@internal.maplord",
+            "email": "tutorialbot@internal.zelqor",
             "is_bot": True,
         },
     )[0]
