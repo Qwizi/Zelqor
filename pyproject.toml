@@ -1,6 +1,6 @@
 [project]
 name = "zelqor"
-version = "2026.3.29.1"
+version = "2026.3.29.2"
 description = "Zelqor — Real-time strategy web game on a world map"
 requires-python = ">=3.13"
 dependencies = [
