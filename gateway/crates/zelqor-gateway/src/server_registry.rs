@@ -24,6 +24,9 @@ pub struct ConnectedServer {
 /// Registry of all gamenode servers connected to the gateway.
 pub struct ServerRegistry {
     servers: DashMap<String, ConnectedServer>,
+    /// Tracks which server is running each match (match_id → server_id).
+    /// Used by the proxy layer to enforce server-scoped access control.
+    match_assignments: DashMap<String, String>,
 }
 
 impl ServerRegistry {
@@ -31,6 +34,7 @@ impl ServerRegistry {
     pub fn new() -> Self {
         Self {
             servers: DashMap::new(),
+            match_assignments: DashMap::new(),
         }
     }
 
@@ -121,6 +125,75 @@ impl ServerRegistry {
     /// Return the total number of registered servers.
     pub fn server_count(&self) -> usize {
         self.servers.len()
+    }
+
+    /// Get a clone of the sender channel for a specific server.
+    pub fn get_server_sender(
+        &self,
+        server_id: &str,
+    ) -> Option<mpsc::UnboundedSender<GatewayToNode>> {
+        self.servers.get(server_id).map(|s| s.sender.clone())
+    }
+
+    /// Check whether a server is official (verified).
+    pub fn is_official(&self, server_id: &str) -> bool {
+        self.servers
+            .get(server_id)
+            .map(|s| s.is_official)
+            .unwrap_or(false)
+    }
+
+    /// Increment the active match count for a server.
+    pub fn increment_matches(&self, server_id: &str) {
+        if let Some(mut entry) = self.servers.get_mut(server_id) {
+            entry.active_matches += 1;
+        }
+    }
+
+    /// Decrement the active match count for a server.
+    pub fn decrement_matches(&self, server_id: &str) {
+        if let Some(mut entry) = self.servers.get_mut(server_id) {
+            entry.active_matches = entry.active_matches.saturating_sub(1);
+        }
+    }
+
+    /// Return the list of active match IDs for a specific server by scanning
+    /// all matches routed through it.
+    pub fn active_match_count(&self, server_id: &str) -> u32 {
+        self.servers
+            .get(server_id)
+            .map(|s| s.active_matches)
+            .unwrap_or(0)
+    }
+
+    // -----------------------------------------------------------------
+    // Match-assignment tracking (security boundary for community servers)
+    // -----------------------------------------------------------------
+
+    /// Record that a match has been dispatched to a specific server.
+    pub fn assign_match(&self, match_id: &str, server_id: &str) {
+        self.match_assignments
+            .insert(match_id.to_string(), server_id.to_string());
+        tracing::debug!(match_id = %match_id, server_id = %server_id, "Match assigned to server");
+    }
+
+    /// Remove the match assignment (called on MatchFinished / cleanup).
+    pub fn unassign_match(&self, match_id: &str) {
+        self.match_assignments.remove(match_id);
+    }
+
+    /// Check whether a server owns a given match. Returns `true` if the match
+    /// is assigned to `server_id`, `false` otherwise.
+    pub fn verify_match_owner(&self, match_id: &str, server_id: &str) -> bool {
+        self.match_assignments
+            .get(match_id)
+            .map(|s| s.value() == server_id)
+            .unwrap_or(false)
+    }
+
+    /// Remove all match assignments for a server (called on disconnect).
+    pub fn unassign_all_for_server(&self, server_id: &str) {
+        self.match_assignments.retain(|_, sid| sid != server_id);
     }
 }
 

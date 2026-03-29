@@ -34,6 +34,10 @@ class ServerStatusUpdate(Schema):
     status: str  # "online", "offline", "maintenance"
 
 
+class AssignServerRequest(Schema):
+    server_id: str
+
+
 class StatusUpdateRequest(Schema):
     status: str
 
@@ -497,4 +501,52 @@ class GameInternalController(ControllerBase):
         if body.status == "online":
             server.last_heartbeat = timezone.now()
         server.save(update_fields=["status", "last_heartbeat"])
+        return {"ok": True}
+
+    @route.get("/server-info/{server_id}/")
+    def get_server_info(self, request, server_id: str):
+        """Return server metadata for the gateway to resolve is_official."""
+        if not check_internal_secret(request):
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
+
+        from apps.developers.models import CommunityServer
+
+        server = CommunityServer.objects.filter(app__client_id=server_id).first()
+        if server is None:
+            try:
+                import uuid as _uuid
+
+                _uuid.UUID(server_id)
+                server = CommunityServer.objects.filter(id=server_id).first()
+            except ValueError:
+                pass
+        if server is None:
+            return self.create_response({"error": "Server not found"}, status_code=404)
+
+        return {
+            "server_uuid": str(server.id),
+            "is_verified": server.is_verified,
+            "region": server.region,
+        }
+
+    @route.patch("/matches/{match_id}/assign-server/")
+    def assign_server_to_match(self, request, match_id: str, body: AssignServerRequest):
+        """Assign a gamenode server to a match (called by gateway after dispatch)."""
+        if not check_internal_secret(request):
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
+
+        from apps.developers.models import CommunityServer
+        from apps.matchmaking.models import Match
+
+        try:
+            match = Match.objects.get(id=match_id)
+        except Match.DoesNotExist:
+            return self.create_response({"error": "Match not found"}, status_code=404)
+
+        server = CommunityServer.objects.filter(id=body.server_id).first()
+        if server is None:
+            return self.create_response({"error": "Server not found"}, status_code=404)
+
+        match.server = server
+        match.save(update_fields=["server"])
         return {"ok": True}

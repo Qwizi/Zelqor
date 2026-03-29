@@ -6,8 +6,20 @@ import logging
 import requests
 from celery import shared_task
 from django.db.utils import NotSupportedError
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task
+def cleanup_expired_device_codes():
+    """Delete DeviceAuthorizationCode records that have passed their expiry time."""
+    from apps.developers.models import DeviceAuthorizationCode
+
+    deleted_count, _ = DeviceAuthorizationCode.objects.filter(expires_at__lt=timezone.now()).delete()
+    if deleted_count:
+        logger.info("Deleted %d expired device authorization code(s).", deleted_count)
+    return deleted_count
 
 
 def dispatch_webhook_event(event: str, payload: dict):

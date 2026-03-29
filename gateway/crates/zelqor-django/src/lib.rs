@@ -1172,6 +1172,34 @@ impl DjangoClient {
     ) -> Result<HashMap<String, SystemModuleState>, DjangoError> {
         self.get("/api/v1/internal/game/system-modules/").await
     }
+
+    // --- Server info / dispatch ---
+
+    /// Fetch server metadata from Django to determine if a gamenode is verified.
+    pub async fn get_server_info(
+        &self,
+        server_id: &str,
+    ) -> Result<ServerInfoResponse, DjangoError> {
+        self.get(&format!("/api/v1/internal/server-info/{server_id}/"))
+            .await
+    }
+
+    /// Assign a gamenode server to a match after dispatching it.
+    pub async fn assign_server_to_match(
+        &self,
+        match_id: &str,
+        server_id: &str,
+    ) -> Result<(), DjangoError> {
+        #[derive(Serialize)]
+        struct Body<'a> {
+            server_id: &'a str,
+        }
+        self.patch(
+            &format!("/api/v1/internal/matches/{match_id}/assign-server/"),
+            &Body { server_id },
+        )
+        .await
+    }
 }
 
 /// State of a system module as returned by Django.
@@ -1180,6 +1208,14 @@ pub struct SystemModuleState {
     pub enabled: bool,
     #[serde(default)]
     pub config: HashMap<String, serde_json::Value>,
+}
+
+/// Server metadata returned by Django's `/server-info/{id}/` endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerInfoResponse {
+    pub server_uuid: String,
+    pub is_verified: bool,
+    pub region: String,
 }
 
 #[derive(Debug)]

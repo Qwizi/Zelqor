@@ -13,6 +13,7 @@ ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1,backend", c
 if "localhost" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append("localhost")
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
+FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
 
@@ -128,6 +129,7 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
+CELERY_RESULT_EXPIRES = 3600  # Auto-delete task results after 1 hour
 # Ensure tasks are not lost when a worker dies mid-execution
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 # Acknowledge tasks only after they complete (pairs with REJECT_ON_WORKER_LOST)
@@ -172,6 +174,10 @@ CELERY_BEAT_SCHEDULE = {
     "publish-outbox-events": {
         "task": "apps.game.tasks.publish_outbox_events",
         "schedule": 2,  # every 2 seconds
+    },
+    "cleanup-expired-device-codes": {
+        "task": "apps.developers.tasks.cleanup_expired_device_codes",
+        "schedule": 300,  # every 5 minutes
     },
 }
 

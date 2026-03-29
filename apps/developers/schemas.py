@@ -220,12 +220,13 @@ class OAuthAuthorizeRequestSchema(Schema):
 
 
 class OAuthTokenRequestSchema(Schema):
-    grant_type: str  # 'authorization_code' or 'refresh_token'
-    client_id: str
-    client_secret: str
+    grant_type: str  # 'authorization_code', 'refresh_token', 'client_credentials', or device_code URN
+    client_id: str = ""
+    client_secret: str = ""
     code: str | None = None  # for authorization_code
     redirect_uri: str | None = None  # for authorization_code
     refresh_token: str | None = None  # for refresh_token
+    device_code: str | None = None  # for urn:ietf:params:oauth:grant-type:device_code
 
 
 class OAuthTokenResponseSchema(Schema):
@@ -243,6 +244,22 @@ class OAuthUserInfoSchema(Schema):
     elo_rating: int
     avatar: str | None = None
     date_joined: str
+
+
+class DeviceAuthorizationRequestSchema(Schema):
+    client_id: str | None = None
+
+
+class DeviceAuthorizationResponseSchema(Schema):
+    device_code: str
+    user_code: str
+    verification_uri: str
+    expires_in: int
+    interval: int
+
+
+class DeviceAuthorizeSchema(Schema):
+    user_code: str
 
 
 class OAuthClientCredentialsRequestSchema(Schema):

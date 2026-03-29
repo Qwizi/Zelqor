@@ -1,5 +1,5 @@
-use anyhow::{bail, Context, Result};
-use reqwest::{Client, StatusCode};
+use anyhow::{Context, Result};
+use reqwest::Client;
 
 use super::models::*;
 
@@ -43,86 +43,6 @@ impl ApiClient {
             }
         }
         anyhow::anyhow!("API error {}: {}", status, body)
-    }
-
-    // -------------------------------------------------------------------------
-    // OAuth
-    // -------------------------------------------------------------------------
-
-    /// Exchange an authorization code for tokens.
-    pub async fn exchange_code(
-        base_url: &str,
-        client_id: &str,
-        client_secret: &str,
-        code: &str,
-        redirect_uri: &str,
-    ) -> Result<TokenResponse> {
-        let client = Client::new();
-        let url = format!("{}/oauth/token/", base_url.trim_end_matches('/'));
-        let body = serde_json::json!({
-            "grant_type": "authorization_code",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "code": code,
-            "redirect_uri": redirect_uri,
-        });
-        let resp = client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .context("Failed to exchange authorization code")?;
-
-        if !resp.status().is_success() {
-            return Err(Self::handle_error(resp).await);
-        }
-        resp.json().await.context("Failed to parse token response")
-    }
-
-    /// Refresh an access token.
-    pub async fn refresh_token(
-        base_url: &str,
-        client_id: &str,
-        client_secret: &str,
-        refresh_token: &str,
-    ) -> Result<TokenResponse> {
-        let client = Client::new();
-        let url = format!("{}/oauth/token/", base_url.trim_end_matches('/'));
-        let body = serde_json::json!({
-            "grant_type": "refresh_token",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh_token,
-        });
-        let resp = client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .context("Failed to refresh token")?;
-
-        if !resp.status().is_success() {
-            return Err(Self::handle_error(resp).await);
-        }
-        resp.json().await.context("Failed to parse token response")
-    }
-
-    /// Validate the current token by listing apps.
-    pub async fn validate(&self) -> Result<()> {
-        let url = format!("{}/developers/apps/?limit=1", self.base_url);
-        let resp = self
-            .client
-            .get(&url)
-            .headers(self.auth_headers())
-            .send()
-            .await
-            .context("Network error while validating token")?;
-
-        if resp.status() == StatusCode::OK {
-            Ok(())
-        } else {
-            Err(Self::handle_error(resp).await)
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -297,10 +217,3 @@ pub fn build_authed_client(api_url_override: &Option<String>) -> Result<ApiClien
     Ok(ApiClient::new(&base_url, Some(&auth.access_token)))
 }
 
-/// Get the app_id from config, or bail with a helpful message.
-pub fn require_app_id() -> Result<String> {
-    let cfg = crate::config::load()?;
-    cfg.auth
-        .and_then(|a| a.app_id)
-        .ok_or_else(|| anyhow::anyhow!("No app selected. Run `zelqor login` and select an app."))
-}

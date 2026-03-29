@@ -10,6 +10,7 @@ on:
       - config/**
       - frontend/**
       - gateway/**
+      - cli/**
       - Dockerfile
       - frontend/Dockerfile
       - gateway/Dockerfile
@@ -36,6 +37,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       gateway: ${{ steps.filter.outputs.gateway }}
+      cli: ${{ steps.filter.outputs.cli }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -56,12 +58,14 @@ jobs:
               - 'frontend/**'
             gateway:
               - 'gateway/**'
+            cli:
+              - 'cli/**'
 
   # ── Version & release ────────────────────────────────────────────
   release:
     name: CalVer tag and GitHub release
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.gateway == 'true'
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.gateway == 'true' || needs.changes.outputs.cli == 'true'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -264,3 +268,87 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=gateway
           cache-to: type=gha,scope=gateway,mode=max
+
+  # ── CLI binaries ─────────────────────────────────────────────────
+  build-cli:
+    name: Build CLI (${{ matrix.target }})
+    needs: [changes, release]
+    if: needs.changes.outputs.cli == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            os: ubuntu-latest
+            rust_target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - target: linux-aarch64
+            os: ubuntu-latest
+            rust_target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+          - target: darwin-x86_64
+            os: macos-latest
+            rust_target: x86_64-apple-darwin
+            archive: tar.gz
+          - target: darwin-aarch64
+            os: macos-latest
+            rust_target: aarch64-apple-darwin
+            archive: tar.gz
+          - target: windows-x86_64
+            os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            archive: zip
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install cross-compilation tools (Linux aarch64)
+        if: matrix.target == 'linux-aarch64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            cli/target
+          key: cli-${{ matrix.rust_target }}-${{ hashFiles('cli/Cargo.lock') }}
+
+      - name: Build CLI
+        working-directory: cli
+        run: cargo build --release --target ${{ matrix.rust_target }}
+
+      - name: Package (Unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          BINARY="cli/target/${{ matrix.rust_target }}/release/zelqor"
+          ARCHIVE="zelqor-${{ matrix.target }}.tar.gz"
+          tar -czf "$ARCHIVE" -C "$(dirname "$BINARY")" "$(basename "$BINARY")"
+          echo "ARCHIVE=$ARCHIVE" >> $GITHUB_ENV
+
+      - name: Package (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $binary = "cli/target/${{ matrix.rust_target }}/release/zelqor.exe"
+          $archive = "zelqor-${{ matrix.target }}.zip"
+          Compress-Archive -Path $binary -DestinationPath $archive
+          echo "ARCHIVE=$archive" >> $env:GITHUB_ENV
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release.outputs.tag }}
+          files: ${{ env.ARCHIVE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

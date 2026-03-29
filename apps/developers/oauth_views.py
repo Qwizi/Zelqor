@@ -1,6 +1,11 @@
 import hashlib
 import hmac
+import random
+import secrets
+import string
+from datetime import timedelta
 
+from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 from ninja.errors import HttpError
@@ -11,10 +16,14 @@ from apps.accounts.auth import ActiveUserJWTAuth
 from apps.developers.models import (
     VALID_SCOPES,
     DeveloperApp,
+    DeviceAuthorizationCode,
     OAuthAccessToken,
     OAuthAuthorizationCode,
 )
 from apps.developers.schemas import (
+    DeviceAuthorizationRequestSchema,
+    DeviceAuthorizationResponseSchema,
+    DeviceAuthorizeSchema,
     OAuthAuthorizeRequestSchema,
     OAuthClientCredentialsResponseSchema,
     OAuthTokenRequestSchema,
@@ -22,6 +31,17 @@ from apps.developers.schemas import (
     OAuthUserInfoSchema,
 )
 from apps.game_config.decorators import require_module_controller
+
+DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
+_DEVICE_EXPIRES_SECONDS = 900  # 15 minutes
+_DEVICE_POLL_INTERVAL = 5  # seconds
+
+
+def _generate_user_code() -> str:
+    """Return a human-readable code like 'ABCD-1234'."""
+    letters = "".join(random.choices(string.ascii_uppercase, k=4))
+    digits = "".join(random.choices(string.digits, k=4))
+    return f"{letters}-{digits}"
 
 
 def _verify_client(client_id: str, client_secret: str):
@@ -89,6 +109,88 @@ class OAuthController:
     # Public — no Django auth required.
     # -------------------------------------------------------------------------
 
+    # -------------------------------------------------------------------------
+    # POST /oauth/device/
+    # Public — initiates device authorization flow (RFC 8628).
+    # -------------------------------------------------------------------------
+
+    @route.post("/device/", auth=None, response=DeviceAuthorizationResponseSchema)
+    def device_authorization(self, request, payload: DeviceAuthorizationRequestSchema):
+        """Issue a device_code and user_code to begin the device authorization flow."""
+        _check_rate_limit(request, "oauth_device", max_attempts=10, window=60)
+
+        if payload.client_id:
+            try:
+                app = DeveloperApp.objects.get(client_id=payload.client_id, is_active=True)
+            except DeveloperApp.DoesNotExist:
+                raise HttpError(400, "Invalid client_id or application is inactive.") from None
+        else:
+            app = DeveloperApp.get_cli_app()
+
+        # Ensure uniqueness for the short user_code (collision is extremely unlikely
+        # but we retry up to 10 times before giving up).
+        for _ in range(10):
+            user_code = _generate_user_code()
+            if not DeviceAuthorizationCode.objects.filter(user_code=user_code).exists():
+                break
+        else:
+            raise HttpError(503, "Could not generate a unique user_code. Please try again.")
+
+        device_code = secrets.token_urlsafe(48)
+        expires_at = timezone.now() + timedelta(seconds=_DEVICE_EXPIRES_SECONDS)
+
+        DeviceAuthorizationCode.objects.create(
+            app=app,
+            device_code=device_code,
+            user_code=user_code,
+            expires_at=expires_at,
+        )
+
+        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+        verification_uri = f"{frontend_url.rstrip('/')}/oauth/device"
+
+        return DeviceAuthorizationResponseSchema(
+            device_code=device_code,
+            user_code=user_code,
+            verification_uri=verification_uri,
+            expires_in=_DEVICE_EXPIRES_SECONDS,
+            interval=_DEVICE_POLL_INTERVAL,
+        )
+
+    # -------------------------------------------------------------------------
+    # POST /oauth/device/authorize/
+    # Authenticated user approves a pending device code.
+    # -------------------------------------------------------------------------
+
+    @route.post("/device/authorize/", auth=ActiveUserJWTAuth(), permissions=[IsAuthenticated])
+    def device_authorize(self, request, payload: DeviceAuthorizeSchema):
+        """Allow the authenticated user to approve a pending device authorization."""
+        _check_rate_limit(request, "oauth_device_authorize", max_attempts=5, window=60)
+
+        try:
+            device_record = DeviceAuthorizationCode.objects.select_related("app").get(
+                user_code=payload.user_code.upper(),
+            )
+        except DeviceAuthorizationCode.DoesNotExist:
+            raise HttpError(400, "Invalid user_code.") from None
+
+        if device_record.is_expired:
+            raise HttpError(400, "Device code has expired.")
+
+        if device_record.is_authorized:
+            raise HttpError(400, "Device code has already been authorized.")
+
+        device_record.is_authorized = True
+        device_record.user = request.auth
+        device_record.save(update_fields=["is_authorized", "user"])
+
+        return {"ok": True}
+
+    # -------------------------------------------------------------------------
+    # POST /oauth/token/
+    # Public — no Django auth required.
+    # -------------------------------------------------------------------------
+
     @route.post("/token/", auth=None)
     def token(self, request, payload: OAuthTokenRequestSchema):
         """Exchange an authorization code (or refresh token) for an access token."""
@@ -99,9 +201,13 @@ class OAuthController:
             return self._grant_refresh_token(payload)
         elif payload.grant_type == "client_credentials":
             return self._grant_client_credentials(payload)
+        elif payload.grant_type == DEVICE_CODE_GRANT_TYPE:
+            return self._grant_device_code(payload)
         else:
             raise HttpError(
-                400, 'Unsupported grant_type. Use "authorization_code", "refresh_token", or "client_credentials".'
+                400,
+                'Unsupported grant_type. Use "authorization_code", "refresh_token", "client_credentials", '
+                f'or "{DEVICE_CODE_GRANT_TYPE}".',
             )
 
     def _grant_authorization_code(self, payload: OAuthTokenRequestSchema):
@@ -209,6 +315,62 @@ class OAuthController:
             access_token=token.access_token,
             expires_in=expires_in,
             scope="server:connect",
+        )
+
+    def _grant_device_code(self, payload: OAuthTokenRequestSchema):
+        if not payload.device_code:
+            raise HttpError(400, '"device_code" is required for device_code grant.')
+
+        if payload.client_id:
+            try:
+                app = DeveloperApp.objects.get(client_id=payload.client_id, is_active=True)
+            except DeveloperApp.DoesNotExist:
+                raise HttpError(400, "Invalid client_id or application is inactive.") from None
+        else:
+            app = DeveloperApp.get_cli_app()
+
+        try:
+            device_record = DeviceAuthorizationCode.objects.select_related("user").get(
+                device_code=payload.device_code,
+                app=app,
+            )
+        except DeviceAuthorizationCode.DoesNotExist:
+            raise HttpError(400, "Device code not found.") from None
+
+        if device_record.is_expired:
+            raise HttpError(400, '{"error": "expired_token"}')
+
+        if not device_record.is_authorized:
+            raise HttpError(400, '{"error": "authorization_pending"}')
+
+        user = device_record.user
+        device_record.delete()
+
+        # For the built-in CLI app, return JWT tokens so the CLI can access
+        # all authenticated endpoints (developer API, etc.) directly.
+        if app.client_id == DeveloperApp.CLI_CLIENT_ID:
+            from apps.accounts.social_auth import _get_jwt_tokens
+
+            jwt = _get_jwt_tokens(user)
+            return OAuthTokenResponseSchema(
+                access_token=jwt["access"],
+                expires_in=3600,
+                refresh_token=jwt["refresh"],
+                scope="*",
+            )
+
+        # For third-party apps, return an OAuth access token scoped to the app.
+        token = OAuthAccessToken.objects.create(
+            app=app,
+            user=user,
+            scopes=device_record.scopes if hasattr(device_record, "scopes") else [],
+        )
+        expires_in = int((token.expires_at - timezone.now()).total_seconds())
+        return OAuthTokenResponseSchema(
+            access_token=token.access_token,
+            expires_in=expires_in,
+            refresh_token=token.refresh_token,
+            scope=" ".join(token.scopes),
         )
 
     # -------------------------------------------------------------------------

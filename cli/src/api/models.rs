@@ -131,7 +131,9 @@ pub struct UserInfo {
 pub struct TokenResponse {
     pub access_token: String,
     pub refresh_token: Option<String>,
+    #[allow(dead_code)]
     pub token_type: Option<String>,
+    #[allow(dead_code)]
     pub expires_in: Option<u64>,
 }
 
@@ -141,7 +143,7 @@ pub struct TokenResponse {
 pub struct Paginated<T> {
     pub items: Vec<T>,
     #[allow(dead_code)]
-    pub total: u64,
+    pub count: u64,
 }
 
 // === Helpers for tabled display ===

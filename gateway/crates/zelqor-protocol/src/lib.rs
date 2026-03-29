@@ -27,6 +27,19 @@ pub enum GatewayToNode {
     },
     /// Heartbeat ping.
     Heartbeat,
+    /// Push match regions data to the gamenode (sent after StartMatch).
+    MatchRegions {
+        match_id: String,
+        regions: serde_json::Value,
+    },
+    /// Push neighbor map to the gamenode (sent on registration).
+    NeighborMap {
+        neighbors: serde_json::Value,
+    },
+    /// Push system module states to the gamenode.
+    SystemModules {
+        modules: serde_json::Value,
+    },
 }
 
 /// Messages sent from a gamenode back to the central gateway.
@@ -62,6 +75,38 @@ pub enum NodeToGateway {
         server_name: String,
         region: String,
         max_matches: u32,
+    },
+    /// Save a game state snapshot (fire-and-forget, proxied by gateway).
+    SaveSnapshot {
+        match_id: String,
+        tick: u64,
+        state_data: serde_json::Value,
+    },
+    /// Update match status (fire-and-forget).
+    UpdateMatchStatus {
+        match_id: String,
+        status: String,
+    },
+    /// Update player alive status (fire-and-forget).
+    UpdatePlayerAlive {
+        match_id: String,
+        user_id: String,
+        is_alive: bool,
+    },
+    /// Send a chat message in a match (fire-and-forget).
+    SendChatMessage {
+        match_id: String,
+        user_id: String,
+        content: String,
+    },
+    /// Report an anticheat violation (fire-and-forget).
+    ReportViolation {
+        match_id: String,
+        player_id: String,
+        violation_kind: String,
+        severity: String,
+        detail: String,
+        tick: u64,
     },
 }
 

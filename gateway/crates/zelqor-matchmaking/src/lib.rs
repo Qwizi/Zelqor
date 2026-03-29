@@ -31,6 +31,23 @@ struct ConnectionHandle {
     sender: mpsc::UnboundedSender<MatchmakingMessage>,
 }
 
+/// Result of attempting to dispatch a match to a gamenode.
+pub struct DispatchResult {
+    /// The server_id of the node that accepted the match.
+    pub server_id: String,
+}
+
+/// Callback type that the gateway provides to dispatch matches to game nodes.
+///
+/// Given a match_id, it should:
+/// 1. Pick the best available server from the registry
+/// 2. Fetch match_data from Django
+/// 3. Send `GatewayToNode::StartMatch` to the chosen server
+/// 4. Call Django to persist the server assignment
+/// 5. Return the chosen server_id, or an error if no server is available
+pub type DispatchFn =
+    Arc<dyn Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<DispatchResult, String>> + Send>> + Send + Sync>;
+
 /// Manages matchmaking WebSocket connections organized by lobby.
 ///
 /// - `lobby_connections` (DashMap): lobby_id → WS connection handles (local, ephemeral)
@@ -40,6 +57,9 @@ pub struct MatchmakingManager {
     lobby_connections: DashMap<String, Vec<ConnectionHandle>>,
     django: DjangoClient,
     redis: ConnectionManager,
+    /// Optional callback to dispatch a match to a gamenode. When `None`, the
+    /// gateway runs the match in-process (legacy path).
+    dispatch_fn: Option<DispatchFn>,
 }
 
 impl MatchmakingManager {
@@ -48,7 +68,13 @@ impl MatchmakingManager {
             lobby_connections: DashMap::new(),
             django,
             redis,
+            dispatch_fn: None,
         }
+    }
+
+    /// Set the dispatch callback for routing matches to game nodes.
+    pub fn set_dispatch_fn(&mut self, f: DispatchFn) {
+        self.dispatch_fn = Some(f);
     }
 
     // ── Redis helpers ────────────────────────────────────────────────
@@ -607,6 +633,26 @@ impl MatchmakingManager {
             Ok(result) => {
                 if let Some(match_id) = result.match_id {
                     info!("Match {match_id} started from lobby {lobby_id}");
+
+                    // Dispatch to a gamenode if one is available.
+                    if let Some(ref dispatch) = self.dispatch_fn {
+                        let mid = match_id.clone();
+                        match (dispatch)(mid).await {
+                            Ok(res) => {
+                                info!(
+                                    match_id = %match_id,
+                                    server_id = %res.server_id,
+                                    "Match dispatched to gamenode"
+                                );
+                            }
+                            Err(e) => {
+                                warn!(
+                                    match_id = %match_id,
+                                    "No gamenode available, match will run in-process: {e}"
+                                );
+                            }
+                        }
+                    }
 
                     self.broadcast_to_lobby(lobby_id, &json!({
                         "type": "match_starting",

@@ -159,8 +159,74 @@ async fn main() {
         },
     );
 
-    // Create matchmaking manager
-    let matchmaking = Arc::new(MatchmakingManager::new(django.clone(), redis_conn.clone()));
+    // Create server registry and matchmaking manager
+    let server_registry = Arc::new(ServerRegistry::new());
+
+    let mut matchmaking_mgr = MatchmakingManager::new(django.clone(), redis_conn.clone());
+
+    // Wire up the dispatch callback: when a match starts, route it to the
+    // best available gamenode via the ServerRegistry.
+    {
+        let registry = Arc::clone(&server_registry);
+        let django_dispatch = django.clone();
+
+        let dispatch_fn: zelqor_matchmaking::DispatchFn = Arc::new(move |match_id: String| {
+            let registry = Arc::clone(&registry);
+            let django = django_dispatch.clone();
+            Box::pin(async move {
+                // 1. Pick the least-loaded server with capacity.
+                let server_id = registry
+                    .get_best_server(None)
+                    .ok_or_else(|| "No gamenode with available capacity".to_string())?;
+
+                // 2. Get the sender channel for that server.
+                let sender = registry
+                    .get_server_sender(&server_id)
+                    .ok_or_else(|| format!("Server {server_id} disappeared from registry"))?;
+
+                // 3. Fetch match data from Django to forward to the gamenode.
+                let match_data = django
+                    .get_match_data(&match_id)
+                    .await
+                    .map_err(|e| format!("Failed to fetch match data: {e}"))?;
+
+                let match_data_json = serde_json::to_value(&match_data)
+                    .map_err(|e| format!("Failed to serialise match data: {e}"))?;
+
+                // 4. Send StartMatch to the gamenode.
+                sender
+                    .send(zelqor_protocol::GatewayToNode::StartMatch {
+                        match_id: match_id.clone(),
+                        match_data: match_data_json,
+                    })
+                    .map_err(|e| format!("Failed to send StartMatch to gamenode: {e}"))?;
+
+                // 5. Track the match on the server.
+                registry.increment_matches(&server_id);
+                registry.assign_match(&match_id, &server_id);
+
+                // 6. Persist the server assignment in Django (fire-and-forget).
+                let django_bg = django.clone();
+                let mid = match_id.clone();
+                let sid = server_id.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = django_bg.assign_server_to_match(&mid, &sid).await {
+                        tracing::warn!(
+                            match_id = %mid,
+                            server_id = %sid,
+                            "Failed to assign server in Django: {e}"
+                        );
+                    }
+                });
+
+                Ok(zelqor_matchmaking::DispatchResult { server_id })
+            })
+        });
+
+        matchmaking_mgr.set_dispatch_fn(dispatch_fn);
+    }
+
+    let matchmaking = Arc::new(matchmaking_mgr);
 
     // Create game connections registry
     let game_connections = new_game_connections();
@@ -171,8 +237,6 @@ async fn main() {
     let username_cache = Arc::new(DashMap::new());
     let chat_rate_limits = Arc::new(DashMap::new());
     let action_rate_limits = Arc::new(DashMap::new());
-
-    let server_registry = Arc::new(ServerRegistry::new());
 
     let app_state = AppState {
         config: config.clone(),

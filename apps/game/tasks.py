@@ -309,10 +309,13 @@ def finalize_match_results_sync(
 
         player_rows = _build_player_rows(match, players_data, total_ticks, winner_id)
 
-        # Determine if match is ranked (configurable minimum human player count)
+        # Determine if match is ranked:
+        # 1) Enough human players, AND
+        # 2) Match ran on an official (verified) server.
         min_human_players = get_module_config("leaderboard", "min_human_players_for_ranked", 2)
         human_rows = [r for r in player_rows if not r["is_bot"]]
-        is_ranked = len(human_rows) >= min_human_players
+        server_is_official = getattr(match.server, "is_verified", False)
+        is_ranked = len(human_rows) >= min_human_players and server_is_official
 
         elo_changes = _compute_elo_changes(player_rows, total_ticks, k_factor, is_ranked)
 

@@ -110,7 +110,11 @@ class DeveloperController:
     @route.get("/apps/", response=dict)
     def list_apps(self, request, limit: int = 50, offset: int = 0):
         """List all active developer apps owned by the authenticated user."""
-        qs = DeveloperApp.objects.filter(owner=request.auth, is_active=True).order_by("-created_at")
+        qs = (
+            DeveloperApp.objects.filter(owner=request.auth, is_active=True)
+            .exclude(client_id=DeveloperApp.CLI_CLIENT_ID)
+            .order_by("-created_at")
+        )
         return paginate_qs(qs, limit, offset, schema=DeveloperAppOutSchema)
 
     @route.get("/apps/{app_id}/", response=DeveloperAppOutSchema)

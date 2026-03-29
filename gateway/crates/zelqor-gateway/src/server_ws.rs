@@ -81,6 +81,25 @@ async fn handle_server_socket(socket: WebSocket, _token: String, state: AppState
     // Create an mpsc channel so other parts of the gateway can push messages to this node.
     let (tx, mut rx) = mpsc::unbounded_channel::<GatewayToNode>();
 
+    // Verify whether this server is official (verified) by asking Django.
+    let is_official = match state.django.get_server_info(&server_id).await {
+        Ok(info) => {
+            info!(
+                server_id = %server_id,
+                is_verified = info.is_verified,
+                "Resolved server verification status from Django"
+            );
+            info.is_verified
+        }
+        Err(e) => {
+            warn!(
+                server_id = %server_id,
+                "Could not fetch server info from Django, defaulting to unofficial: {e}"
+            );
+            false
+        }
+    };
+
     let connected = ConnectedServer {
         server_id: server_id.clone(),
         server_name,
@@ -89,7 +108,7 @@ async fn handle_server_socket(socket: WebSocket, _token: String, state: AppState
         max_matches,
         region,
         last_heartbeat: Instant::now(),
-        is_official: false,
+        is_official,
     };
 
     state.server_registry.register(connected);
@@ -148,6 +167,7 @@ async fn handle_server_socket(socket: WebSocket, _token: String, state: AppState
         _ = recv_task => {}
     }
 
+    state.server_registry.unassign_all_for_server(&server_id);
     state.server_registry.unregister(&server_id);
 
     // Update Django DB — mark server as offline.
@@ -243,6 +263,9 @@ fn handle_node_message(text: &str, server_id: &str, state: &AppState) {
                 total_ticks,
                 "MatchFinished"
             );
+            state.server_registry.decrement_matches(server_id);
+            state.server_registry.unassign_match(match_id);
+
             let django = state.django.clone();
             let match_id = match_id.clone();
             let winner_id = winner_id.clone();
@@ -251,8 +274,6 @@ fn handle_node_message(text: &str, server_id: &str, state: &AppState) {
                 let _ = django
                     .finalize_match(&match_id, winner_id.as_deref(), total_ticks, final_state)
                     .await;
-                // Schedule cleanup after 2 minutes so match data is still
-                // readable briefly before Django removes it.
                 tokio::time::sleep(tokio::time::Duration::from_secs(120)).await;
                 let _ = django.cleanup_match(&match_id).await;
             });
@@ -281,11 +302,124 @@ fn handle_node_message(text: &str, server_id: &str, state: &AppState) {
             }
         }
         NodeToGateway::Register { .. } => {
-            // Duplicate Register after the initial handshake — ignore.
             warn!(
                 server_id = %server_id,
                 "Received unexpected Register message after handshake"
             );
         }
+
+        // ---------------------------------------------------------------
+        // Proxy messages — gamenode → gateway → Django (server-scoped)
+        // ---------------------------------------------------------------
+
+        NodeToGateway::SaveSnapshot {
+            ref match_id,
+            tick,
+            ref state_data,
+        } => {
+            if !verify_ownership(server_id, match_id, state) {
+                return;
+            }
+            let django = state.django.clone();
+            let match_id = match_id.clone();
+            let state_data = state_data.clone();
+            tokio::spawn(async move {
+                let _ = django.save_snapshot(&match_id, tick, state_data).await;
+            });
+        }
+        NodeToGateway::UpdateMatchStatus {
+            ref match_id,
+            ref status,
+        } => {
+            if !verify_ownership(server_id, match_id, state) {
+                return;
+            }
+            let django = state.django.clone();
+            let match_id = match_id.clone();
+            let status = status.clone();
+            tokio::spawn(async move {
+                let _ = django.update_match_status(&match_id, &status).await;
+            });
+        }
+        NodeToGateway::UpdatePlayerAlive {
+            ref match_id,
+            ref user_id,
+            is_alive,
+        } => {
+            if !verify_ownership(server_id, match_id, state) {
+                return;
+            }
+            let django = state.django.clone();
+            let match_id = match_id.clone();
+            let user_id = user_id.clone();
+            tokio::spawn(async move {
+                let _ = django.set_player_alive(&match_id, &user_id, is_alive).await;
+            });
+        }
+        NodeToGateway::SendChatMessage {
+            ref match_id,
+            ref user_id,
+            ref content,
+        } => {
+            if !verify_ownership(server_id, match_id, state) {
+                return;
+            }
+            let django = state.django.clone();
+            let match_id = match_id.clone();
+            let user_id = user_id.clone();
+            let content = content.clone();
+            tokio::spawn(async move {
+                let _ = django
+                    .save_match_chat_message(&match_id, &user_id, &content)
+                    .await;
+            });
+        }
+        NodeToGateway::ReportViolation {
+            ref match_id,
+            ref player_id,
+            ref violation_kind,
+            ref severity,
+            ref detail,
+            tick,
+        } => {
+            if !verify_ownership(server_id, match_id, state) {
+                return;
+            }
+            let django = state.django.clone();
+            let match_id = match_id.clone();
+            let player_id = player_id.clone();
+            let violation_kind = violation_kind.clone();
+            let severity = severity.clone();
+            let detail = detail.clone();
+            tokio::spawn(async move {
+                let _ = django
+                    .report_anticheat_violation(
+                        &match_id,
+                        &player_id,
+                        &violation_kind,
+                        &severity,
+                        &detail,
+                        tick as i64,
+                    )
+                    .await;
+            });
+        }
     }
+}
+
+/// Verify that the requesting server owns the match. Logs a warning and
+/// returns `false` if the server is not the assigned owner.
+fn verify_ownership(server_id: &str, match_id: &str, state: &AppState) -> bool {
+    if state
+        .server_registry
+        .verify_match_owner(match_id, server_id)
+    {
+        return true;
+    }
+    warn!(
+        server_id = %server_id,
+        match_id = %match_id,
+        "Server tried to act on a match it does not own — rejected"
+    );
+    false
 }

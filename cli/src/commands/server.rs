@@ -22,6 +22,8 @@ pub enum ServerCommand {
     Create,
     /// List community servers for your app
     List,
+    /// Build the gamenode Docker image from source
+    Build,
     /// Generate docker-compose.yml and start the server container
     Start,
     /// Stop the server container
@@ -47,6 +49,7 @@ pub async fn run(args: &ServerArgs, api_url_override: &Option<String>) -> Result
     match &args.command {
         ServerCommand::Create => create_server(api_url_override).await,
         ServerCommand::List => list_servers(api_url_override).await,
+        ServerCommand::Build => build_gamenode_image().await,
         ServerCommand::Start => start_server(api_url_override).await,
         ServerCommand::Stop => stop_server().await,
         ServerCommand::Status => status_server(api_url_override).await,
@@ -108,7 +111,21 @@ pub async fn create_app(api_url_override: &Option<String>) -> Result<()> {
         ("Client Secret", app.client_secret.clone()),
     ]);
     println!();
-    output::warn("Save your client_secret now — it will not be shown again.");
+
+    // Persist credentials locally
+    let creds = config::AppCredentials {
+        app_id: app.id.clone(),
+        app_name: app.name.clone(),
+        client_id: app.client_id.clone(),
+        client_secret: app.client_secret.clone(),
+    };
+    match config::save_app_credentials(&creds) {
+        Ok(()) => output::success("Credentials saved securely."),
+        Err(e) => {
+            output::warn(&format!("Could not save credentials: {e}"));
+            output::warn("Save your client_secret now — it will not be shown again.");
+        }
+    }
 
     // Offer to save app_id to config
     let save = Confirm::new()
@@ -318,24 +335,68 @@ async fn delete_server(api_url_override: &Option<String>) -> Result<()> {
 async fn start_server(api_url_override: &Option<String>) -> Result<()> {
     output::header("Start Community Server");
 
-    // Generate a docker-compose.yml if one doesn't exist
-    let compose_path = std::path::Path::new("docker-compose.yml");
-    if !compose_path.exists() {
-        let cfg = config::load()?;
-        let auth = cfg.auth.as_ref().ok_or_else(|| anyhow::anyhow!("Not authenticated"))?;
-        let api_url = cfg.effective_api_url(api_url_override);
+    let (base_url, app_id) = resolve_app_id(api_url_override)?;
+    let client = build_authed_client(api_url_override)?;
 
-        let compose_content = generate_compose(&api_url, &auth.client_id, &auth.client_secret);
-        fs::write(compose_path, &compose_content)
-            .context("Failed to write docker-compose.yml")?;
-        output::success("Generated docker-compose.yml");
-    } else {
-        output::info("Using existing docker-compose.yml");
+    // Fetch registered servers
+    let sp = output::spinner("Fetching servers...");
+    let servers = client.list_servers(&app_id).await;
+    sp.finish_and_clear();
+    let servers = servers?;
+
+    if servers.is_empty() {
+        output::warn("No servers registered. Run `zelqor server create` first.");
+        return Ok(());
     }
+
+    // Let user pick which server to start
+    let choices: Vec<String> = servers
+        .iter()
+        .map(|s| format!("{} — {} ({})", s.name, s.region, s.status))
+        .collect();
+
+    let idx = Select::new()
+        .with_prompt("Select server to start")
+        .items(&choices)
+        .default(0)
+        .interact()?;
+
+    let server = &servers[idx];
+
+    // Resolve credentials: saved → prompt fallback
+    let (client_id, client_secret) = match config::load_app_credentials(&app_id) {
+        Ok(creds) => {
+            output::info(&format!("Using saved credentials for app '{}'.", creds.app_name));
+            (creds.client_id, creds.client_secret)
+        }
+        Err(_) => {
+            output::warn("No saved credentials found for this app.");
+            prompt_credentials()?
+        }
+    };
+
+    // Generate docker-compose in a per-server directory
+    let dir = std::path::PathBuf::from(format!(".zelqor-server-{}", &server.id[..8]));
+    fs::create_dir_all(&dir).context("Failed to create server directory")?;
+
+    let compose_path = dir.join("docker-compose.yml");
+    let gateway_url = base_url
+        .replace("/api/v1", "")
+        .replace("/api", "");
+    let compose_content = generate_compose(&gateway_url, &client_id, &client_secret);
+    fs::write(&compose_path, &compose_content)
+        .context("Failed to write docker-compose.yml")?;
+
+    output::print_kv(&[
+        ("Server", server.name.clone()),
+        ("Region", server.region.clone()),
+        ("Directory", dir.display().to_string()),
+    ]);
+    println!();
 
     output::info("Starting server container...");
     let status = tokio::process::Command::new("docker")
-        .args(["compose", "up", "-d"])
+        .args(["compose", "-f", &compose_path.to_string_lossy(), "up", "-d"])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
@@ -343,7 +404,7 @@ async fn start_server(api_url_override: &Option<String>) -> Result<()> {
         .context("Failed to run docker compose. Is Docker installed?")?;
 
     if status.success() {
-        output::success("Server container started.");
+        output::success(&format!("Server '{}' started.", server.name));
     } else {
         bail!("docker compose up failed with exit code {:?}", status.code());
     }
@@ -351,33 +412,161 @@ async fn start_server(api_url_override: &Option<String>) -> Result<()> {
 }
 
 async fn stop_server() -> Result<()> {
-    output::info("Stopping server container...");
+    output::header("Stop Community Server");
+
+    // Find running server directories
+    let dirs: Vec<_> = fs::read_dir(".")
+        .context("Cannot read current directory")?
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with(".zelqor-server-")
+                && e.path().join("docker-compose.yml").exists()
+        })
+        .collect();
+
+    if dirs.is_empty() {
+        output::warn("No server directories found. Nothing to stop.");
+        return Ok(());
+    }
+
+    let choices: Vec<String> = dirs
+        .iter()
+        .map(|d| d.file_name().to_string_lossy().to_string())
+        .chain(std::iter::once("All".to_string()))
+        .collect();
+
+    let idx = Select::new()
+        .with_prompt("Select server to stop")
+        .items(&choices)
+        .default(0)
+        .interact()?;
+
+    let targets: Vec<_> = if idx == dirs.len() {
+        dirs.iter().collect()
+    } else {
+        vec![&dirs[idx]]
+    };
+
+    for dir in targets {
+        let compose = dir.path().join("docker-compose.yml");
+        output::info(&format!("Stopping {}...", dir.file_name().to_string_lossy()));
+        let status = tokio::process::Command::new("docker")
+            .args(["compose", "-f", &compose.to_string_lossy(), "down"])
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .await
+            .context("Failed to run docker compose")?;
+
+        if status.success() {
+            output::success("Stopped.");
+        } else {
+            output::warn(&format!(
+                "docker compose down failed for {}",
+                dir.file_name().to_string_lossy()
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+const GAMENODE_IMAGE: &str = "ghcr.io/qwizi/zelqor-gateway:latest";
+
+async fn build_gamenode_image() -> Result<()> {
+    output::header("Build Gamenode Docker Image");
+
+    let gateway_dir = find_gateway_dir()?;
+
+    output::info(&format!("Building from {}", gateway_dir.display()));
+    output::info(&format!("Image: {}", GAMENODE_IMAGE));
+
     let status = tokio::process::Command::new("docker")
-        .args(["compose", "down"])
+        .args([
+            "build",
+            "-t",
+            GAMENODE_IMAGE,
+            "-f",
+            &gateway_dir.join("Dockerfile").to_string_lossy(),
+            &gateway_dir.to_string_lossy(),
+        ])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
         .await
-        .context("Failed to run docker compose. Is Docker installed?")?;
+        .context("Failed to run docker build. Is Docker installed?")?;
 
-    if status.success() {
-        output::success("Server container stopped.");
-    } else {
-        bail!("docker compose down failed with exit code {:?}", status.code());
+    if !status.success() {
+        bail!("Docker build failed.");
     }
+
+    output::success(&format!("Image '{}' built.", GAMENODE_IMAGE));
+
+    let push = Confirm::new()
+        .with_prompt("Push image to GHCR?")
+        .default(false)
+        .interact()?;
+
+    if push {
+        output::info("Pushing to GHCR...");
+        let status = tokio::process::Command::new("docker")
+            .args(["push", GAMENODE_IMAGE])
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .await
+            .context("Failed to push image")?;
+
+        if status.success() {
+            output::success("Image pushed to GHCR.");
+        } else {
+            output::warn("Push failed. Run `docker login ghcr.io` first.");
+        }
+    }
+
     Ok(())
 }
 
-fn generate_compose(api_url: &str, client_id: &str, client_secret: &str) -> String {
+/// Find the gateway source directory by walking up from CWD.
+fn find_gateway_dir() -> Result<std::path::PathBuf> {
+    let candidates = [
+        std::path::PathBuf::from("gateway"),
+        std::path::PathBuf::from("../gateway"),
+        std::path::PathBuf::from("../../gateway"),
+    ];
+    for candidate in &candidates {
+        if candidate.join("Dockerfile").exists() {
+            return Ok(candidate.clone());
+        }
+    }
+    bail!(
+        "Could not find gateway/Dockerfile. Run from the Zelqor project root, \
+         or clone the repo: git clone https://github.com/qwizi/zelqor.git"
+    );
+}
+
+fn prompt_credentials() -> Result<(String, String)> {
+    output::info("Provide your Developer App credentials for the gamenode.");
+    let client_id: String = Input::new()
+        .with_prompt("Client ID (from `zelqor app list`)")
+        .interact_text()?;
+    let client_secret: String = Input::new()
+        .with_prompt("Client Secret")
+        .interact_text()?;
+    Ok((client_id, client_secret))
+}
+
+fn generate_compose(gateway_url: &str, client_id: &str, client_secret: &str) -> String {
     format!(
         r#"services:
   zelqor-gamenode:
-    image: ghcr.io/qwizi/zelqor-gateway:latest
+    image: {image}
     command: zelqor-gamenode
     restart: unless-stopped
     environment:
-      GATEWAY_URL: "{api_url}"
-      DJANGO_INTERNAL_URL: "{api_url}"
+      GATEWAY_URL: "{gateway_url}"
       CLIENT_ID: "{client_id}"
       CLIENT_SECRET: "{client_secret}"
       REDIS_URL: "redis://redis:6379/1"
@@ -387,6 +576,7 @@ fn generate_compose(api_url: &str, client_id: &str, client_secret: &str) -> Stri
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-"#
+"#,
+        image = GAMENODE_IMAGE,
     )
 }

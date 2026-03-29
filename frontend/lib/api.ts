@@ -1387,6 +1387,13 @@ export async function oauthAuthorize(data: {
   });
 }
 
+export async function oauthDeviceAuthorize(userCode: string): Promise<void> {
+  return fetchAPI<void>("/oauth/device/authorize/", {
+    method: "POST",
+    body: JSON.stringify({ user_code: userCode }),
+  });
+}
+
 // --- Friends ---
 
 export interface FriendUser {

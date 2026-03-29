@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, BookOpen, CheckCheck, Code, Copy, KeyRound, Plus } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCheck, Code, Copy, KeyRound, Plus, Terminal } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -381,7 +381,16 @@ function DevelopersContent() {
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          <Link href="/developers/cli">
+            <Button
+              variant="outline"
+              className="h-11 shrink-0 gap-2 self-start rounded-full border-white/10 bg-white/[0.04] px-5 font-display uppercase tracking-[0.2em] text-slate-300 hover:bg-white/[0.12] hover:border-white/25 hover:text-zinc-100"
+            >
+              <Terminal className="h-4 w-4" />
+              Zainstaluj CLI
+            </Button>
+          </Link>
           <Link href="/developers/docs">
             <Button
               variant="outline"

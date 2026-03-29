@@ -1,114 +1,139 @@
 use anyhow::{bail, Result};
 use console::style;
-use dialoguer::{Input, Select};
-use tokio::io::AsyncWriteExt;
-use tokio::net::TcpListener;
+use serde::Deserialize;
 
 use crate::api::client::ApiClient;
 use crate::config::{self, AuthConfig};
 use crate::output;
 
-/// OAuth login flow:
-/// 1. User provides client_id and client_secret (from their DeveloperApp)
-/// 2. CLI starts a local HTTP server on a random port
-/// 3. Opens browser to the authorization page with redirect_uri=http://localhost:{port}/callback
-/// 4. User logs in and authorizes
-/// 5. CLI receives the authorization code via the callback
-/// 6. CLI exchanges the code for access + refresh tokens
+#[derive(Deserialize)]
+struct DeviceAuthResponse {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+    expires_in: u64,
+    interval: u64,
+}
+
+#[derive(Deserialize)]
+struct DeviceTokenError {
+    error: Option<String>,
+}
+
+/// OAuth Device Authorization Flow (RFC 8628):
+/// 1. CLI requests a device code from the backend (no client_id needed — uses built-in CLI app)
+/// 2. User opens the verification URL in their browser and enters the code
+/// 3. CLI polls the token endpoint until the user authorizes
 pub async fn login(api_url_override: &Option<String>) -> Result<()> {
     output::header("Zelqor Login");
 
     let cfg = config::load()?;
     let base_url = cfg.effective_api_url(api_url_override);
-    let frontend_url = cfg.effective_frontend_url();
 
-    println!();
-    println!(
-        "  {} You need a Developer App to authenticate.",
-        style("Info:").cyan()
-    );
-    println!(
-        "  {} Create one at {}/developers",
-        style("    ").cyan(),
-        frontend_url
-    );
-    println!();
+    // Step 1: Request device code (no client_id — backend uses built-in CLI app)
+    let sp = output::spinner("Requesting device code...");
+    let http = reqwest::Client::new();
+    let resp = http
+        .post(format!("{}/oauth/device/", base_url))
+        .json(&serde_json::json!({}))
+        .send()
+        .await?;
+    sp.finish_and_clear();
 
-    let client_id: String = Input::new()
-        .with_prompt("Client ID (from your Developer App)")
-        .interact_text()?;
-    let client_id = client_id.trim().to_string();
-    if client_id.is_empty() {
-        bail!("Client ID cannot be empty.");
+    if !resp.status().is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        bail!("Failed to get device code: {}", body);
     }
 
-    let client_secret: String = Input::new()
-        .with_prompt("Client Secret")
-        .interact_text()?;
-    let client_secret = client_secret.trim().to_string();
-    if client_secret.is_empty() {
-        bail!("Client Secret cannot be empty.");
-    }
+    let device: DeviceAuthResponse = resp.json().await?;
 
-    // Start local callback server
-    let listener = TcpListener::bind("127.0.0.1:0").await?;
-    let port = listener.local_addr()?.port();
-    let redirect_uri = format!("http://localhost:{port}/callback");
-
-    // Build authorization URL
-    let auth_url = format!(
-        "{}/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope=user:profile",
-        frontend_url,
-        urlencoding::encode(&client_id),
-        urlencoding::encode(&redirect_uri),
-    );
-
-    output::info(&format!("Opening browser to authorize..."));
+    // Step 2: Show the code to the user
     println!();
-    println!("  {}", style(&auth_url).dim().underlined());
+    println!(
+        "  {} Open this URL in your browser:",
+        style("→").cyan().bold()
+    );
+    println!();
+    println!(
+        "    {}",
+        style(&device.verification_uri).underlined().bold()
+    );
+    println!();
+    println!(
+        "  {} Enter this code:  {}",
+        style("→").cyan().bold(),
+        style(&device.user_code).bold().yellow()
+    );
     println!();
 
     // Try to open browser
-    if open::that(&auth_url).is_err() {
-        output::warn("Could not open browser. Please open the URL above manually.");
+    let url_with_code = format!("{}?code={}", device.verification_uri, device.user_code);
+    if open::that(&url_with_code).is_err() {
+        output::info("Could not open browser automatically. Open the URL manually.");
     }
 
-    output::info("Waiting for authorization callback...");
+    // Step 3: Poll for authorization
+    let sp = output::spinner("Waiting for authorization...");
+    let poll_interval = std::time::Duration::from_secs(device.interval.max(3));
+    let deadline =
+        std::time::Instant::now() + std::time::Duration::from_secs(device.expires_in);
 
-    // Wait for the callback with the authorization code
-    let code = wait_for_callback(listener).await?;
+    let token_resp = loop {
+        tokio::time::sleep(poll_interval).await;
 
-    // Exchange code for tokens
-    let sp = output::spinner("Exchanging authorization code for tokens...");
-    let token_resp = ApiClient::exchange_code(
-        &base_url,
-        &client_id,
-        &client_secret,
-        &code,
-        &redirect_uri,
-    )
-    .await;
+        if std::time::Instant::now() > deadline {
+            sp.finish_and_clear();
+            bail!("Device code expired. Run `zelqor login` again.");
+        }
+
+        let resp = http
+            .post(format!("{}/oauth/token/", base_url))
+            .json(&serde_json::json!({
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                "device_code": device.device_code,
+            }))
+            .send()
+            .await?;
+
+        if resp.status().is_success() {
+            let tokens: crate::api::models::TokenResponse = resp.json().await?;
+            break tokens;
+        }
+
+        // Check if it's a pending or expired error
+        let body = resp.text().await.unwrap_or_default();
+        if let Ok(err) = serde_json::from_str::<DeviceTokenError>(&body) {
+            match err.error.as_deref() {
+                Some("authorization_pending") => continue,
+                Some("expired_token") => {
+                    sp.finish_and_clear();
+                    bail!("Device code expired. Run `zelqor login` again.");
+                }
+                Some(other) => {
+                    sp.finish_and_clear();
+                    bail!("Authorization failed: {}", other);
+                }
+                None => continue,
+            }
+        }
+    };
     sp.finish_and_clear();
 
-    let token_resp = match token_resp {
-        Ok(t) => t,
-        Err(e) => bail!("Token exchange failed: {}", e),
-    };
+    output::success("Authorized!");
 
-    // Validate the token works
-    let sp = output::spinner("Validating session...");
+    // Step 4: Optionally select a developer app
+    let sp = output::spinner("Fetching your apps...");
     let client = ApiClient::new(&base_url, Some(&token_resp.access_token));
     let apps = client.list_apps().await.unwrap_or_default();
     sp.finish_and_clear();
 
-    // Optionally select an app
     let app_id = if !apps.is_empty() {
         let mut choices: Vec<String> = apps
             .iter()
             .map(|a| format!("{} ({})", a.name, &a.id[..8]))
             .collect();
         choices.push("Skip".to_string());
-        let idx = Select::new()
+        let idx = dialoguer::Select::new()
             .with_prompt("Associate with a developer app?")
             .items(&choices)
             .default(0)
@@ -122,13 +147,11 @@ pub async fn login(api_url_override: &Option<String>) -> Result<()> {
         None
     };
 
-    // Save config
+    // Step 5: Save config
     let mut cfg = config::load()?;
     cfg.auth = Some(AuthConfig {
         access_token: token_resp.access_token,
         refresh_token: token_resp.refresh_token,
-        client_id,
-        client_secret,
         app_id,
     });
     if let Some(url) = api_url_override {
@@ -136,67 +159,11 @@ pub async fn login(api_url_override: &Option<String>) -> Result<()> {
     }
     config::save(&cfg)?;
 
-    output::success("Authenticated successfully!");
+    output::success("Logged in successfully!");
     if let Some(path) = config::config_path().ok() {
         output::info(&format!("Config saved to {}", path.display()));
     }
     Ok(())
-}
-
-/// Wait for the OAuth callback on the local TCP listener.
-/// Parses the `code` query parameter from the request.
-async fn wait_for_callback(listener: TcpListener) -> Result<String> {
-    let (mut stream, _) = listener.accept().await?;
-
-    // Read the HTTP request
-    let mut buf = vec![0u8; 4096];
-    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf).await?;
-    let request = String::from_utf8_lossy(&buf[..n]);
-
-    // Parse the GET request line for the code parameter
-    let first_line = request.lines().next().unwrap_or("");
-    let path = first_line.split_whitespace().nth(1).unwrap_or("");
-
-    let code = url_param(path, "code");
-
-    // Send a nice HTML response
-    let (status, body) = if code.is_some() {
-        (
-            "200 OK",
-            "<html><body style='font-family:system-ui;text-align:center;padding:60px'>\
-             <h1 style='color:#22d3ee'>&#10003; Authorized!</h1>\
-             <p>You can close this tab and return to the terminal.</p>\
-             </body></html>",
-        )
-    } else {
-        (
-            "400 Bad Request",
-            "<html><body style='font-family:system-ui;text-align:center;padding:60px'>\
-             <h1 style='color:#ef4444'>Authorization Failed</h1>\
-             <p>No authorization code received. Please try again.</p>\
-             </body></html>",
-        )
-    };
-
-    let response = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n{body}"
-    );
-    stream.write_all(response.as_bytes()).await?;
-    stream.shutdown().await?;
-
-    code.ok_or_else(|| anyhow::anyhow!("No authorization code received in callback"))
-}
-
-/// Extract a query parameter from a URL path like /callback?code=abc&state=xyz
-fn url_param(path: &str, key: &str) -> Option<String> {
-    let query = path.split('?').nth(1)?;
-    for pair in query.split('&') {
-        let mut parts = pair.splitn(2, '=');
-        if parts.next()? == key {
-            return parts.next().map(|v| urlencoding::decode(v).unwrap_or_default().into_owned());
-        }
-    }
-    None
 }
 
 pub async fn logout() -> Result<()> {
@@ -228,7 +195,6 @@ pub async fn whoami(api_url_override: &Option<String>) -> Result<()> {
     output::header("Current Session");
     output::print_kv(&[
         ("API URL", base_url),
-        ("Client ID", auth.client_id.clone()),
         (
             "App ID",
             auth.app_id

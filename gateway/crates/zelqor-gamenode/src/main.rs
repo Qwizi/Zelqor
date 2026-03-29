@@ -5,8 +5,19 @@ use config::NodeConfig;
 use futures_util::{SinkExt, StreamExt};
 use match_runner::{MatchCommand, MatchResult, MatchRunner};
 use serde::Deserialize;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
+
+/// Shared state pushed by the gateway to this gamenode.
+#[derive(Default)]
+struct NodeState {
+    /// Region adjacency map (pushed once on registration).
+    neighbor_map: RwLock<Option<serde_json::Value>>,
+    /// System module states (pushed periodically).
+    system_modules: RwLock<Option<serde_json::Value>>,
+    /// Match regions keyed by match_id (pushed after each StartMatch).
+    match_regions: dashmap::DashMap<String, serde_json::Value>,
+}
 use tokio::time::{interval, Duration};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
@@ -173,8 +184,9 @@ async fn run_connection(cfg: &NodeConfig, http_client: &reqwest::Client) {
         "Sent Register to gateway"
     );
 
-    // 4. Create the match runner and a channel for match results.
+    // 4. Create the match runner, shared state, and a channel for match results.
     let match_runner = MatchRunner::new();
+    let node_state = Arc::new(NodeState::default());
     let (result_tx, mut result_rx) = mpsc::unbounded_channel::<MatchResult>();
 
     // 5. Spawn heartbeat task — sends HeartbeatAck every 10 seconds.
@@ -250,7 +262,7 @@ async fn run_connection(cfg: &NodeConfig, http_client: &reqwest::Client) {
             maybe_msg = ws_source.next() => {
                 match maybe_msg {
                     Some(Ok(Message::Text(text))) => {
-                        handle_gateway_message(&text, &match_runner, &result_tx);
+                        handle_gateway_message(&text, &match_runner, &result_tx, &node_state);
                     }
                     Some(Ok(Message::Ping(data))) => {
                         // Respond to ping frames.
@@ -285,6 +297,7 @@ fn handle_gateway_message(
     text: &str,
     match_runner: &MatchRunner,
     result_tx: &mpsc::UnboundedSender<MatchResult>,
+    node_state: &Arc<NodeState>,
 ) {
     let msg: GatewayToNode = match serde_json::from_str(text) {
         Ok(m) => m,
@@ -334,6 +347,18 @@ fn handle_gateway_message(
             info!("Received Heartbeat ping from gateway");
             // The periodic HeartbeatAck is handled by the heartbeat task; this
             // handles an explicit ping if the gateway sends one outside the interval.
+        }
+        GatewayToNode::MatchRegions { match_id, regions } => {
+            tracing::debug!(match_id = %match_id, "Caching match regions from gateway");
+            node_state.match_regions.insert(match_id, regions);
+        }
+        GatewayToNode::NeighborMap { neighbors } => {
+            tracing::debug!("Caching neighbor map from gateway");
+            *node_state.neighbor_map.write().unwrap() = Some(neighbors);
+        }
+        GatewayToNode::SystemModules { modules } => {
+            tracing::debug!("Caching system modules from gateway");
+            *node_state.system_modules.write().unwrap() = Some(modules);
         }
     }
 }

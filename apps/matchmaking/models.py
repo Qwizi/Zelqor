@@ -37,6 +37,14 @@ class Match(models.Model):
         related_name="won_matches",
     )
     settings_snapshot = models.JSONField(default=dict, blank=True, help_text="Snapshot of GameSettings at match start")
+    server = models.ForeignKey(
+        "developers.CommunityServer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="matches",
+        help_text="Gamenode server that ran this match (null = legacy inline)",
+    )
     is_tutorial = models.BooleanField(default=False)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)

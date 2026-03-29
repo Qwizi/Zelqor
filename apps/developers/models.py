@@ -57,6 +57,29 @@ class DeveloperApp(models.Model):
     def __str__(self):
         return self.name
 
+    # ------------------------------------------------------------------
+    # First-party CLI app (singleton)
+    # ------------------------------------------------------------------
+
+    CLI_CLIENT_ID = "zq_cli"
+
+    @classmethod
+    def get_cli_app(cls) -> "DeveloperApp":
+        """Return the built-in Zelqor CLI app, creating it on first call."""
+        from apps.accounts.models import User
+
+        app, created = cls.objects.get_or_create(
+            client_id=cls.CLI_CLIENT_ID,
+            defaults={
+                "name": "Zelqor CLI",
+                "description": "Built-in first-party CLI application.",
+                "client_secret_hash": "cli-no-secret",
+                "owner": User.objects.filter(is_superuser=True).first() or User.objects.first(),
+                "is_active": True,
+            },
+        )
+        return app
+
 
 class APIKey(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -200,6 +223,34 @@ class OAuthAccessToken(models.Model):
 
     def __str__(self):
         return f"AccessToken({self.app.name}, {self.user}, revoked={self.is_revoked})"
+
+
+class DeviceAuthorizationCode(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    app = models.ForeignKey(DeveloperApp, on_delete=models.CASCADE, related_name="device_codes")
+    device_code = models.CharField(max_length=64, unique=True, db_index=True)
+    user_code = models.CharField(max_length=10, unique=True, db_index=True)
+    scopes = models.JSONField(default=list)
+    is_authorized = models.BooleanField(default=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="device_authorizations",
+    )
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"DeviceCode({self.app.name}, {self.user_code}, authorized={self.is_authorized})"
 
 
 class CommunityServer(models.Model):
