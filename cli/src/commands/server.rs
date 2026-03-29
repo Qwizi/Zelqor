@@ -396,7 +396,7 @@ async fn start_server(api_url_override: &Option<String>) -> Result<()> {
 
     output::info("Starting server container...");
     let status = tokio::process::Command::new("docker")
-        .args(["compose", "-f", &compose_path.to_string_lossy(), "up", "-d"])
+        .args(["compose", "-f", &compose_path.to_string_lossy(), "up", "-d", "--pull", "always"])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
