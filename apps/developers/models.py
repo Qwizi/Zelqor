@@ -45,7 +45,7 @@ class DeveloperApp(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.client_id:
-            self.client_id = "ml_" + secrets.token_hex(16)
+            self.client_id = "zq_" + secrets.token_hex(16)
         super().save(*args, **kwargs)
 
     @classmethod
@@ -75,7 +75,7 @@ class APIKey(models.Model):
 
     @classmethod
     def generate_key(cls) -> tuple[str, str, str]:
-        raw_key = "ml_" + secrets.token_urlsafe(48)
+        raw_key = "zq_" + secrets.token_urlsafe(48)
         prefix = raw_key[:12]
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         return raw_key, prefix, key_hash
