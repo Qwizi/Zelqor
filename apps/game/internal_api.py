@@ -479,10 +479,17 @@ class GameInternalController(ControllerBase):
 
         from apps.developers.models import CommunityServer
 
-        # Try by CommunityServer UUID first, then by app client_id.
-        server = CommunityServer.objects.filter(id=server_id).first()
+        # Try by app client_id first (gamenode sends its OAuth client_id),
+        # then fall back to CommunityServer UUID.
+        server = CommunityServer.objects.filter(app__client_id=server_id).first()
         if server is None:
-            server = CommunityServer.objects.filter(app__client_id=server_id).first()
+            try:
+                import uuid as _uuid
+
+                _uuid.UUID(server_id)  # validate before querying
+                server = CommunityServer.objects.filter(id=server_id).first()
+            except ValueError:
+                pass
         if server is None:
             return self.create_response({"error": "Server not found"}, status_code=404)
 
