@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("game_config", "0001_initial"),
-        ("geo", "0001_initial"),
+        ("geo", "0001_squashed_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
