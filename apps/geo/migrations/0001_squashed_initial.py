@@ -1,12 +1,8 @@
 """
-Squashed migration replacing 0001–0004.
+Initial geo migration (consolidated from 0001–0004).
 
-On production databases where 0001–0004 are already applied, Django sees
-the `replaces` list and marks this migration as applied automatically —
-no manual fake-migrate needed.
-
-On fresh databases this creates the final schema directly (JSONField,
-no PostGIS dependency).
+Creates Country and Region models with JSONField geometry
+(no PostGIS dependency).
 """
 
 import uuid
@@ -17,13 +13,6 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     initial = True
-
-    replaces = [
-        ("geo", "0001_initial"),
-        ("geo", "0002_region_map_source_id_region_sea_distances"),
-        ("geo", "0003_region_game_map_fields"),
-        ("geo", "0004_remove_postgis_fields"),
-    ]
 
     dependencies = []
 
