@@ -981,6 +981,39 @@ export async function getAvailableEvents(token: string): Promise<AvailableEvents
   return fetchAPI<AvailableEvents>("/developers/events/", { token });
 }
 
+// --- Community Servers ---
+
+export interface CommunityServer {
+  id: string;
+  name: string;
+  description: string;
+  region: string;
+  max_players: number;
+  is_public: boolean;
+  status: "online" | "offline" | "maintenance";
+  last_heartbeat: string | null;
+  server_version: string;
+  is_verified: boolean;
+  created_at: string;
+}
+
+export async function getPublicServers(region?: string): Promise<CommunityServer[]> {
+  const params = region ? `?region=${region}` : "";
+  return fetchAPI<CommunityServer[]>(`/servers/${params}`);
+}
+
+export async function getServer(id: string): Promise<CommunityServer> {
+  return fetchAPI<CommunityServer>(`/servers/${id}/`);
+}
+
+export async function getDeveloperServers(token: string, appId: string): Promise<PaginatedResponse<CommunityServer>> {
+  return fetchPaginated<CommunityServer>(`/developers/apps/${appId}/servers/`, { token });
+}
+
+export async function deleteDeveloperServer(token: string, appId: string, serverId: string): Promise<void> {
+  await fetchAPI(`/developers/apps/${appId}/servers/${serverId}/`, { method: "DELETE", token });
+}
+
 // --- Inventory ---
 
 export interface ItemOut {

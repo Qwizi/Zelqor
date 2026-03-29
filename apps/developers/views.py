@@ -16,6 +16,7 @@ from apps.developers.models import (
     APIKey,
     CommunityServer,
     DeveloperApp,
+    Plugin,
     Webhook,
     WebhookDelivery,
 )
@@ -33,6 +34,9 @@ from apps.developers.schemas import (
     DeveloperAppCreateSchema,
     DeveloperAppOutSchema,
     DeveloperAppUpdateSchema,
+    PluginCreateSchema,
+    PluginListSchema,
+    PluginOutSchema,
     UsageStatsSchema,
     WebhookCreateSchema,
     WebhookDeliveryOutSchema,
@@ -401,6 +405,31 @@ class DeveloperController:
         return {"ok": True}
 
     # -------------------------------------------------------------------------
+    # Plugins CRUD
+    # -------------------------------------------------------------------------
+
+    @route.post("/apps/{app_id}/plugins/", response=PluginOutSchema)
+    def create_plugin(self, request, app_id: uuid.UUID, payload: PluginCreateSchema):
+        """Create a new plugin for a developer app."""
+        app = self._get_app(request, app_id)
+        plugin = Plugin.objects.create(
+            app=app,
+            name=payload.name,
+            slug=payload.slug,
+            description=payload.description,
+            version="0.1.0",
+            hooks=payload.hooks,
+        )
+        return PluginOutSchema.from_orm(plugin)
+
+    @route.get("/apps/{app_id}/plugins/", response=dict)
+    def list_plugins(self, request, app_id: uuid.UUID, limit: int = 50, offset: int = 0):
+        """List all plugins for a developer app."""
+        app = self._get_app(request, app_id)
+        qs = app.plugins.order_by("-created_at")
+        return paginate_qs(qs, limit, offset, schema=PluginOutSchema)
+
+    # -------------------------------------------------------------------------
     # Meta listings
     # -------------------------------------------------------------------------
 
@@ -413,6 +442,25 @@ class DeveloperController:
     def list_events(self, request):
         """Return all valid webhook event types."""
         return AvailableEventsSchema(events=VALID_EVENTS)
+
+
+@api_controller("/plugins", tags=["Plugins"], auth=None)
+@require_module_controller("developers")
+class PluginController:
+    @route.get("/", response=dict)
+    def list_published_plugins(self, request, limit: int = 50, offset: int = 0):
+        """List all published and approved plugins."""
+        qs = Plugin.objects.filter(is_published=True, is_approved=True).select_related("app")
+        return paginate_qs(qs, limit, offset, schema=PluginListSchema)
+
+    @route.get("/{slug}/", response=PluginOutSchema)
+    def get_plugin(self, request, slug: str):
+        """Get details for a specific published plugin."""
+        try:
+            plugin = Plugin.objects.get(slug=slug, is_published=True, is_approved=True)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, "Not found") from None
+        return PluginOutSchema.from_orm(plugin)
 
 
 @api_controller("/servers", tags=["Community Servers"], auth=None)

@@ -8,6 +8,8 @@ from apps.developers.models import (
     DeveloperApp,
     OAuthAccessToken,
     OAuthAuthorizationCode,
+    Plugin,
+    PluginVersion,
     Webhook,
     WebhookDelivery,
 )
@@ -92,6 +94,49 @@ class CommunityServerAdmin(ModelAdmin):
     @display(description="Status", label=True)
     def display_status(self, obj):
         return obj.status.upper()
+
+
+class PluginVersionInline(TabularInline):
+    model = PluginVersion
+    extra = 0
+    max_num = 20
+    readonly_fields = ("id", "version", "wasm_hash", "changelog", "created_at")
+
+
+@admin.register(Plugin)
+class PluginAdmin(ModelAdmin):
+    list_display = (
+        "name",
+        "app",
+        "slug",
+        "version",
+        "display_published",
+        "display_approved",
+        "download_count",
+        "created_at",
+    )
+    list_filter = ("is_published", "is_approved")
+    list_filter_submit = True
+    list_fullwidth = True
+    search_fields = ("name", "slug", "app__name")
+    readonly_fields = ("id", "wasm_hash", "download_count", "created_at", "updated_at")
+    inlines = [PluginVersionInline]
+
+    @display(description="Published", label=True)
+    def display_published(self, obj):
+        return "PUBLISHED" if obj.is_published else "DRAFT"
+
+    @display(description="Approved", label=True)
+    def display_approved(self, obj):
+        return "APPROVED" if obj.is_approved else "PENDING"
+
+
+@admin.register(PluginVersion)
+class PluginVersionAdmin(ModelAdmin):
+    list_display = ("plugin", "version", "wasm_hash", "created_at")
+    list_fullwidth = True
+    readonly_fields = ("id", "wasm_hash", "created_at")
+    search_fields = ("plugin__name", "version")
 
 
 @admin.register(OAuthAuthorizationCode)

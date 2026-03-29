@@ -1,6 +1,7 @@
 use dashmap::DashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use zelqor_plugins::{ActionVerdict, PlayerAction, PluginManager, TickContext};
 
 /// Commands sent from the main connection loop into a running match task.
 pub enum MatchCommand {
@@ -45,12 +46,23 @@ pub enum MatchResult {
 pub struct MatchRunner {
     /// match_id → sender for forwarding commands into the match task.
     matches: Arc<DashMap<String, mpsc::UnboundedSender<MatchCommand>>>,
+    /// Shared plugin manager applied to every match on this node.
+    plugins: Arc<PluginManager>,
 }
 
 impl MatchRunner {
     pub fn new() -> Self {
         Self {
             matches: Arc::new(DashMap::new()),
+            plugins: Arc::new(PluginManager::new()),
+        }
+    }
+
+    /// Create a MatchRunner with a pre-configured PluginManager.
+    pub fn with_plugins(plugins: PluginManager) -> Self {
+        Self {
+            matches: Arc::new(DashMap::new()),
+            plugins: Arc::new(plugins),
         }
     }
 
@@ -68,9 +80,24 @@ impl MatchRunner {
         self.matches.insert(match_id.clone(), cmd_tx);
 
         let matches = self.matches.clone();
+        let plugins = self.plugins.clone();
+
         tokio::spawn(async move {
             tracing::info!(match_id = %match_id, "Match started");
-            let _ = match_data; // will be used when zelqor-engine is wired in
+
+            // Extract player IDs from match_data if available.
+            let player_ids: Vec<String> = match_data
+                .get("players")
+                .and_then(|p| p.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            // Notify plugins that the match has started.
+            plugins.on_match_start(&match_id, &player_ids);
 
             // Run game loop at 1 tick per second.
             let mut tick: u64 = 0;
@@ -81,12 +108,24 @@ impl MatchRunner {
                 tokio::select! {
                     _ = ticker.tick() => {
                         tick += 1;
+
+                        // Dispatch on_tick to all plugins.
+                        let tick_ctx = TickContext {
+                            tick,
+                            player_count: player_ids.len() as u32,
+                            match_id: match_id.clone(),
+                        };
+                        let plugin_events = plugins.on_tick(&tick_ctx);
+
                         // Engine tick processing goes here using zelqor_engine.
-                        // For now send a minimal tick result back to the gateway.
-                        let tick_data = serde_json::json!({
+                        let mut tick_data = serde_json::json!({
                             "tick": tick,
                             "match_id": match_id,
                         });
+                        if !plugin_events.is_empty() {
+                            tick_data["plugin_events"] = serde_json::json!(plugin_events);
+                        }
+
                         let _ = result_tx.send(MatchResult::Tick {
                             match_id: match_id.clone(),
                             tick,
@@ -96,13 +135,34 @@ impl MatchRunner {
                     Some(cmd) = cmd_rx.recv() => {
                         match cmd {
                             MatchCommand::PlayerAction { user_id, action } => {
-                                tracing::debug!(
-                                    match_id = %match_id,
-                                    user_id = %user_id,
-                                    "Processing action"
-                                );
-                                // Engine would process the action here.
-                                let _ = action;
+                                // Ask plugins whether this action is allowed.
+                                let plugin_action = PlayerAction {
+                                    user_id: user_id.clone(),
+                                    action_type: action
+                                        .get("type")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("unknown")
+                                        .to_string(),
+                                    payload: action.to_string(),
+                                };
+
+                                match plugins.on_player_action(&plugin_action) {
+                                    ActionVerdict::Deny => {
+                                        tracing::debug!(
+                                            match_id = %match_id,
+                                            user_id = %user_id,
+                                            "Player action denied by plugin"
+                                        );
+                                    }
+                                    ActionVerdict::Allow => {
+                                        tracing::debug!(
+                                            match_id = %match_id,
+                                            user_id = %user_id,
+                                            "Processing action"
+                                        );
+                                        // Engine would process the action here.
+                                    }
+                                }
                             }
                             MatchCommand::PlayerConnect { user_id } => {
                                 tracing::info!(
@@ -127,6 +187,9 @@ impl MatchRunner {
                 }
             }
 
+            // Notify plugins that the match has ended.
+            plugins.on_match_end(&match_id, None);
+
             matches.remove(&match_id);
             tracing::info!(match_id = %match_id, tick, "Match ended after {tick} ticks");
         });
@@ -148,5 +211,11 @@ impl MatchRunner {
     /// Number of currently active matches.
     pub fn active_count(&self) -> u32 {
         self.matches.len() as u32
+    }
+}
+
+impl Default for MatchRunner {
+    fn default() -> Self {
+        Self::new()
     }
 }

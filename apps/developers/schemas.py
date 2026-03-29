@@ -333,3 +333,69 @@ class CommunityServerListSchema(Schema):
             max_players=obj.max_players,
             is_verified=obj.is_verified,
         )
+
+
+# === Plugin Schemas ===
+
+
+class PluginCreateSchema(Schema):
+    name: str
+    slug: str
+    description: str = ""
+    hooks: list[str] = []
+
+
+class PluginOutSchema(Schema):
+    id: str
+    name: str
+    slug: str
+    description: str
+    version: str
+    hooks: list[str]
+    is_published: bool
+    is_approved: bool
+    download_count: int
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm(cls, obj):
+        return cls(
+            id=str(obj.id),
+            name=obj.name,
+            slug=obj.slug,
+            description=obj.description,
+            version=obj.version,
+            hooks=obj.hooks,
+            is_published=obj.is_published,
+            is_approved=obj.is_approved,
+            download_count=obj.download_count,
+            created_at=obj.created_at.isoformat(),
+        )
+
+
+class PluginListSchema(Schema):
+    id: str
+    name: str
+    slug: str
+    version: str
+    hooks: list[str]
+    is_approved: bool
+    download_count: int
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm(cls, obj):
+        return cls(
+            id=str(obj.id),
+            name=obj.name,
+            slug=obj.slug,
+            version=obj.version,
+            hooks=obj.hooks,
+            is_approved=obj.is_approved,
+            download_count=obj.download_count,
+        )

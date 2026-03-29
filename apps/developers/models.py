@@ -25,6 +25,7 @@ VALID_SCOPES = [
     "webhooks:manage",
     "user:profile",
     "server:connect",
+    "plugins:manage",
 ]
 
 
@@ -227,3 +228,43 @@ class CommunityServer(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.region})"
+
+
+class Plugin(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    app = models.ForeignKey(DeveloperApp, on_delete=models.CASCADE, related_name="plugins")
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(unique=True)
+    description = models.TextField(blank=True)
+    version = models.CharField(max_length=50)
+    wasm_blob = models.FileField(upload_to="plugins/", blank=True)
+    wasm_hash = models.CharField(max_length=128, blank=True)
+    hooks = models.JSONField(default=list)
+    is_published = models.BooleanField(default=False)
+    is_approved = models.BooleanField(default=False)
+    download_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} v{self.version}"
+
+
+class PluginVersion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    plugin = models.ForeignKey(Plugin, on_delete=models.CASCADE, related_name="versions")
+    version = models.CharField(max_length=50)
+    wasm_blob = models.FileField(upload_to="plugins/versions/")
+    wasm_hash = models.CharField(max_length=128)
+    changelog = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = [("plugin", "version")]
+
+    def __str__(self):
+        return f"{self.plugin.name} v{self.version}"

@@ -13,6 +13,7 @@ zelqor-engine = { path = "../zelqor-engine" }
 zelqor-state = { path = "../zelqor-state" }
 zelqor-ai = { path = "../zelqor-ai" }
 zelqor-anticheat = { path = "../zelqor-anticheat" }
+zelqor-plugins = { path = "../zelqor-plugins" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

@@ -1,0 +1,39 @@
+package zelqor:plugin@0.1.0;
+
+interface game-hooks {
+    record tick-context {
+        tick: u64,
+        player-count: u32,
+        match-id: string,
+    }
+    record combat-event {
+        attacker-region: string,
+        defender-region: string,
+        attacker-units: u32,
+        defender-units: u32,
+    }
+    record player-action {
+        user-id: string,
+        action-type: string,
+        payload: string,
+    }
+
+    on-tick: func(ctx: tick-context) -> list<string>;
+    on-combat: func(event: combat-event) -> option<combat-event>;
+    on-player-action: func(action: player-action) -> bool;
+    on-match-start: func(match-id: string, player-ids: list<string>);
+    on-match-end: func(match-id: string, winner-id: option<string>);
+}
+
+interface plugin-api {
+    log: func(level: string, message: string);
+    get-region-data: func(region-id: string) -> string;
+    get-player-data: func(user-id: string) -> string;
+    send-event: func(event-type: string, payload: string);
+    get-config: func(key: string) -> option<string>;
+}
+
+world zelqor-plugin {
+    import plugin-api;
+    export game-hooks;
+}
