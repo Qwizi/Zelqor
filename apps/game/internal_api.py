@@ -453,7 +453,7 @@ class GameInternalController(ControllerBase):
         cache.set(cache_key, result, timeout=86400)  # 24h — immutable after import
         return result
 
-    @route.get("/system-modules/")
+    @route.get("/game/system-modules/")
     def get_system_modules(self, request):
         """Return system module states for the gateway. Cached 60s."""
         if not check_internal_secret(request):
@@ -543,7 +543,15 @@ class GameInternalController(ControllerBase):
         except Match.DoesNotExist:
             return self.create_response({"error": "Match not found"}, status_code=404)
 
-        server = CommunityServer.objects.filter(id=body.server_id).first()
+        server = CommunityServer.objects.filter(app__client_id=body.server_id).first()
+        if server is None:
+            try:
+                import uuid as _uuid
+
+                _uuid.UUID(body.server_id)
+                server = CommunityServer.objects.filter(id=body.server_id).first()
+            except ValueError:
+                pass
         if server is None:
             return self.create_response({"error": "Server not found"}, status_code=404)
 
