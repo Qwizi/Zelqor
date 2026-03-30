@@ -531,6 +531,38 @@ JWT_COOKIE_DOMAIN = config("COOKIE_DOMAIN", default=None)  # None = current doma
 # Outbox pattern — set to False to use legacy synchronous side-effect handling
 OUTBOX_ENABLED = config("OUTBOX_ENABLED", default=True, cast=bool)
 
+# ---------------------------------------------------------------------------
+# Logging — ensure Django errors are visible in container logs (stdout/stderr)
+# ---------------------------------------------------------------------------
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{asctime}] {levelname} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+        "django.server": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}
+
 # Production safety checks — insecure defaults must never reach a production deployment.
 if not DEBUG and SECRET_KEY.startswith("django-insecure"):
     raise ImproperlyConfigured("SECRET_KEY must be set to a secure value in production (DEBUG=False)")

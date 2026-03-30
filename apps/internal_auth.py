@@ -54,9 +54,9 @@ def _verify_hmac(request, sig_header):
     if abs(time.time() - ts) > 30:
         return False
 
-    # Build signed message
+    # Build signed message (use full path including query string to match gateway signing)
     method = request.method
-    path = request.path
+    path = request.get_full_path()
     body = request.body or b""
     body_hash = hashlib.sha256(body).hexdigest()
     message = f"{ts}.{method}.{path}.{body_hash}"

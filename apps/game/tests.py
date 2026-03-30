@@ -1759,7 +1759,7 @@ def test_get_system_modules_success(internal_api):
         enabled=True,
         config={"some_key": "value"},
     )
-    resp = client.get("/api/v1/internal/system-modules/", headers=_auth())
+    resp = client.get("/api/v1/internal/game/system-modules/", headers=_auth())
     assert resp.status_code == 200
     data = resp.json()
     assert "test-gateway-mod" in data
@@ -1777,7 +1777,7 @@ def test_get_system_modules_excludes_non_gateway(internal_api):
         affects_gateway=False,
         enabled=True,
     )
-    resp = client.get("/api/v1/internal/system-modules/", headers=_auth())
+    resp = client.get("/api/v1/internal/game/system-modules/", headers=_auth())
     assert resp.status_code == 200
     data = resp.json()
     assert "backend-only-mod" not in data
@@ -1787,7 +1787,7 @@ def test_get_system_modules_excludes_non_gateway(internal_api):
 def test_get_system_modules_wrong_secret_returns_403(internal_api):
     client, _, _, _ = internal_api
     resp = client.get(
-        "/api/v1/internal/system-modules/",
+        "/api/v1/internal/game/system-modules/",
         headers={"X-Internal-Secret": WRONG_SECRET},
     )
     assert resp.status_code == 403
