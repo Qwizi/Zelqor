@@ -1,13 +1,31 @@
 "use client";
 
-import { ArrowLeft, Calendar, Globe, Server, Shield, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  Globe,
+  Lock,
+  MessageSquare,
+  Puzzle,
+  Server,
+  Shield,
+  Swords,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type CommunityServer, getServer } from "@/lib/api";
+import {
+  type CommunityServer,
+  type CustomGameMode,
+  type ServerPlugin,
+  getServer,
+  getServerGameModes,
+  getServerPlugins,
+} from "@/lib/api";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -105,6 +123,8 @@ function ServerDetailSkeleton() {
 export default function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [server, setServer] = useState<CommunityServer | null>(null);
+  const [plugins, setPlugins] = useState<ServerPlugin[]>([]);
+  const [gameModes, setGameModes] = useState<CustomGameMode[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -112,7 +132,12 @@ export default function ServerDetailPage() {
     if (!id) return;
     setLoading(true);
     getServer(id)
-      .then(setServer)
+      .then((s) => {
+        setServer(s);
+        // Load supplementary data; ignore errors (optional sections)
+        getServerPlugins(id).then(setPlugins).catch(() => {});
+        getServerGameModes(id).then(setGameModes).catch(() => {});
+      })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [id]);
@@ -190,10 +215,30 @@ export default function ServerDetailPage() {
         </Button>
       </div>
 
+      {/* ── MOTD ─────────────────────────────────────────────── */}
+      {server.motd && (
+        <div className="rounded-xl border border-cyan-300/10 bg-cyan-500/[0.04] px-4 py-3">
+          <div className="mb-1 flex items-center gap-1.5">
+            <MessageSquare className="h-3.5 w-3.5 text-cyan-400" />
+            <span className="text-[10px] uppercase tracking-[0.18em] text-cyan-400">Wiadomosc serwera</span>
+          </div>
+          <p className="text-sm leading-relaxed text-slate-300">{server.motd}</p>
+        </div>
+      )}
+
       {/* ── Detail grid ──────────────────────────────────────── */}
       <div className="grid gap-3 sm:grid-cols-2">
         <DetailRow icon={<Globe className="h-4 w-4" />} label="Region" value={server.region} />
-        <DetailRow icon={<Users className="h-4 w-4" />} label="Maks. graczy" value={String(server.max_players)} />
+        <DetailRow
+          icon={<Users className="h-4 w-4" />}
+          label="Gracze"
+          value={`${server.current_player_count ?? 0} / ${server.max_players}`}
+        />
+        <DetailRow
+          icon={<Swords className="h-4 w-4" />}
+          label="Aktywne mecze"
+          value={`${server.current_match_count ?? 0} / ${server.max_concurrent_matches ?? "—"}`}
+        />
         <DetailRow
           icon={<Server className="h-4 w-4" />}
           label="Wersja serwera"
@@ -201,7 +246,7 @@ export default function ServerDetailPage() {
         />
         <DetailRow
           icon={<Calendar className="h-4 w-4" />}
-          label="Ostatni sygnał"
+          label="Ostatni sygnal"
           value={formatHeartbeat(server.last_heartbeat)}
         />
         <DetailRow
@@ -214,7 +259,106 @@ export default function ServerDetailPage() {
           label="Widocznosc"
           value={server.is_public ? "Publiczny" : "Prywatny"}
         />
+        <DetailRow
+          icon={<Lock className="h-4 w-4" />}
+          label="Haslo"
+          value={server.has_password ? "Wymagane" : "Brak"}
+        />
       </div>
+
+      {/* ── Tags ─────────────────────────────────────────────── */}
+      {(server.tags ?? []).length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Tagi</div>
+          <div className="flex flex-wrap gap-1.5">
+            {server.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-xs text-slate-300"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Installed plugins ────────────────────────────────── */}
+      {plugins.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Puzzle className="h-4 w-4 text-slate-400" />
+            <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Zainstalowane pluginy</div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {plugins.map((plugin) => (
+              <Link
+                key={plugin.id}
+                href={`/plugins/${plugin.plugin_slug}`}
+                className="group flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3 transition-all hover:border-white/20 hover:bg-white/[0.06]"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm text-zinc-200 transition-colors group-hover:text-cyan-200">
+                    {plugin.plugin_name}
+                  </div>
+                  <div className="mt-0.5 font-mono text-xs text-slate-500">v{plugin.plugin_version}</div>
+                </div>
+                <Badge
+                  className={`ml-3 shrink-0 border-0 text-[10px] uppercase tracking-[0.14em] ${
+                    plugin.is_enabled
+                      ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/15"
+                      : "bg-slate-500/20 text-slate-400 hover:bg-slate-500/20"
+                  }`}
+                >
+                  {plugin.is_enabled ? "Aktywny" : "Wylaczony"}
+                </Badge>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Custom game modes ────────────────────────────────── */}
+      {gameModes.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Swords className="h-4 w-4 text-slate-400" />
+            <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Tryby gry</div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {gameModes.map((mode) => (
+              <div
+                key={mode.id}
+                className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-zinc-200">{mode.name}</div>
+                    {mode.description && (
+                      <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-400">{mode.description}</p>
+                    )}
+                  </div>
+                  <Badge className="shrink-0 border-0 bg-slate-500/20 text-[10px] uppercase tracking-[0.14em] text-slate-400 hover:bg-slate-500/20">
+                    {mode.play_count} rozg.
+                  </Badge>
+                </div>
+                {mode.required_plugins.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {mode.required_plugins.map((slug) => (
+                      <span
+                        key={slug}
+                        className="rounded-md border border-white/10 bg-white/[0.03] px-1.5 py-0.5 font-mono text-[10px] text-slate-500"
+                      >
+                        {slug}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Config block ─────────────────────────────────────── */}
       <div className="space-y-2">

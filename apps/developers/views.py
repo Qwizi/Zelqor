@@ -1,9 +1,11 @@
+import hashlib
 import ipaddress
 import socket
 import uuid
 from urllib.parse import urlparse
 
 from django.core.cache import cache
+from django.db import models as db_models
 from django.http import Http404
 from ninja.errors import HttpError
 from ninja_extra import api_controller, route
@@ -11,12 +13,19 @@ from ninja_extra.permissions import IsAuthenticated
 
 from apps.accounts.auth import ActiveUserJWTAuth
 from apps.developers.models import (
+    PLUGIN_CATEGORIES,
     VALID_EVENTS,
+    VALID_HOOKS,
     VALID_SCOPES,
     APIKey,
     CommunityServer,
+    CustomGameMode,
     DeveloperApp,
     Plugin,
+    PluginDependency,
+    PluginReview,
+    PluginVersion,
+    ServerPlugin,
     Webhook,
     WebhookDelivery,
 )
@@ -25,18 +34,31 @@ from apps.developers.schemas import (
     APIKeyCreateSchema,
     APIKeyOutSchema,
     AvailableEventsSchema,
+    AvailableHooksSchema,
     AvailableScopesSchema,
     CommunityServerCreateSchema,
     CommunityServerListSchema,
     CommunityServerOutSchema,
     CommunityServerUpdateSchema,
+    CustomGameModeCreateSchema,
+    CustomGameModeOutSchema,
+    CustomGameModeUpdateSchema,
     DeveloperAppCreatedSchema,
     DeveloperAppCreateSchema,
     DeveloperAppOutSchema,
     DeveloperAppUpdateSchema,
     PluginCreateSchema,
+    PluginDependencyCreateSchema,
+    PluginDependencyOutSchema,
     PluginListSchema,
     PluginOutSchema,
+    PluginReviewCreateSchema,
+    PluginReviewOutSchema,
+    PluginUpdateSchema,
+    PluginVersionOutSchema,
+    ServerPluginInstallSchema,
+    ServerPluginOutSchema,
+    ServerPluginUpdateSchema,
     UsageStatsSchema,
     WebhookCreateSchema,
     WebhookDeliveryOutSchema,
@@ -349,6 +371,9 @@ class DeveloperController:
     def register_server(self, request, app_id: uuid.UUID, payload: CommunityServerCreateSchema):
         """Register a community server for a developer app."""
         app = self._get_app(request, app_id)
+        password_hash = ""
+        if payload.password:
+            password_hash = hashlib.sha256(payload.password.encode()).hexdigest()
         server = CommunityServer.objects.create(
             app=app,
             name=payload.name,
@@ -357,6 +382,16 @@ class DeveloperController:
             max_players=payload.max_players,
             is_public=payload.is_public,
             custom_config=payload.custom_config,
+            max_concurrent_matches=payload.max_concurrent_matches,
+            motd=payload.motd,
+            tags=payload.tags,
+            auto_start_match=payload.auto_start_match,
+            min_players_to_start=payload.min_players_to_start,
+            match_start_countdown_seconds=payload.match_start_countdown_seconds,
+            allow_spectators=payload.allow_spectators,
+            max_spectators=payload.max_spectators,
+            allow_custom_game_modes=payload.allow_custom_game_modes,
+            password_hash=password_hash,
         )
         return CommunityServerOutSchema.from_orm(server)
 
@@ -376,22 +411,21 @@ class DeveloperController:
         except CommunityServer.DoesNotExist:
             raise HttpError(404, "Not found") from None
 
+        simple_fields = [
+            "name", "description", "max_players", "is_public", "custom_config",
+            "max_concurrent_matches", "motd", "tags", "auto_start_match",
+            "min_players_to_start", "match_start_countdown_seconds",
+            "allow_spectators", "max_spectators", "allow_custom_game_modes",
+        ]
         update_fields = []
-        if payload.name is not None:
-            server.name = payload.name
-            update_fields.append("name")
-        if payload.description is not None:
-            server.description = payload.description
-            update_fields.append("description")
-        if payload.max_players is not None:
-            server.max_players = payload.max_players
-            update_fields.append("max_players")
-        if payload.is_public is not None:
-            server.is_public = payload.is_public
-            update_fields.append("is_public")
-        if payload.custom_config is not None:
-            server.custom_config = payload.custom_config
-            update_fields.append("custom_config")
+        for field in simple_fields:
+            val = getattr(payload, field, None)
+            if val is not None:
+                setattr(server, field, val)
+                update_fields.append(field)
+        if payload.password is not None:
+            server.password_hash = hashlib.sha256(payload.password.encode()).hexdigest() if payload.password else ""
+            update_fields.append("password_hash")
         if update_fields:
             update_fields.append("updated_at")
             server.save(update_fields=update_fields)
@@ -447,35 +481,470 @@ class DeveloperController:
         """Return all valid webhook event types."""
         return AvailableEventsSchema(events=VALID_EVENTS)
 
+    @route.get("/hooks/", response=AvailableHooksSchema)
+    def list_hooks(self, request):
+        """Return all valid plugin hooks."""
+        return AvailableHooksSchema(hooks=VALID_HOOKS)
 
-@api_controller("/plugins", tags=["Plugins"], auth=None)
+    # -------------------------------------------------------------------------
+    # Server → Plugin Management (install/uninstall/configure)
+    # -------------------------------------------------------------------------
+
+    @route.post("/apps/{app_id}/servers/{server_id}/plugins/", response=ServerPluginOutSchema)
+    def install_plugin(
+        self, request, app_id: uuid.UUID, server_id: uuid.UUID, payload: ServerPluginInstallSchema
+    ):
+        """Install a plugin on a community server."""
+        app = self._get_app(request, app_id)
+        try:
+            server = app.servers.get(id=server_id)
+        except CommunityServer.DoesNotExist:
+            raise HttpError(404, "Server not found") from None
+
+        try:
+            plugin = Plugin.objects.get(slug=payload.plugin_slug, is_published=True, is_approved=True)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, f"Plugin '{payload.plugin_slug}' not found") from None
+
+        if ServerPlugin.objects.filter(server=server, plugin=plugin).exists():
+            raise HttpError(409, f"Plugin '{payload.plugin_slug}' is already installed")
+
+        plugin_version = None
+        if payload.version:
+            plugin_version = PluginVersion.objects.filter(
+                plugin=plugin, version=payload.version, is_yanked=False
+            ).first()
+            if not plugin_version:
+                raise HttpError(404, f"Version '{payload.version}' not found")
+
+        sp = ServerPlugin.objects.create(
+            server=server,
+            plugin=plugin,
+            plugin_version=plugin_version,
+            config=payload.config,
+            priority=payload.priority,
+        )
+        Plugin.objects.filter(pk=plugin.pk).update(install_count=db_models.F("install_count") + 1)
+        return ServerPluginOutSchema.from_orm(sp)
+
+    @route.get("/apps/{app_id}/servers/{server_id}/plugins/", response=dict)
+    def list_server_plugins(self, request, app_id: uuid.UUID, server_id: uuid.UUID, limit: int = 50, offset: int = 0):
+        """List plugins installed on a server."""
+        app = self._get_app(request, app_id)
+        try:
+            server = app.servers.get(id=server_id)
+        except CommunityServer.DoesNotExist:
+            raise HttpError(404, "Server not found") from None
+        qs = server.installed_plugins.select_related("plugin", "plugin_version").order_by("priority")
+        return paginate_qs(qs, limit, offset, schema=ServerPluginOutSchema)
+
+    @route.patch("/apps/{app_id}/servers/{server_id}/plugins/{plugin_slug}/", response=ServerPluginOutSchema)
+    def update_server_plugin(
+        self, request, app_id: uuid.UUID, server_id: uuid.UUID, plugin_slug: str, payload: ServerPluginUpdateSchema
+    ):
+        """Update plugin configuration on a server."""
+        app = self._get_app(request, app_id)
+        try:
+            server = app.servers.get(id=server_id)
+        except CommunityServer.DoesNotExist:
+            raise HttpError(404, "Server not found") from None
+
+        try:
+            sp = server.installed_plugins.select_related("plugin", "plugin_version").get(plugin__slug=plugin_slug)
+        except ServerPlugin.DoesNotExist:
+            raise HttpError(404, f"Plugin '{plugin_slug}' not installed") from None
+
+        update_fields = []
+        if payload.config is not None:
+            sp.config = payload.config
+            update_fields.append("config")
+        if payload.is_enabled is not None:
+            sp.is_enabled = payload.is_enabled
+            update_fields.append("is_enabled")
+        if payload.priority is not None:
+            sp.priority = payload.priority
+            update_fields.append("priority")
+        if update_fields:
+            update_fields.append("updated_at")
+            sp.save(update_fields=update_fields)
+        return ServerPluginOutSchema.from_orm(sp)
+
+    @route.delete("/apps/{app_id}/servers/{server_id}/plugins/{plugin_slug}/")
+    def uninstall_plugin(self, request, app_id: uuid.UUID, server_id: uuid.UUID, plugin_slug: str):
+        """Uninstall a plugin from a server."""
+        app = self._get_app(request, app_id)
+        try:
+            server = app.servers.get(id=server_id)
+        except CommunityServer.DoesNotExist:
+            raise HttpError(404, "Server not found") from None
+
+        try:
+            sp = server.installed_plugins.get(plugin__slug=plugin_slug)
+        except ServerPlugin.DoesNotExist:
+            raise HttpError(404, f"Plugin '{plugin_slug}' not installed") from None
+
+        sp.delete()
+        return {"ok": True}
+
+    # -------------------------------------------------------------------------
+    # Server → Custom Game Modes
+    # -------------------------------------------------------------------------
+
+    @route.post("/apps/{app_id}/servers/{server_id}/game-modes/", response=CustomGameModeOutSchema)
+    def create_custom_game_mode(
+        self, request, app_id: uuid.UUID, server_id: uuid.UUID, payload: CustomGameModeCreateSchema
+    ):
+        """Create a custom game mode for a community server."""
+        app = self._get_app(request, app_id)
+        try:
+            server = app.servers.get(id=server_id)
+        except CommunityServer.DoesNotExist:
+            raise HttpError(404, "Server not found") from None
+
+        if not server.allow_custom_game_modes:
+            raise HttpError(403, "Custom game modes are not enabled on this server")
+
+        base_mode = None
+        if payload.base_game_mode_slug:
+            from apps.game_config.models import GameMode
+
+            base_mode = GameMode.objects.filter(slug=payload.base_game_mode_slug, is_active=True).first()
+            if not base_mode:
+                raise HttpError(404, f"Base game mode '{payload.base_game_mode_slug}' not found")
+
+        gm = CustomGameMode.objects.create(
+            server=server,
+            creator=request.auth,
+            name=payload.name,
+            slug=payload.slug,
+            description=payload.description,
+            icon=payload.icon,
+            base_game_mode=base_mode,
+            config_overrides=payload.config_overrides,
+            is_public=payload.is_public,
+        )
+        return CustomGameModeOutSchema.from_orm(gm)
+
+    @route.get("/apps/{app_id}/servers/{server_id}/game-modes/", response=dict)
+    def list_custom_game_modes(
+        self, request, app_id: uuid.UUID, server_id: uuid.UUID, limit: int = 50, offset: int = 0
+    ):
+        """List custom game modes for a server."""
+        app = self._get_app(request, app_id)
+        try:
+            server = app.servers.get(id=server_id)
+        except CommunityServer.DoesNotExist:
+            raise HttpError(404, "Server not found") from None
+        qs = server.custom_game_modes.filter(is_active=True)
+        return paginate_qs(qs, limit, offset, schema=CustomGameModeOutSchema)
+
+    @route.patch("/apps/{app_id}/servers/{server_id}/game-modes/{mode_slug}/", response=CustomGameModeOutSchema)
+    def update_custom_game_mode(
+        self,
+        request,
+        app_id: uuid.UUID,
+        server_id: uuid.UUID,
+        mode_slug: str,
+        payload: CustomGameModeUpdateSchema,
+    ):
+        """Update a custom game mode."""
+        app = self._get_app(request, app_id)
+        try:
+            server = app.servers.get(id=server_id)
+        except CommunityServer.DoesNotExist:
+            raise HttpError(404, "Server not found") from None
+
+        try:
+            gm = server.custom_game_modes.get(slug=mode_slug)
+        except CustomGameMode.DoesNotExist:
+            raise HttpError(404, "Game mode not found") from None
+
+        update_fields = []
+        for field in ["name", "description", "icon", "config_overrides", "is_public", "is_active"]:
+            val = getattr(payload, field, None)
+            if val is not None:
+                setattr(gm, field, val)
+                update_fields.append(field)
+        if update_fields:
+            update_fields.append("updated_at")
+            gm.save(update_fields=update_fields)
+        return CustomGameModeOutSchema.from_orm(gm)
+
+    @route.delete("/apps/{app_id}/servers/{server_id}/game-modes/{mode_slug}/")
+    def delete_custom_game_mode(self, request, app_id: uuid.UUID, server_id: uuid.UUID, mode_slug: str):
+        """Delete a custom game mode."""
+        app = self._get_app(request, app_id)
+        try:
+            server = app.servers.get(id=server_id)
+        except CommunityServer.DoesNotExist:
+            raise HttpError(404, "Server not found") from None
+
+        try:
+            gm = server.custom_game_modes.get(slug=mode_slug)
+        except CustomGameMode.DoesNotExist:
+            raise HttpError(404, "Game mode not found") from None
+
+        gm.delete()
+        return {"ok": True}
+
+    # -------------------------------------------------------------------------
+    # Plugin Update / Version / Dependency management (developer)
+    # -------------------------------------------------------------------------
+
+    @route.patch("/apps/{app_id}/plugins/{slug}/", response=PluginOutSchema)
+    def update_plugin(self, request, app_id: uuid.UUID, slug: str, payload: PluginUpdateSchema):
+        """Update a plugin's metadata."""
+        app = self._get_app(request, app_id)
+        try:
+            plugin = app.plugins.get(slug=slug)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, "Plugin not found") from None
+
+        update_fields = []
+        for field in [
+            "description", "long_description", "hooks", "category", "tags",
+            "homepage_url", "source_url", "license", "config_schema", "default_config",
+            "min_engine_version", "required_permissions", "is_deprecated", "deprecation_message",
+        ]:
+            val = getattr(payload, field, None)
+            if val is not None:
+                setattr(plugin, field, val)
+                update_fields.append(field)
+        if update_fields:
+            update_fields.append("updated_at")
+            plugin.save(update_fields=update_fields)
+        return PluginOutSchema.from_orm(plugin)
+
+    @route.post("/apps/{app_id}/plugins/{slug}/dependencies/", response=PluginDependencyOutSchema)
+    def add_plugin_dependency(
+        self, request, app_id: uuid.UUID, slug: str, payload: PluginDependencyCreateSchema
+    ):
+        """Add a dependency to a plugin."""
+        app = self._get_app(request, app_id)
+        try:
+            plugin = app.plugins.get(slug=slug)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, "Plugin not found") from None
+
+        try:
+            depends_on = Plugin.objects.get(slug=payload.depends_on_slug)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, f"Dependency plugin '{payload.depends_on_slug}' not found") from None
+
+        if plugin.pk == depends_on.pk:
+            raise HttpError(400, "A plugin cannot depend on itself")
+
+        dep, created = PluginDependency.objects.get_or_create(
+            plugin=plugin,
+            depends_on=depends_on,
+            defaults={
+                "version_constraint": payload.version_constraint,
+                "is_optional": payload.is_optional,
+            },
+        )
+        if not created:
+            raise HttpError(409, "Dependency already exists")
+
+        return PluginDependencyOutSchema.from_orm(dep)
+
+    @route.get("/apps/{app_id}/plugins/{slug}/dependencies/", response=list[PluginDependencyOutSchema])
+    def list_plugin_dependencies(self, request, app_id: uuid.UUID, slug: str):
+        """List dependencies for a plugin."""
+        app = self._get_app(request, app_id)
+        try:
+            plugin = app.plugins.get(slug=slug)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, "Plugin not found") from None
+        return [PluginDependencyOutSchema.from_orm(d) for d in plugin.dependencies.select_related("depends_on")]
+
+    @route.delete("/apps/{app_id}/plugins/{slug}/dependencies/{dep_slug}/")
+    def remove_plugin_dependency(self, request, app_id: uuid.UUID, slug: str, dep_slug: str):
+        """Remove a dependency from a plugin."""
+        app = self._get_app(request, app_id)
+        try:
+            plugin = app.plugins.get(slug=slug)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, "Plugin not found") from None
+
+        deleted, _ = PluginDependency.objects.filter(plugin=plugin, depends_on__slug=dep_slug).delete()
+        if not deleted:
+            raise HttpError(404, "Dependency not found")
+        return {"ok": True}
+
+
+# =========================================================================
+# Public Plugin Marketplace Controller
+# =========================================================================
+
+
+@api_controller("/plugins", tags=["Plugin Marketplace"], auth=None)
 @require_module_controller("developers")
 class PluginController:
     @route.get("/", response=dict)
-    def list_published_plugins(self, request, limit: int = 50, offset: int = 0):
-        """List all published and approved plugins."""
-        qs = Plugin.objects.filter(is_published=True, is_approved=True).select_related("app")
+    def list_published_plugins(
+        self,
+        request,
+        limit: int = 50,
+        offset: int = 0,
+        category: str | None = None,
+        tag: str | None = None,
+        search: str | None = None,
+        sort: str = "popular",
+        featured: bool | None = None,
+    ):
+        """List all published and approved plugins with filtering and sorting."""
+        qs = Plugin.objects.filter(
+            is_published=True, is_approved=True, is_deprecated=False
+        ).select_related("app")
+
+        if category:
+            qs = qs.filter(category=category)
+        if tag:
+            qs = qs.filter(tags__contains=[tag])
+        if search:
+            qs = qs.filter(
+                db_models.Q(name__icontains=search)
+                | db_models.Q(description__icontains=search)
+                | db_models.Q(slug__icontains=search)
+            )
+        if featured is not None:
+            qs = qs.filter(is_featured=featured)
+
+        if sort == "newest":
+            qs = qs.order_by("-created_at")
+        elif sort == "rating":
+            qs = qs.order_by("-rating_sum")
+        elif sort == "downloads":
+            qs = qs.order_by("-download_count")
+        else:  # "popular" — combined score
+            qs = qs.order_by("-install_count", "-rating_sum")
+
+        return paginate_qs(qs, limit, offset, schema=PluginListSchema)
+
+    @route.get("/categories/", response=list[dict])
+    def list_categories(self, request):
+        """Return all plugin categories with counts."""
+        qs = Plugin.objects.filter(is_published=True, is_approved=True, is_deprecated=False)
+        result = []
+        for value, label in PLUGIN_CATEGORIES:
+            count = qs.filter(category=value).count()
+            result.append({"value": value, "label": label, "count": count})
+        return result
+
+    @route.get("/featured/", response=dict)
+    def list_featured_plugins(self, request, limit: int = 10, offset: int = 0):
+        """List featured plugins for the marketplace homepage."""
+        qs = Plugin.objects.filter(
+            is_published=True, is_approved=True, is_featured=True, is_deprecated=False
+        ).select_related("app").order_by("-install_count")
         return paginate_qs(qs, limit, offset, schema=PluginListSchema)
 
     @route.get("/{slug}/", response=PluginOutSchema)
     def get_plugin(self, request, slug: str):
         """Get details for a specific published plugin."""
         try:
-            plugin = Plugin.objects.get(slug=slug, is_published=True, is_approved=True)
+            plugin = Plugin.objects.select_related("app").get(slug=slug, is_published=True, is_approved=True)
         except Plugin.DoesNotExist:
             raise HttpError(404, "Not found") from None
         return PluginOutSchema.from_orm(plugin)
+
+    @route.get("/{slug}/versions/", response=dict)
+    def list_plugin_versions(self, request, slug: str, limit: int = 50, offset: int = 0):
+        """List all versions for a published plugin."""
+        try:
+            plugin = Plugin.objects.get(slug=slug, is_published=True, is_approved=True)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, "Not found") from None
+        qs = plugin.versions.filter(is_yanked=False)
+        return paginate_qs(qs, limit, offset, schema=PluginVersionOutSchema)
+
+    @route.get("/{slug}/dependencies/", response=list[PluginDependencyOutSchema])
+    def get_plugin_dependencies(self, request, slug: str):
+        """Get dependencies for a published plugin."""
+        try:
+            plugin = Plugin.objects.get(slug=slug, is_published=True, is_approved=True)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, "Not found") from None
+        return [PluginDependencyOutSchema.from_orm(d) for d in plugin.dependencies.select_related("depends_on")]
+
+    @route.get("/{slug}/reviews/", response=dict)
+    def list_plugin_reviews(self, request, slug: str, limit: int = 50, offset: int = 0):
+        """List reviews for a published plugin."""
+        try:
+            plugin = Plugin.objects.get(slug=slug, is_published=True, is_approved=True)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, "Not found") from None
+        qs = plugin.reviews.select_related("user").order_by("-created_at")
+        return paginate_qs(qs, limit, offset, schema=PluginReviewOutSchema)
+
+
+@api_controller("/plugins", tags=["Plugin Reviews"], permissions=[IsAuthenticated], auth=ActiveUserJWTAuth())
+@require_module_controller("developers")
+class PluginReviewController:
+    @route.post("/{slug}/reviews/", response=PluginReviewOutSchema)
+    def create_review(self, request, slug: str, payload: PluginReviewCreateSchema):
+        """Submit a review for a plugin."""
+        try:
+            plugin = Plugin.objects.get(slug=slug, is_published=True, is_approved=True)
+        except Plugin.DoesNotExist:
+            raise HttpError(404, "Not found") from None
+
+        if payload.rating < 1 or payload.rating > 5:
+            raise HttpError(400, "Rating must be between 1 and 5")
+
+        if PluginReview.objects.filter(plugin=plugin, user=request.auth).exists():
+            raise HttpError(409, "You have already reviewed this plugin")
+
+        review = PluginReview.objects.create(
+            plugin=plugin,
+            user=request.auth,
+            rating=payload.rating,
+            title=payload.title,
+            body=payload.body,
+        )
+        return PluginReviewOutSchema.from_orm(review)
+
+
+# =========================================================================
+# Public Community Server Controller
+# =========================================================================
 
 
 @api_controller("/servers", tags=["Community Servers"], auth=None)
 @require_module_controller("developers")
 class CommunityServerController:
     @route.get("/", response=dict)
-    def list_public_servers(self, request, limit: int = 50, offset: int = 0, region: str | None = None):
-        """List all public online community servers."""
+    def list_public_servers(
+        self,
+        request,
+        limit: int = 50,
+        offset: int = 0,
+        region: str | None = None,
+        tag: str | None = None,
+        search: str | None = None,
+        has_slots: bool | None = None,
+        sort: str = "players",
+    ):
+        """List all public online community servers with filtering."""
         qs = CommunityServer.objects.filter(is_public=True, status="online").select_related("app")
         if region:
             qs = qs.filter(region=region)
+        if tag:
+            qs = qs.filter(tags__contains=[tag])
+        if search:
+            qs = qs.filter(
+                db_models.Q(name__icontains=search) | db_models.Q(description__icontains=search)
+            )
+        if has_slots:
+            qs = qs.filter(current_player_count__lt=db_models.F("max_players"))
+
+        if sort == "newest":
+            qs = qs.order_by("-created_at")
+        elif sort == "name":
+            qs = qs.order_by("name")
+        else:  # "players"
+            qs = qs.order_by("-current_player_count")
+
         return paginate_qs(qs, limit, offset, schema=CommunityServerListSchema)
 
     @route.get("/{server_id}/", response=CommunityServerOutSchema)
@@ -486,3 +955,23 @@ class CommunityServerController:
         except CommunityServer.DoesNotExist:
             raise HttpError(404, "Not found") from None
         return CommunityServerOutSchema.from_orm(server)
+
+    @route.get("/{server_id}/plugins/", response=dict)
+    def list_server_plugins(self, request, server_id: uuid.UUID, limit: int = 50, offset: int = 0):
+        """List plugins installed on a public server."""
+        try:
+            server = CommunityServer.objects.get(id=server_id, is_public=True)
+        except CommunityServer.DoesNotExist:
+            raise HttpError(404, "Not found") from None
+        qs = server.installed_plugins.filter(is_enabled=True).select_related("plugin", "plugin_version")
+        return paginate_qs(qs, limit, offset, schema=ServerPluginOutSchema)
+
+    @route.get("/{server_id}/game-modes/", response=dict)
+    def list_server_game_modes(self, request, server_id: uuid.UUID, limit: int = 50, offset: int = 0):
+        """List custom game modes on a public server."""
+        try:
+            server = CommunityServer.objects.get(id=server_id, is_public=True)
+        except CommunityServer.DoesNotExist:
+            raise HttpError(404, "Not found") from None
+        qs = server.custom_game_modes.filter(is_active=True, is_public=True)
+        return paginate_qs(qs, limit, offset, schema=CustomGameModeOutSchema)

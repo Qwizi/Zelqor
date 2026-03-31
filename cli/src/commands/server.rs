@@ -147,7 +147,7 @@ pub async fn create_app(api_url_override: &Option<String>) -> Result<()> {
     Ok(())
 }
 
-fn resolve_app_id(api_url_override: &Option<String>) -> Result<(String, String)> {
+pub fn resolve_app_id(api_url_override: &Option<String>) -> Result<(String, String)> {
     let cfg = config::load()?;
     let base_url = cfg.effective_api_url(api_url_override);
     let auth = cfg
@@ -571,6 +571,8 @@ fn generate_compose(gateway_url: &str, oauth_url: &str, client_id: &str, client_
       CLIENT_SECRET: "{client_secret}"
       REDIS_URL: "redis://redis:6379/1"
       RUST_LOG: "info,zelqor_gamenode=debug"
+      PLUGINS_ENABLED: "true"
+      MAX_CONCURRENT_MATCHES: "5"
     depends_on:
       - redis
   redis:

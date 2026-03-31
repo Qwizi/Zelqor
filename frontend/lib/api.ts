@@ -995,6 +995,20 @@ export interface CommunityServer {
   server_version: string;
   is_verified: boolean;
   created_at: string;
+  max_concurrent_matches: number;
+  current_match_count: number;
+  current_player_count: number;
+  motd: string;
+  tags: string[];
+  auto_start_match: boolean;
+  min_players_to_start: number;
+  match_start_countdown_seconds: number;
+  allow_spectators: boolean;
+  max_spectators: number;
+  allow_custom_game_modes: boolean;
+  has_password: boolean;
+  installed_plugins: string[];
+  game_modes: string[];
 }
 
 export async function getPublicServers(region?: string): Promise<CommunityServer[]> {
@@ -1013,6 +1027,130 @@ export async function getDeveloperServers(token: string, appId: string): Promise
 
 export async function deleteDeveloperServer(token: string, appId: string, serverId: string): Promise<void> {
   await fetchAPI(`/developers/apps/${appId}/servers/${serverId}/`, { method: "DELETE", token });
+}
+
+// --- Plugin Marketplace ---
+
+export interface PluginListItem {
+  id: string;
+  name: string;
+  slug: string;
+  version: string;
+  description: string;
+  category: string;
+  hooks: string[];
+  tags: string[];
+  is_approved: boolean;
+  is_featured: boolean;
+  download_count: number;
+  install_count: number;
+  average_rating: number;
+  rating_count: number;
+  author_name: string;
+}
+
+export interface PluginDetail extends PluginListItem {
+  long_description: string;
+  is_published: boolean;
+  homepage_url: string;
+  source_url: string;
+  license: string;
+  is_deprecated: boolean;
+  deprecation_message: string;
+  config_schema: Record<string, unknown>;
+  default_config: Record<string, unknown>;
+  min_engine_version: string;
+  required_permissions: string[];
+  created_at: string;
+}
+
+export interface PluginReview {
+  id: string;
+  username: string;
+  rating: number;
+  title: string;
+  body: string;
+  created_at: string;
+}
+
+export interface PluginCategory {
+  value: string;
+  label: string;
+  count: number;
+}
+
+export interface CustomGameMode {
+  id: string;
+  server_id: string;
+  creator_username: string;
+  name: string;
+  slug: string;
+  description: string;
+  icon: string;
+  base_game_mode: string | null;
+  config_overrides: Record<string, unknown>;
+  required_plugins: string[];
+  is_public: boolean;
+  is_active: boolean;
+  play_count: number;
+  created_at: string;
+}
+
+export interface ServerPlugin {
+  id: string;
+  plugin_slug: string;
+  plugin_name: string;
+  plugin_version: string;
+  config: Record<string, unknown>;
+  is_enabled: boolean;
+  priority: number;
+  installed_at: string;
+}
+
+export async function getPublicPlugins(params?: {
+  category?: string;
+  tag?: string;
+  search?: string;
+  sort?: string;
+  featured?: boolean;
+}): Promise<PluginListItem[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.category) searchParams.set("category", params.category);
+  if (params?.tag) searchParams.set("tag", params.tag);
+  if (params?.search) searchParams.set("search", params.search);
+  if (params?.sort) searchParams.set("sort", params.sort);
+  if (params?.featured !== undefined) searchParams.set("featured", String(params.featured));
+  const query = searchParams.toString();
+  const res = await fetchAPI<{ items: PluginListItem[] }>(`/plugins/${query ? `?${query}` : ""}`);
+  return res.items;
+}
+
+export async function getPlugin(slug: string): Promise<PluginDetail> {
+  return fetchAPI<PluginDetail>(`/plugins/${slug}/`);
+}
+
+export async function getPluginCategories(): Promise<PluginCategory[]> {
+  return fetchAPI<PluginCategory[]>("/plugins/categories/");
+}
+
+export async function getFeaturedPlugins(): Promise<PluginListItem[]> {
+  const res = await fetchAPI<{ items: PluginListItem[] }>("/plugins/featured/");
+  return res.items;
+}
+
+export async function getPluginReviews(slug: string): Promise<PluginReview[]> {
+  const res = await fetchAPI<{ items: PluginReview[] }>(`/plugins/${slug}/reviews/`);
+  return res.items;
+}
+
+export async function getServerPlugins(serverId: string): Promise<ServerPlugin[]> {
+  const res = await fetchAPI<{ items: ServerPlugin[] }>(`/servers/${serverId}/plugins/`);
+  return res.items;
+}
+
+export async function getServerGameModes(serverId: string): Promise<CustomGameMode[]> {
+  const res = await fetchAPI<{ items: CustomGameMode[] }>(`/servers/${serverId}/game-modes/`);
+  return res.items;
 }
 
 // --- Inventory ---

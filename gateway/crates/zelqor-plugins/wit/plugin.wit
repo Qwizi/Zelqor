@@ -1,6 +1,8 @@
-package zelqor:plugin@0.1.0;
+package zelqor:plugin@0.2.0;
 
 interface game-hooks {
+    // ── Core types ──────────────────────────────────────────────
+
     record tick-context {
         tick: u64,
         player-count: u32,
@@ -18,11 +20,162 @@ interface game-hooks {
         payload: string,
     }
 
+    // ── Economy types ───────────────────────────────────────────
+
+    record economy-context {
+        match-id: string,
+        tick: u64,
+        base-energy-rate: f64,
+        region-energy-rate: f64,
+        base-unit-rate: f64,
+        capital-bonus: f64,
+    }
+    record energy-event {
+        match-id: string,
+        user-id: string,
+        amount: u32,
+        reason: string,
+    }
+
+    // ── Unit & Building types ───────────────────────────────────
+
+    record unit-event {
+        match-id: string,
+        user-id: string,
+        region-id: string,
+        unit-type: string,
+        count: u32,
+    }
+    record unit-move-event {
+        match-id: string,
+        user-id: string,
+        from-region: string,
+        to-region: string,
+        unit-type: string,
+        count: u32,
+    }
+    record building-event {
+        match-id: string,
+        user-id: string,
+        region-id: string,
+        building-type: string,
+        level: u32,
+    }
+
+    // ── Territory types ─────────────────────────────────────────
+
+    record region-event {
+        match-id: string,
+        region-id: string,
+        old-owner: option<string>,
+        new-owner: option<string>,
+    }
+
+    // ── Diplomacy types ─────────────────────────────────────────
+
+    record diplomacy-event {
+        match-id: string,
+        proposer-id: string,
+        target-id: string,
+        diplomacy-type: string,
+        payload: string,
+    }
+
+    // ── Ability & Special types ─────────────────────────────────
+
+    record ability-event {
+        match-id: string,
+        user-id: string,
+        ability-type: string,
+        target-region: string,
+        payload: string,
+    }
+    record special-event {
+        match-id: string,
+        user-id: string,
+        event-type: string,
+        source-region: string,
+        target-region: string,
+    }
+
+    // ── Chat & Voting types ─────────────────────────────────────
+
+    record chat-event {
+        match-id: string,
+        user-id: string,
+        channel: string,
+        message: string,
+    }
+    record vote-event {
+        match-id: string,
+        initiator-id: string,
+        vote-type: string,
+        subject: string,
+        result: option<string>,
+    }
+
+    // ── Core hooks ──────────────────────────────────────────────
+
     on-tick: func(ctx: tick-context) -> list<string>;
     on-combat: func(event: combat-event) -> option<combat-event>;
     on-player-action: func(action: player-action) -> bool;
     on-match-start: func(match-id: string, player-ids: list<string>);
     on-match-end: func(match-id: string, winner-id: option<string>);
+
+    // ── Player lifecycle hooks ──────────────────────────────────
+
+    on-player-join: func(match-id: string, user-id: string);
+    on-player-leave: func(match-id: string, user-id: string);
+    on-player-eliminate: func(match-id: string, user-id: string, eliminated-by: option<string>);
+
+    // ── Economy hooks ───────────────────────────────────────────
+
+    on-economy-tick: func(ctx: economy-context) -> option<economy-context>;
+    on-energy-spend: func(event: energy-event) -> bool;
+
+    // ── Unit & Building hooks ───────────────────────────────────
+
+    on-unit-produce: func(event: unit-event) -> option<unit-event>;
+    on-unit-move: func(event: unit-move-event) -> option<unit-move-event>;
+    on-building-construct: func(event: building-event) -> option<building-event>;
+    on-building-upgrade: func(event: building-event) -> option<building-event>;
+    on-building-destroy: func(event: building-event);
+
+    // ── Territory hooks ─────────────────────────────────────────
+
+    on-region-capture: func(event: region-event);
+    on-region-lose: func(event: region-event);
+
+    // ── Diplomacy hooks ─────────────────────────────────────────
+
+    on-diplomacy-propose: func(event: diplomacy-event) -> bool;
+    on-diplomacy-accept: func(event: diplomacy-event);
+    on-diplomacy-reject: func(event: diplomacy-event);
+
+    // ── Capital & Ability hooks ─────────────────────────────────
+
+    on-capital-select: func(match-id: string, user-id: string, region-id: string) -> bool;
+    on-ability-use: func(event: ability-event) -> option<ability-event>;
+
+    // ── Special hooks ───────────────────────────────────────────
+
+    on-nuke-launch: func(event: special-event) -> bool;
+    on-bomber-launch: func(event: special-event) -> bool;
+
+    // ── Environment hooks ───────────────────────────────────────
+
+    on-weather-change: func(match-id: string, old-weather: string, new-weather: string) -> option<string>;
+    on-day-night-change: func(match-id: string, phase: string);
+
+    // ── Chat & Voting hooks ───────────────────────────────────���─
+
+    on-chat-message: func(event: chat-event) -> bool;
+    on-vote-start: func(event: vote-event);
+    on-vote-end: func(event: vote-event);
+
+    // ── Config hooks ────────────────────────────────────────────
+
+    on-config-reload: func(match-id: string, config-json: string) -> option<string>;
 }
 
 interface plugin-api {
@@ -31,6 +184,10 @@ interface plugin-api {
     get-player-data: func(user-id: string) -> string;
     send-event: func(event-type: string, payload: string);
     get-config: func(key: string) -> option<string>;
+    set-config: func(key: string, value: string);
+    get-match-data: func(match-id: string) -> string;
+    broadcast-message: func(channel: string, message: string);
+    schedule-timer: func(name: string, ticks: u64);
 }
 
 world zelqor-plugin {

@@ -113,6 +113,45 @@ pub struct CreatePluginRequest {
     pub hooks: Vec<String>,
 }
 
+/// Returned by the public plugin search/browse endpoint.
+#[derive(Debug, Deserialize, Serialize, Clone, tabled::Tabled)]
+pub struct PublicPluginResponse {
+    pub slug: String,
+    pub name: String,
+    pub version: String,
+    pub category: String,
+    pub author_name: String,
+    pub license: String,
+    pub download_count: u64,
+    pub install_count: u64,
+    pub average_rating: f64,
+    pub rating_count: u64,
+    /// Hooks this plugin implements (not shown in table to keep it compact).
+    #[tabled(skip)]
+    pub hooks: Vec<String>,
+    #[tabled(skip)]
+    pub tags: Vec<String>,
+    #[tabled(skip)]
+    pub description: String,
+}
+
+/// Returned after installing a plugin on a server.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct InstalledPluginResponse {
+    pub id: String,
+    pub plugin_slug: String,
+    pub plugin_name: String,
+    pub plugin_version: String,
+    pub installed_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InstallPluginRequest {
+    pub plugin_slug: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
 // === User / OAuth userinfo ===
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

@@ -205,6 +205,170 @@ impl ApiClient {
         }
         resp.json().await.context("Failed to parse response")
     }
+
+    // -------------------------------------------------------------------------
+    // Server Plugin Install / Uninstall
+    // -------------------------------------------------------------------------
+
+    pub async fn install_server_plugin(
+        &self,
+        app_id: &str,
+        server_id: &str,
+        slug: &str,
+        version: Option<&str>,
+    ) -> Result<InstalledPluginResponse> {
+        let url = format!(
+            "{}/developers/apps/{}/servers/{}/plugins/",
+            self.base_url, app_id, server_id
+        );
+        let req = InstallPluginRequest {
+            plugin_slug: slug.to_string(),
+            version: version.map(|v| v.to_string()),
+        };
+        let resp = self
+            .client
+            .post(&url)
+            .headers(self.auth_headers())
+            .json(&req)
+            .send()
+            .await
+            .context("Network error")?;
+
+        if !resp.status().is_success() {
+            return Err(Self::handle_error(resp).await);
+        }
+        resp.json().await.context("Failed to parse response")
+    }
+
+    pub async fn uninstall_server_plugin(
+        &self,
+        app_id: &str,
+        server_id: &str,
+        slug: &str,
+    ) -> Result<()> {
+        let url = format!(
+            "{}/developers/apps/{}/servers/{}/plugins/{}/",
+            self.base_url, app_id, server_id, slug
+        );
+        let resp = self
+            .client
+            .delete(&url)
+            .headers(self.auth_headers())
+            .send()
+            .await
+            .context("Network error")?;
+
+        if !resp.status().is_success() {
+            return Err(Self::handle_error(resp).await);
+        }
+        Ok(())
+    }
+
+    // -------------------------------------------------------------------------
+    // Public Plugin Catalogue (search + detail)
+    // -------------------------------------------------------------------------
+
+    pub async fn search_plugins(
+        &self,
+        query: &str,
+        category: Option<&str>,
+    ) -> Result<Vec<PublicPluginResponse>> {
+        let mut url = format!(
+            "{}/plugins/?limit=50&search={}",
+            self.base_url,
+            urlencoding::encode(query)
+        );
+        if let Some(cat) = category {
+            url.push_str(&format!("&category={}", urlencoding::encode(cat)));
+        }
+        let resp = self.client.get(&url).send().await.context("Network error")?;
+
+        if !resp.status().is_success() {
+            return Err(Self::handle_error(resp).await);
+        }
+
+        // The public endpoint returns a paginated list; map raw JSON to the
+        // richer PublicPluginResponse type, falling back gracefully on missing
+        // optional fields so old API versions still work.
+        let paginated: Paginated<serde_json::Value> =
+            resp.json().await.context("Failed to parse response")?;
+
+        let plugins = paginated
+            .items
+            .into_iter()
+            .map(|v| PublicPluginResponse {
+                slug: v["slug"].as_str().unwrap_or("").to_string(),
+                name: v["name"].as_str().unwrap_or("").to_string(),
+                version: v["version"].as_str().unwrap_or("").to_string(),
+                category: v["category"].as_str().unwrap_or("other").to_string(),
+                author_name: v["author_name"].as_str().unwrap_or("").to_string(),
+                license: v["license"].as_str().unwrap_or("").to_string(),
+                download_count: v["download_count"].as_u64().unwrap_or(0),
+                install_count: v["install_count"].as_u64().unwrap_or(0),
+                average_rating: v["average_rating"].as_f64().unwrap_or(0.0),
+                rating_count: v["rating_count"].as_u64().unwrap_or(0),
+                hooks: v["hooks"]
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|h| h.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                tags: v["tags"]
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                description: v["description"].as_str().unwrap_or("").to_string(),
+            })
+            .collect();
+
+        Ok(plugins)
+    }
+
+    pub async fn get_plugin(&self, slug: &str) -> Result<PublicPluginResponse> {
+        let url = format!("{}/plugins/{}/", self.base_url, slug);
+        let resp = self.client.get(&url).send().await.context("Network error")?;
+
+        if !resp.status().is_success() {
+            return Err(Self::handle_error(resp).await);
+        }
+
+        let v: serde_json::Value = resp.json().await.context("Failed to parse response")?;
+        Ok(PublicPluginResponse {
+            slug: v["slug"].as_str().unwrap_or("").to_string(),
+            name: v["name"].as_str().unwrap_or("").to_string(),
+            version: v["version"].as_str().unwrap_or("").to_string(),
+            category: v["category"].as_str().unwrap_or("other").to_string(),
+            author_name: v["author_name"].as_str().unwrap_or("").to_string(),
+            license: v["license"].as_str().unwrap_or("").to_string(),
+            download_count: v["download_count"].as_u64().unwrap_or(0),
+            install_count: v["install_count"].as_u64().unwrap_or(0),
+            average_rating: v["average_rating"].as_f64().unwrap_or(0.0),
+            rating_count: v["rating_count"].as_u64().unwrap_or(0),
+            hooks: v["hooks"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|h| h.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            tags: v["tags"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            description: v["description"].as_str().unwrap_or("").to_string(),
+        })
+    }
 }
 
 /// Build an authed ApiClient from stored config. Errors if not logged in.
