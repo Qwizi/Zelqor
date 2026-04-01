@@ -124,7 +124,7 @@ function ServerCard({ server }: { server: CommunityServerListItem }) {
         </div>
         <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
           <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Dodano</div>
-          <div className="mt-0.5 font-mono text-xs font-medium text-slate-300">{formatDate(server.created_at)}</div>
+          <div className="mt-0.5 font-mono text-xs font-medium text-slate-300">{server.created_at ? formatDate(server.created_at) : "—"}</div>
         </div>
       </div>
 
