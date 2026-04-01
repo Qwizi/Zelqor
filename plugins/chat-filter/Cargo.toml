@@ -1,0 +1,11 @@
+[package]
+name = "chat-filter"
+version = "2.0.1"
+edition = "2021"
+description = "Filters inappropriate language from in-game chat messages"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.41"

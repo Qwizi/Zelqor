@@ -1,0 +1,11 @@
+[package]
+name = "double-resources"
+version = "1.0.0"
+edition = "2021"
+description = "Doubles resource generation rate for all players"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.41"

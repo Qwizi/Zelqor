@@ -1,0 +1,22 @@
+name = "Auto Balance"
+slug = "auto-balance"
+description = "Automatically balances teams based on player ELO ratings before match start."
+version = "1.1.0"
+license = "MIT"
+min_engine_version = "0.2.0"
+
+[metadata]
+category = "gameplay"
+tags = ["balance", "teams", "matchmaking", "elo"]
+homepage = ""
+source = ""
+
+hooks = [
+  "on_match_start",
+  "on_player_join",
+]
+
+[config]
+max_elo_difference = 200
+
+[permissions]

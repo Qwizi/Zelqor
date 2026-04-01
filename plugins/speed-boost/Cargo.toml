@@ -1,0 +1,11 @@
+[package]
+name = "speed-boost"
+version = "1.0.0"
+edition = "2021"
+description = "Increases unit movement speed by 50% during the first 30 seconds of each turn"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.41"

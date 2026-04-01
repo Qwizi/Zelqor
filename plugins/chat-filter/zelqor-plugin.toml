@@ -1,0 +1,21 @@
+name = "Chat Filter"
+slug = "chat-filter"
+description = "Filters inappropriate language from in-game chat messages."
+version = "2.0.1"
+license = "MIT"
+min_engine_version = "0.2.0"
+
+[metadata]
+category = "moderation"
+tags = ["chat", "moderation", "filter"]
+homepage = ""
+source = ""
+
+hooks = [
+  "on_chat_message",
+]
+
+[config]
+severity = "medium"
+
+[permissions]

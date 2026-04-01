@@ -1,0 +1,11 @@
+[package]
+name = "auto-balance"
+version = "1.1.0"
+edition = "2021"
+description = "Automatically balances teams based on player ELO ratings before match start"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.41"
