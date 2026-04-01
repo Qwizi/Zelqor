@@ -158,7 +158,20 @@ async fn download_and_load(
             path = %cache_file.display(),
             "Using cached WASM file"
         );
-        tokio::fs::read(&cache_file).await?
+        let bytes = tokio::fs::read(&cache_file).await?;
+        // Re-validate hash of cached file to detect corruption/tampering.
+        if !entry.wasm_hash.is_empty() {
+            let computed = sha256_hex(&bytes);
+            if computed != entry.wasm_hash {
+                warn!(
+                    plugin = %entry.slug,
+                    "Cached WASM hash mismatch, re-downloading"
+                );
+                let _ = tokio::fs::remove_file(&cache_file).await;
+                return Box::pin(download_and_load(http_client, cache_dir, entry, wasm_url)).await;
+            }
+        }
+        bytes
     } else {
         debug!(
             plugin = %entry.slug,

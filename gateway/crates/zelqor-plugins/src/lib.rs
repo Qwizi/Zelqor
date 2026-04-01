@@ -671,8 +671,8 @@ impl PluginManager {
     // Environment
     // -----------------------------------------------------------------------
 
-    /// Chain weather through plugins. The first plugin to return `Some` wins;
-    /// subsequent plugins see the overridden value.
+    /// Chain weather through plugins. Each plugin can override the value;
+    /// the last plugin to return `Some` wins.
     pub fn on_weather_change(
         &self,
         match_id: &str,

@@ -20,20 +20,26 @@ interface game-hooks {
         payload: string,
     }
 
+    // ── Verdict type ────────────────────────────────────────────
+
+    enum action-verdict {
+        allow,
+        deny,
+    }
+
     // ── Economy types ───────────────────────────────────────────
 
     record economy-context {
         match-id: string,
         tick: u64,
-        base-energy-rate: f64,
-        region-energy-rate: f64,
-        base-unit-rate: f64,
-        capital-bonus: f64,
+        region-income: f64,
+        income-multiplier: f64,
+        unit-upkeep: f64,
     }
     record energy-event {
         match-id: string,
         user-id: string,
-        amount: u32,
+        amount: f64,
         reason: string,
     }
 
@@ -118,7 +124,7 @@ interface game-hooks {
 
     on-tick: func(ctx: tick-context) -> list<string>;
     on-combat: func(event: combat-event) -> option<combat-event>;
-    on-player-action: func(action: player-action) -> bool;
+    on-player-action: func(action: player-action) -> action-verdict;
     on-match-start: func(match-id: string, player-ids: list<string>);
     on-match-end: func(match-id: string, winner-id: option<string>);
 
@@ -131,7 +137,7 @@ interface game-hooks {
     // ── Economy hooks ───────────────────────────────────────────
 
     on-economy-tick: func(ctx: economy-context) -> option<economy-context>;
-    on-energy-spend: func(event: energy-event) -> bool;
+    on-energy-spend: func(event: energy-event) -> action-verdict;
 
     // ── Unit & Building hooks ───────────────────────────────────
 
@@ -148,28 +154,28 @@ interface game-hooks {
 
     // ── Diplomacy hooks ─────────────────────────────────────────
 
-    on-diplomacy-propose: func(event: diplomacy-event) -> bool;
+    on-diplomacy-propose: func(event: diplomacy-event) -> action-verdict;
     on-diplomacy-accept: func(event: diplomacy-event);
     on-diplomacy-reject: func(event: diplomacy-event);
 
     // ── Capital & Ability hooks ─────────────────────────────────
 
-    on-capital-select: func(match-id: string, user-id: string, region-id: string) -> bool;
+    on-capital-select: func(match-id: string, user-id: string, region-id: string) -> action-verdict;
     on-ability-use: func(event: ability-event) -> option<ability-event>;
 
     // ── Special hooks ───────────────────────────────────────────
 
-    on-nuke-launch: func(event: special-event) -> bool;
-    on-bomber-launch: func(event: special-event) -> bool;
+    on-nuke-launch: func(event: special-event) -> action-verdict;
+    on-bomber-launch: func(event: special-event) -> action-verdict;
 
     // ── Environment hooks ───────────────────────────────────────
 
     on-weather-change: func(match-id: string, old-weather: string, new-weather: string) -> option<string>;
     on-day-night-change: func(match-id: string, phase: string);
 
-    // ── Chat & Voting hooks ───────────────────────────────────���─
+    // ── Chat & Voting hooks ───────────────────────────────────
 
-    on-chat-message: func(event: chat-event) -> bool;
+    on-chat-message: func(event: chat-event) -> action-verdict;
     on-vote-start: func(event: vote-event);
     on-vote-end: func(event: vote-event);
 

@@ -399,7 +399,7 @@ class DeveloperController:
     def list_servers(self, request, app_id: uuid.UUID, limit: int = 50, offset: int = 0):
         """List all community servers for a developer app."""
         app = self._get_app(request, app_id)
-        qs = app.servers.order_by("-created_at")
+        qs = app.servers.prefetch_related("installed_plugins__plugin", "custom_game_modes").order_by("-created_at")
         return paginate_qs(qs, limit, offset, schema=CommunityServerOutSchema)
 
     @route.patch("/apps/{app_id}/servers/{server_id}/", response=CommunityServerOutSchema)
@@ -943,7 +943,11 @@ class CommunityServerController:
         sort: str = "players",
     ):
         """List all public online community servers with filtering."""
-        qs = CommunityServer.objects.filter(is_public=True, status="online").select_related("app")
+        qs = (
+            CommunityServer.objects.filter(is_public=True, status="online")
+            .select_related("app")
+            .prefetch_related("installed_plugins__plugin", "custom_game_modes")
+        )
         if region:
             qs = qs.filter(region=region)
         if tag:
@@ -966,7 +970,9 @@ class CommunityServerController:
     def get_server(self, request, server_id: uuid.UUID):
         """Get details for a specific public community server."""
         try:
-            server = CommunityServer.objects.get(id=server_id, is_public=True)
+            server = CommunityServer.objects.prefetch_related("installed_plugins__plugin", "custom_game_modes").get(
+                id=server_id, is_public=True
+            )
         except CommunityServer.DoesNotExist:
             raise HttpError(404, "Not found") from None
         return CommunityServerOutSchema.from_orm(server)

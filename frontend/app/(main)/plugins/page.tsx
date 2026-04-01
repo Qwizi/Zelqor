@@ -46,11 +46,15 @@ function RatingStars({ rating, max = 5 }: { rating: number; max?: number }) {
 
 const CATEGORY_COLORS: Record<string, string> = {
   gameplay: "bg-violet-500/15 text-violet-300 hover:bg-violet-500/15",
-  ui: "bg-sky-500/15 text-sky-300 hover:bg-sky-500/15",
   economy: "bg-amber-500/15 text-amber-300 hover:bg-amber-500/15",
   combat: "bg-rose-500/15 text-rose-300 hover:bg-rose-500/15",
-  social: "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/15",
-  utility: "bg-slate-500/20 text-slate-300 hover:bg-slate-500/20",
+  admin: "bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/15",
+  chat: "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/15",
+  anticheat: "bg-red-500/15 text-red-300 hover:bg-red-500/15",
+  cosmetic: "bg-pink-500/15 text-pink-300 hover:bg-pink-500/15",
+  stats: "bg-sky-500/15 text-sky-300 hover:bg-sky-500/15",
+  moderation: "bg-orange-500/15 text-orange-300 hover:bg-orange-500/15",
+  other: "bg-slate-500/20 text-slate-300 hover:bg-slate-500/20",
 };
 
 function CategoryBadge({ category }: { category: string }) {
@@ -320,7 +324,7 @@ export default function PluginsPage() {
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Star className="h-4 w-4 text-amber-400" />
-            <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Wyrozniowe pluginy</div>
+            <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Wyroznione pluginy</div>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
             {featuredLoading
