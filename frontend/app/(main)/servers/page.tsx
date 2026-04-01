@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type CommunityServer, getPublicServers } from "@/lib/api";
+import { type CommunityServerListItemListItem, getPublicServers } from "@/lib/api";
 
 // ── Constants ──────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ function formatDate(iso: string): string {
 
 // ── Status badge ───────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: CommunityServer["status"] }) {
+function StatusBadge({ status }: { status: CommunityServerListItem["status"] }) {
   if (status === "online") {
     return (
       <Badge className="border-0 bg-emerald-500/15 text-[10px] uppercase tracking-[0.18em] text-emerald-300 hover:bg-emerald-500/15">
@@ -65,7 +65,7 @@ function StatusBadge({ status }: { status: CommunityServer["status"] }) {
 
 // ── Server card ────────────────────────────────────────────────
 
-function ServerCard({ server }: { server: CommunityServer }) {
+function ServerCard({ server }: { server: CommunityServerListItem }) {
   return (
     <Link
       href={`/servers/${server.id}`}
@@ -202,7 +202,7 @@ function EmptyState() {
 // ── Page ───────────────────────────────────────────────────────
 
 export default function ServersPage() {
-  const [servers, setServers] = useState<CommunityServer[]>([]);
+  const [servers, setServers] = useState<CommunityServerListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [region, setRegion] = useState("");
   const [search, setSearch] = useState("");

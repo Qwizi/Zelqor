@@ -4,6 +4,7 @@ import uuid
 from datetime import timedelta
 
 from django.conf import settings
+from django.core import validators as django_validators
 from django.db import models
 from django.utils import timezone
 
@@ -489,7 +490,13 @@ class PluginReview(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     plugin = models.ForeignKey(Plugin, on_delete=models.CASCADE, related_name="reviews")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="plugin_reviews")
-    rating = models.PositiveSmallIntegerField(help_text="Rating 1-5")
+    rating = models.PositiveSmallIntegerField(
+        help_text="Rating 1-5",
+        validators=[
+            django_validators.MinValueValidator(1),
+            django_validators.MaxValueValidator(5),
+        ],
+    )
     title = models.CharField(max_length=200, blank=True)
     body = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -520,6 +527,15 @@ class PluginReview(models.Model):
             Plugin.objects.filter(pk=self.plugin_id).update(
                 rating_sum=models.F("rating_sum") - old_rating + self.rating,
             )
+
+    def delete(self, *args, **kwargs):
+        plugin_id = self.plugin_id
+        rating = self.rating
+        super().delete(*args, **kwargs)
+        Plugin.objects.filter(pk=plugin_id).update(
+            rating_sum=models.F("rating_sum") - rating,
+            rating_count=models.F("rating_count") - 1,
+        )
 
 
 class ServerPlugin(models.Model):

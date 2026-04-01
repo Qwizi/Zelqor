@@ -1,10 +1,11 @@
-import hashlib
 import ipaddress
 import socket
 import uuid
 from urllib.parse import urlparse
 
+from django.contrib.auth.hashers import make_password
 from django.core.cache import cache
+from django.db import IntegrityError
 from django.db import models as db_models
 from django.http import Http404
 from ninja.errors import HttpError
@@ -90,6 +91,16 @@ def _validate_webhook_url(url: str) -> None:
                 raise HttpError(400, "Webhook URL cannot target private/internal networks")
     except socket.gaierror:
         raise HttpError(400, "Cannot resolve webhook URL hostname") from None
+
+
+def _validate_plugin_config(config: dict, config_schema: dict, plugin_slug: str) -> None:
+    """Validate that config keys match the plugin's config_schema properties."""
+    schema_props = config_schema.get("properties", {})
+    if not schema_props:
+        return
+    unknown = set(config.keys()) - set(schema_props.keys())
+    if unknown:
+        raise HttpError(400, f"Unknown config keys for plugin '{plugin_slug}': {', '.join(sorted(unknown))}")
 
 
 @api_controller("/developers", tags=["Developers"], permissions=[IsAuthenticated], auth=ActiveUserJWTAuth())
@@ -373,7 +384,7 @@ class DeveloperController:
         app = self._get_app(request, app_id)
         password_hash = ""
         if payload.password:
-            password_hash = hashlib.sha256(payload.password.encode()).hexdigest()
+            password_hash = make_password(payload.password)
         server = CommunityServer.objects.create(
             app=app,
             name=payload.name,
@@ -434,7 +445,7 @@ class DeveloperController:
                 setattr(server, field, val)
                 update_fields.append(field)
         if payload.password is not None:
-            server.password_hash = hashlib.sha256(payload.password.encode()).hexdigest() if payload.password else ""
+            server.password_hash = make_password(payload.password) if payload.password else ""
             update_fields.append("password_hash")
         if update_fields:
             update_fields.append("updated_at")
@@ -525,6 +536,10 @@ class DeveloperController:
             if not plugin_version:
                 raise HttpError(404, f"Version '{payload.version}' not found")
 
+        # Validate config keys against plugin's config_schema if defined.
+        if payload.config and plugin.config_schema:
+            _validate_plugin_config(payload.config, plugin.config_schema, plugin.slug)
+
         sp = ServerPlugin.objects.create(
             server=server,
             plugin=plugin,
@@ -564,6 +579,8 @@ class DeveloperController:
 
         update_fields = []
         if payload.config is not None:
+            if payload.config and sp.plugin.config_schema:
+                _validate_plugin_config(payload.config, sp.plugin.config_schema, sp.plugin.slug)
             sp.config = payload.config
             update_fields.append("config")
         if payload.is_enabled is not None:
@@ -707,6 +724,19 @@ class DeveloperController:
             plugin = app.plugins.get(slug=slug)
         except Plugin.DoesNotExist:
             raise HttpError(404, "Plugin not found") from None
+
+        # Validate hooks if provided.
+        if payload.hooks is not None:
+            valid_hook_set = set(VALID_HOOKS)
+            invalid = [h for h in payload.hooks if h not in valid_hook_set]
+            if invalid:
+                raise HttpError(400, f"Invalid hooks: {', '.join(invalid)}")
+
+        # Validate category if provided.
+        if payload.category is not None:
+            valid_categories = {v for v, _ in PLUGIN_CATEGORIES}
+            if payload.category not in valid_categories:
+                raise HttpError(400, f"Invalid category: {payload.category}")
 
         update_fields = []
         for field in [
@@ -909,16 +939,16 @@ class PluginReviewController:
         if payload.rating < 1 or payload.rating > 5:
             raise HttpError(400, "Rating must be between 1 and 5")
 
-        if PluginReview.objects.filter(plugin=plugin, user=request.auth).exists():
-            raise HttpError(409, "You have already reviewed this plugin")
-
-        review = PluginReview.objects.create(
-            plugin=plugin,
-            user=request.auth,
-            rating=payload.rating,
-            title=payload.title,
-            body=payload.body,
-        )
+        try:
+            review = PluginReview.objects.create(
+                plugin=plugin,
+                user=request.auth,
+                rating=payload.rating,
+                title=payload.title,
+                body=payload.body,
+            )
+        except IntegrityError:
+            raise HttpError(409, "You have already reviewed this plugin") from None
         return PluginReviewOutSchema.from_orm(review)
 
 
@@ -954,8 +984,10 @@ class CommunityServerController:
             qs = qs.filter(tags__contains=[tag])
         if search:
             qs = qs.filter(db_models.Q(name__icontains=search) | db_models.Q(description__icontains=search))
-        if has_slots:
+        if has_slots is True:
             qs = qs.filter(current_player_count__lt=db_models.F("max_players"))
+        elif has_slots is False:
+            qs = qs.filter(current_player_count__gte=db_models.F("max_players"))
 
         if sort == "newest":
             qs = qs.order_by("-created_at")

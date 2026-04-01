@@ -342,16 +342,10 @@ async fn lock_plugins() -> Result<()> {
     let mut lock_entries: Vec<String> = Vec::new();
     for (name, constraint) in &deps {
         let constraint_str = constraint.as_str().unwrap_or("*");
-        // Strip leading comparison operators to get a bare version string.
-        let resolved = constraint_str
-            .trim_start_matches(">=")
-            .trim_start_matches("<=")
-            .trim_start_matches('>')
-            .trim_start_matches('<')
-            .trim_start_matches('~')
-            .trim_start_matches('^')
-            .trim()
-            .to_string();
+        // Extract the first semver-like version from the constraint.
+        // For complex constraints (e.g. ">=1.0,<2.0") we take the first
+        // version-like segment; for bare "*" we record "latest".
+        let resolved = extract_version(constraint_str);
         output::info(&format!("  {name} {constraint_str} -> {resolved}"));
         lock_entries.push(format!(
             "[[plugin]]\nname = \"{name}\"\nversion = \"{resolved}\"\nconstraint = \"{constraint_str}\"\n"
@@ -768,6 +762,29 @@ fn glob_wasm_outputs() -> Result<Vec<PathBuf>> {
         }
     }
     Ok(results)
+}
+
+/// Extract a version string from a constraint like ">=1.2.0", "^1.0", ">=1.0,<2.0", or "*".
+/// Returns "latest" for wildcards or empty constraints.
+fn extract_version(constraint: &str) -> String {
+    if constraint.is_empty() || constraint == "*" {
+        return "latest".into();
+    }
+    // Split on comma (for compound constraints like ">=1.0,<2.0") and take the first segment.
+    let segment = constraint.split(',').next().unwrap_or(constraint);
+    let version = segment
+        .trim_start_matches(">=")
+        .trim_start_matches("<=")
+        .trim_start_matches('>')
+        .trim_start_matches('<')
+        .trim_start_matches('~')
+        .trim_start_matches('^')
+        .trim();
+    if version.is_empty() {
+        "latest".into()
+    } else {
+        version.to_string()
+    }
 }
 
 fn sha256_file(path: &PathBuf) -> Result<String> {

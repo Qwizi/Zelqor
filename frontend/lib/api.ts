@@ -983,37 +983,45 @@ export async function getAvailableEvents(token: string): Promise<AvailableEvents
 
 // --- Community Servers ---
 
-export interface CommunityServer {
+/** Compact representation returned by the list endpoint. */
+export interface CommunityServerListItem {
   id: string;
   name: string;
-  description: string;
   region: string;
-  max_players: number;
-  is_public: boolean;
   status: "online" | "offline" | "maintenance";
+  max_players: number;
+  is_verified: boolean;
+  current_player_count: number;
+  current_match_count: number;
+  max_concurrent_matches: number;
+  tags: string[];
+  has_password: boolean;
+  /** Only present on list if custom schema includes it; always present on detail. */
+  description?: string;
+  created_at?: string;
+}
+
+/** Full detail representation returned by the single-server endpoint. */
+export interface CommunityServer extends CommunityServerListItem {
+  description: string;
+  is_public: boolean;
   last_heartbeat: string | null;
   server_version: string;
-  is_verified: boolean;
   created_at: string;
-  max_concurrent_matches: number;
-  current_match_count: number;
-  current_player_count: number;
   motd: string;
-  tags: string[];
   auto_start_match: boolean;
   min_players_to_start: number;
   match_start_countdown_seconds: number;
   allow_spectators: boolean;
   max_spectators: number;
   allow_custom_game_modes: boolean;
-  has_password: boolean;
   installed_plugins: string[];
   game_modes: string[];
 }
 
-export async function getPublicServers(region?: string): Promise<CommunityServer[]> {
+export async function getPublicServers(region?: string): Promise<CommunityServerListItem[]> {
   const params = region ? `?region=${region}` : "";
-  const res = await fetchAPI<{ items: CommunityServer[]; count: number }>(`/servers/${params}`);
+  const res = await fetchAPI<{ items: CommunityServerListItem[]; count: number }>(`/servers/${params}`);
   return res.items;
 }
 

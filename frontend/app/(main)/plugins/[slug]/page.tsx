@@ -168,6 +168,8 @@ export default function PluginDetailPage() {
     navigator.clipboard.writeText(`zelqor plugin install ${plugin.slug}`).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Clipboard access denied or not available — silently ignore.
     });
   }
 

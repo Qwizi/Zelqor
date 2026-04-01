@@ -145,11 +145,11 @@ pub struct BuildingEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegionEvent {
     pub match_id: String,
-    /// Player who now owns / previously owned the region.
-    pub user_id: String,
     pub region_id: String,
-    /// The player from whom the region was taken, if any.
-    pub previous_owner: Option<String>,
+    /// The player who owned the region before the event, if any.
+    pub old_owner: Option<String>,
+    /// The player who now owns the region, if any.
+    pub new_owner: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -163,7 +163,9 @@ pub struct DiplomacyEvent {
     pub proposer_id: String,
     pub target_id: String,
     /// e.g. "alliance", "non_aggression", "trade"
-    pub deal_type: String,
+    pub diplomacy_type: String,
+    /// JSON payload with deal-specific parameters.
+    pub payload: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -175,8 +177,8 @@ pub struct DiplomacyEvent {
 pub struct AbilityEvent {
     pub match_id: String,
     pub user_id: String,
-    pub ability_id: String,
-    pub target_region: Option<String>,
+    pub ability_type: String,
+    pub target_region: String,
     pub payload: String,
 }
 
@@ -186,8 +188,8 @@ pub struct SpecialEvent {
     pub match_id: String,
     pub user_id: String,
     /// "nuke" | "bomber"
-    pub weapon_type: String,
-    pub origin_region: String,
+    pub event_type: String,
+    pub source_region: String,
     pub target_region: String,
 }
 
@@ -212,10 +214,10 @@ pub struct VoteEvent {
     pub initiator_id: String,
     /// e.g. "kick", "pause", "surrender"
     pub vote_type: String,
-    /// JSON payload with vote-specific data.
-    pub payload: String,
+    /// Subject of the vote (e.g. player ID to kick).
+    pub subject: String,
     /// Only populated on vote-end.
-    pub outcome: Option<String>,
+    pub result: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -972,8 +974,8 @@ mod tests {
         SpecialEvent {
             match_id: "m1".into(),
             user_id: "u1".into(),
-            weapon_type: "nuke".into(),
-            origin_region: "r1".into(),
+            event_type: "nuke".into(),
+            source_region: "r1".into(),
             target_region: "r2".into(),
         }
     }
@@ -992,7 +994,8 @@ mod tests {
             match_id: "m1".into(),
             proposer_id: "u1".into(),
             target_id: "u2".into(),
-            deal_type: "alliance".into(),
+            diplomacy_type: "alliance".into(),
+            payload: "{}".into(),
         }
     }
 
@@ -1095,9 +1098,9 @@ mod tests {
         assert!(plugin.on_unit_produce(&make_unit_event()).unwrap().is_none());
         assert!(plugin.on_region_capture(&RegionEvent {
             match_id: "m1".into(),
-            user_id: "u1".into(),
             region_id: "r1".into(),
-            previous_owner: None,
+            old_owner: None,
+            new_owner: Some("u1".into()),
         }).is_ok());
         assert_eq!(
             plugin.on_nuke_launch(&make_special_event()).unwrap(),
