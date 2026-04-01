@@ -968,7 +968,6 @@ fn generate_compose(gateway_url: &str, oauth_url: &str, client_id: &str, client_
       CLIENT_SECRET: "{client_secret}"
       REDIS_URL: "redis://redis:6379/1"
       RUST_LOG: "info,zelqor_gamenode=debug"
-      INTERNAL_SECRET: "${{INTERNAL_SECRET:-dev-internal-secret}}"
       PLUGINS_DIR: "/data/plugins_cache"
       MAX_CONCURRENT_MATCHES: "5"
     volumes:

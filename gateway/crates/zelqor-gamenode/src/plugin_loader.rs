@@ -1,6 +1,9 @@
-//! Plugin loader — fetches installed plugins from the Django internal API,
-//! downloads WASM blobs, caches them locally, and loads them into a
-//! [`PluginManager`].
+//! Plugin loader — receives plugin list from the gateway (pushed via
+//! WebSocket), downloads WASM blobs, caches them locally, and loads them
+//! into a [`PluginManager`].
+//!
+//! The gamenode never contacts Django directly — the gateway fetches the
+//! plugin list and pushes it as a `GatewayToNode::PluginList` message.
 
 use crate::config::NodeConfig;
 use serde::Deserialize;
@@ -10,9 +13,9 @@ use zelqor_plugins::{
     host::WasmPlugin, sandbox::SandboxConfig, PluginManifest, PluginManager,
 };
 
-/// A single plugin entry returned by the Django internal API.
+/// A single plugin entry as received from the gateway's PluginList message.
 #[derive(Debug, Deserialize)]
-struct PluginEntry {
+pub(crate) struct PluginEntry {
     slug: String,
     name: String,
     version: String,
@@ -28,74 +31,45 @@ struct PluginEntry {
     priority: i32,
 }
 
-/// Response wrapper from `/api/v1/internal/server-plugins/{server_id}/`.
-#[derive(Debug, Deserialize)]
-struct PluginsResponse {
-    plugins: Vec<PluginEntry>,
-}
-
-/// Fetch the server's installed plugins from Django, download their WASM files,
-/// and return a fully loaded [`PluginManager`].
+/// Download and load plugins from a JSON plugin list pushed by the gateway.
 ///
-/// On any network error the function logs a warning and returns an empty
-/// manager so the gamenode can still run (just without plugins).
-pub async fn load_plugins(
+/// The `plugins_json` value is the array received in `GatewayToNode::PluginList`.
+/// On any error the function logs a warning and returns an empty manager so
+/// the gamenode can still run (just without plugins).
+pub async fn load_plugins_from_list(
     http_client: &reqwest::Client,
     cfg: &NodeConfig,
+    plugins_json: &serde_json::Value,
 ) -> PluginManager {
     let mut manager = PluginManager::new();
 
-    // 1. Fetch plugin list from Django internal API.
-    let url = cfg.plugins_api_url();
-    info!(url = %url, "Fetching installed plugins from Django");
-
-    let resp = match http_client
-        .get(&url)
-        .header("X-Internal-Secret", &cfg.internal_secret)
-        .send()
-        .await
-    {
-        Ok(r) => r,
+    let entries: Vec<PluginEntry> = match serde_json::from_value(plugins_json.clone()) {
+        Ok(e) => e,
         Err(e) => {
-            warn!("Failed to fetch plugins from Django: {e}");
+            warn!("Failed to parse plugin list from gateway: {e}");
             return manager;
         }
     };
 
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        warn!("Plugin API returned {status}: {body}");
-        return manager;
-    }
-
-    let plugins_resp: PluginsResponse = match resp.json().await {
-        Ok(p) => p,
-        Err(e) => {
-            warn!("Failed to parse plugin list: {e}");
-            return manager;
-        }
-    };
-
-    if plugins_resp.plugins.is_empty() {
+    if entries.is_empty() {
         info!("No plugins installed on this server");
         return manager;
     }
 
     info!(
-        count = plugins_resp.plugins.len(),
-        "Found installed plugins, downloading WASM files"
+        count = entries.len(),
+        "Received plugin list from gateway, downloading WASM files"
     );
 
-    // 2. Ensure the local plugin cache directory exists.
+    // Ensure the local plugin cache directory exists.
     let cache_dir = PathBuf::from(&cfg.plugins_dir);
     if let Err(e) = tokio::fs::create_dir_all(&cache_dir).await {
         error!("Failed to create plugin cache dir {:?}: {e}", cache_dir);
         return manager;
     }
 
-    // 3. Download each plugin and load it.
-    for entry in &plugins_resp.plugins {
+    // Download each plugin and load it.
+    for entry in &entries {
         let wasm_url = match &entry.wasm_url {
             Some(u) if !u.is_empty() => u,
             _ => {
@@ -107,7 +81,7 @@ pub async fn load_plugins(
             }
         };
 
-        match download_and_load(http_client, &cache_dir, &entry, wasm_url).await {
+        match download_and_load(http_client, &cache_dir, entry, wasm_url).await {
             Ok(plugin) => {
                 info!(
                     plugin = %entry.slug,
@@ -129,7 +103,7 @@ pub async fn load_plugins(
 
     info!(
         loaded = manager.plugin_count(),
-        total = plugins_resp.plugins.len(),
+        total = entries.len(),
         "Plugin loading complete"
     );
     manager

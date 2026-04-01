@@ -40,6 +40,10 @@ pub enum GatewayToNode {
     SystemModules {
         modules: serde_json::Value,
     },
+    /// Push the installed plugin list to the gamenode (sent on registration).
+    PluginList {
+        plugins: serde_json::Value,
+    },
 }
 
 /// Messages sent from a gamenode back to the central gateway.

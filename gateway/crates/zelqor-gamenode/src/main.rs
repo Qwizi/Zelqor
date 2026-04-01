@@ -185,9 +185,8 @@ async fn run_connection(cfg: &NodeConfig, http_client: &reqwest::Client) {
         "Sent Register to gateway"
     );
 
-    // 4. Load plugins from Django, then create the match runner.
-    let plugins = plugin_loader::load_plugins(http_client, cfg).await;
-    let match_runner = MatchRunner::with_plugins(plugins);
+    // 4. Create the match runner (plugins loaded later when gateway pushes PluginList).
+    let match_runner = MatchRunner::new();
     let node_state = Arc::new(NodeState::default());
     let (result_tx, mut result_rx) = mpsc::unbounded_channel::<MatchResult>();
 
@@ -264,7 +263,7 @@ async fn run_connection(cfg: &NodeConfig, http_client: &reqwest::Client) {
             maybe_msg = ws_source.next() => {
                 match maybe_msg {
                     Some(Ok(Message::Text(text))) => {
-                        handle_gateway_message(&text, &match_runner, &result_tx, &node_state);
+                        handle_gateway_message(&text, &match_runner, &result_tx, &node_state, http_client, cfg);
                     }
                     Some(Ok(Message::Ping(data))) => {
                         // Respond to ping frames.
@@ -300,6 +299,8 @@ fn handle_gateway_message(
     match_runner: &MatchRunner,
     result_tx: &mpsc::UnboundedSender<MatchResult>,
     node_state: &Arc<NodeState>,
+    http_client: &reqwest::Client,
+    cfg: &NodeConfig,
 ) {
     let msg: GatewayToNode = match serde_json::from_str(text) {
         Ok(m) => m,
@@ -347,8 +348,6 @@ fn handle_gateway_message(
         }
         GatewayToNode::Heartbeat => {
             info!("Received Heartbeat ping from gateway");
-            // The periodic HeartbeatAck is handled by the heartbeat task; this
-            // handles an explicit ping if the gateway sends one outside the interval.
         }
         GatewayToNode::MatchRegions { match_id, regions } => {
             tracing::debug!(match_id = %match_id, "Caching match regions from gateway");
@@ -361,6 +360,20 @@ fn handle_gateway_message(
         GatewayToNode::SystemModules { modules } => {
             tracing::debug!("Caching system modules from gateway");
             *node_state.system_modules.write().unwrap() = Some(modules);
+        }
+        GatewayToNode::PluginList { plugins } => {
+            info!("Received PluginList from gateway, loading WASM plugins");
+            // Spawn async plugin download+load; once done, swap into the runner.
+            let client = http_client.clone();
+            let cfg = cfg.clone();
+            let runner = match_runner.clone();
+            tokio::spawn(async move {
+                let manager =
+                    plugin_loader::load_plugins_from_list(&client, &cfg, &plugins).await;
+                let count = manager.plugin_count();
+                runner.set_plugins(manager);
+                info!(count, "Plugins loaded and activated");
+            });
         }
     }
 }
