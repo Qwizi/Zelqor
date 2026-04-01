@@ -1,0 +1,23 @@
+name = "Speed Boost"
+slug = "speed-boost"
+description = "Increases unit movement speed by 50% during the first 30 seconds of each turn."
+version = "1.0.0"
+license = "MIT"
+min_engine_version = "0.2.0"
+
+[metadata]
+category = "gameplay"
+tags = ["speed", "movement", "boost"]
+homepage = ""
+source = ""
+
+hooks = [
+  "on_tick",
+  "on_unit_move",
+]
+
+[config]
+boost_percentage = 50
+boost_duration_ticks = 30
+
+[permissions]

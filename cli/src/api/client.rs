@@ -121,6 +121,56 @@ impl ApiClient {
         Ok(paginated.items)
     }
 
+    pub async fn update_server(
+        &self,
+        app_id: &str,
+        server_id: &str,
+        req: &UpdateServerRequest,
+    ) -> Result<ServerResponse> {
+        let url = format!(
+            "{}/developers/apps/{}/servers/{}/",
+            self.base_url, app_id, server_id
+        );
+        let resp = self
+            .client
+            .patch(&url)
+            .headers(self.auth_headers())
+            .json(req)
+            .send()
+            .await
+            .context("Network error")?;
+
+        if !resp.status().is_success() {
+            return Err(Self::handle_error(resp).await);
+        }
+        resp.json().await.context("Failed to parse response")
+    }
+
+    pub async fn list_server_plugins(
+        &self,
+        app_id: &str,
+        server_id: &str,
+    ) -> Result<Vec<InstalledPluginResponse>> {
+        let url = format!(
+            "{}/developers/apps/{}/servers/{}/plugins/?limit=100",
+            self.base_url, app_id, server_id
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.auth_headers())
+            .send()
+            .await
+            .context("Network error")?;
+
+        if !resp.status().is_success() {
+            return Err(Self::handle_error(resp).await);
+        }
+        let paginated: Paginated<InstalledPluginResponse> =
+            resp.json().await.context("Failed to parse response")?;
+        Ok(paginated.items)
+    }
+
     pub async fn delete_server(&self, app_id: &str, server_id: &str) -> Result<()> {
         let url = format!(
             "{}/developers/apps/{}/servers/{}/",

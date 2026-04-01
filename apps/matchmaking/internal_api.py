@@ -790,6 +790,7 @@ def _create_match_from_users(users, game_mode, *, team_labels: dict | None = Non
 class CreateLobbyRequest(Schema):
     user_id: str
     game_mode: str | None = None
+    server_id: str | None = None
 
 
 class JoinLobbyRequest(Schema):
@@ -1060,17 +1061,22 @@ class LobbyInternalController(ControllerBase):
 
         result = _create_match_from_users(users, lobby.game_mode, team_labels=team_labels or None)
 
-        # Link match back to the lobby
+        # Link match back to the lobby and assign community server if present
         from apps.matchmaking.models import Match
 
         match = Match.objects.get(id=result["match_id"])
         lobby.match = match
         lobby.save(update_fields=["match"])
 
+        if lobby.server:
+            match.server = lobby.server
+            match.save(update_fields=["server"])
+
         # Clean up any MatchQueue entries for these users
         user_ids = [u.id for u in users]
         MatchQueue.objects.filter(user_id__in=user_ids).delete()
 
+        result["server_id"] = str(lobby.server_id) if lobby.server_id else None
         return result
 
     @route.get("/get/{lobby_id}/")
@@ -1170,10 +1176,29 @@ class LobbyInternalController(ControllerBase):
         else:
             gm = GameMode.objects.filter(is_default=True, is_active=True).first()
 
+        # Resolve community server if provided
+        community_server = None
+        if body.server_id:
+            from apps.developers.models import CommunityServer
+
+            community_server = CommunityServer.objects.filter(
+                id=body.server_id, status="online"
+            ).first()
+            if not community_server:
+                return self.create_response(
+                    {"error": "Server not found or offline"}, status_code=404
+                )
+
         with transaction.atomic():
             # Find candidate IDs first (with GROUP BY), then lock the row
+            lobby_qs = Lobby.objects.filter(status=Lobby.Status.WAITING, game_mode=gm)
+            if community_server:
+                lobby_qs = lobby_qs.filter(server=community_server)
+            else:
+                lobby_qs = lobby_qs.filter(server__isnull=True)
+
             candidate_ids = (
-                Lobby.objects.filter(status=Lobby.Status.WAITING, game_mode=gm)
+                lobby_qs
                 .annotate(player_count=Count("players"))
                 .filter(player_count__lt=F("max_players"))
                 .order_by("created_at")
@@ -1217,6 +1242,7 @@ class LobbyInternalController(ControllerBase):
                     host_user=user,
                     game_mode=gm,
                     max_players=max_players,
+                    server=community_server,
                 )
                 LobbyPlayer.objects.create(lobby=lobby, user=user, is_bot=user.is_bot)
 

@@ -39,14 +39,16 @@ pub struct DispatchResult {
 
 /// Callback type that the gateway provides to dispatch matches to game nodes.
 ///
-/// Given a match_id, it should:
+/// Given a match_id and optional community server_id, it should:
 /// 1. Pick the best available server from the registry
+///    - If server_id is Some, route to that specific community gamenode
+///    - If server_id is None, pick the best official gamenode
 /// 2. Fetch match_data from Django
 /// 3. Send `GatewayToNode::StartMatch` to the chosen server
 /// 4. Call Django to persist the server assignment
 /// 5. Return the chosen server_id, or an error if no server is available
 pub type DispatchFn =
-    Arc<dyn Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<DispatchResult, String>> + Send>> + Send + Sync>;
+    Arc<dyn Fn(String, Option<String>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<DispatchResult, String>> + Send>> + Send + Sync>;
 
 /// Manages matchmaking WebSocket connections organized by lobby.
 ///
@@ -148,6 +150,7 @@ impl MatchmakingManager {
         user_id: &str,
         username: &str,
         game_mode: Option<&str>,
+        server_id: Option<&str>,
     ) -> Result<(mpsc::UnboundedReceiver<MatchmakingMessage>, u64), String> {
         let (tx, rx) = mpsc::unbounded_channel();
         let conn_id = CONNECTION_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -198,7 +201,7 @@ impl MatchmakingManager {
         }
 
         // 4. Find or create lobby
-        let lobby_id = self.find_or_create_lobby(user_id, game_mode, &tx).await?;
+        let lobby_id = self.find_or_create_lobby(user_id, game_mode, server_id, &tx).await?;
 
         // 5. Register
         self.register_connection(user_id, username, &lobby_id, tx, conn_id).await;
@@ -276,11 +279,12 @@ impl MatchmakingManager {
         &self,
         user_id: &str,
         game_mode: Option<&str>,
+        server_id: Option<&str>,
         tx: &mpsc::UnboundedSender<MatchmakingMessage>,
     ) -> Result<String, String> {
         // Single atomic Django call: find waiting lobby + join, or create new one.
         // Uses select_for_update(skip_locked=True) to prevent race conditions.
-        let result = self.django.find_or_create_lobby(user_id, game_mode).await
+        let result = self.django.find_or_create_lobby(user_id, game_mode, server_id).await
             .map_err(|e| format!("Failed to find or create lobby: {e}"))?;
 
         let lobby_id = result.lobby_id.clone();
@@ -637,7 +641,8 @@ impl MatchmakingManager {
                     // Dispatch to a gamenode if one is available.
                     if let Some(ref dispatch) = self.dispatch_fn {
                         let mid = match_id.clone();
-                        match (dispatch)(mid).await {
+                        let sid = result.server_id.clone();
+                        match (dispatch)(mid, sid).await {
                             Ok(res) => {
                                 info!(
                                     match_id = %match_id,

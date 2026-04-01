@@ -1,0 +1,11 @@
+[package]
+name = "fog-of-war-extended"
+version = "1.2.0"
+edition = "2021"
+description = "Extends fog of war mechanics with partial visibility zones around controlled regions"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.41"

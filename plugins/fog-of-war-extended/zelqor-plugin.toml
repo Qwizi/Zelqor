@@ -1,0 +1,23 @@
+name = "Fog of War Extended"
+slug = "fog-of-war-extended"
+description = "Extends fog of war mechanics with partial visibility zones around controlled regions."
+version = "1.2.0"
+license = "MIT"
+min_engine_version = "0.2.0"
+
+[metadata]
+category = "gameplay"
+tags = ["fog", "visibility", "tactical"]
+homepage = ""
+source = ""
+
+hooks = [
+  "on_tick",
+  "on_region_capture",
+]
+
+[config]
+visibility_radius = 2
+fog_accuracy_penalty = 0.3
+
+[permissions]

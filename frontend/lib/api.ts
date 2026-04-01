@@ -1161,6 +1161,157 @@ export async function getServerGameModes(serverId: string): Promise<CustomGameMo
   return res.items;
 }
 
+// --- Developer Server Config ---
+
+export interface ServerUpdatePayload {
+  name?: string;
+  description?: string;
+  max_players?: number;
+  is_public?: boolean;
+  max_concurrent_matches?: number;
+  motd?: string;
+  tags?: string[];
+  auto_start_match?: boolean;
+  min_players_to_start?: number;
+  match_start_countdown_seconds?: number;
+  allow_spectators?: boolean;
+  max_spectators?: number;
+  allow_custom_game_modes?: boolean;
+  password?: string;
+}
+
+export async function updateDeveloperServer(
+  token: string,
+  appId: string,
+  serverId: string,
+  payload: ServerUpdatePayload,
+): Promise<CommunityServer> {
+  return fetchAPI<CommunityServer>(`/developers/apps/${appId}/servers/${serverId}/`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface PluginInstallPayload {
+  plugin_slug: string;
+  config?: Record<string, unknown>;
+  priority?: number;
+  version?: string;
+}
+
+export async function installServerPlugin(
+  token: string,
+  appId: string,
+  serverId: string,
+  payload: PluginInstallPayload,
+): Promise<ServerPlugin> {
+  return fetchAPI<ServerPlugin>(`/developers/apps/${appId}/servers/${serverId}/plugins/`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateServerPlugin(
+  token: string,
+  appId: string,
+  serverId: string,
+  pluginSlug: string,
+  payload: { config?: Record<string, unknown>; is_enabled?: boolean; priority?: number },
+): Promise<ServerPlugin> {
+  return fetchAPI<ServerPlugin>(`/developers/apps/${appId}/servers/${serverId}/plugins/${pluginSlug}/`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function uninstallServerPlugin(
+  token: string,
+  appId: string,
+  serverId: string,
+  pluginSlug: string,
+): Promise<void> {
+  await fetchAPI(`/developers/apps/${appId}/servers/${serverId}/plugins/${pluginSlug}/`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export interface GameModeCreatePayload {
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  base_game_mode_slug?: string;
+  config_overrides?: Record<string, unknown>;
+  is_public?: boolean;
+}
+
+export async function createServerGameMode(
+  token: string,
+  appId: string,
+  serverId: string,
+  payload: GameModeCreatePayload,
+): Promise<CustomGameMode> {
+  return fetchAPI<CustomGameMode>(`/developers/apps/${appId}/servers/${serverId}/game-modes/`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateServerGameMode(
+  token: string,
+  appId: string,
+  serverId: string,
+  modeSlug: string,
+  payload: { name?: string; description?: string; config_overrides?: Record<string, unknown>; is_public?: boolean; is_active?: boolean },
+): Promise<CustomGameMode> {
+  return fetchAPI<CustomGameMode>(`/developers/apps/${appId}/servers/${serverId}/game-modes/${modeSlug}/`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteServerGameMode(
+  token: string,
+  appId: string,
+  serverId: string,
+  modeSlug: string,
+): Promise<void> {
+  await fetchAPI(`/developers/apps/${appId}/servers/${serverId}/game-modes/${modeSlug}/`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export async function getDeveloperServerPlugins(
+  token: string,
+  appId: string,
+  serverId: string,
+): Promise<ServerPlugin[]> {
+  const res = await fetchAPI<{ items: ServerPlugin[] }>(
+    `/developers/apps/${appId}/servers/${serverId}/plugins/`,
+    { token },
+  );
+  return res.items;
+}
+
+export async function getDeveloperServerGameModes(
+  token: string,
+  appId: string,
+  serverId: string,
+): Promise<CustomGameMode[]> {
+  const res = await fetchAPI<{ items: CustomGameMode[] }>(
+    `/developers/apps/${appId}/servers/${serverId}/game-modes/`,
+    { token },
+  );
+  return res.items;
+}
+
 // --- Inventory ---
 
 export interface ItemOut {

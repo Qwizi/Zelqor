@@ -1,0 +1,22 @@
+name = "Double Resources"
+slug = "double-resources"
+description = "Doubles resource generation rate for all players. Makes games faster and more action-packed."
+version = "1.0.0"
+license = "MIT"
+min_engine_version = "0.2.0"
+
+[metadata]
+category = "economy"
+tags = ["resources", "economy", "fast"]
+homepage = ""
+source = ""
+
+hooks = [
+  "on_tick",
+  "on_economy_tick",
+]
+
+[config]
+multiplier = 2.0
+
+[permissions]

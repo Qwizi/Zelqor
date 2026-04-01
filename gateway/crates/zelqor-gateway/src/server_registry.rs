@@ -63,18 +63,26 @@ impl ServerRegistry {
     /// Find the best available server, optionally preferring a specific region.
     ///
     /// Selection criteria (in priority order):
-    /// 1. Servers in the requested region (when `region` is `Some`).
-    /// 2. Lowest active_matches / max_matches utilisation ratio.
-    /// 3. Servers that still have capacity (active < max).
+    /// 1. Filter by `official_only` when `Some` (official vs community gamenodes).
+    /// 2. Servers in the requested region (when `region` is `Some`).
+    /// 3. Lowest active_matches / max_matches utilisation ratio.
+    /// 4. Servers that still have capacity (active < max).
     ///
     /// Returns the `server_id` of the chosen server, or `None` when no server
     /// with remaining capacity is available.
-    pub fn get_best_server(&self, region: Option<&str>) -> Option<String> {
+    pub fn get_best_server(&self, region: Option<&str>, official_only: Option<bool>) -> Option<String> {
         let mut best_id: Option<String> = None;
         let mut best_ratio = f64::MAX;
 
         for entry in self.servers.iter() {
             let server = entry.value();
+
+            // Filter by official/community status when requested.
+            if let Some(want_official) = official_only {
+                if server.is_official != want_official {
+                    continue;
+                }
+            }
 
             // Skip saturated nodes.
             if server.active_matches >= server.max_matches {
@@ -133,6 +141,11 @@ impl ServerRegistry {
         server_id: &str,
     ) -> Option<mpsc::UnboundedSender<GatewayToNode>> {
         self.servers.get(server_id).map(|s| s.sender.clone())
+    }
+
+    /// Check whether a server is currently connected to the gateway.
+    pub fn is_connected(&self, server_id: &str) -> bool {
+        self.servers.contains_key(server_id)
     }
 
     /// Check whether a server is official (verified).
@@ -247,14 +260,14 @@ mod tests {
     #[test]
     fn get_best_server_returns_none_when_empty() {
         let registry = ServerRegistry::new();
-        assert_eq!(registry.get_best_server(None), None);
+        assert_eq!(registry.get_best_server(None, None), None);
     }
 
     #[test]
     fn get_best_server_returns_none_when_all_saturated() {
         let registry = ServerRegistry::new();
         registry.register(make_server("s1", "eu-west", 10, 10));
-        assert_eq!(registry.get_best_server(None), None);
+        assert_eq!(registry.get_best_server(None, None), None);
     }
 
     #[test]
@@ -262,7 +275,7 @@ mod tests {
         let registry = ServerRegistry::new();
         registry.register(make_server("busy", "eu-west", 8, 10));
         registry.register(make_server("idle", "eu-west", 1, 10));
-        let best = registry.get_best_server(None).expect("should find a server");
+        let best = registry.get_best_server(None, None).expect("should find a server");
         assert_eq!(best, "idle");
     }
 
@@ -273,7 +286,7 @@ mod tests {
         registry.register(make_server("us-node", "us-east", 2, 10));
         registry.register(make_server("eu-node", "eu-west", 5, 10));
         let best = registry
-            .get_best_server(Some("eu-west"))
+            .get_best_server(Some("eu-west"), None)
             .expect("should find a server");
         assert_eq!(best, "eu-node");
     }

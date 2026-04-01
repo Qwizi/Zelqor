@@ -471,14 +471,17 @@ class DeveloperController:
     def create_plugin(self, request, app_id: uuid.UUID, payload: PluginCreateSchema):
         """Create a new plugin for a developer app."""
         app = self._get_app(request, app_id)
-        plugin = Plugin.objects.create(
-            app=app,
-            name=payload.name,
-            slug=payload.slug,
-            description=payload.description,
-            version="0.1.0",
-            hooks=payload.hooks,
-        )
+        try:
+            plugin = Plugin.objects.create(
+                app=app,
+                name=payload.name,
+                slug=payload.slug,
+                description=payload.description,
+                version="0.1.0",
+                hooks=payload.hooks,
+            )
+        except IntegrityError:
+            raise HttpError(409, f"Plugin with slug '{payload.slug}' already exists") from None
         return PluginOutSchema.from_orm(plugin)
 
     @route.get("/apps/{app_id}/plugins/", response=dict)

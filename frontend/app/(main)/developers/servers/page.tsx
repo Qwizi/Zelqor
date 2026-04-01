@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Calendar, Globe, Plus, Server, ServerCrash, Shield, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, Globe, Plus, Server, ServerCrash, Settings, Shield, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -180,6 +180,16 @@ function ServerRow({
       </div>
 
       <div className="flex items-center gap-2 self-end sm:self-auto">
+        <Link href={`/developers/servers/${server.id}`}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-full border-white/10 bg-white/[0.04] px-3 text-xs text-slate-300 hover:border-cyan-300/30 hover:bg-cyan-500/10 hover:text-cyan-200"
+          >
+            <Settings className="mr-1.5 h-3.5 w-3.5" />
+            Konfiguruj
+          </Button>
+        </Link>
         <Button
           variant="outline"
           size="sm"

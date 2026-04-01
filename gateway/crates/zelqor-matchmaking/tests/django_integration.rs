@@ -442,7 +442,7 @@ async fn connect_new_user_no_match_no_lobby() {
 
     let mgr = make_manager(&server).await;
     let (mut rx, _conn_id) = mgr
-        .connect(&user_id, username, None)
+        .connect(&user_id, username, None, None)
         .await
         .expect("connect must succeed");
 
@@ -483,7 +483,7 @@ async fn connect_user_with_active_match() {
 
     let mgr = make_manager(&server).await;
     let (mut rx, _conn_id) = mgr
-        .connect(&user_id, "Player1", None)
+        .connect(&user_id, "Player1", None, None)
         .await
         .expect("connect must succeed even when active match exists");
 
@@ -533,7 +533,7 @@ async fn connect_user_reconnects_to_existing_lobby() {
     mgr.test_redis_set_user_lobby(&user_id, &lobby_id).await;
 
     let (mut rx, _conn_id) = mgr
-        .connect(&user_id, username, None)
+        .connect(&user_id, username, None, None)
         .await
         .expect("connect must succeed for reconnect");
 
@@ -574,7 +574,7 @@ async fn connect_reconnect_full_lobby_sends_lobby_full() {
     mgr.test_redis_set_user_lobby(&user_id, &lobby_id).await;
 
     let (mut rx, _conn_id) = mgr
-        .connect(&user_id, username, None)
+        .connect(&user_id, username, None, None)
         .await
         .expect("connect must succeed");
 
@@ -611,7 +611,7 @@ async fn connect_reconnect_ready_lobby_sends_all_ready() {
     mgr.test_redis_set_user_lobby(&user_id, &lobby_id).await;
 
     let (mut rx, _conn_id) = mgr
-        .connect(&user_id, username, None)
+        .connect(&user_id, username, None, None)
         .await
         .expect("connect must succeed");
 
@@ -653,7 +653,7 @@ async fn connect_redis_miss_django_finds_lobby() {
     mgr.test_redis_del_user_lobby(&user_id).await;
 
     let (mut rx, _conn_id) = mgr
-        .connect(&user_id, username, None)
+        .connect(&user_id, username, None, None)
         .await
         .expect("connect must succeed");
 
@@ -1026,7 +1026,7 @@ async fn connect_second_user_joins_full_lobby() {
 
     let mgr = make_manager(&server).await;
     let (mut rx, _conn_id) = mgr
-        .connect(&user2_id, u2_name, None)
+        .connect(&user2_id, u2_name, None, None)
         .await
         .expect("second user connect must succeed");
 

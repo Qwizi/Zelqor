@@ -190,6 +190,9 @@ pub struct TryMatchResult {
     pub user_ids: Option<Vec<String>>,
     #[serde(default)]
     pub bot_ids: Option<Vec<String>>,
+    /// Community server this match belongs to (null for official matchmaking).
+    #[serde(default)]
+    pub server_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -318,6 +321,7 @@ pub struct LobbyPlayerInfo {
 pub struct CreateLobbyRequest {
     pub user_id: String,
     pub game_mode: Option<String>,
+    pub server_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -964,6 +968,7 @@ impl DjangoClient {
             &CreateLobbyRequest {
                 user_id: user_id.to_string(),
                 game_mode: game_mode.map(|s| s.to_string()),
+                server_id: None,
             },
         )
         .await
@@ -1069,12 +1074,14 @@ impl DjangoClient {
         &self,
         user_id: &str,
         game_mode: Option<&str>,
+        server_id: Option<&str>,
     ) -> Result<FindOrCreateLobbyResult, DjangoError> {
         self.post(
             "/api/v1/internal/lobby/find-or-create/",
             &CreateLobbyRequest {
                 user_id: user_id.to_string(),
                 game_mode: game_mode.map(|s| s.to_string()),
+                server_id: server_id.map(|s| s.to_string()),
             },
         )
         .await
@@ -3218,7 +3225,7 @@ mod tests {
 
             let client = make_client(&server);
             let result = client
-                .find_or_create_lobby("u1", Some("ranked"))
+                .find_or_create_lobby("u1", Some("ranked"), None)
                 .await
                 .expect("should succeed");
             assert!(result.created);

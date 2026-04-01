@@ -139,6 +139,14 @@ class Lobby(models.Model):
         null=True,
         blank=True,
     )
+    server = models.ForeignKey(
+        "developers.CommunityServer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="lobbies",
+        help_text="Community server this lobby belongs to (null = global matchmaking)",
+    )
     host_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

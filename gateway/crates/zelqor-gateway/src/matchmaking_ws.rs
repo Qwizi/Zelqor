@@ -12,6 +12,7 @@ pub struct TokenQuery {
     pub token: Option<String>,
     pub ticket: Option<String>,
     pub nonce: Option<String>,
+    pub server_id: Option<String>,
 }
 
 pub async fn ws_matchmaking_handler(
@@ -52,10 +53,11 @@ pub async fn ws_matchmaking_handler(
     };
 
     let game_mode_slug = game_mode.map(|p| p.0);
+    let server_id = query.server_id;
 
     ws.max_message_size(64 * 1024)
         .on_upgrade(move |socket| {
-            handle_matchmaking_socket(socket, pre_auth_user_id, game_mode_slug, state)
+            handle_matchmaking_socket(socket, pre_auth_user_id, game_mode_slug, server_id, state)
         })
 }
 
@@ -63,6 +65,7 @@ async fn handle_matchmaking_socket(
     socket: WebSocket,
     pre_auth_user_id: Option<String>,
     game_mode: Option<String>,
+    server_id: Option<String>,
     state: AppState,
 ) {
     use futures::{SinkExt, StreamExt};
@@ -137,9 +140,10 @@ async fn handle_matchmaking_socket(
     let username = crate::chat::resolve_username(&state, &user_id).await;
 
     let game_mode_ref = game_mode.as_deref();
+    let server_id_ref = server_id.as_deref();
     let (mut rx, conn_id) = match state
         .matchmaking
-        .connect(&user_id, &username, game_mode_ref)
+        .connect(&user_id, &username, game_mode_ref, server_id_ref)
         .await
     {
         Ok(result) => result,
