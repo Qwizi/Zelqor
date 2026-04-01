@@ -144,7 +144,7 @@ function ParticipantColumn({
           <ParticipantSlot key={p.id} participant={p} />
         ))}
         {Array.from({ length: emptySlots }).map((_, i) => (
-          <ParticipantSlot key={`empty-${i}`} isEmpty />
+          <ParticipantSlot key={`empty-slot-${emptySlots}-${i}`} isEmpty />
         ))}
       </div>
     </div>

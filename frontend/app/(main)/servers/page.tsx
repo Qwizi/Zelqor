@@ -20,7 +20,7 @@ const REGIONS = [
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function formatHeartbeat(iso: string | null): string {
+function _formatHeartbeat(iso: string | null): string {
   if (!iso) return "Brak danych";
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);

@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  type PluginCategory,
-  type PluginListItem,
   getFeaturedPlugins,
   getPluginCategories,
   getPublicPlugins,
+  type PluginCategory,
+  type PluginListItem,
 } from "@/lib/api";
 
 // ── Constants ──────────────────────────────────────────────────
@@ -35,7 +35,9 @@ function formatCount(n: number): string {
 function RatingStars({ rating, max = 5 }: { rating: number; max?: number }) {
   return (
     <span className="font-mono text-xs text-amber-300" aria-label={`Ocena ${rating} na ${max}`}>
-      {Array.from({ length: max }).map((_, i) => (i < Math.round(rating) ? "●" : "○")).join("")}
+      {Array.from({ length: max })
+        .map((_, i) => (i < Math.round(rating) ? "●" : "○"))
+        .join("")}
     </span>
   );
 }
@@ -53,9 +55,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function CategoryBadge({ category }: { category: string }) {
   const cls = CATEGORY_COLORS[category] ?? "bg-slate-500/20 text-slate-300 hover:bg-slate-500/20";
-  return (
-    <Badge className={`border-0 text-[10px] uppercase tracking-[0.14em] ${cls}`}>{category}</Badge>
-  );
+  return <Badge className={`border-0 text-[10px] uppercase tracking-[0.14em] ${cls}`}>{category}</Badge>;
 }
 
 // ── Plugin card ────────────────────────────────────────────────
@@ -115,9 +115,7 @@ function PluginCard({ plugin }: { plugin: PluginListItem }) {
             <Download className="h-2.5 w-2.5 text-slate-500" />
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Instalacje</div>
           </div>
-          <div className="mt-0.5 font-mono text-xs font-medium text-slate-300">
-            {formatCount(plugin.install_count)}
-          </div>
+          <div className="mt-0.5 font-mono text-xs font-medium text-slate-300">{formatCount(plugin.install_count)}</div>
         </div>
       </div>
 
@@ -270,7 +268,7 @@ export default function PluginsPage() {
       .then(setPlugins)
       .catch(() => setPlugins([]))
       .finally(() => setLoading(false));
-  }, [category, sort]);
+  }, [category, sort, search]);
 
   // Client-side search filter (debounced effect would be ideal for prod but keeping it simple here)
   const filtered = plugins.filter(

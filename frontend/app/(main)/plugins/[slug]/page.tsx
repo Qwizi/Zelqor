@@ -22,7 +22,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type PluginDetail, type PluginReview, getPlugin, getPluginReviews } from "@/lib/api";
+import { getPlugin, getPluginReviews, type PluginDetail, type PluginReview } from "@/lib/api";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -43,7 +43,9 @@ function formatCount(n: number): string {
 function RatingStars({ rating, max = 5 }: { rating: number; max?: number }) {
   return (
     <span className="font-mono text-sm text-amber-300" aria-label={`Ocena ${rating} na ${max}`}>
-      {Array.from({ length: max }).map((_, i) => (i < Math.round(rating) ? "●" : "○")).join("")}
+      {Array.from({ length: max })
+        .map((_, i) => (i < Math.round(rating) ? "●" : "○"))
+        .join("")}
     </span>
   );
 }
@@ -61,9 +63,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function CategoryBadge({ category }: { category: string }) {
   const cls = CATEGORY_COLORS[category] ?? "bg-slate-500/20 text-slate-300 hover:bg-slate-500/20";
-  return (
-    <Badge className={`border-0 text-[10px] uppercase tracking-[0.14em] ${cls}`}>{category}</Badge>
-  );
+  return <Badge className={`border-0 text-[10px] uppercase tracking-[0.14em] ${cls}`}>{category}</Badge>;
 }
 
 // ── Detail row ─────────────────────────────────────────────────
@@ -93,15 +93,11 @@ function ReviewCard({ review }: { review: PluginReview }) {
             <span className="text-sm font-medium text-zinc-200">{review.username}</span>
             <RatingStars rating={review.rating} />
           </div>
-          {review.title && (
-            <p className="text-sm font-medium text-zinc-100">{review.title}</p>
-          )}
+          {review.title && <p className="text-sm font-medium text-zinc-100">{review.title}</p>}
         </div>
         <span className="shrink-0 text-[10px] text-slate-500">{formatDate(review.created_at)}</span>
       </div>
-      {review.body && (
-        <p className="text-sm leading-relaxed text-slate-400">{review.body}</p>
-      )}
+      {review.body && <p className="text-sm leading-relaxed text-slate-400">{review.body}</p>}
     </div>
   );
 }
@@ -155,7 +151,9 @@ export default function PluginDetailPage() {
     getPlugin(slug)
       .then((p) => {
         setPlugin(p);
-        getPluginReviews(slug).then(setReviews).catch(() => {});
+        getPluginReviews(slug)
+          .then(setReviews)
+          .catch(() => {});
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -230,8 +228,7 @@ export default function PluginDetailPage() {
                 <span className="font-mono text-sm text-slate-500">v{plugin.version}</span>
               </div>
               <div className="mt-0.5 text-sm text-slate-400">
-                przez{" "}
-                <span className="text-zinc-300">{plugin.author_name}</span>
+                przez <span className="text-zinc-300">{plugin.author_name}</span>
               </div>
             </div>
           </div>
@@ -255,9 +252,7 @@ export default function PluginDetailPage() {
               </Badge>
             )}
           </div>
-          {plugin.description && (
-            <p className="max-w-lg text-sm text-slate-400">{plugin.description}</p>
-          )}
+          {plugin.description && <p className="max-w-lg text-sm text-slate-400">{plugin.description}</p>}
         </div>
       </div>
 
@@ -308,19 +303,13 @@ export default function PluginDetailPage() {
           <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Instalacja</div>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3">
-          <code className="flex-1 font-mono text-sm text-violet-300">
-            zelqor plugin install {plugin.slug}
-          </code>
+          <code className="flex-1 font-mono text-sm text-violet-300">zelqor plugin install {plugin.slug}</code>
           <button
             onClick={handleCopyInstall}
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-400 transition-all hover:border-white/20 hover:bg-white/[0.10] hover:text-zinc-100"
             aria-label="Kopiuj komende instalacji"
           >
-            {copied ? (
-              <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
-            ) : (
-              <Copy className="h-3.5 w-3.5" />
-            )}
+            {copied ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
         </div>
         {plugin.min_engine_version && (
@@ -330,21 +319,13 @@ export default function PluginDetailPage() {
 
       {/* ── Detail grid ──────────────────────────────────────── */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <DetailRow
-          icon={<User className="h-4 w-4" />}
-          label="Autor"
-          value={plugin.author_name}
-        />
+        <DetailRow icon={<User className="h-4 w-4" />} label="Autor" value={plugin.author_name} />
         <DetailRow
           icon={<Calendar className="h-4 w-4" />}
           label="Data publikacji"
           value={formatDate(plugin.created_at)}
         />
-        <DetailRow
-          icon={<Scale className="h-4 w-4" />}
-          label="Licencja"
-          value={plugin.license || "—"}
-        />
+        <DetailRow icon={<Scale className="h-4 w-4" />} label="Licencja" value={plugin.license || "—"} />
         <DetailRow
           icon={<Download className="h-4 w-4" />}
           label="Min. wersja silnika"
@@ -443,9 +424,7 @@ export default function PluginDetailPage() {
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Star className="h-4 w-4 text-slate-400" />
-          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
-            Recenzje ({plugin.rating_count})
-          </div>
+          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Recenzje ({plugin.rating_count})</div>
         </div>
         {reviews.length === 0 ? (
           <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] py-8 text-center">

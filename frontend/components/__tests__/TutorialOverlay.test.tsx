@@ -316,7 +316,7 @@ describe("TutorialOverlay", () => {
 
     // The pointer overlay div (fixed inset-0 z-[99]) should be rendered
     // because rect.width > 0 means the `if (!rect || rect.width === 0) return null` is false
-    const pointerContainer = container.querySelector(".pointer-events-none.fixed.inset-0");
+    const _pointerContainer = container.querySelector(".pointer-events-none.fixed.inset-0");
     // May or may not be rendered depending on RAF execution order in jsdom,
     // but the component should not throw
     expect(() => container).not.toThrow();

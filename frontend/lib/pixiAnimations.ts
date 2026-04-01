@@ -310,7 +310,7 @@ export class PixiAnimationManager {
     // Other units use standard path logic.
     let path =
       isBomber || isEscort
-        ? buildBomberFlightPath(anim.bombingWaypoints!)
+        ? buildBomberFlightPath(anim.bombingWaypoints ?? [])
         : anim.waypoints && anim.waypoints.length >= 2
           ? buildWaypointPath(anim.waypoints)
           : buildAnimationPath(animKind, sourceCentroid, targetCentroid, anim.unitType, anim.type);
@@ -1149,7 +1149,8 @@ export class PixiAnimationManager {
       });
     }
 
-    const ring = this.pulseRings.get(key)!;
+    const ring = this.pulseRings.get(key);
+    if (!ring) return;
     const pulseCfg = ring.config;
     const g = ring.gfx;
     g.clear();

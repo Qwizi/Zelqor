@@ -447,7 +447,7 @@ describe("TUTORIAL_STEPS — getHighlightRegions additional branches", () => {
     const neighborMap = { r1: ["n1", "n2", "n3", "n4", "n5", "n6"] };
     const highlighted = step.getHighlightRegions?.(state, "user-1", neighborMap);
     expect(highlighted).toBeDefined();
-    expect(highlighted!.length).toBeLessThanOrEqual(5);
+    expect(highlighted?.length).toBeLessThanOrEqual(5);
   });
 
   it("expand getHighlightRegions returns empty array when no neutral neighbors", () => {
@@ -476,7 +476,7 @@ describe("TUTORIAL_STEPS — getHighlightRegions additional branches", () => {
     });
     const highlighted = step.getHighlightRegions?.(state, "user-1", {});
     expect(highlighted).toBeDefined();
-    expect(highlighted!.length).toBeLessThanOrEqual(3);
+    expect(highlighted?.length).toBeLessThanOrEqual(3);
   });
 
   it("build_action getHighlightRegions returns empty when player owns no regions", () => {
@@ -503,7 +503,7 @@ describe("TUTORIAL_STEPS — getHighlightRegions additional branches", () => {
     });
     const highlighted = step.getHighlightRegions?.(state, "user-1", {});
     expect(highlighted).toBeDefined();
-    expect(highlighted!.length).toBeLessThanOrEqual(3);
+    expect(highlighted?.length).toBeLessThanOrEqual(3);
   });
 
   // ability_virus getHighlightRegions
@@ -520,7 +520,7 @@ describe("TUTORIAL_STEPS — getHighlightRegions additional branches", () => {
     });
     const highlighted = step.getHighlightRegions?.(state, "user-1", {});
     expect(highlighted).toBeDefined();
-    expect(highlighted!.length).toBeLessThanOrEqual(3);
+    expect(highlighted?.length).toBeLessThanOrEqual(3);
   });
 
   it("ability_virus getHighlightRegions returns empty when no enemy regions", () => {
@@ -547,7 +547,7 @@ describe("TUTORIAL_STEPS — getHighlightRegions additional branches", () => {
     });
     const highlighted = step.getHighlightRegions?.(state, "user-1", {});
     expect(highlighted).toBeDefined();
-    expect(highlighted!.length).toBeGreaterThan(0);
+    expect(highlighted?.length).toBeGreaterThan(0);
     expect(highlighted).not.toContain("r1");
   });
 
@@ -593,7 +593,7 @@ describe("TUTORIAL_STEPS — getHighlightRegions additional branches", () => {
     const highlighted = step.getHighlightRegions?.(state, "user-1", neighborMap);
     expect(highlighted).toBeDefined();
     // n1 should appear only once
-    expect(highlighted!.filter((id) => id === "n1").length).toBe(1);
+    expect(highlighted?.filter((id) => id === "n1").length).toBe(1);
   });
 });
 

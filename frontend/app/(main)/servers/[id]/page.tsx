@@ -1,17 +1,6 @@
 "use client";
 
-import {
-  ArrowLeft,
-  Calendar,
-  Globe,
-  Lock,
-  MessageSquare,
-  Puzzle,
-  Server,
-  Shield,
-  Swords,
-  Users,
-} from "lucide-react";
+import { ArrowLeft, Calendar, Globe, Lock, MessageSquare, Puzzle, Server, Shield, Swords, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -21,10 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   type CommunityServer,
   type CustomGameMode,
-  type ServerPlugin,
   getServer,
   getServerGameModes,
   getServerPlugins,
+  type ServerPlugin,
 } from "@/lib/api";
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -135,8 +124,12 @@ export default function ServerDetailPage() {
       .then((s) => {
         setServer(s);
         // Load supplementary data; ignore errors (optional sections)
-        getServerPlugins(id).then(setPlugins).catch(() => {});
-        getServerGameModes(id).then(setGameModes).catch(() => {});
+        getServerPlugins(id)
+          .then(setPlugins)
+          .catch(() => {});
+        getServerGameModes(id)
+          .then(setGameModes)
+          .catch(() => {});
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -327,10 +320,7 @@ export default function ServerDetailPage() {
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {gameModes.map((mode) => (
-              <div
-                key={mode.id}
-                className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-              >
+              <div key={mode.id} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-zinc-200">{mode.name}</div>

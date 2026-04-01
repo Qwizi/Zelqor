@@ -266,7 +266,7 @@ export default function ClanDetailPage() {
         </div>
         <div className="px-4 md:px-0 space-y-2">
           {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            <Skeleton key={`clan-skel-${i}`} className="h-16 w-full rounded-xl" />
           ))}
         </div>
       </div>

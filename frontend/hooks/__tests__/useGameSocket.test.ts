@@ -1492,7 +1492,7 @@ describe("useGameSocket", () => {
     // We need to prevent the mock WebSocket from auto-firing onopen so we can
     // unmount first, then fire it.
     let capturedOnopen: ((event: Event) => void) | null = null;
-    let capturedWs: MockWebSocket | null = null;
+    let _capturedWs: MockWebSocket | null = null;
 
     // Temporarily patch MockWebSocket constructor to not auto-fire
     const OrigWS = MockWebSocket;
@@ -1501,7 +1501,7 @@ describe("useGameSocket", () => {
         super(url);
         // Remove the auto-fire set up by the parent constructor by overriding
         // the onopen property so we can capture and defer it.
-        capturedWs = this;
+        _capturedWs = this;
         // Clear auto-fire from parent — we'll fire manually
       }
     }
@@ -1528,7 +1528,7 @@ describe("useGameSocket", () => {
     // Now fire onopen — the hook sees disposed=true and calls ws.close()
     if (capturedOnopen) {
       act(() => {
-        capturedOnopen!(new Event("open"));
+        capturedOnopen?.(new Event("open"));
       });
     }
 
