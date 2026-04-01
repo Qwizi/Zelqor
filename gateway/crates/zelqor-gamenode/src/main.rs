@@ -1,5 +1,6 @@
 mod config;
 mod match_runner;
+mod plugin_loader;
 
 use config::NodeConfig;
 use futures_util::{SinkExt, StreamExt};
@@ -184,8 +185,9 @@ async fn run_connection(cfg: &NodeConfig, http_client: &reqwest::Client) {
         "Sent Register to gateway"
     );
 
-    // 4. Create the match runner, shared state, and a channel for match results.
-    let match_runner = MatchRunner::new();
+    // 4. Load plugins from Django, then create the match runner.
+    let plugins = plugin_loader::load_plugins(http_client, cfg).await;
+    let match_runner = MatchRunner::with_plugins(plugins);
     let node_state = Arc::new(NodeState::default());
     let (result_tx, mut result_rx) = mpsc::unbounded_channel::<MatchResult>();
 

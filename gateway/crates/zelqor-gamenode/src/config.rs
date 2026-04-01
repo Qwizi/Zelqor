@@ -19,6 +19,10 @@ pub struct NodeConfig {
     pub region: String,
     /// Maximum number of concurrent matches this node will host.
     pub max_matches: u32,
+    /// Local directory for caching downloaded plugin WASM files.
+    pub plugins_dir: String,
+    /// Shared secret for Django internal API calls.
+    pub internal_secret: String,
 }
 
 impl NodeConfig {
@@ -44,6 +48,10 @@ impl NodeConfig {
                 .unwrap_or_else(|_| "10".into())
                 .parse()
                 .unwrap_or(10),
+            plugins_dir: std::env::var("PLUGINS_DIR")
+                .unwrap_or_else(|_| "./plugins_cache".into()),
+            internal_secret: std::env::var("INTERNAL_SECRET")
+                .unwrap_or_else(|_| "dev-internal-secret".into()),
         }
     }
 
@@ -56,6 +64,16 @@ impl NodeConfig {
             .replace("https://", "wss://")
             .replace("http://", "ws://");
         format!("{base}/ws/server/?token={token}")
+    }
+
+    /// Return the internal API URL for fetching server plugins.
+    pub fn plugins_api_url(&self) -> String {
+        let base = self.oauth_url.trim_end_matches('/');
+        if base.ends_with("/api/v1") {
+            format!("{base}/internal/server-plugins/{}/", self.client_id)
+        } else {
+            format!("{base}/api/v1/internal/server-plugins/{}/", self.client_id)
+        }
     }
 
     /// Return the OAuth token endpoint URL.
@@ -85,6 +103,8 @@ mod tests {
             server_name: "test".into(),
             region: "dev".into(),
             max_matches: 5,
+            plugins_dir: "./plugins_cache".into(),
+            internal_secret: "secret".into(),
         };
         let url = cfg.ws_url("my-token");
         assert!(url.starts_with("ws://"));
@@ -102,6 +122,8 @@ mod tests {
             server_name: "prod".into(),
             region: "eu-west".into(),
             max_matches: 20,
+            plugins_dir: "./plugins_cache".into(),
+            internal_secret: "secret".into(),
         };
         let url = cfg.ws_url("tok");
         assert!(url.starts_with("wss://"));
@@ -118,6 +140,8 @@ mod tests {
             server_name: "test".into(),
             region: "dev".into(),
             max_matches: 5,
+            plugins_dir: "./plugins_cache".into(),
+            internal_secret: "secret".into(),
         };
         assert_eq!(cfg.token_url(), "http://backend:8000/api/v1/oauth/token/");
     }
