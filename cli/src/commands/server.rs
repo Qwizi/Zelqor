@@ -22,6 +22,8 @@ pub enum ServerCommand {
     Create,
     /// List community servers for your app
     List,
+    /// Check and install required dependencies (Docker, Compose, Rust, WASM target)
+    Install,
     /// Build the gamenode Docker image from source
     Build,
     /// Generate docker-compose.yml and start the server container
@@ -49,6 +51,7 @@ pub async fn run(args: &ServerArgs, api_url_override: &Option<String>) -> Result
     match &args.command {
         ServerCommand::Create => create_server(api_url_override).await,
         ServerCommand::List => list_servers(api_url_override).await,
+        ServerCommand::Install => install_dependencies().await,
         ServerCommand::Build => build_gamenode_image().await,
         ServerCommand::Start => start_server(api_url_override).await,
         ServerCommand::Stop => stop_server().await,
@@ -395,13 +398,16 @@ async fn start_server(api_url_override: &Option<String>) -> Result<()> {
     println!();
 
     output::info("Starting server container...");
-    let status = tokio::process::Command::new("docker")
-        .args(["compose", "-f", &compose_path.to_string_lossy(), "up", "-d", "--pull", "always"])
+    let compose = detect_compose().await?;
+    output::info(&format!("Using: {}", compose.label()));
+    let compose_file = compose_path.to_string_lossy().to_string();
+    let status = compose
+        .command(&["-f", &compose_file, "up", "-d", "--pull", "always"])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
         .await
-        .context("Failed to run docker compose. Is Docker installed?")?;
+        .context("Failed to run docker compose. Run `zelqor server install` to set up dependencies.")?;
 
     if status.success() {
         output::success(&format!("Server '{}' started.", server.name));
@@ -449,11 +455,15 @@ async fn stop_server() -> Result<()> {
         vec![&dirs[idx]]
     };
 
+    let compose_cmd = detect_compose().await?;
+    output::info(&format!("Using: {}", compose_cmd.label()));
+
     for dir in targets {
-        let compose = dir.path().join("docker-compose.yml");
+        let compose_file = dir.path().join("docker-compose.yml");
+        let compose_str = compose_file.to_string_lossy().to_string();
         output::info(&format!("Stopping {}...", dir.file_name().to_string_lossy()));
-        let status = tokio::process::Command::new("docker")
-            .args(["compose", "-f", &compose.to_string_lossy(), "down"])
+        let status = compose_cmd
+            .command(&["-f", &compose_str, "down"])
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .status()
@@ -471,6 +481,393 @@ async fn stop_server() -> Result<()> {
     }
 
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Compose command detection (handles old `docker-compose` vs new `docker compose`)
+// ---------------------------------------------------------------------------
+
+/// Detected Docker Compose invocation method.
+enum ComposeCmd {
+    /// `docker compose` (v2 plugin — preferred)
+    Plugin,
+    /// `docker-compose` (standalone v1/v2 binary)
+    Standalone,
+}
+
+impl ComposeCmd {
+    /// Build a tokio Command for a compose operation (e.g. "up -d", "down").
+    fn command(&self, compose_args: &[&str]) -> tokio::process::Command {
+        match self {
+            ComposeCmd::Plugin => {
+                let mut cmd = tokio::process::Command::new("docker");
+                cmd.arg("compose");
+                cmd.args(compose_args);
+                cmd
+            }
+            ComposeCmd::Standalone => {
+                let mut cmd = tokio::process::Command::new("docker-compose");
+                cmd.args(compose_args);
+                cmd
+            }
+        }
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            ComposeCmd::Plugin => "docker compose (v2 plugin)",
+            ComposeCmd::Standalone => "docker-compose (standalone)",
+        }
+    }
+}
+
+/// Detect the available Docker Compose invocation. Prefers `docker compose` (plugin).
+async fn detect_compose() -> Result<ComposeCmd> {
+    // Try v2 plugin first: `docker compose version`
+    let plugin = tokio::process::Command::new("docker")
+        .args(["compose", "version"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .await;
+
+    if let Ok(s) = plugin {
+        if s.success() {
+            return Ok(ComposeCmd::Plugin);
+        }
+    }
+
+    // Fallback: standalone `docker-compose`
+    if which::which("docker-compose").is_ok() {
+        output::warn("Using legacy docker-compose. Consider upgrading to Docker Compose v2 plugin.");
+        return Ok(ComposeCmd::Standalone);
+    }
+
+    bail!(
+        "Docker Compose not found.\n\
+         Install it with: `zelqor server install` or visit https://docs.docker.com/compose/install/"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Install dependencies
+// ---------------------------------------------------------------------------
+
+/// Detect the OS package manager.
+fn detect_pkg_manager() -> Option<&'static str> {
+    for pm in &["apt-get", "dnf", "yum", "pacman", "apk", "zypper", "brew"] {
+        if which::which(pm).is_ok() {
+            return Some(pm);
+        }
+    }
+    None
+}
+
+/// Detect OS family for install instructions.
+fn detect_os() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "linux"
+    }
+}
+
+async fn install_dependencies() -> Result<()> {
+    output::header("Install Server Dependencies");
+    println!();
+
+    let os = detect_os();
+    let pkg = detect_pkg_manager();
+
+    // Track what needs installing
+    let has_docker = which::which("docker").is_ok();
+    let has_compose = detect_compose().await.is_ok();
+    let has_rust = which::which("rustc").is_ok();
+    let has_cargo = which::which("cargo").is_ok();
+
+    let has_wasm_target = if has_rust {
+        check_wasm_target().await
+    } else {
+        false
+    };
+
+    // Report current state
+    print_dep_status("Docker", has_docker);
+    print_dep_status("Docker Compose", has_compose);
+    print_dep_status("Rust", has_rust && has_cargo);
+    print_dep_status("wasm32-wasip1 target", has_wasm_target);
+    println!();
+
+    if has_docker && has_compose && has_rust && has_cargo && has_wasm_target {
+        output::success("All dependencies already installed!");
+        return Ok(());
+    }
+
+    // Install Docker
+    if !has_docker {
+        output::info("Installing Docker...");
+        let installed = match (os, pkg) {
+            ("macos", _) => {
+                output::info("On macOS, install Docker Desktop from https://docker.com/products/docker-desktop/");
+                output::info("Or via Homebrew:");
+                println!("  brew install --cask docker");
+                if pkg == Some("brew") {
+                    let proceed = Confirm::new()
+                        .with_prompt("Install Docker Desktop via Homebrew?")
+                        .default(true)
+                        .interact()?;
+                    if proceed {
+                        run_install_cmd("brew", &["install", "--cask", "docker"]).await?
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            ("linux", Some("apt-get")) => {
+                output::info("Installing Docker via official convenience script...");
+                let proceed = Confirm::new()
+                    .with_prompt("Run Docker install script? (curl -fsSL https://get.docker.com | sh)")
+                    .default(true)
+                    .interact()?;
+                if proceed {
+                    run_piped_install("https://get.docker.com").await?
+                } else {
+                    false
+                }
+            }
+            ("linux", Some("dnf")) => {
+                let proceed = Confirm::new()
+                    .with_prompt("Install Docker via dnf?")
+                    .default(true)
+                    .interact()?;
+                if proceed {
+                    run_install_cmd("sudo", &["dnf", "install", "-y", "docker-ce", "docker-ce-cli", "containerd.io", "docker-compose-plugin"]).await?
+                } else {
+                    false
+                }
+            }
+            ("linux", Some("pacman")) => {
+                let proceed = Confirm::new()
+                    .with_prompt("Install Docker via pacman?")
+                    .default(true)
+                    .interact()?;
+                if proceed {
+                    run_install_cmd("sudo", &["pacman", "-S", "--noconfirm", "docker", "docker-compose"]).await?
+                } else {
+                    false
+                }
+            }
+            ("linux", _) => {
+                output::info("Install Docker: curl -fsSL https://get.docker.com | sh");
+                let proceed = Confirm::new()
+                    .with_prompt("Run Docker install script?")
+                    .default(true)
+                    .interact()?;
+                if proceed {
+                    run_piped_install("https://get.docker.com").await?
+                } else {
+                    false
+                }
+            }
+            _ => {
+                output::warn("Visit https://docs.docker.com/get-docker/ to install Docker for your OS.");
+                false
+            }
+        };
+
+        if installed {
+            output::success("Docker installed.");
+            // Add user to docker group on Linux
+            if os == "linux" {
+                let _ = tokio::process::Command::new("sudo")
+                    .args(["usermod", "-aG", "docker", &whoami()])
+                    .status()
+                    .await;
+                output::info("Added current user to docker group. You may need to log out and back in.");
+            }
+        } else {
+            output::warn("Docker not installed — install it manually and re-run.");
+        }
+    }
+
+    // Install Docker Compose (if Docker is present but compose isn't)
+    if !has_compose && (has_docker || which::which("docker").is_ok()) {
+        output::info("Installing Docker Compose plugin...");
+        let installed = match (os, pkg) {
+            ("macos", _) => {
+                output::info("Docker Compose is included with Docker Desktop on macOS.");
+                false
+            }
+            ("linux", Some("apt-get")) => {
+                let proceed = Confirm::new()
+                    .with_prompt("Install docker-compose-plugin via apt?")
+                    .default(true)
+                    .interact()?;
+                if proceed {
+                    run_install_cmd("sudo", &["apt-get", "install", "-y", "docker-compose-plugin"]).await?
+                } else {
+                    false
+                }
+            }
+            ("linux", Some("dnf")) => {
+                let proceed = Confirm::new()
+                    .with_prompt("Install docker-compose-plugin via dnf?")
+                    .default(true)
+                    .interact()?;
+                if proceed {
+                    run_install_cmd("sudo", &["dnf", "install", "-y", "docker-compose-plugin"]).await?
+                } else {
+                    false
+                }
+            }
+            _ => {
+                output::info("Install Docker Compose: https://docs.docker.com/compose/install/");
+                false
+            }
+        };
+
+        if installed {
+            output::success("Docker Compose installed.");
+        }
+    }
+
+    // Install Rust
+    if !has_rust || !has_cargo {
+        output::info("Installing Rust via rustup...");
+        let proceed = Confirm::new()
+            .with_prompt("Install Rust via rustup.rs?")
+            .default(true)
+            .interact()?;
+
+        if proceed {
+            let installed = run_piped_install_with_args(
+                "https://sh.rustup.rs",
+                &["-y", "--default-toolchain", "stable"],
+            )
+            .await?;
+            if installed {
+                output::success("Rust installed. Restart your shell or run: source $HOME/.cargo/env");
+            }
+        }
+    }
+
+    // Install wasm32-wasip1 target
+    if (has_rust || which::which("rustup").is_ok()) && !has_wasm_target {
+        output::info("Adding wasm32-wasip1 target...");
+        let status = tokio::process::Command::new("rustup")
+            .args(["target", "add", "wasm32-wasip1"])
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .await;
+        match status {
+            Ok(s) if s.success() => output::success("wasm32-wasip1 target added."),
+            _ => output::warn("Failed to add wasm32-wasip1 target. Run: rustup target add wasm32-wasip1"),
+        }
+    }
+
+    println!();
+    output::info("Re-checking dependencies...");
+    println!();
+
+    // Final status check
+    let final_docker = which::which("docker").is_ok();
+    let final_compose = detect_compose().await.is_ok();
+    let final_rust = which::which("rustc").is_ok();
+    let final_wasm = if final_rust { check_wasm_target().await } else { false };
+
+    print_dep_status("Docker", final_docker);
+    print_dep_status("Docker Compose", final_compose);
+    print_dep_status("Rust", final_rust);
+    print_dep_status("wasm32-wasip1 target", final_wasm);
+    println!();
+
+    if final_docker && final_compose && final_rust && final_wasm {
+        output::success("All dependencies installed! Run `zelqor server start` to launch your server.");
+    } else {
+        output::warn("Some dependencies are missing. Install them manually and re-run `zelqor server install`.");
+    }
+
+    Ok(())
+}
+
+fn print_dep_status(name: &str, ok: bool) {
+    if ok {
+        println!("  {} {}", style("✓").green().bold(), name);
+    } else {
+        println!("  {} {}", style("✗").red().bold(), name);
+    }
+}
+
+async fn check_wasm_target() -> bool {
+    let output = tokio::process::Command::new("rustup")
+        .args(["target", "list", "--installed"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .await;
+    match output {
+        Ok(out) => String::from_utf8_lossy(&out.stdout).contains("wasm32-wasip1"),
+        Err(_) => false,
+    }
+}
+
+fn whoami() -> String {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("LOGNAME"))
+        .unwrap_or_else(|_| "nobody".into())
+}
+
+/// Run a command and return whether it succeeded.
+async fn run_install_cmd(cmd: &str, args: &[&str]) -> Result<bool> {
+    let status = tokio::process::Command::new(cmd)
+        .args(args)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .await
+        .context(format!("Failed to run {cmd}"))?;
+    Ok(status.success())
+}
+
+/// Download a script and pipe it to sh.
+async fn run_piped_install(url: &str) -> Result<bool> {
+    run_piped_install_with_args(url, &[]).await
+}
+
+/// Download a script and pipe it to sh with extra args.
+async fn run_piped_install_with_args(url: &str, args: &[&str]) -> Result<bool> {
+    let mut curl = tokio::process::Command::new("curl")
+        .args(["-fsSL", url])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .context("curl not found — install curl first")?;
+
+    let curl_stdout = curl
+        .stdout
+        .take()
+        .expect("piped stdout")
+        .into_owned_fd()
+        .context("Failed to get stdout fd")?;
+
+    let mut sh_args = vec!["-s", "--"];
+    sh_args.extend_from_slice(args);
+
+    let status = tokio::process::Command::new("sh")
+        .args(&sh_args)
+        .stdin(curl_stdout)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .await
+        .context("Failed to run install script")?;
+
+    Ok(status.success())
 }
 
 const GAMENODE_IMAGE: &str = "ghcr.io/qwizi/zelqor-gamenode:latest";

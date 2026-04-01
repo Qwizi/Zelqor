@@ -16,7 +16,12 @@ from apps.clans.api import ClanController, ClanGlobalController
 from apps.crafting.views import CraftingController
 from apps.developers.oauth_views import OAuthController
 from apps.developers.public_views import PublicAPIController
-from apps.developers.views import CommunityServerController, DeveloperController, PluginController, PluginReviewController
+from apps.developers.views import (
+    CommunityServerController,
+    DeveloperController,
+    PluginController,
+    PluginReviewController,
+)
 from apps.game.internal_api import GameInternalController
 from apps.game.views import GameController, ShareController
 from apps.game_config.views import ConfigController

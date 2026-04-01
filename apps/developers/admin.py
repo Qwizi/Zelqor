@@ -13,12 +13,11 @@ from apps.developers.models import (
     PluginDependency,
     PluginReview,
     PluginVersion,
-    ServerPlugin,
     ServerPlayerSession,
+    ServerPlugin,
     Webhook,
     WebhookDelivery,
 )
-
 
 # ── Inlines (must be defined before the admin classes that use them) ──
 
