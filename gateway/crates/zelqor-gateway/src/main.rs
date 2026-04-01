@@ -170,14 +170,26 @@ async fn main() {
         let registry = Arc::clone(&server_registry);
         let django_dispatch = django.clone();
 
-        let dispatch_fn: zelqor_matchmaking::DispatchFn = Arc::new(move |match_id: String| {
+        let dispatch_fn: zelqor_matchmaking::DispatchFn = Arc::new(move |match_id: String, community_server_id: Option<String>| {
             let registry = Arc::clone(&registry);
             let django = django_dispatch.clone();
             Box::pin(async move {
-                // 1. Pick the least-loaded server with capacity.
-                let server_id = registry
-                    .get_best_server(None)
-                    .ok_or_else(|| "No gamenode with available capacity".to_string())?;
+                // 1. Pick the right server:
+                //    - Community match: route to the specific community gamenode
+                //    - Official match: pick the best official gamenode only
+                let server_id = if let Some(ref cs_id) = community_server_id {
+                    // Community match — the community server IS the gamenode
+                    if registry.is_connected(cs_id) {
+                        cs_id.clone()
+                    } else {
+                        return Err(format!("Community server {cs_id} is not connected"));
+                    }
+                } else {
+                    // Official match — only pick official gamenodes
+                    registry
+                        .get_best_server(None, Some(true))
+                        .ok_or_else(|| "No official gamenode with available capacity".to_string())?
+                };
 
                 // 2. Get the sender channel for that server.
                 let sender = registry

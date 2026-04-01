@@ -1061,17 +1061,22 @@ class LobbyInternalController(ControllerBase):
 
         result = _create_match_from_users(users, lobby.game_mode, team_labels=team_labels or None)
 
-        # Link match back to the lobby
+        # Link match back to the lobby and assign community server if present
         from apps.matchmaking.models import Match
 
         match = Match.objects.get(id=result["match_id"])
         lobby.match = match
         lobby.save(update_fields=["match"])
 
+        if lobby.server:
+            match.server = lobby.server
+            match.save(update_fields=["server"])
+
         # Clean up any MatchQueue entries for these users
         user_ids = [u.id for u in users]
         MatchQueue.objects.filter(user_id__in=user_ids).delete()
 
+        result["server_id"] = str(lobby.server_id) if lobby.server_id else None
         return result
 
     @route.get("/get/{lobby_id}/")

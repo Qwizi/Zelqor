@@ -190,6 +190,9 @@ pub struct TryMatchResult {
     pub user_ids: Option<Vec<String>>,
     #[serde(default)]
     pub bot_ids: Option<Vec<String>>,
+    /// Community server this match belongs to (null for official matchmaking).
+    #[serde(default)]
+    pub server_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -39,14 +39,16 @@ pub struct DispatchResult {
 
 /// Callback type that the gateway provides to dispatch matches to game nodes.
 ///
-/// Given a match_id, it should:
+/// Given a match_id and optional community server_id, it should:
 /// 1. Pick the best available server from the registry
+///    - If server_id is Some, route to that specific community gamenode
+///    - If server_id is None, pick the best official gamenode
 /// 2. Fetch match_data from Django
 /// 3. Send `GatewayToNode::StartMatch` to the chosen server
 /// 4. Call Django to persist the server assignment
 /// 5. Return the chosen server_id, or an error if no server is available
 pub type DispatchFn =
-    Arc<dyn Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<DispatchResult, String>> + Send>> + Send + Sync>;
+    Arc<dyn Fn(String, Option<String>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<DispatchResult, String>> + Send>> + Send + Sync>;
 
 /// Manages matchmaking WebSocket connections organized by lobby.
 ///
@@ -639,7 +641,8 @@ impl MatchmakingManager {
                     // Dispatch to a gamenode if one is available.
                     if let Some(ref dispatch) = self.dispatch_fn {
                         let mid = match_id.clone();
-                        match (dispatch)(mid).await {
+                        let sid = result.server_id.clone();
+                        match (dispatch)(mid, sid).await {
                             Ok(res) => {
                                 info!(
                                     match_id = %match_id,
