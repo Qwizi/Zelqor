@@ -848,12 +848,23 @@ async fn run_piped_install_with_args(url: &str, args: &[&str]) -> Result<bool> {
         .spawn()
         .context("curl not found — install curl first")?;
 
-    let curl_stdout = curl
+    let curl_stdout_async = curl
         .stdout
         .take()
-        .expect("piped stdout")
-        .into_owned_fd()
-        .context("Failed to get stdout fd")?;
+        .expect("piped stdout");
+
+    // Convert tokio ChildStdout → std::process::Stdio.
+    // Unix exposes into_owned_fd(), Windows exposes into_owned_handle().
+    #[cfg(unix)]
+    let curl_stdout: Stdio = {
+        let fd = curl_stdout_async.into_owned_fd().context("Failed to get stdout fd")?;
+        Stdio::from(fd)
+    };
+    #[cfg(windows)]
+    let curl_stdout: Stdio = {
+        let handle = curl_stdout_async.into_owned_handle().context("Failed to get stdout handle")?;
+        Stdio::from(handle)
+    };
 
     let mut sh_args = vec!["-s", "--"];
     sh_args.extend_from_slice(args);
