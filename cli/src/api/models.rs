@@ -88,6 +88,24 @@ pub struct CreateServerRequest {
     pub custom_config: serde_json::Value,
 }
 
+#[derive(Debug, Serialize)]
+pub struct UpdateServerRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub region: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_players: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_public: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub motd: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_config: Option<serde_json::Value>,
+}
+
 // === Plugins ===
 
 #[derive(Debug, Deserialize, Serialize, Clone, tabled::Tabled)]

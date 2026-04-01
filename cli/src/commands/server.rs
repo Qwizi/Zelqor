@@ -2,11 +2,12 @@ use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use console::style;
 use dialoguer::{Confirm, Input, Select};
+use std::collections::BTreeMap;
 use std::fs;
 use std::process::Stdio;
 
 use crate::api::client::{build_authed_client, ApiClient};
-use crate::api::models::{CreateAppRequest, CreateServerRequest};
+use crate::api::models::{CreateAppRequest, CreateServerRequest, UpdateServerRequest};
 use crate::config;
 use crate::output;
 
@@ -18,10 +19,16 @@ pub struct ServerArgs {
 
 #[derive(Subcommand)]
 pub enum ServerCommand {
-    /// Register a new community server
+    /// Register a new community server and generate zelqor-server.toml
     Create,
     /// List community servers for your app
     List,
+    /// Initialize zelqor-server.toml for an existing server
+    Init,
+    /// Show current server configuration from zelqor-server.toml
+    Config,
+    /// Sync local zelqor-server.toml with the remote API (push settings + plugins)
+    Sync,
     /// Check and install required dependencies (Docker, Compose, Rust, WASM target)
     Install,
     /// Build the gamenode Docker image from source
@@ -51,6 +58,9 @@ pub async fn run(args: &ServerArgs, api_url_override: &Option<String>) -> Result
     match &args.command {
         ServerCommand::Create => create_server(api_url_override).await,
         ServerCommand::List => list_servers(api_url_override).await,
+        ServerCommand::Init => init_server(api_url_override).await,
+        ServerCommand::Config => show_config().await,
+        ServerCommand::Sync => sync_server(api_url_override).await,
         ServerCommand::Install => install_dependencies().await,
         ServerCommand::Build => build_gamenode_image().await,
         ServerCommand::Start => start_server(api_url_override).await,
@@ -208,9 +218,9 @@ async fn create_server(api_url_override: &Option<String>) -> Result<()> {
         .create_server(
             &app_id,
             &CreateServerRequest {
-                name,
-                description,
-                region,
+                name: name.clone(),
+                description: description.clone(),
+                region: region.clone(),
                 max_players,
                 is_public,
                 custom_config: serde_json::Value::Object(serde_json::Map::new()),
@@ -230,6 +240,29 @@ async fn create_server(api_url_override: &Option<String>) -> Result<()> {
         ("Status", server.status.clone()),
         ("Public", server.is_public.to_string()),
     ]);
+
+    // Generate zelqor-server.toml in a per-server directory
+    let dir = std::path::PathBuf::from(format!(".zelqor-server-{}", &server.id[..8]));
+    fs::create_dir_all(&dir).context("Failed to create server directory")?;
+
+    let mut server_cfg = config::ServerConfig::new(
+        &server.id,
+        &server.name,
+        &server.region,
+        server.max_players,
+        server.is_public,
+    );
+    server_cfg.server.description = description;
+
+    config::save_server_config(&dir, &server_cfg)?;
+
+    println!();
+    output::success(&format!(
+        "Config written to {}/{}",
+        dir.display(),
+        config::SERVER_CONFIG_FILE
+    ));
+    output::info("Edit the config file to add plugins and game modes, then run `zelqor server sync`.");
 
     Ok(())
 }
@@ -341,30 +374,74 @@ async fn start_server(api_url_override: &Option<String>) -> Result<()> {
     let (base_url, app_id) = resolve_app_id(api_url_override)?;
     let client = build_authed_client(api_url_override)?;
 
-    // Fetch registered servers
-    let sp = output::spinner("Fetching servers...");
-    let servers = client.list_servers(&app_id).await;
-    sp.finish_and_clear();
-    let servers = servers?;
+    // Find local server directories with zelqor-server.toml
+    let server_dirs = config::find_all_server_dirs();
 
-    if servers.is_empty() {
-        output::warn("No servers registered. Run `zelqor server create` first.");
-        return Ok(());
+    let dir = if !server_dirs.is_empty() {
+        // Pick from local server configs
+        let choices: Vec<String> = server_dirs
+            .iter()
+            .map(|d| {
+                match config::load_server_config(d) {
+                    Ok(cfg) => format!("{} — {} ({})", cfg.server.name, cfg.server.region, d.display()),
+                    Err(_) => d.display().to_string(),
+                }
+            })
+            .collect();
+
+        let idx = Select::new()
+            .with_prompt("Select server to start")
+            .items(&choices)
+            .default(0)
+            .interact()?;
+
+        server_dirs[idx].clone()
+    } else {
+        // No local configs — fall back to fetching from API and selecting
+        let sp = output::spinner("Fetching servers...");
+        let servers = client.list_servers(&app_id).await?;
+        sp.finish_and_clear();
+
+        if servers.is_empty() {
+            bail!("No servers registered. Run `zelqor server create` first.");
+        }
+
+        let choices: Vec<String> = servers
+            .iter()
+            .map(|s| format!("{} — {} ({})", s.name, s.region, s.status))
+            .collect();
+
+        let idx = Select::new()
+            .with_prompt("Select server to start")
+            .items(&choices)
+            .default(0)
+            .interact()?;
+
+        let server = &servers[idx];
+        let dir = std::path::PathBuf::from(format!(".zelqor-server-{}", &server.id[..8]));
+        fs::create_dir_all(&dir)?;
+
+        // Generate initial config if missing
+        if !dir.join(config::SERVER_CONFIG_FILE).exists() {
+            let server_cfg = config::ServerConfig::new(
+                &server.id, &server.name, &server.region, server.max_players, server.is_public,
+            );
+            config::save_server_config(&dir, &server_cfg)?;
+            output::info(&format!("Generated {} in {}", config::SERVER_CONFIG_FILE, dir.display()));
+        }
+
+        dir
+    };
+
+    // Load server config
+    let server_cfg = config::load_server_config(&dir)?;
+    let server_id = &server_cfg.server.id;
+
+    // Sync plugins with the API before starting
+    if !server_cfg.plugins.is_empty() {
+        output::info("Syncing plugins with the platform...");
+        sync_plugins_to_api(&client, &app_id, server_id, &server_cfg).await?;
     }
-
-    // Let user pick which server to start
-    let choices: Vec<String> = servers
-        .iter()
-        .map(|s| format!("{} — {} ({})", s.name, s.region, s.status))
-        .collect();
-
-    let idx = Select::new()
-        .with_prompt("Select server to start")
-        .items(&choices)
-        .default(0)
-        .interact()?;
-
-    let server = &servers[idx];
 
     // Resolve credentials: saved → prompt fallback
     let (client_id, client_secret) = match config::load_app_credentials(&app_id) {
@@ -378,21 +455,42 @@ async fn start_server(api_url_override: &Option<String>) -> Result<()> {
         }
     };
 
-    // Generate docker-compose in a per-server directory
-    let dir = std::path::PathBuf::from(format!(".zelqor-server-{}", &server.id[..8]));
-    fs::create_dir_all(&dir).context("Failed to create server directory")?;
-
+    // Generate docker-compose
     let compose_path = dir.join("docker-compose.yml");
     let gateway_url = base_url
         .replace("/api/v1", "")
         .replace("/api", "");
-    let compose_content = generate_compose(&gateway_url, &base_url, &client_id, &client_secret);
+
+    // Build plugin slugs list for the container env
+    let plugin_slugs: Vec<String> = server_cfg
+        .plugins
+        .iter()
+        .filter(|(_, entry)| entry.enabled)
+        .map(|(slug, entry)| {
+            if entry.version == "latest" {
+                slug.clone()
+            } else {
+                format!("{}@{}", slug, entry.version)
+            }
+        })
+        .collect();
+
+    let compose_content = generate_compose(
+        &gateway_url,
+        &base_url,
+        &client_id,
+        &client_secret,
+        &server_cfg,
+        &plugin_slugs,
+    );
     fs::write(&compose_path, &compose_content)
         .context("Failed to write docker-compose.yml")?;
 
     output::print_kv(&[
-        ("Server", server.name.clone()),
-        ("Region", server.region.clone()),
+        ("Server", server_cfg.server.name.clone()),
+        ("Region", server_cfg.server.region.clone()),
+        ("Plugins", format!("{} enabled", plugin_slugs.len())),
+        ("Game Modes", server_cfg.game_modes.len().to_string()),
         ("Directory", dir.display().to_string()),
     ]);
     println!();
@@ -410,10 +508,327 @@ async fn start_server(api_url_override: &Option<String>) -> Result<()> {
         .context("Failed to run docker compose. Run `zelqor server install` to set up dependencies.")?;
 
     if status.success() {
-        output::success(&format!("Server '{}' started.", server.name));
+        output::success(&format!("Server '{}' started.", server_cfg.server.name));
     } else {
         bail!("docker compose up failed with exit code {:?}", status.code());
     }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Init — create zelqor-server.toml for an existing server
+// ---------------------------------------------------------------------------
+
+async fn init_server(api_url_override: &Option<String>) -> Result<()> {
+    output::header("Initialize Server Config");
+
+    let (base_url, app_id) = resolve_app_id(api_url_override)?;
+    let cfg = config::load()?;
+    let api_key = cfg.auth.as_ref().map(|a| a.access_token.as_str().to_string());
+    let client = ApiClient::new(&base_url, api_key.as_deref());
+
+    let sp = output::spinner("Fetching servers...");
+    let servers = client.list_servers(&app_id).await?;
+    sp.finish_and_clear();
+
+    if servers.is_empty() {
+        bail!("No servers found. Run `zelqor server create` first.");
+    }
+
+    let choices: Vec<String> = servers
+        .iter()
+        .map(|s| format!("{} — {} ({})", s.name, s.region, s.status))
+        .collect();
+
+    let idx = Select::new()
+        .with_prompt("Select server to initialize config for")
+        .items(&choices)
+        .default(0)
+        .interact()?;
+
+    let server = &servers[idx];
+
+    let dir = std::path::PathBuf::from(format!(".zelqor-server-{}", &server.id[..8]));
+    fs::create_dir_all(&dir)?;
+
+    let config_path = dir.join(config::SERVER_CONFIG_FILE);
+    if config_path.exists() {
+        let overwrite = Confirm::new()
+            .with_prompt(format!("{} already exists. Overwrite?", config_path.display()))
+            .default(false)
+            .interact()?;
+        if !overwrite {
+            output::info("Cancelled.");
+            return Ok(());
+        }
+    }
+
+    // Fetch currently installed plugins from the API
+    let sp = output::spinner("Fetching installed plugins...");
+    let installed = client.list_server_plugins(&app_id, &server.id).await.unwrap_or_default();
+    sp.finish_and_clear();
+
+    let mut plugins = BTreeMap::new();
+    for p in &installed {
+        plugins.insert(
+            p.plugin_slug.clone(),
+            config::PluginEntry {
+                version: p.plugin_version.clone(),
+                enabled: true,
+                config: BTreeMap::new(),
+            },
+        );
+    }
+
+    let server_cfg = config::ServerConfig {
+        server: config::ServerSettings {
+            id: server.id.clone(),
+            name: server.name.clone(),
+            description: String::new(),
+            region: server.region.clone(),
+            max_players: server.max_players,
+            is_public: server.is_public,
+            motd: String::new(),
+            max_concurrent_matches: 5,
+        },
+        plugins,
+        game_modes: Vec::new(),
+    };
+
+    config::save_server_config(&dir, &server_cfg)?;
+    output::success(&format!("Config written to {}", config_path.display()));
+    println!();
+    output::info("Edit the config to add plugins and game modes:");
+    println!();
+    println!("  # Add a plugin:");
+    println!("  [plugins.speed-boost]");
+    println!("  version = \"1.0.0\"");
+    println!("  enabled = true");
+    println!();
+    println!("  # Add a game mode:");
+    println!("  [[game_modes]]");
+    println!("  name = \"Fast Match\"");
+    println!("  slug = \"fast-match\"");
+    println!("  max_players = 4");
+    println!("  turn_timer_seconds = 15");
+    println!();
+    output::info("Then run `zelqor server sync` to push changes to the platform.");
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Config — show current zelqor-server.toml
+// ---------------------------------------------------------------------------
+
+async fn show_config() -> Result<()> {
+    output::header("Server Configuration");
+
+    let server_dirs = config::find_all_server_dirs();
+    if server_dirs.is_empty() {
+        bail!(
+            "No {} found. Run `zelqor server create` or `zelqor server init` first.",
+            config::SERVER_CONFIG_FILE
+        );
+    }
+
+    let dir = if server_dirs.len() == 1 {
+        server_dirs[0].clone()
+    } else {
+        let choices: Vec<String> = server_dirs
+            .iter()
+            .map(|d| {
+                match config::load_server_config(d) {
+                    Ok(cfg) => format!("{} ({})", cfg.server.name, d.display()),
+                    Err(_) => d.display().to_string(),
+                }
+            })
+            .collect();
+        let idx = Select::new()
+            .with_prompt("Select server")
+            .items(&choices)
+            .default(0)
+            .interact()?;
+        server_dirs[idx].clone()
+    };
+
+    let server_cfg = config::load_server_config(&dir)?;
+
+    output::print_kv(&[
+        ("ID", server_cfg.server.id.clone()),
+        ("Name", server_cfg.server.name.clone()),
+        ("Region", server_cfg.server.region.clone()),
+        ("Max Players", server_cfg.server.max_players.to_string()),
+        ("Public", server_cfg.server.is_public.to_string()),
+        ("MOTD", if server_cfg.server.motd.is_empty() { "(none)".into() } else { server_cfg.server.motd.clone() }),
+        ("Max Matches", server_cfg.server.max_concurrent_matches.to_string()),
+    ]);
+
+    if !server_cfg.plugins.is_empty() {
+        println!();
+        output::header(&format!("Plugins ({})", server_cfg.plugins.len()));
+        for (slug, entry) in &server_cfg.plugins {
+            let status = if entry.enabled {
+                style("enabled").green().to_string()
+            } else {
+                style("disabled").red().to_string()
+            };
+            println!("  {} v{} [{}]", style(slug).bold(), entry.version, status);
+            if !entry.config.is_empty() {
+                for (k, v) in &entry.config {
+                    println!("    {} = {}", k, v);
+                }
+            }
+        }
+    }
+
+    if !server_cfg.game_modes.is_empty() {
+        println!();
+        output::header(&format!("Game Modes ({})", server_cfg.game_modes.len()));
+        for gm in &server_cfg.game_modes {
+            output::print_kv(&[
+                ("Name", gm.name.clone()),
+                ("Slug", gm.slug.clone()),
+                ("Max Players", gm.max_players.to_string()),
+                ("Turn Timer", format!("{}s", gm.turn_timer_seconds)),
+            ]);
+            println!();
+        }
+    }
+
+    println!();
+    output::info(&format!("Config file: {}/{}", dir.display(), config::SERVER_CONFIG_FILE));
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Sync — push local config to API
+// ---------------------------------------------------------------------------
+
+async fn sync_server(api_url_override: &Option<String>) -> Result<()> {
+    output::header("Sync Server Config");
+
+    let (base_url, app_id) = resolve_app_id(api_url_override)?;
+    let cfg = config::load()?;
+    let api_key = cfg.auth.as_ref().map(|a| a.access_token.as_str().to_string());
+    let client = ApiClient::new(&base_url, api_key.as_deref());
+
+    let server_dirs = config::find_all_server_dirs();
+    if server_dirs.is_empty() {
+        bail!(
+            "No {} found. Run `zelqor server create` or `zelqor server init` first.",
+            config::SERVER_CONFIG_FILE
+        );
+    }
+
+    let dir = if server_dirs.len() == 1 {
+        server_dirs[0].clone()
+    } else {
+        let choices: Vec<String> = server_dirs
+            .iter()
+            .map(|d| {
+                match config::load_server_config(d) {
+                    Ok(cfg) => format!("{} ({})", cfg.server.name, d.display()),
+                    Err(_) => d.display().to_string(),
+                }
+            })
+            .collect();
+        let idx = Select::new()
+            .with_prompt("Select server to sync")
+            .items(&choices)
+            .default(0)
+            .interact()?;
+        server_dirs[idx].clone()
+    };
+
+    let server_cfg = config::load_server_config(&dir)?;
+    let server_id = &server_cfg.server.id;
+
+    // 1. Sync server settings
+    let sp = output::spinner("Syncing server settings...");
+    let update_req = UpdateServerRequest {
+        name: Some(server_cfg.server.name.clone()),
+        description: Some(server_cfg.server.description.clone()),
+        region: Some(server_cfg.server.region.clone()),
+        max_players: Some(server_cfg.server.max_players),
+        is_public: Some(server_cfg.server.is_public),
+        motd: if server_cfg.server.motd.is_empty() { None } else { Some(server_cfg.server.motd.clone()) },
+        custom_config: None,
+    };
+    client.update_server(&app_id, server_id, &update_req).await?;
+    sp.finish_and_clear();
+    output::success("Server settings synced.");
+
+    // 2. Sync plugins
+    if !server_cfg.plugins.is_empty() {
+        sync_plugins_to_api(&client, &app_id, server_id, &server_cfg).await?;
+    }
+
+    output::success("Sync complete.");
+    Ok(())
+}
+
+/// Sync the local plugin list with the remote API.
+/// Installs missing plugins, uninstalls removed ones.
+async fn sync_plugins_to_api(
+    client: &ApiClient,
+    app_id: &str,
+    server_id: &str,
+    server_cfg: &config::ServerConfig,
+) -> Result<()> {
+    // Fetch currently installed plugins from the API
+    let remote_plugins = client
+        .list_server_plugins(app_id, server_id)
+        .await
+        .unwrap_or_default();
+
+    let remote_slugs: std::collections::HashSet<String> = remote_plugins
+        .iter()
+        .map(|p| p.plugin_slug.clone())
+        .collect();
+
+    let local_slugs: std::collections::HashSet<String> = server_cfg
+        .plugins
+        .keys()
+        .cloned()
+        .collect();
+
+    // Install plugins that are in local config but not remote
+    for (slug, entry) in &server_cfg.plugins {
+        if !remote_slugs.contains(slug) {
+            let version = if entry.version == "latest" { None } else { Some(entry.version.as_str()) };
+            let sp = output::spinner(&format!("Installing plugin '{slug}'..."));
+            match client.install_server_plugin(app_id, server_id, slug, version).await {
+                Ok(p) => {
+                    sp.finish_and_clear();
+                    output::success(&format!("  Installed {} v{}", p.plugin_name, p.plugin_version));
+                }
+                Err(e) => {
+                    sp.finish_and_clear();
+                    output::warn(&format!("  Failed to install '{}': {}", slug, e));
+                }
+            }
+        }
+    }
+
+    // Uninstall plugins that are remote but not in local config
+    for slug in &remote_slugs {
+        if !local_slugs.contains(slug) {
+            let sp = output::spinner(&format!("Uninstalling plugin '{slug}'..."));
+            match client.uninstall_server_plugin(app_id, server_id, slug).await {
+                Ok(()) => {
+                    sp.finish_and_clear();
+                    output::success(&format!("  Uninstalled '{}'", slug));
+                }
+                Err(e) => {
+                    sp.finish_and_clear();
+                    output::warn(&format!("  Failed to uninstall '{}': {}", slug, e));
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -966,7 +1381,29 @@ fn prompt_credentials() -> Result<(String, String)> {
     Ok((client_id, client_secret))
 }
 
-fn generate_compose(gateway_url: &str, oauth_url: &str, client_id: &str, client_secret: &str) -> String {
+fn generate_compose(
+    gateway_url: &str,
+    oauth_url: &str,
+    client_id: &str,
+    client_secret: &str,
+    server_cfg: &config::ServerConfig,
+    plugin_slugs: &[String],
+) -> String {
+    let plugins_env = if plugin_slugs.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "      PLUGINS: \"{}\"\n",
+            plugin_slugs.join(",")
+        )
+    };
+
+    let motd_env = if server_cfg.server.motd.is_empty() {
+        String::new()
+    } else {
+        format!("      SERVER_MOTD: \"{}\"\n", server_cfg.server.motd.replace('"', "\\\""))
+    };
+
     format!(
         r#"services:
   zelqor-gamenode:
@@ -980,8 +1417,9 @@ fn generate_compose(gateway_url: &str, oauth_url: &str, client_id: &str, client_
       REDIS_URL: "redis://redis:6379/1"
       RUST_LOG: "info,zelqor_gamenode=debug"
       PLUGINS_DIR: "/data/plugins_cache"
-      MAX_CONCURRENT_MATCHES: "5"
-    volumes:
+      MAX_CONCURRENT_MATCHES: "{max_matches}"
+      SERVER_NAME: "{server_name}"
+{plugins_env}{motd_env}    volumes:
       - plugins_cache:/data/plugins_cache
     depends_on:
       - redis
@@ -992,5 +1430,7 @@ volumes:
   plugins_cache:
 "#,
         image = GAMENODE_IMAGE,
+        max_matches = server_cfg.server.max_concurrent_matches,
+        server_name = server_cfg.server.name.replace('"', "\\\""),
     )
 }
