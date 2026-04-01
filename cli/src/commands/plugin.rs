@@ -614,17 +614,25 @@ async fn build_plugin() -> Result<()> {
     }
 
     let sp = output::spinner("Compiling WASM plugin (release)...");
-    let status = tokio::process::Command::new("cargo")
+    let build_output = tokio::process::Command::new("cargo")
         .args(["build", "--target", "wasm32-wasip1", "--release"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .status()
+        .output()
         .await
         .context("Failed to run cargo build")?;
     sp.finish_and_clear();
 
-    if !status.success() {
-        bail!("cargo build failed. Run `cargo build --target wasm32-wasip1 --release` for details.");
+    if !build_output.status.success() {
+        let stderr = String::from_utf8_lossy(&build_output.stderr);
+        let stdout = String::from_utf8_lossy(&build_output.stdout);
+        if !stderr.is_empty() {
+            eprintln!("{stderr}");
+        }
+        if !stdout.is_empty() {
+            eprintln!("{stdout}");
+        }
+        bail!("cargo build failed");
     }
 
     // Find the .wasm output

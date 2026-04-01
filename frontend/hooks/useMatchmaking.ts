@@ -21,6 +21,7 @@ const QUEUE_KEY = "zelqor_queue";
 
 interface QueueSession {
   gameModeSlug: string | null;
+  serverId: string | null;
   fillBots: boolean;
   instantBot: boolean;
   joinedAt: number;
@@ -83,7 +84,8 @@ interface MatchmakingContextValue {
   setFillBots: (value: boolean) => void;
   instantBot: boolean;
   setInstantBot: (value: boolean) => void;
-  joinQueue: (gameModeSlug?: string) => void;
+  serverId: string | null;
+  joinQueue: (gameModeSlug?: string, serverId?: string) => void;
   leaveQueue: () => void;
   // Lobby state
   lobbyId: string | null;
@@ -133,6 +135,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
   const [fillBots, setFillBots] = useState(true);
   const [instantBot, setInstantBot] = useState(false);
   const [gameModeSlug, setGameModeSlug] = useState<string | null>(null);
+  const [serverId, setServerId] = useState<string | null>(null);
   const [queueSeconds, setQueueSeconds] = useState(0);
   const [queueJoinedAt, setQueueJoinedAt] = useState<number | null>(null);
 
@@ -378,7 +381,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
   );
 
   const connectToQueue = useCallback(
-    async (slug: string | null, fb: boolean, ib: boolean, joinedAt: number) => {
+    async (slug: string | null, sid: string | null, fb: boolean, ib: boolean, joinedAt: number) => {
       if (!isAuthenticated()) return;
       if (wsRef.current) return;
 
@@ -392,7 +395,11 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
         // Fallback: connect without ticket/pow
       }
 
-      const path = slug ? `/matchmaking/${slug}/` : `/matchmaking/`;
+      let path = slug ? `/matchmaking/${slug}/` : `/matchmaking/`;
+      if (sid) {
+        // Append server_id as query param — createSocket will add ticket/nonce params too
+        path += `${path.includes("?") ? "&" : "?"}server_id=${sid}`;
+      }
 
       const ws = createSocket(
         path,
@@ -422,19 +429,22 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
   );
 
   const joinQueue = useCallback(
-    (slug?: string) => {
+    (slug?: string, sid?: string) => {
       if (wsRef.current) return;
       const modeSlug = slug ?? null;
+      const sId = sid ?? null;
       const now = Date.now();
       setGameModeSlug(modeSlug);
+      setServerId(sId);
       saveQueueSession({
         gameModeSlug: modeSlug,
+        serverId: sId,
         fillBots: fillBotsRef.current,
         instantBot: instantBotRef.current,
         joinedAt: now,
         lobbyId: null,
       });
-      connectToQueue(modeSlug, fillBotsRef.current, instantBotRef.current, now);
+      connectToQueue(modeSlug, sId, fillBotsRef.current, instantBotRef.current, now);
       broadcast({ type: "joined", gameModeSlug: modeSlug });
     },
     [connectToQueue, broadcast],
@@ -517,7 +527,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
             }
 
             if (!wsRef.current) {
-              connectToQueue(slug, fb, ib, joinedAt);
+              connectToQueue(slug, localSession?.serverId ?? null, fb, ib, joinedAt);
             }
             return;
           }
@@ -538,6 +548,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
         if (localSession.lobbyId) setLobbyId(localSession.lobbyId);
         connectToQueue(
           localSession.gameModeSlug,
+          localSession.serverId ?? null,
           localSession.fillBots,
           localSession.instantBot,
           localSession.joinedAt,
@@ -606,7 +617,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
           }
           // Connect WS if not connected
           if (!wsRef.current) {
-            connectToQueue(status.game_mode_slug ?? null, fillBotsRef.current, instantBotRef.current, Date.now());
+            connectToQueue(status.game_mode_slug ?? null, null, fillBotsRef.current, instantBotRef.current, Date.now());
           }
         } else {
           setInQueue(false);
@@ -628,6 +639,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
     activeMatchId,
     queueSeconds,
     gameModeSlug,
+    serverId,
     fillBots,
     setFillBots,
     instantBot,

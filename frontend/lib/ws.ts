@@ -26,7 +26,7 @@ export function createSocket(
   const params: string[] = [];
   if (ticket) params.push(`ticket=${ticket}`);
   if (nonce) params.push(`nonce=${nonce}`);
-  if (params.length > 0) url += `?${params.join("&")}`;
+  if (params.length > 0) url += `${url.includes("?") ? "&" : "?"}${params.join("&")}`;
 
   const ws = new WebSocket(url);
 

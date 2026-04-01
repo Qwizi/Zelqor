@@ -148,6 +148,7 @@ impl MatchmakingManager {
         user_id: &str,
         username: &str,
         game_mode: Option<&str>,
+        server_id: Option<&str>,
     ) -> Result<(mpsc::UnboundedReceiver<MatchmakingMessage>, u64), String> {
         let (tx, rx) = mpsc::unbounded_channel();
         let conn_id = CONNECTION_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -198,7 +199,7 @@ impl MatchmakingManager {
         }
 
         // 4. Find or create lobby
-        let lobby_id = self.find_or_create_lobby(user_id, game_mode, &tx).await?;
+        let lobby_id = self.find_or_create_lobby(user_id, game_mode, server_id, &tx).await?;
 
         // 5. Register
         self.register_connection(user_id, username, &lobby_id, tx, conn_id).await;
@@ -276,11 +277,12 @@ impl MatchmakingManager {
         &self,
         user_id: &str,
         game_mode: Option<&str>,
+        server_id: Option<&str>,
         tx: &mpsc::UnboundedSender<MatchmakingMessage>,
     ) -> Result<String, String> {
         // Single atomic Django call: find waiting lobby + join, or create new one.
         // Uses select_for_update(skip_locked=True) to prevent race conditions.
-        let result = self.django.find_or_create_lobby(user_id, game_mode).await
+        let result = self.django.find_or_create_lobby(user_id, game_mode, server_id).await
             .map_err(|e| format!("Failed to find or create lobby: {e}"))?;
 
         let lobby_id = result.lobby_id.clone();

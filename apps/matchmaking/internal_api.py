@@ -790,6 +790,7 @@ def _create_match_from_users(users, game_mode, *, team_labels: dict | None = Non
 class CreateLobbyRequest(Schema):
     user_id: str
     game_mode: str | None = None
+    server_id: str | None = None
 
 
 class JoinLobbyRequest(Schema):
@@ -1170,10 +1171,29 @@ class LobbyInternalController(ControllerBase):
         else:
             gm = GameMode.objects.filter(is_default=True, is_active=True).first()
 
+        # Resolve community server if provided
+        community_server = None
+        if body.server_id:
+            from apps.developers.models import CommunityServer
+
+            community_server = CommunityServer.objects.filter(
+                id=body.server_id, status="online"
+            ).first()
+            if not community_server:
+                return self.create_response(
+                    {"error": "Server not found or offline"}, status_code=404
+                )
+
         with transaction.atomic():
             # Find candidate IDs first (with GROUP BY), then lock the row
+            lobby_qs = Lobby.objects.filter(status=Lobby.Status.WAITING, game_mode=gm)
+            if community_server:
+                lobby_qs = lobby_qs.filter(server=community_server)
+            else:
+                lobby_qs = lobby_qs.filter(server__isnull=True)
+
             candidate_ids = (
-                Lobby.objects.filter(status=Lobby.Status.WAITING, game_mode=gm)
+                lobby_qs
                 .annotate(player_count=Count("players"))
                 .filter(player_count__lt=F("max_players"))
                 .order_by("created_at")
@@ -1217,6 +1237,7 @@ class LobbyInternalController(ControllerBase):
                     host_user=user,
                     game_mode=gm,
                     max_players=max_players,
+                    server=community_server,
                 )
                 LobbyPlayer.objects.create(lobby=lobby, user=user, is_bot=user.is_bot)
 

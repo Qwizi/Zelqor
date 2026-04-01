@@ -1,12 +1,14 @@
 "use client";
 
-import { ArrowLeft, Calendar, Globe, Lock, MessageSquare, Puzzle, Server, Shield, Swords, Users } from "lucide-react";
+import { ArrowLeft, Calendar, Globe, Lock, MessageSquare, Play, Puzzle, Server, Shield, Swords, Users, X } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMatchmaking } from "@/hooks/useMatchmaking";
 import {
   type CommunityServer,
   type CustomGameMode,
@@ -111,11 +113,14 @@ function ServerDetailSkeleton() {
 
 export default function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const { joinQueue, inQueue, matchId } = useMatchmaking();
   const [server, setServer] = useState<CommunityServer | null>(null);
   const [plugins, setPlugins] = useState<ServerPlugin[]>([]);
   const [gameModes, setGameModes] = useState<CustomGameMode[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -134,6 +139,26 @@ export default function ServerDetailPage() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Navigate to match when found
+  useEffect(() => {
+    if (matchId) {
+      router.push(`/game/${matchId}`);
+    }
+  }, [matchId, router]);
+
+  function handleJoinWithMode(mode: CustomGameMode) {
+    // Use the base game mode slug for matchmaking, scoped to this server
+    const modeSlug = mode.base_game_mode ?? mode.slug;
+    joinQueue(modeSlug, id);
+    setJoinDialogOpen(false);
+  }
+
+  function handleJoinDefault() {
+    // Join with server's default mode (no specific game mode slug)
+    joinQueue(undefined, id);
+    setJoinDialogOpen(false);
+  }
 
   if (loading) {
     return (
@@ -200,11 +225,27 @@ export default function ServerDetailPage() {
         </div>
 
         <Button
-          disabled={server.status !== "online"}
+          disabled={server.status !== "online" || inQueue}
+          onClick={() => {
+            if (gameModes.length > 0) {
+              setJoinDialogOpen(true);
+            } else {
+              handleJoinDefault();
+            }
+          }}
           className="h-11 shrink-0 self-start gap-2 rounded-full border border-cyan-300/30 bg-[linear-gradient(135deg,#38bdf8,#0f766e)] px-6 font-display uppercase tracking-[0.2em] text-slate-950 hover:opacity-90 disabled:opacity-40"
         >
-          <Users className="h-4 w-4" />
-          Dolacz do serwera
+          {inQueue ? (
+            <>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" />
+              Szukanie meczu...
+            </>
+          ) : (
+            <>
+              <Users className="h-4 w-4" />
+              Dolacz do serwera
+            </>
+          )}
         </Button>
       </div>
 
@@ -357,6 +398,60 @@ export default function ServerDetailPage() {
           <code className="font-mono text-xs text-slate-300 break-all">{server.id}</code>
         </div>
       </div>
+
+      {/* ── Game mode selection dialog ───────────────────────── */}
+      <Dialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen}>
+        <DialogContent className="border-white/10 bg-zinc-900/95 backdrop-blur-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg text-zinc-50">Wybierz tryb gry</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {/* Default mode — always available */}
+            <button
+              type="button"
+              onClick={handleJoinDefault}
+              className="group flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-all hover:border-cyan-300/30 hover:bg-cyan-500/[0.08]"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-500/10">
+                <Play className="h-4 w-4 text-cyan-300" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-zinc-200 transition-colors group-hover:text-cyan-100">
+                  Domyslny tryb
+                </div>
+                <div className="mt-0.5 text-xs text-slate-500">Standardowe ustawienia serwera</div>
+              </div>
+            </button>
+
+            {/* Custom game modes */}
+            {gameModes.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                onClick={() => handleJoinWithMode(mode)}
+                className="group flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-all hover:border-cyan-300/30 hover:bg-cyan-500/[0.08]"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04]">
+                  <Swords className="h-4 w-4 text-slate-400 transition-colors group-hover:text-cyan-300" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium text-zinc-200 transition-colors group-hover:text-cyan-100">
+                      {mode.name}
+                    </span>
+                    <Badge className="shrink-0 border-0 bg-slate-500/20 text-[10px] uppercase tracking-[0.14em] text-slate-400 hover:bg-slate-500/20">
+                      {mode.play_count} rozg.
+                    </Badge>
+                  </div>
+                  {mode.description && (
+                    <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{mode.description}</p>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
