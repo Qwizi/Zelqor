@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type CommunityServerListItemListItem, getPublicServers } from "@/lib/api";
+import { type CommunityServerListItem, getPublicServers } from "@/lib/api";
 
 // ── Constants ──────────────────────────────────────────────────
 
