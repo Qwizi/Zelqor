@@ -1,13 +1,13 @@
 "use client";
 
-import { ArrowRight, Globe, Search, ServerCrash, Shield, Users } from "lucide-react";
+import { ArrowRight, Globe, Lock, Search, ServerCrash, Shield, Swords, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type CommunityServer, getPublicServers } from "@/lib/api";
+import { type CommunityServerListItemListItem, getPublicServers } from "@/lib/api";
 
 // ── Constants ──────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ const REGIONS = [
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function formatHeartbeat(iso: string | null): string {
+function _formatHeartbeat(iso: string | null): string {
   if (!iso) return "Brak danych";
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
@@ -41,7 +41,7 @@ function formatDate(iso: string): string {
 
 // ── Status badge ───────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: CommunityServer["status"] }) {
+function StatusBadge({ status }: { status: CommunityServerListItem["status"] }) {
   if (status === "online") {
     return (
       <Badge className="border-0 bg-emerald-500/15 text-[10px] uppercase tracking-[0.18em] text-emerald-300 hover:bg-emerald-500/15">
@@ -65,7 +65,7 @@ function StatusBadge({ status }: { status: CommunityServer["status"] }) {
 
 // ── Server card ────────────────────────────────────────────────
 
-function ServerCard({ server }: { server: CommunityServer }) {
+function ServerCard({ server }: { server: CommunityServerListItem }) {
   return (
     <Link
       href={`/servers/${server.id}`}
@@ -105,15 +105,48 @@ function ServerCard({ server }: { server: CommunityServer }) {
           <div className="mt-0.5 font-mono text-xs font-medium text-slate-300">{server.region}</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Maks. graczy</div>
-          <div className="mt-0.5 font-mono text-xs font-medium text-slate-300">{server.max_players}</div>
+          <div className="flex items-center gap-1.5">
+            <Users className="h-3 w-3 text-slate-500" />
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Gracze</div>
+          </div>
+          <div className="mt-0.5 font-mono text-xs font-medium text-slate-300">
+            {server.current_player_count ?? 0}/{server.max_players}
+          </div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <Swords className="h-3 w-3 text-slate-500" />
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Mecze</div>
+          </div>
+          <div className="mt-0.5 font-mono text-xs font-medium text-slate-300">
+            {server.current_match_count ?? 0}/{server.max_concurrent_matches ?? "—"}
+          </div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Dodano</div>
+          <div className="mt-0.5 font-mono text-xs font-medium text-slate-300">{formatDate(server.created_at)}</div>
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-400">Dodano {formatDate(server.created_at)}</span>
-        <ArrowRight className="h-4 w-4 text-slate-500 transition-colors group-hover:text-cyan-300" />
+      {/* Tags + footer */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+          {server.has_password && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-amber-400/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300">
+              <Lock className="h-2.5 w-2.5" />
+              Haslo
+            </span>
+          )}
+          {(server.tags ?? []).slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              className="rounded-md border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[10px] text-slate-400"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+        <ArrowRight className="h-4 w-4 shrink-0 text-slate-500 transition-colors group-hover:text-cyan-300" />
       </div>
     </Link>
   );
@@ -132,17 +165,18 @@ function ServerCardSkeleton() {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 space-y-1.5">
-          <Skeleton className="h-2.5 w-12" />
-          <Skeleton className="h-3 w-10" />
-        </div>
-        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 space-y-1.5">
-          <Skeleton className="h-2.5 w-16" />
-          <Skeleton className="h-3 w-8" />
-        </div>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 space-y-1.5">
+            <Skeleton className="h-2.5 w-12" />
+            <Skeleton className="h-3 w-10" />
+          </div>
+        ))}
       </div>
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-3 w-28" />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex gap-1">
+          <Skeleton className="h-4 w-14 rounded-md" />
+          <Skeleton className="h-4 w-10 rounded-md" />
+        </div>
         <Skeleton className="h-4 w-4 rounded" />
       </div>
     </div>
@@ -168,7 +202,7 @@ function EmptyState() {
 // ── Page ───────────────────────────────────────────────────────
 
 export default function ServersPage() {
-  const [servers, setServers] = useState<CommunityServer[]>([]);
+  const [servers, setServers] = useState<CommunityServerListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [region, setRegion] = useState("");
   const [search, setSearch] = useState("");

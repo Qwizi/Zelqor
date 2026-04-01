@@ -34,3 +34,7 @@ PASSWORD_HASHERS = [
 
 # Use a simpler internal secret for tests
 INTERNAL_SECRET = "test-internal-secret"
+
+# Disable outbox pattern — run finalize side-effects synchronously in tests
+# so assertions can check results without invoking periodic Celery handlers.
+OUTBOX_ENABLED = False

@@ -100,6 +100,9 @@ async fn handle_server_socket(socket: WebSocket, _token: String, state: AppState
         }
     };
 
+    // Clone tx before moving it into ConnectedServer so we can push initial data.
+    let plugin_tx = tx.clone();
+
     let connected = ConnectedServer {
         server_id: server_id.clone(),
         server_name,
@@ -120,6 +123,33 @@ async fn handle_server_socket(socket: WebSocket, _token: String, state: AppState
         tokio::spawn(async move {
             if let Err(e) = django.update_server_status(&sid, "online").await {
                 warn!(server_id = %sid, "Failed to set server online in Django: {e}");
+            }
+        });
+    }
+
+    // Push installed plugin list to the gamenode so it can download WASM files.
+    // The gamenode never talks to Django directly — the gateway mediates.
+    {
+        let django = state.django.clone();
+        let sid = server_id.clone();
+        let node_tx = plugin_tx;
+        tokio::spawn(async move {
+            match django.get_server_plugins(&sid).await {
+                Ok(resp) => {
+                    let plugins_json = serde_json::to_value(&resp.plugins)
+                        .unwrap_or_else(|_| serde_json::json!([]));
+                    let _ = node_tx.send(GatewayToNode::PluginList {
+                        plugins: plugins_json,
+                    });
+                    info!(server_id = %sid, count = resp.plugins.len(), "Pushed PluginList to gamenode");
+                }
+                Err(e) => {
+                    warn!(server_id = %sid, "Failed to fetch plugins from Django: {e}");
+                    // Send empty list so gamenode can proceed without plugins.
+                    let _ = node_tx.send(GatewayToNode::PluginList {
+                        plugins: serde_json::json!([]),
+                    });
+                }
             }
         });
     }

@@ -558,3 +558,70 @@ class GameInternalController(ControllerBase):
         match.server = server
         match.save(update_fields=["server"])
         return {"ok": True}
+
+    @route.get("/server-plugins/{server_id}/")
+    def get_server_plugins(self, request, server_id: str):
+        """Return installed & enabled plugins for a gamenode with WASM download URLs.
+
+        The gamenode calls this at startup to know which plugins to load.
+        Each entry contains the manifest info plus the WASM file URL so the
+        gamenode can download and cache the binary.
+        """
+        if not check_internal_secret(request):
+            return self.create_response({"error": "Unauthorized"}, status_code=403)
+
+        from apps.developers.models import CommunityServer, ServerPlugin
+
+        # Resolve server by client_id or UUID (same pattern as other endpoints).
+        server = CommunityServer.objects.filter(app__client_id=server_id).first()
+        if server is None:
+            try:
+                import uuid as _uuid
+
+                _uuid.UUID(server_id)
+                server = CommunityServer.objects.filter(id=server_id).first()
+            except ValueError:
+                pass
+        if server is None:
+            return self.create_response({"error": "Server not found"}, status_code=404)
+
+        plugins = (
+            ServerPlugin.objects.filter(server=server, is_enabled=True)
+            .select_related("plugin", "plugin_version")
+            .order_by("priority")
+        )
+
+        result = []
+        for sp in plugins:
+            plugin = sp.plugin
+            version = sp.plugin_version
+
+            # Determine WASM file URL — prefer pinned version, fall back to plugin head.
+            wasm_file = None
+            wasm_hash = ""
+            if version and version.wasm_blob:
+                wasm_file = version.wasm_blob
+                wasm_hash = version.wasm_hash
+            elif plugin.wasm_blob:
+                wasm_file = plugin.wasm_blob
+                wasm_hash = plugin.wasm_hash
+
+            wasm_url = request.build_absolute_uri(wasm_file.url) if wasm_file else None
+
+            result.append(
+                {
+                    "slug": plugin.slug,
+                    "name": plugin.name,
+                    "version": version.version if version else plugin.version,
+                    "author": plugin.app.name if plugin.app else "",
+                    "hooks": plugin.hooks or [],
+                    "permissions": plugin.required_permissions or [],
+                    "min_engine_version": (version.min_engine_version if version else plugin.min_engine_version) or "",
+                    "wasm_url": wasm_url,
+                    "wasm_hash": wasm_hash,
+                    "config": sp.config or {},
+                    "priority": sp.priority,
+                }
+            )
+
+        return {"plugins": result}

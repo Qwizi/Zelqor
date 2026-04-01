@@ -1200,6 +1200,20 @@ impl DjangoClient {
         )
         .await
     }
+
+    /// Fetch the installed plugins for a server from Django.
+    ///
+    /// Called by the gateway after a gamenode registers so the plugin list can
+    /// be pushed over WebSocket (gamenodes never call Django directly).
+    pub async fn get_server_plugins(
+        &self,
+        server_id: &str,
+    ) -> Result<ServerPluginsResponse, DjangoError> {
+        self.get(&format!(
+            "/api/v1/internal/server-plugins/{server_id}/"
+        ))
+        .await
+    }
 }
 
 /// State of a system module as returned by Django.
@@ -1216,6 +1230,28 @@ pub struct ServerInfoResponse {
     pub server_uuid: String,
     pub is_verified: bool,
     pub region: String,
+}
+
+/// Response from Django's `/server-plugins/{id}/` endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerPluginsResponse {
+    pub plugins: Vec<ServerPluginEntry>,
+}
+
+/// A single plugin entry as returned by the Django internal API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerPluginEntry {
+    pub slug: String,
+    pub name: String,
+    pub version: String,
+    pub author: String,
+    pub hooks: Vec<String>,
+    pub permissions: Vec<String>,
+    pub min_engine_version: Option<String>,
+    pub wasm_url: Option<String>,
+    pub wasm_hash: String,
+    pub config: serde_json::Value,
+    pub priority: i32,
 }
 
 #[derive(Debug)]

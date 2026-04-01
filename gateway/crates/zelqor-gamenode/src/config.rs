@@ -19,6 +19,8 @@ pub struct NodeConfig {
     pub region: String,
     /// Maximum number of concurrent matches this node will host.
     pub max_matches: u32,
+    /// Local directory for caching downloaded plugin WASM files.
+    pub plugins_dir: String,
 }
 
 impl NodeConfig {
@@ -44,6 +46,8 @@ impl NodeConfig {
                 .unwrap_or_else(|_| "10".into())
                 .parse()
                 .unwrap_or(10),
+            plugins_dir: std::env::var("PLUGINS_DIR")
+                .unwrap_or_else(|_| "./plugins_cache".into()),
         }
     }
 
@@ -85,6 +89,7 @@ mod tests {
             server_name: "test".into(),
             region: "dev".into(),
             max_matches: 5,
+            plugins_dir: "./plugins_cache".into(),
         };
         let url = cfg.ws_url("my-token");
         assert!(url.starts_with("ws://"));
@@ -102,6 +107,7 @@ mod tests {
             server_name: "prod".into(),
             region: "eu-west".into(),
             max_matches: 20,
+            plugins_dir: "./plugins_cache".into(),
         };
         let url = cfg.ws_url("tok");
         assert!(url.starts_with("wss://"));
@@ -118,6 +124,7 @@ mod tests {
             server_name: "test".into(),
             region: "dev".into(),
             max_matches: 5,
+            plugins_dir: "./plugins_cache".into(),
         };
         assert_eq!(cfg.token_url(), "http://backend:8000/api/v1/oauth/token/");
     }

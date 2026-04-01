@@ -43,27 +43,31 @@ pub enum MatchResult {
 /// Each match runs in its own tokio task. `MatchRunner` holds a sender for
 /// each task so commands (player actions, connect/disconnect, stop) can be
 /// forwarded without blocking the gateway I/O loop.
+#[derive(Clone)]
 pub struct MatchRunner {
     /// match_id → sender for forwarding commands into the match task.
     matches: Arc<DashMap<String, mpsc::UnboundedSender<MatchCommand>>>,
     /// Shared plugin manager applied to every match on this node.
-    plugins: Arc<PluginManager>,
+    /// Wrapped in RwLock so plugins can be hot-swapped when the gateway
+    /// pushes a new PluginList (e.g. after reconnect).
+    plugins: Arc<std::sync::RwLock<Arc<PluginManager>>>,
 }
 
 impl MatchRunner {
     pub fn new() -> Self {
         Self {
             matches: Arc::new(DashMap::new()),
-            plugins: Arc::new(PluginManager::new()),
+            plugins: Arc::new(std::sync::RwLock::new(Arc::new(PluginManager::new()))),
         }
     }
 
-    /// Create a MatchRunner with a pre-configured PluginManager.
-    pub fn with_plugins(plugins: PluginManager) -> Self {
-        Self {
-            matches: Arc::new(DashMap::new()),
-            plugins: Arc::new(plugins),
-        }
+    /// Replace the plugin manager with a newly loaded one.
+    ///
+    /// Already-running matches keep using the previous manager (they hold
+    /// their own `Arc` clone); new matches started after this call will use
+    /// the updated plugins.
+    pub fn set_plugins(&self, plugins: PluginManager) {
+        *self.plugins.write().unwrap() = Arc::new(plugins);
     }
 
     /// Start a new match in a background task.
@@ -80,7 +84,7 @@ impl MatchRunner {
         self.matches.insert(match_id.clone(), cmd_tx);
 
         let matches = self.matches.clone();
-        let plugins = self.plugins.clone();
+        let plugins = self.plugins.read().unwrap().clone();
 
         tokio::spawn(async move {
             tracing::info!(match_id = %match_id, "Match started");

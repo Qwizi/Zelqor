@@ -21,7 +21,9 @@ import {
   Medal,
   MessageSquare,
   MoreHorizontal,
+  Package,
   Search,
+  Server,
   Settings,
   Shield,
   Shirt,
@@ -98,7 +100,11 @@ const ALL_ECONOMY_ITEMS: NavItem[] = [
   { href: "/crafting", label: "Kuźnia", icon: <Hammer size={20} /> },
 ];
 
-const ALL_OTHER_ITEMS: NavItem[] = [{ href: "/developers", label: "API", icon: <Code size={20} /> }];
+const ALL_OTHER_ITEMS: NavItem[] = [
+  { href: "/servers", label: "Serwery", icon: <Server size={20} /> },
+  { href: "/plugins", label: "Pluginy", icon: <Package size={20} /> },
+  { href: "/developers", label: "API", icon: <Code size={20} /> },
+];
 
 /** Filter nav items based on system module state. */
 function useFilteredNavItems() {

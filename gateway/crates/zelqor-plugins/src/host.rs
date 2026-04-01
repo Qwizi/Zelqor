@@ -1,7 +1,6 @@
 use crate::{
     ActionVerdict, CombatEvent, PlayerAction, PluginError, PluginHost, PluginManifest,
-    TickContext,
-    sandbox::SandboxConfig,
+    TickContext, sandbox::SandboxConfig,
 };
 use tracing::debug;
 use wasmtime::{Config, Engine, Module, Store};

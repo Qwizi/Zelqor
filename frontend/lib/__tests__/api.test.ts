@@ -61,7 +61,6 @@ import {
   getClans,
   getClanTreasury,
   getClanWars,
-  getConfig,
   getConversations,
   getDeck,
   getDeveloperApp,

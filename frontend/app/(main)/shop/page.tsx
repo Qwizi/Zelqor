@@ -303,7 +303,7 @@ function ShopItemCard({ item, onBuy }: { item: ShopItemOut; onBuy: (item: ShopIt
             </div>
             {hasDiscount && (
               <span className="text-[10px] text-muted-foreground line-through tabular-nums">
-                {item.original_gem_price!.toLocaleString("pl-PL")}
+                {item.original_gem_price?.toLocaleString("pl-PL")}
               </span>
             )}
           </div>

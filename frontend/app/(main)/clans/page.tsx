@@ -58,7 +58,7 @@ export default function ClansPage() {
         </div>
         <div className="px-4 md:px-0 space-y-2">
           {[...Array(5)].map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            <Skeleton key={`skel-${i}`} className="h-16 w-full rounded-xl" />
           ))}
         </div>
       </div>
@@ -208,7 +208,10 @@ export default function ClansPage() {
           {clansLoading ? (
             <div className="space-y-2">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-16 md:h-20 animate-pulse rounded-xl border border-border/30 bg-muted/20" />
+                <div
+                  key={`clan-row-${i}`}
+                  className="h-16 md:h-20 animate-pulse rounded-xl border border-border/30 bg-muted/20"
+                />
               ))}
             </div>
           ) : clans.length === 0 ? (
@@ -342,7 +345,7 @@ export default function ClansPage() {
           {invLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full rounded-xl" />
+                <Skeleton key={`skel-${i}`} className="h-16 w-full rounded-xl" />
               ))}
             </div>
           ) : invitations.length === 0 ? (
@@ -500,7 +503,7 @@ export default function ClansPage() {
           {lbLoading ? (
             <div className="space-y-2">
               {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full rounded-xl" />
+                <Skeleton key={`skel-${i}`} className="h-16 w-full rounded-xl" />
               ))}
             </div>
           ) : leaderboard.length === 0 ? (
