@@ -357,7 +357,9 @@ class CommunityServer(models.Model):
     # Server-level configuration overrides
     motd = models.TextField(blank=True, help_text="Message of the day shown to players on join")
     password_hash = models.CharField(max_length=128, blank=True, help_text="Empty = no password required")
-    tags = models.JSONField(default=list, blank=True, help_text='Server tags for filtering, e.g. ["competitive", "casual"]')
+    tags = models.JSONField(
+        default=list, blank=True, help_text='Server tags for filtering, e.g. ["competitive", "casual"]'
+    )
 
     # Networking
     connect_url = models.URLField(max_length=500, blank=True, help_text="WebSocket URL for direct connection")
@@ -566,7 +568,7 @@ class CustomGameMode(models.Model):
     config_overrides = models.JSONField(
         default=dict,
         blank=True,
-        help_text="JSON overrides for GameMode fields, e.g. {\"max_players\": 8, \"tick_interval_ms\": 500}",
+        help_text='JSON overrides for GameMode fields, e.g. {"max_players": 8, "tick_interval_ms": 500}',
     )
 
     # Required plugins for this game mode

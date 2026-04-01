@@ -616,10 +616,7 @@ class GameInternalController(ControllerBase):
                     "author": plugin.app.name if plugin.app else "",
                     "hooks": plugin.hooks or [],
                     "permissions": plugin.required_permissions or [],
-                    "min_engine_version": (
-                        version.min_engine_version if version else plugin.min_engine_version
-                    )
-                    or "",
+                    "min_engine_version": (version.min_engine_version if version else plugin.min_engine_version) or "",
                     "wasm_url": wasm_url,
                     "wasm_hash": wasm_hash,
                     "config": sp.config or {},

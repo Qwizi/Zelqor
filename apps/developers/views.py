@@ -412,10 +412,20 @@ class DeveloperController:
             raise HttpError(404, "Not found") from None
 
         simple_fields = [
-            "name", "description", "max_players", "is_public", "custom_config",
-            "max_concurrent_matches", "motd", "tags", "auto_start_match",
-            "min_players_to_start", "match_start_countdown_seconds",
-            "allow_spectators", "max_spectators", "allow_custom_game_modes",
+            "name",
+            "description",
+            "max_players",
+            "is_public",
+            "custom_config",
+            "max_concurrent_matches",
+            "motd",
+            "tags",
+            "auto_start_match",
+            "min_players_to_start",
+            "match_start_countdown_seconds",
+            "allow_spectators",
+            "max_spectators",
+            "allow_custom_game_modes",
         ]
         update_fields = []
         for field in simple_fields:
@@ -491,9 +501,7 @@ class DeveloperController:
     # -------------------------------------------------------------------------
 
     @route.post("/apps/{app_id}/servers/{server_id}/plugins/", response=ServerPluginOutSchema)
-    def install_plugin(
-        self, request, app_id: uuid.UUID, server_id: uuid.UUID, payload: ServerPluginInstallSchema
-    ):
+    def install_plugin(self, request, app_id: uuid.UUID, server_id: uuid.UUID, payload: ServerPluginInstallSchema):
         """Install a plugin on a community server."""
         app = self._get_app(request, app_id)
         try:
@@ -702,9 +710,20 @@ class DeveloperController:
 
         update_fields = []
         for field in [
-            "description", "long_description", "hooks", "category", "tags",
-            "homepage_url", "source_url", "license", "config_schema", "default_config",
-            "min_engine_version", "required_permissions", "is_deprecated", "deprecation_message",
+            "description",
+            "long_description",
+            "hooks",
+            "category",
+            "tags",
+            "homepage_url",
+            "source_url",
+            "license",
+            "config_schema",
+            "default_config",
+            "min_engine_version",
+            "required_permissions",
+            "is_deprecated",
+            "deprecation_message",
         ]:
             val = getattr(payload, field, None)
             if val is not None:
@@ -716,9 +735,7 @@ class DeveloperController:
         return PluginOutSchema.from_orm(plugin)
 
     @route.post("/apps/{app_id}/plugins/{slug}/dependencies/", response=PluginDependencyOutSchema)
-    def add_plugin_dependency(
-        self, request, app_id: uuid.UUID, slug: str, payload: PluginDependencyCreateSchema
-    ):
+    def add_plugin_dependency(self, request, app_id: uuid.UUID, slug: str, payload: PluginDependencyCreateSchema):
         """Add a dependency to a plugin."""
         app = self._get_app(request, app_id)
         try:
@@ -793,9 +810,7 @@ class PluginController:
         featured: bool | None = None,
     ):
         """List all published and approved plugins with filtering and sorting."""
-        qs = Plugin.objects.filter(
-            is_published=True, is_approved=True, is_deprecated=False
-        ).select_related("app")
+        qs = Plugin.objects.filter(is_published=True, is_approved=True, is_deprecated=False).select_related("app")
 
         if category:
             qs = qs.filter(category=category)
@@ -834,9 +849,11 @@ class PluginController:
     @route.get("/featured/", response=dict)
     def list_featured_plugins(self, request, limit: int = 10, offset: int = 0):
         """List featured plugins for the marketplace homepage."""
-        qs = Plugin.objects.filter(
-            is_published=True, is_approved=True, is_featured=True, is_deprecated=False
-        ).select_related("app").order_by("-install_count")
+        qs = (
+            Plugin.objects.filter(is_published=True, is_approved=True, is_featured=True, is_deprecated=False)
+            .select_related("app")
+            .order_by("-install_count")
+        )
         return paginate_qs(qs, limit, offset, schema=PluginListSchema)
 
     @route.get("/{slug}/", response=PluginOutSchema)
@@ -932,9 +949,7 @@ class CommunityServerController:
         if tag:
             qs = qs.filter(tags__contains=[tag])
         if search:
-            qs = qs.filter(
-                db_models.Q(name__icontains=search) | db_models.Q(description__icontains=search)
-            )
+            qs = qs.filter(db_models.Q(name__icontains=search) | db_models.Q(description__icontains=search))
         if has_slots:
             qs = qs.filter(current_player_count__lt=db_models.F("max_players"))
 

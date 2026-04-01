@@ -166,7 +166,16 @@ class PluginAdmin(ModelAdmin):
     list_filter_submit = True
     list_fullwidth = True
     search_fields = ("name", "slug", "app__name")
-    readonly_fields = ("id", "wasm_hash", "download_count", "install_count", "rating_sum", "rating_count", "created_at", "updated_at")
+    readonly_fields = (
+        "id",
+        "wasm_hash",
+        "download_count",
+        "install_count",
+        "rating_sum",
+        "rating_count",
+        "created_at",
+        "updated_at",
+    )
     inlines = [PluginVersionInline, PluginDependencyInline, PluginReviewInline]
 
     @display(description="Published", label=True)

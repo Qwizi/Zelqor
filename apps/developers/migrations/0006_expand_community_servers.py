@@ -8,7 +8,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("developers", "0005_deviceauthorizationcode"),
         ("game_config", "0035_seed_clan_war_game_mode"),
@@ -29,16 +28,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="communityserver",
             name="allowed_game_modes",
-            field=models.ManyToManyField(
-                blank=True, related_name="allowed_on_servers", to="game_config.gamemode"
-            ),
+            field=models.ManyToManyField(blank=True, related_name="allowed_on_servers", to="game_config.gamemode"),
         ),
         migrations.AddField(
             model_name="communityserver",
             name="auto_start_match",
-            field=models.BooleanField(
-                default=True, help_text="Auto-start match when enough players join"
-            ),
+            field=models.BooleanField(default=True, help_text="Auto-start match when enough players join"),
         ),
         migrations.AddField(
             model_name="communityserver",
@@ -96,16 +91,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="communityserver",
             name="motd",
-            field=models.TextField(
-                blank=True, help_text="Message of the day shown to players on join"
-            ),
+            field=models.TextField(blank=True, help_text="Message of the day shown to players on join"),
         ),
         migrations.AddField(
             model_name="communityserver",
             name="password_hash",
-            field=models.CharField(
-                blank=True, help_text="Empty = no password required", max_length=128
-            ),
+            field=models.CharField(blank=True, help_text="Empty = no password required", max_length=128),
         ),
         migrations.AddField(
             model_name="communityserver",
@@ -153,9 +144,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="plugin",
             name="default_config",
-            field=models.JSONField(
-                blank=True, default=dict, help_text="Default configuration values"
-            ),
+            field=models.JSONField(blank=True, default=dict, help_text="Default configuration values"),
         ),
         migrations.AddField(
             model_name="plugin",
@@ -195,9 +184,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="plugin",
             name="long_description",
-            field=models.TextField(
-                blank=True, help_text="Full markdown description for marketplace page"
-            ),
+            field=models.TextField(blank=True, help_text="Full markdown description for marketplace page"),
         ),
         migrations.AddField(
             model_name="plugin",
@@ -232,9 +219,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="pluginversion",
             name="is_yanked",
-            field=models.BooleanField(
-                default=False, help_text="Yanked versions cannot be installed"
-            ),
+            field=models.BooleanField(default=False, help_text="Yanked versions cannot be installed"),
         ),
         migrations.AddField(
             model_name="pluginversion",
@@ -310,9 +295,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "is_public",
-                    models.BooleanField(
-                        default=True, help_text="Visible in server browser"
-                    ),
+                    models.BooleanField(default=True, help_text="Visible in server browser"),
                 ),
                 ("is_active", models.BooleanField(default=True)),
                 ("play_count", models.PositiveIntegerField(default=0)),
